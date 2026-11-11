@@ -1,8 +1,16 @@
 [package]
 name = "typhon-ir-analyze"
+description = "Codon IR analyses (CFG, dominators, reaching defs, capture, side effects, global vars) and inlining/outlining utilities"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 typhon-common.workspace = true
+typhon-ir = { path = "../ir" }
+indexmap.workspace = true
+rustc-hash.workspace = true
+smallvec.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
