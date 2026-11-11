@@ -147,6 +147,11 @@ fn rewrite_re2_escapes(src: &str) -> String {
     let mut out = String::with_capacity(src.len());
     let mut it = src.chars();
     while let Some(c) = it.next() {
+        if c == '{' && !is_repetition(it.as_str()) {
+            // RE2 (like Python) treats a `{` not starting `{n}`/`{n,}`/`{n,m}` as literal.
+            out.push_str("\\{");
+            continue;
+        }
         if c != '\\' {
             out.push(c);
             continue;
@@ -162,6 +167,22 @@ fn rewrite_re2_escapes(src: &str) -> String {
         }
     }
     out
+}
+
+/// Whether `rest` (text after a `{`) completes a counted repetition `n}`, `n,}` or `n,m}`.
+fn is_repetition(rest: &str) -> bool {
+    let b = rest.as_bytes();
+    let digits = |i: usize| b[i..].iter().take_while(|c| c.is_ascii_digit()).count();
+    let n = digits(0);
+    if n == 0 {
+        return false;
+    }
+    let mut i = n;
+    if b.get(i) == Some(&b',') {
+        i += 1;
+        i += digits(i);
+    }
+    b.get(i) == Some(&b'}')
 }
 
 /// RE2::QuoteMeta.
@@ -341,6 +362,13 @@ mod tests {
 
     fn m(p: &str, f: SeqInt, a: SeqInt, s: &str) -> Option<(usize, usize)> {
         Pattern::compile(p.as_bytes(), f, false).match_at(a, s.as_bytes(), 0, s.len() as SeqInt).and_then(|g| g[0])
+    }
+
+    #[test]
+    fn literal_brace_like_re2() {
+        assert_eq!(m(r"{\s*a}", 0, ANCHOR_START, "{ a}"), Some((0, 4)));
+        assert_eq!(m(r"a{2}", 0, ANCHOR_START, "aa"), Some((0, 2)));
+        assert_eq!(m(r"a{,2}", 0, ANCHOR_START, "a{,2}"), Some((0, 5)));
     }
 
     #[test]
