@@ -9,6 +9,7 @@ members = [
     "crates/dsl",
     "crates/llvm",
     "crates/runtime",
+    "crates/omp",
     "crates/compiler",
     "crates/cli",
     "crates/testsuite",
@@ -22,6 +23,7 @@ default-members = [
     "crates/dsl",
     "crates/llvm",
     "crates/runtime",
+    "crates/omp",
     "crates/compiler",
     "crates/cli",
     "crates/testsuite",
@@ -45,6 +47,7 @@ typhon-parser = { path = "crates/parser" }
 typhon-dsl = { path = "crates/dsl" }
 typhon-llvm = { path = "crates/llvm" }
 typhon-runtime = { path = "crates/runtime" }
+typhon-omp = { path = "crates/omp" }
 typhon-compiler = { path = "crates/compiler" }
 
 # ---- core data structures ----
@@ -116,6 +119,10 @@ cblas-sys = "0.3"
 blas-src = { version = "0.14", default-features = false }
 glidesort = "0.1"            # numpy sort kernels (highway vqsort replacement)
 pulp = "0.22"                # portable SIMD (highway replacement)
+# OpenMP runtime (`__kmpc_*` / `omp_*` C ABI) implemented in Rust (replaces LLVM libomp)
+crossbeam-utils = "0.8"      # CachePadded, Backoff
+crossbeam-deque = "0.8"      # work-stealing task queues
+cc = "1.2"                   # tiny C shim for the variadic __kmpc_fork_call
 
 # Jupyter kernel (jupyter/) and the Python @codon.jit bridge (jit/) are intentionally
 # out of scope for the port (user decision): no pyo3 / jupyter-protocol / zeromq deps.
