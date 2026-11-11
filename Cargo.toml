@@ -132,6 +132,11 @@ pretty_assertions = "1.4"
 
 [profile.dev]
 opt-level = 1
+# Disk is tight on the dev machine and LLVM-linked test binaries are large.
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
 
 [profile.release]
 lto = "thin"
