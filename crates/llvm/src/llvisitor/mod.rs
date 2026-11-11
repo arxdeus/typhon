@@ -801,7 +801,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         ll::add_enum_attr(g, ll::RET_INDEX, "noundef", 0);
         ll::add_enum_attr(g, ll::RET_INDEX, "nonnull", 0);
         // AllocFnKind::Alloc | Uninitialized
-        ll::add_enum_attr(g, ll::FN_INDEX, "allockind", 1 | 4);
+        ll::add_enum_attr(g, ll::FN_INDEX, "allockind", 1 | 8);
         // allocsize(0): ElemSizeArg=0, NumElemsArg = none (0xFFFFFFFF)
         ll::add_enum_attr(g, ll::FN_INDEX, "allocsize", 0xFFFF_FFFF);
         ll::add_string_attr(g, ll::FN_INDEX, "alloc-family", "seq_alloc");
@@ -816,7 +816,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         ll::add_enum_attr(g, ll::RET_INDEX, "nonnull", 0);
         ll::add_enum_attr(g, 1, "allocptr", 0);
         // AllocFnKind::Realloc | Uninitialized
-        ll::add_enum_attr(g, ll::FN_INDEX, "allockind", 2 | 4);
+        ll::add_enum_attr(g, ll::FN_INDEX, "allockind", 2 | 8);
         ll::add_enum_attr(g, ll::FN_INDEX, "allocsize", (1u64 << 32) | 0xFFFF_FFFF);
         ll::add_string_attr(g, ll::FN_INDEX, "alloc-family", "seq_alloc");
         (t, g)
@@ -827,7 +827,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         let (t, g) = self.decl("seq_free", self.b.void(), &[self.b.ptr()]);
         ll::add_fn_attr(g, "nounwind");
         ll::add_enum_attr(g, 1, "allocptr", 0);
-        ll::add_enum_attr(g, ll::FN_INDEX, "allockind", 8);
+        ll::add_enum_attr(g, ll::FN_INDEX, "allockind", 4);
         ll::add_string_attr(g, ll::FN_INDEX, "alloc-family", "seq_alloc");
         (t, g)
     }
