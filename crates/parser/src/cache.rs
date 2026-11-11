@@ -332,6 +332,21 @@ impl Cache {
         };
         let root = TypeContext::new(&mut c, ".root");
         c.type_ctx = Rc::new(RefCell::new(root));
+        // `cache->findClass(name)` for `StaticType::getNonStaticType` (types need it to
+        // unify literals with their runtime classes, e.g. `Literal[64]` with `int`).
+        // Classes and their realizations are always visible in the root context.
+        let root = Rc::downgrade(&c.type_ctx);
+        let arena = Rc::downgrade(&c.types);
+        c.types.set_class_resolver(Some(Rc::new(move |name: &str| {
+            let (root, types) = (root.upgrade()?, arena.upgrade()?);
+            let f = root.try_borrow().ok()?.base.find(name)?;
+            let t = f.try_borrow().ok()?.ty?;
+            if !types.is(t, &stdlib().type_) {
+                return None;
+            }
+            let g = types.generic_type(types.get_class(t)?, 0)?;
+            types.get_class(g)
+        })));
         c
     }
 
