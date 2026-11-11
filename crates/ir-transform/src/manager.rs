@@ -345,8 +345,8 @@ mod lanes {
         let se1 = a(pm, Box::new(SideEffectAnalysis::new(cap.clone(), true)), &[&cap]);
         let se2 = a(pm, Box::new(SideEffectAnalysis::new(cap.clone(), false)), &[&cap]);
         let numpy = gated::numpy_expression_analysis(&rd, &se2).map(|an| a(pm, an, &[&rd, &se2]));
-        if let Some(np) = &numpy {
-            pr(pm, gated::numpy_inline(np), &[np], &[&se1, &se2, &rd, &cfg, &global, &cap]);
+        if let Some(p) = numpy.as_ref().and_then(|np| gated::numpy_inline(np).map(|p| (np, p))) {
+            pr(pm, p.1, &[p.0], &[&se1, &se2, &rd, &cfg, &global, &cap]);
         }
         pr(
             pm,
@@ -354,8 +354,8 @@ mod lanes {
             &[&se1, &rd, &global],
             &[&se1, &rd, &cfg, &global, &cap],
         );
-        if let Some(np) = &numpy {
-            pr(pm, gated::numpy_fusion(np, &se2), &[np, &se2], &[&se1, &rd, &cfg, &global, &cap]);
+        if let Some(p) = numpy.as_ref().and_then(|np| gated::numpy_fusion(np, &se2).map(|p| (np, p))) {
+            pr(pm, p.1, &[p.0, &se2], &[&se1, &rd, &cfg, &global, &cap]);
         }
         pr(pm, Box::new(GeneratorLoopFusion::new()), &[], &[&se1, &se2, &rd, &cfg, &global, &cap]);
         if let Some(l) = gated::numpy_lifetime(&rd) {
@@ -391,16 +391,16 @@ mod lanes {
         use typhon_ir::pass::{Analysis, Pass};
 
         pub(super) fn openmp() -> Option<Box<dyn Pass>> {
-            None
+            Some(Box::new(crate::parallel::OpenMPPass::new()))
         }
         pub(super) fn numpy_expression_analysis(_rd: &str, _se: &str) -> Option<Box<dyn Analysis>> {
             None
         }
-        pub(super) fn numpy_inline(_np: &str) -> Box<dyn Pass> {
-            unreachable!("numpy lane not landed")
+        pub(super) fn numpy_inline(_np: &str) -> Option<Box<dyn Pass>> {
+            None
         }
-        pub(super) fn numpy_fusion(_np: &str, _se: &str) -> Box<dyn Pass> {
-            unreachable!("numpy lane not landed")
+        pub(super) fn numpy_fusion(_np: &str, _se: &str) -> Option<Box<dyn Pass>> {
+            None
         }
         pub(super) fn numpy_lifetime(_rd: &str) -> Option<Box<dyn Pass>> {
             None
