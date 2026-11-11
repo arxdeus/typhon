@@ -6,3 +6,5 @@ TYPHON_STDLIB_DIR = { value = "../stdlib", relative = true, force = false }
 
 [build]
 target-dir = "target"
+# Incremental caches are large; disk on the dev machine is tight.
+incremental = false
