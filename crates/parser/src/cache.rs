@@ -209,6 +209,8 @@ pub struct CacheHooks {
     /// `Cache::parseCode` IR part (translate the typechecked `node` into a fresh series
     /// flow attached to main); returns the series flow value.
     pub translate_parsed: Option<Rc<dyn Fn(&mut Cache, StmtId) -> Result<typhon_ir::ValueId>>>,
+    /// `TranslateVisitor::apply(cache, stmts)` (whole-program translation; returns main).
+    pub translate_apply: Option<Rc<dyn Fn(&mut Cache, StmtId) -> Result<typhon_ir::FuncId>>>,
     /// `cache->compiler->isPluginLoaded/load` (plugin search in `getImportFile`).
     pub load_plugin: Option<Rc<dyn Fn(&mut Cache, &str) -> Result<bool>>>,
 }

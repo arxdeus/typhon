@@ -42,6 +42,7 @@ pub fn install_hooks(cache: &mut Cache) {
         v.translate_stmts(Some(s))
     }));
     cache.hooks.translate_parsed = Some(Rc::new(translate_parsed));
+    cache.hooks.translate_apply = Some(Rc::new(|cache: &mut Cache, s: StmtId| TranslateVisitor::apply(cache, s)));
 }
 
 /// IR part of `Cache::parseCode`: translate `node` into a fresh `parsed` series attached to

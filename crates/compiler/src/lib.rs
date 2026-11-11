@@ -165,7 +165,7 @@ impl Compiler {
         }
 
         let mut t4 = Timer::new("translate");
-        let tr = cache.hooks.translate.clone().ok_or_else(|| CompilerError::Io("translator not available".into()))?;
+        let tr = cache.hooks.translate_apply.clone().ok_or_else(|| CompilerError::Io("translator not available".into()))?;
         tr(&mut cache, typechecked)?;
         t4.log();
         drop(cache);
