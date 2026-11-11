@@ -21,7 +21,11 @@ fn main() {
     }
 
     // C libraries linked statically (bdwgc, liblzma) are not exported from a Rust
-    // cdylib by default. The C++ libcodonrt exports them, so re-export by pattern.
+    // cdylib by default, and only referenced archive members are linked. The C++
+    // libcodonrt exports them in full: link whole archives and re-export by pattern.
+    // (Search paths are emitted by bdwgc-alloc-sys / liblzma-sys build scripts.)
+    println!("cargo:rustc-link-lib=static:+whole-archive=gc");
+    println!("cargo:rustc-link-lib=static:+whole-archive=lzma");
     if target_os == "macos" {
         for pat in ["_GC_*", "_lzma_*"] {
             println!("cargo:rustc-cdylib-link-arg=-Wl,-exported_symbol,{pat}");
