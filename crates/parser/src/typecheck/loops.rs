@@ -283,8 +283,16 @@ impl<'a> TypecheckVisitor<'a> {
     /// `@par(num_threads=2, openmp="schedule(static)")` -> `for_par(num_threads=2, schedule="static")`.
     pub fn transform_for_decorator(&mut self, d: Option<ExprId>) -> Result<Option<ExprId>> {
         let Some(decorator) = d else { return Ok(None) };
+        // A re-visited ForStmt (e.g. after a delayed realization) already holds the
+        // transformed `for_par(...)` call: its Literal args (schedule/ordered/...) now live
+        // only in the callee's generics, so rebuilding the call would reset them to defaults.
         let call = self.cache.ast[decorator].kind.as_call().cloned();
         let callee = call.as_ref().and_then(|c| c.expr).unwrap_or(decorator);
+        let fp = mangle::func("std.openmp", "for_par");
+        let already = call.is_some() && self.cache.ast[callee].kind.as_id().is_some_and(|i| i.value.starts_with(&fp));
+        if already {
+            return Ok(Some(self.tr(decorator)?));
+        }
         let ci = self.tr(callee)?;
         let ok = self.cache.ast[ci].kind.as_id().is_some_and(|i| i.value.starts_with(&mangle::func("std.openmp", "for_par")));
         if !ok {
