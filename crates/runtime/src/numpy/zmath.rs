@@ -1,15 +1,25 @@
 //! Port of `codon/runtime/numpy/zmath.cpp`: single-precision complex math wrappers that
 //! sidestep ABI issues with `complex<float>` returns.
 
-use num_complex::Complex32;
+/// C `float _Complex` layout (two floats; HFA on aarch64, packed SSE on x86-64).
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct CFloatComplex {
+    re: f32,
+    im: f32,
+}
 
 macro_rules! cfunc {
-    ($($name:ident => $method:ident),* $(,)?) => {$(
+    ($($name:ident => $libm:ident),* $(,)?) => {
+        unsafe extern "C" {
+            $(fn $libm(z: CFloatComplex) -> CFloatComplex;)*
+        }
+        $(
         /// # Safety
         /// `z` must point to two writable floats.
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $name(r: f32, i: f32, z: *mut f32) {
-            let y = Complex32::new(r, i).$method();
+            let y = unsafe { $libm(CFloatComplex { re: r, im: i }) };
             unsafe {
                 *z = y.re;
                 *z.add(1) = y.im;
@@ -18,24 +28,24 @@ macro_rules! cfunc {
     )*};
 }
 
-// PORT-NOTE: num-complex formulas may differ from libc++ std::complex in the last ulp
-// and in some branch-cut / infinity special cases.
+// PORT-NOTE: C99 libm complex functions are used (instead of a Rust complex crate) so
+// branch cuts honour signed zeros like libc++ `std::complex`, which C++ wraps.
 cfunc! {
-    cnp_cexpf => exp,
-    cnp_clogf => ln,
-    cnp_csqrtf => sqrt,
-    cnp_ccoshf => cosh,
-    cnp_csinhf => sinh,
-    cnp_ctanhf => tanh,
-    cnp_cacoshf => acosh,
-    cnp_casinhf => asinh,
-    cnp_catanhf => atanh,
-    cnp_ccosf => cos,
-    cnp_csinf => sin,
-    cnp_ctanf => tan,
-    cnp_cacosf => acos,
-    cnp_casinf => asin,
-    cnp_catanf => atan,
+    cnp_cexpf => cexpf,
+    cnp_clogf => clogf,
+    cnp_csqrtf => csqrtf,
+    cnp_ccoshf => ccoshf,
+    cnp_csinhf => csinhf,
+    cnp_ctanhf => ctanhf,
+    cnp_cacoshf => cacoshf,
+    cnp_casinhf => casinhf,
+    cnp_catanhf => catanhf,
+    cnp_ccosf => ccosf,
+    cnp_csinf => csinf,
+    cnp_ctanf => ctanf,
+    cnp_cacosf => cacosf,
+    cnp_casinf => casinf,
+    cnp_catanf => catanf,
 }
 
 #[cfg(test)]
@@ -73,5 +83,18 @@ mod tests {
         let (r, i) = call(cnp_cacosf, 0.2, 0.1);
         assert!(close(call(cnp_ccosf, r, i), (0.2, 0.1)));
         assert!(close(call(cnp_ctanf, 0.0, 0.0), (0.0, 0.0)));
+    }
+}
+
+#[cfg(test)]
+mod branch_cut_tests {
+    use super::*;
+    #[test]
+    fn asin_acos_real_above_one_positive_zero_imag() {
+        let mut z = [0f32; 2];
+        unsafe { cnp_casinf(2.0, 0.0, z.as_mut_ptr()) };
+        assert!(z[1] > 0.0);
+        unsafe { cnp_cacosf(2.0, 0.0, z.as_mut_ptr()) };
+        assert!(z[1] < 0.0);
     }
 }
