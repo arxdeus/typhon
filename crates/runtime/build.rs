@@ -6,7 +6,12 @@ fn main() {
     println!("cargo:rerun-if-env-changed=CODON_LIBOMP_DIR");
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
-    if env::var_os("CARGO_FEATURE_OPENMP").is_some() {
+    let omp_rust = env::var_os("CARGO_FEATURE_OMP_RUST").is_some();
+    let omp_libomp = env::var_os("CARGO_FEATURE_OPENMP_LIBOMP").is_some();
+    if omp_rust && omp_libomp {
+        panic!("features `omp-rust` and `openmp-libomp` are mutually exclusive");
+    }
+    if omp_libomp {
         let dir = env::var("CODON_LIBOMP_DIR")
             .unwrap_or_else(|_| "/Users/mind/orca/toolchains/llvm-codon/lib".to_string());
         println!("cargo:rustc-link-search=native={dir}");
@@ -26,12 +31,19 @@ fn main() {
     // (Search paths are emitted by bdwgc-alloc-sys / liblzma-sys build scripts.)
     println!("cargo:rustc-link-lib=static:+whole-archive=gc");
     println!("cargo:rustc-link-lib=static:+whole-archive=lzma");
+    // The Rust OpenMP runtime (typhon-omp rlib; its C shim is bundled whole-archive
+    // by typhon-omp's build script) is exported by pattern as well.
     if target_os == "macos" {
-        for pat in ["_GC_*", "_lzma_*"] {
+        let omp_pats: &[&str] = if omp_rust { &["___kmpc_*", "_omp_*"] } else { &[] };
+        for pat in ["_GC_*", "_lzma_*"].iter().chain(omp_pats) {
             println!("cargo:rustc-cdylib-link-arg=-Wl,-exported_symbol,{pat}");
         }
     } else if target_os == "linux" {
         println!("cargo:rustc-cdylib-link-arg=-Wl,--export-dynamic-symbol=GC_*");
         println!("cargo:rustc-cdylib-link-arg=-Wl,--export-dynamic-symbol=lzma_*");
+        if omp_rust {
+            println!("cargo:rustc-cdylib-link-arg=-Wl,--export-dynamic-symbol=__kmpc_*");
+            println!("cargo:rustc-cdylib-link-arg=-Wl,--export-dynamic-symbol=omp_*");
+        }
     }
 }

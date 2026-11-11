@@ -27,9 +27,10 @@ pub(crate) fn flags() -> i32 {
  */
 
 type GcSetupCallback = unsafe extern "C" fn(*mut gc::GC_stack_base) -> c_int;
+#[cfg_attr(feature = "omp-rust", allow(dead_code))]
 type GcRootsCallback = unsafe extern "C" fn(*mut c_void, *mut c_void);
 
-#[cfg(feature = "openmp")]
+#[cfg(feature = "openmp-libomp")]
 unsafe extern "C" {
     // Provided by the GC-patched libomp: registers bdwgc thread/roots callbacks so
     // @par worker threads allocate safely.
@@ -74,14 +75,22 @@ pub fn gc_init() {
         gc::GC_init();
         gc::GC_set_warn_proc(Some(gc::GC_ignore_warn_proc));
         gc::GC_set_finalizer_notifier(Some(run_finalizers));
-        #[cfg(feature = "openmp")]
+        #[cfg(feature = "omp-rust")]
+        // Same C ABI; typhon-omp spells the stack-base pointer as `void *`.
+        typhon_omp::__kmpc_set_gc_callbacks(
+            core::mem::transmute::<GcSetupCallback, typhon_omp::gc::GcSetupCallback>(gc::GC_get_stack_base),
+            core::mem::transmute::<GcSetupCallback, typhon_omp::gc::GcSetupCallback>(register_thread_shim),
+            gc::GC_add_roots,
+            gc::GC_remove_roots,
+        );
+        #[cfg(feature = "openmp-libomp")]
         __kmpc_set_gc_callbacks(
             gc::GC_get_stack_base,
             register_thread_shim,
             gc::GC_add_roots,
             gc::GC_remove_roots,
         );
-        #[cfg(not(feature = "openmp"))]
+        #[cfg(not(any(feature = "omp-rust", feature = "openmp-libomp")))]
         let _ = (register_thread_shim as GcSetupCallback, gc::GC_add_roots as GcRootsCallback);
     });
 }

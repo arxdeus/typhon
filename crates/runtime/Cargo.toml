@@ -11,15 +11,19 @@ name = "codonrt"
 crate-type = ["rlib", "staticlib", "cdylib"]
 
 [features]
-default = ["openmp", "blas"]
-# Link the GC-patched LLVM libomp (provides __kmpc_* / omp_* and __kmpc_set_gc_callbacks).
-openmp = []
+default = ["omp-rust", "blas"]
+# OpenMP runtime ABI (__kmpc_* / omp_* / __kmpc_set_gc_callbacks) from the Rust
+# typhon-omp crate, linked into and exported from libcodonrt.
+omp-rust = ["dep:typhon-omp"]
+# Fallback: link the external GC-patched LLVM libomp instead (do not combine with omp-rust).
+openmp-libomp = []
 # Link a BLAS/LAPACK: Accelerate on macOS, OpenBLAS (ILP64, `64_` suffix) on Linux.
 blas = []
 openblas = ["dep:openblas-src"]
 
 [dependencies]
 libc.workspace = true
+typhon-omp = { workspace = true, optional = true }
 bdwgc-alloc-sys = { version = "0.6.16", default-features = false, features = ["cmake"] }
 regex = "1.13.1"
 regex-automata = "0.4.18"
