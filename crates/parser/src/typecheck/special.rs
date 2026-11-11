@@ -1,225 +1,162 @@
-//! Port of codon/parser/visitors/typecheck/special.cpp (phase-3 lane: replace STUB bodies).
+//! Port of codon/parser/visitors/typecheck/special.cpp.
+//!
+//! Split into submodules (all `impl TypecheckVisitor` blocks):
+//! * [`vtables`]: `vTableSignature`, `valueMethodId`, `prepareVTables`;
+//! * [`generate`]: `generateSpecialAst` and the `generate*AST` helpers;
+//! * [`transform`]: `transform*` handlers of special calls (`isinstance`, `hasattr`, ...);
+//! * [`static_fns`]: `std.internal.static` handlers (`fn_can_call`, `vars`, ...);
+//! * [`static_loops`]: `populate*Loop` helpers of static `for` loops.
 
-use typhon_common::Result;
+mod generate;
+mod prepare;
+mod static_fns;
+mod static_loops;
+mod transform;
+mod transform2;
+mod union;
+mod vtables;
 
-use super::{TypecheckVisitor, not_ported};
+use typhon_common::mangle;
+
+use super::TypecheckVisitor;
+use crate::ast::{
+    AssignStmt, BinaryExpr, BoolExpr, CallArg, CallExpr, DotExpr, ExprStmt, IdExpr, IfStmt, IndexExpr, IntExpr, NoneExpr,
+    ReturnStmt, StringExpr, SuiteStmt, TupleExpr,
+};
 use crate::ids::{ExprId, StmtId, TypeId};
 
+/// `getMangledMethod("", cls, method)`.
+pub(super) fn mm(cls: &str, method: &str) -> String {
+    mangle::mangled_method("", cls, method, 0, 0)
+}
+
 impl<'a> TypecheckVisitor<'a> {
-    /// `prepareVTables()`: build virtual tables for all realized polymorphic classes.
-    pub fn prepare_vtables(&mut self) -> Result<()> {
-        Ok(()) // STUB(special.cpp)
+    // ------------------------------------------------------------------
+    // Node construction shorthands (private to the special lane; `sp_` prefix avoids
+    // clashes with helpers of other lanes in the same inherent impl namespace).
+    // ------------------------------------------------------------------
+
+    pub(super) fn sp_id(&mut self, s: &str) -> ExprId {
+        self.n_expr(IdExpr::new(s))
     }
-    /// `vTableSignature(fn)`.
-    pub fn vtable_signature(&self, _f: TypeId) -> String {
-        String::new() // STUB(special.cpp)
+    pub(super) fn sp_int(&mut self, v: i64) -> ExprId {
+        self.n_expr(IntExpr::new(v))
     }
-    /// `valueMethodId(method)`.
-    pub fn value_method_id(&mut self, _method: &str) -> usize {
-        0 // STUB(special.cpp)
+    pub(super) fn sp_str(&mut self, s: &str) -> ExprId {
+        self.n_expr(StringExpr::new(s, ""))
     }
-    /// `generateSpecialAst(fn)`: body for compiler-generated functions (None if regular).
-    pub fn generate_special_ast(&mut self, _f: TypeId) -> Result<Option<StmtId>> {
-        Ok(None) // STUB(special.cpp)
+    pub(super) fn sp_bool(&mut self, v: bool) -> ExprId {
+        self.n_expr(BoolExpr { value: v })
     }
-    /// `transform_named_tuple(call)` (special.cpp builtin handler).
-    pub fn transform_named_tuple(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_named_tuple", self.src)) // STUB(special.cpp)
+    pub(super) fn sp_dot(&mut self, e: ExprId, m: &str) -> ExprId {
+        self.n_expr(DotExpr { expr: Some(e), member: m.into() })
     }
-    /// `transform_functools_partial(call)` (special.cpp builtin handler).
-    pub fn transform_functools_partial(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_functools_partial", self.src)) // STUB(special.cpp)
+    pub(super) fn sp_index(&mut self, e: ExprId, i: ExprId) -> ExprId {
+        self.n_expr(IndexExpr { expr: Some(e), index: Some(i) })
     }
-    /// `transform_super_f(call)` (special.cpp builtin handler).
-    pub fn transform_super_f(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_super_f", self.src)) // STUB(special.cpp)
+    pub(super) fn sp_tuple(&mut self, items: Vec<ExprId>) -> ExprId {
+        self.n_expr(TupleExpr { items })
     }
-    /// `transform_ptr(call)` (special.cpp builtin handler).
-    pub fn transform_ptr(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_ptr", self.src)) // STUB(special.cpp)
+    pub(super) fn sp_bin(&mut self, l: ExprId, op: &str, r: ExprId) -> ExprId {
+        self.n_expr(BinaryExpr { op: op.into(), lexpr: Some(l), rexpr: Some(r), in_place: false })
     }
-    /// `transform_array(call)` (special.cpp builtin handler).
-    pub fn transform_array(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_array", self.src)) // STUB(special.cpp)
+    /// `N<CallExpr>(f, args...)` with positional arguments.
+    pub(super) fn sp_call(&mut self, f: ExprId, args: Vec<ExprId>) -> ExprId {
+        let items = args.into_iter().map(|a| self.cache.ast.call_arg("", Some(a))).collect();
+        self.sp_call_args(f, items)
     }
-    /// `transform_is_instance(call)` (special.cpp builtin handler).
-    pub fn transform_is_instance(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_is_instance", self.src)) // STUB(special.cpp)
+    /// `N<CallExpr>(f, std::vector<CallArg>)`.
+    pub(super) fn sp_call_args(&mut self, f: ExprId, items: Vec<CallArg>) -> ExprId {
+        self.n_expr(CallExpr { expr: Some(f), items, ordered: false, partial: false })
     }
-    /// `transform_static_len(call)` (special.cpp builtin handler).
-    pub fn transform_static_len(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_len", self.src)) // STUB(special.cpp)
+    /// `typed_argument(type)`: a done `NoneExpr` placeholder of a given type.
+    pub(super) fn sp_typed(&mut self, t: TypeId) -> ExprId {
+        let v = self.n_expr(NoneExpr);
+        self.set_type(v, t);
+        self.set_done_expr(v);
+        v
     }
-    /// `transform_get_attr(call)` (special.cpp builtin handler).
-    pub fn transform_get_attr(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_get_attr", self.src)) // STUB(special.cpp)
+    /// A `NoneExpr` placeholder with a type (not marked done).
+    pub(super) fn sp_none_of(&mut self, t: TypeId) -> ExprId {
+        let v = self.n_expr(NoneExpr);
+        self.set_type(v, t);
+        v
     }
-    /// `transform_set_attr(call)` (special.cpp builtin handler).
-    pub fn transform_set_attr(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_set_attr", self.src)) // STUB(special.cpp)
+    /// `Literal[kind]` type annotation.
+    pub(super) fn sp_literal(&mut self, kind: &str) -> ExprId {
+        let l = self.sp_id("Literal");
+        let k = self.sp_id(kind);
+        self.sp_index(l, k)
     }
-    /// `transform_compile_error(call)` (special.cpp builtin handler).
-    pub fn transform_compile_error(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_compile_error", self.src)) // STUB(special.cpp)
+    pub(super) fn sp_return(&mut self, e: Option<ExprId>) -> StmtId {
+        self.n_stmt(ReturnStmt { expr: e })
     }
-    /// `transform_tuple_fn(call)` (special.cpp builtin handler).
-    pub fn transform_tuple_fn(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_tuple_fn", self.src)) // STUB(special.cpp)
+    pub(super) fn sp_expr_stmt(&mut self, e: ExprId) -> StmtId {
+        self.n_stmt(ExprStmt { expr: Some(e) })
     }
-    /// `transform_type_fn(call)` (special.cpp builtin handler).
-    pub fn transform_type_fn(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_type_fn", self.src)) // STUB(special.cpp)
+    pub(super) fn sp_suite(&mut self, items: Vec<StmtId>) -> StmtId {
+        self.n_stmt(SuiteStmt { items })
     }
-    /// `transform_realized_fn(call)` (special.cpp builtin handler).
-    pub fn transform_realized_fn(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_realized_fn", self.src)) // STUB(special.cpp)
+    pub(super) fn sp_if(&mut self, cond: Option<ExprId>, s: StmtId) -> StmtId {
+        let s = self.cache.ast.wrap_suite(Some(s));
+        self.n_stmt(IfStmt { cond, if_suite: s, else_suite: None })
     }
-    /// `transform_static_print_fn(call)` (special.cpp builtin handler).
-    pub fn transform_static_print_fn(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_print_fn", self.src)) // STUB(special.cpp)
+    pub(super) fn sp_assign(&mut self, lhs: ExprId, rhs: Option<ExprId>, ty: Option<ExprId>) -> StmtId {
+        self.n_stmt(AssignStmt { lhs: Some(lhs), rhs, type_expr: ty, update: Default::default() })
     }
-    /// `transform_has_rtti_fn(call)` (special.cpp builtin handler).
-    pub fn transform_has_rtti_fn(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_has_rtti_fn", self.src)) // STUB(special.cpp)
+
+    // ------------------------------------------------------------------
+    // Accessors
+    // ------------------------------------------------------------------
+
+    /// Copy of a `CallExpr` node.
+    pub(super) fn sp_callx(&self, e: ExprId) -> CallExpr {
+        self.cache.ast[e].kind.as_call().expect("expected a call").clone()
     }
-    /// `transform_static_fn_can_call(call)` (special.cpp builtin handler).
-    pub fn transform_static_fn_can_call(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_fn_can_call", self.src)) // STUB(special.cpp)
+    /// `expr->getExpr()->getType()` of a call.
+    pub(super) fn sp_callee_type(&self, e: ExprId) -> TypeId {
+        let c = self.cache.ast[e].kind.as_call().expect("expected a call");
+        self.ety(c.expr.expect("call without callee"))
     }
-    /// `transform_static_fn_arg_has_type(call)` (special.cpp builtin handler).
-    pub fn transform_static_fn_arg_has_type(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_fn_arg_has_type", self.src)) // STUB(special.cpp)
+    /// `(*expr)[i].getExpr()`.
+    pub(super) fn sp_arg(&self, e: ExprId, i: usize) -> ExprId {
+        self.cache.ast[e].kind.as_call().expect("expected a call").items[i].value.expect("missing call argument")
     }
-    /// `transform_static_fn_arg_get_type(call)` (special.cpp builtin handler).
-    pub fn transform_static_fn_arg_get_type(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_fn_arg_get_type", self.src)) // STUB(special.cpp)
+    /// `(*expr)[i].value = v`.
+    pub(super) fn sp_set_arg(&mut self, e: ExprId, i: usize, v: ExprId) {
+        self.cache.ast[e].kind.as_call_mut().expect("expected a call").items[i].value = Some(v);
     }
-    /// `transform_static_fn_args(call)` (special.cpp builtin handler).
-    pub fn transform_static_fn_args(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_fn_args", self.src)) // STUB(special.cpp)
+    /// `if (auto u = expr->getType()->getUnbound()) u->staticKind = kind;`
+    pub(super) fn sp_set_static_kind(&mut self, e: ExprId, kind: crate::types::LiteralKind) {
+        let types = self.types();
+        if let Some(t) = self.expr_type(e)
+            && let Some(u) = types.get_unbound(t)
+        {
+            types.with_link_mut(u, |l| l.static_kind = kind);
+        }
     }
-    /// `transform_static_fn_has_default(call)` (special.cpp builtin handler).
-    pub fn transform_static_fn_has_default(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_fn_has_default", self.src)) // STUB(special.cpp)
+    /// Parameters of the `FunctionStmt` behind a function type.
+    pub(super) fn sp_fn_params(&self, f: TypeId) -> Vec<crate::ast::Param> {
+        let aid = self.cache.types.func_ast_id(f);
+        self.cache.ast[aid].kind.as_function().map(|f| f.items.clone()).unwrap_or_default()
     }
-    /// `transform_static_fn_get_default(call)` (special.cpp builtin handler).
-    pub fn transform_static_fn_get_default(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_fn_get_default", self.src)) // STUB(special.cpp)
+    /// Name of the `FunctionStmt` behind a function type (`type->ast->name`).
+    pub(super) fn sp_fn_ast_name(&self, f: TypeId) -> String {
+        let aid = self.cache.types.func_ast_id(f);
+        self.cache.ast[aid].kind.as_function().map(|f| f.name.clone()).unwrap_or_default()
     }
-    /// `transform_static_fn_wrap_call_args(call)` (special.cpp builtin handler).
-    pub fn transform_static_fn_wrap_call_args(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_fn_wrap_call_args", self.src)) // STUB(special.cpp)
+    /// `getClass(t)->hasRTTI()`.
+    pub(super) fn sp_has_rtti(&self, t: TypeId) -> bool {
+        let Some(cls) = self.cache.get_class_by_type(t) else { return false };
+        let cname = cls.ast.and_then(|a| self.cache.ast[a].kind.as_class().map(|c| c.name.clone())).unwrap_or_default();
+        cls.has_rtti(&cname)
     }
-    /// `transform_static_vars(call)` (special.cpp builtin handler).
-    pub fn transform_static_vars(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_vars", self.src)) // STUB(special.cpp)
+    /// `realizedName()` shorthand.
+    pub(super) fn sp_rn(&self, t: TypeId) -> String {
+        self.cache.types.realized_name(t)
     }
-    /// `transform_static_children(call)` (special.cpp builtin handler).
-    pub fn transform_static_children(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_children", self.src)) // STUB(special.cpp)
-    }
-    /// `transform_static_tuple_type(call)` (special.cpp builtin handler).
-    pub fn transform_static_tuple_type(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_tuple_type", self.src)) // STUB(special.cpp)
-    }
-    /// `transform_static_format(call)` (special.cpp builtin handler).
-    pub fn transform_static_format(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_format", self.src)) // STUB(special.cpp)
-    }
-    /// `transform_static_int_to_str(call)` (special.cpp builtin handler).
-    pub fn transform_static_int_to_str(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_int_to_str", self.src)) // STUB(special.cpp)
-    }
-    /// `transform_static_platform(call)` (special.cpp builtin handler).
-    pub fn transform_static_platform(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_platform", self.src)) // STUB(special.cpp)
-    }
-    /// `transform_static_contains(call)` (special.cpp builtin handler).
-    pub fn transform_static_contains(&mut self, _call: ExprId) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_static_contains", self.src)) // STUB(special.cpp)
-    }
-    /// `transformSuper()`.
-    pub fn transform_super(&mut self) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_super", self.src)) // STUB(special.cpp)
-    }
-    /// `transformHasAttr(call, allowStatic)`.
-    pub fn transform_has_attr(&mut self, _call: ExprId, _allow: bool) -> Result<Option<ExprId>> {
-        Err(not_ported("special::transform_has_attr", self.src)) // STUB(special.cpp)
-    }
-    /// `generate_function_call_internal_ast(fn)`: generated suite for a special function.
-    pub fn generate_function_call_internal_ast(&mut self, _f: TypeId) -> Result<Option<StmtId>> {
-        Err(not_ported("special::generate_function_call_internal_ast", self.src)) // STUB(special.cpp)
-    }
-    /// `generate_union_new_ast(fn)`: generated suite for a special function.
-    pub fn generate_union_new_ast(&mut self, _f: TypeId) -> Result<Option<StmtId>> {
-        Err(not_ported("special::generate_union_new_ast", self.src)) // STUB(special.cpp)
-    }
-    /// `generate_union_tag_ast(fn)`: generated suite for a special function.
-    pub fn generate_union_tag_ast(&mut self, _f: TypeId) -> Result<Option<StmtId>> {
-        Err(not_ported("special::generate_union_tag_ast", self.src)) // STUB(special.cpp)
-    }
-    /// `generate_union_dispatch_ast(fn)`: generated suite for a special function.
-    pub fn generate_union_dispatch_ast(&mut self, _f: TypeId) -> Result<Option<StmtId>> {
-        Err(not_ported("special::generate_union_dispatch_ast", self.src)) // STUB(special.cpp)
-    }
-    /// `generate_union_iterator_ast(fn)`: generated suite for a special function.
-    pub fn generate_union_iterator_ast(&mut self, _f: TypeId) -> Result<Option<StmtId>> {
-        Err(not_ported("special::generate_union_iterator_ast", self.src)) // STUB(special.cpp)
-    }
-    /// `generate_union_binary_ast(fn)`: generated suite for a special function.
-    pub fn generate_union_binary_ast(&mut self, _f: TypeId) -> Result<Option<StmtId>> {
-        Err(not_ported("special::generate_union_binary_ast", self.src)) // STUB(special.cpp)
-    }
-    /// `generate_named_keys_ast(fn)`: generated suite for a special function.
-    pub fn generate_named_keys_ast(&mut self, _f: TypeId) -> Result<Option<StmtId>> {
-        Err(not_ported("special::generate_named_keys_ast", self.src)) // STUB(special.cpp)
-    }
-    /// `generate_tuple_mul_ast(fn)`: generated suite for a special function.
-    pub fn generate_tuple_mul_ast(&mut self, _f: TypeId) -> Result<Option<StmtId>> {
-        Err(not_ported("special::generate_tuple_mul_ast", self.src)) // STUB(special.cpp)
-    }
-    /// `generate_type_info_init_ast(fn)`: generated suite for a special function.
-    pub fn generate_type_info_init_ast(&mut self, _f: TypeId) -> Result<Option<StmtId>> {
-        Err(not_ported("special::generate_type_info_init_ast", self.src)) // STUB(special.cpp)
-    }
-    /// `generate_super_dispatch_ast(fn)`: generated suite for a special function.
-    pub fn generate_super_dispatch_ast(&mut self, _f: TypeId) -> Result<Option<StmtId>> {
-        Err(not_ported("special::generate_super_dispatch_ast", self.src)) // STUB(special.cpp)
-    }
-    /// `populate_static_tuple_loop(iter, vars)`: statements for each static loop iteration.
-    pub fn populate_static_tuple_loop(&mut self, _iter: ExprId, _vars: &[String]) -> Result<Vec<StmtId>> {
-        Err(not_ported("special::populate_static_tuple_loop", self.src)) // STUB(special.cpp)
-    }
-    /// `populate_simple_static_range_loop(iter, vars)`: statements for each static loop iteration.
-    pub fn populate_simple_static_range_loop(&mut self, _iter: ExprId, _vars: &[String]) -> Result<Vec<StmtId>> {
-        Err(not_ported("special::populate_simple_static_range_loop", self.src)) // STUB(special.cpp)
-    }
-    /// `populate_static_range_loop(iter, vars)`: statements for each static loop iteration.
-    pub fn populate_static_range_loop(&mut self, _iter: ExprId, _vars: &[String]) -> Result<Vec<StmtId>> {
-        Err(not_ported("special::populate_static_range_loop", self.src)) // STUB(special.cpp)
-    }
-    /// `populate_static_fn_overloads_loop(iter, vars)`: statements for each static loop iteration.
-    pub fn populate_static_fn_overloads_loop(&mut self, _iter: ExprId, _vars: &[String]) -> Result<Vec<StmtId>> {
-        Err(not_ported("special::populate_static_fn_overloads_loop", self.src)) // STUB(special.cpp)
-    }
-    /// `populate_static_enumerate_loop(iter, vars)`: statements for each static loop iteration.
-    pub fn populate_static_enumerate_loop(&mut self, _iter: ExprId, _vars: &[String]) -> Result<Vec<StmtId>> {
-        Err(not_ported("special::populate_static_enumerate_loop", self.src)) // STUB(special.cpp)
-    }
-    /// `populate_static_vars_loop(iter, vars)`: statements for each static loop iteration.
-    pub fn populate_static_vars_loop(&mut self, _iter: ExprId, _vars: &[String]) -> Result<Vec<StmtId>> {
-        Err(not_ported("special::populate_static_vars_loop", self.src)) // STUB(special.cpp)
-    }
-    /// `populate_static_methods_loop(iter, vars)`: statements for each static loop iteration.
-    pub fn populate_static_methods_loop(&mut self, _iter: ExprId, _vars: &[String]) -> Result<Vec<StmtId>> {
-        Err(not_ported("special::populate_static_methods_loop", self.src)) // STUB(special.cpp)
-    }
-    /// `populate_static_var_types_loop(iter, vars)`: statements for each static loop iteration.
-    pub fn populate_static_var_types_loop(&mut self, _iter: ExprId, _vars: &[String]) -> Result<Vec<StmtId>> {
-        Err(not_ported("special::populate_static_var_types_loop", self.src)) // STUB(special.cpp)
-    }
-    /// `populate_static_heterogenous_tuple_loop(iter, vars)`: statements for each static loop iteration.
-    pub fn populate_static_heterogenous_tuple_loop(&mut self, _iter: ExprId, _vars: &[String]) -> Result<Vec<StmtId>> {
-        Err(not_ported("special::populate_static_heterogenous_tuple_loop", self.src)) // STUB(special.cpp)
+    /// `cache->generatedTupleNames[id]`.
+    pub(super) fn sp_tuple_names(&self, id: i64) -> Vec<String> {
+        self.cache.types.generated_tuple_names.borrow().get(id as usize).cloned().unwrap_or_default()
     }
 }
