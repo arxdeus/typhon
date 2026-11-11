@@ -1,8 +1,18 @@
 [package]
 name = "typhon-ir-transform"
+description = "Codon IR transformations and the pass manager (port of codon/cir/transform/**)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 typhon-common.workspace = true
+typhon-ir = { path = "../ir" }
+typhon-ir-analyze = { path = "../ir-analyze" }
+indexmap.workspace = true
+rustc-hash.workspace = true
+smallvec.workspace = true
+once_cell.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

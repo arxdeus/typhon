@@ -1,7 +1,15 @@
 # Typhon: Rust port of the Codon compiler
 
 `typhon/` is a self-contained Cargo workspace containing a Rust translation of the
-Codon compiler sources (`../codon/**`, `../jit`, `../jupyter`, `../test/*.cpp`).
+Codon compiler sources (`../codon/**`, `../test/*.cpp`).
+
+**Scope (user decision):** only the basic JIT used by `typhon run` (compile the whole
+program into an ORC JIT and execute `main`, i.e. `LLVMVisitor::run` + `compiler/engine`)
+is ported. NOT ported: the incremental JIT / REPL (`codon jit` mode, `compiler/jit.cpp`
+`JIT::init/compile/execute`), the Jupyter kernel (`../jupyter`, `codon/util/jupyter.*`)
+and the Python `@codon.jit` bridge (`../jit`, `jit_extern.h`, `JIT::executePython`).
+Everything else (`run`, `build` to exe/obj/llvm/bc/lib/pyext, `doc`, plugins/DSL,
+all IR passes, GPU, OpenMP, runtime) is in scope.
 Nothing outside `typhon/` is modified. The Codon-language standard library
 (`../stdlib/**/*.codon`) and the `.codon` test programs (`../test/**`) are *inputs*
 of the compiler, not compiler source, so they are reused in place (read-only).
@@ -20,10 +28,8 @@ typhon-common        codon/util, compiler/error, compiler/options, parser/common
   │     └── typhon-parser       codon/parser/** (ast, types, peg grammar, visitors, cache, ctx,
   │                             match, capi)
   ├── typhon-dsl            codon/dsl/* (DSL trait, PluginManager)    -> parser, ir-transform, llvm
-  ├── typhon-compiler       codon/compiler/{compiler,jit,error}       -> everything above
-  ├── typhon-cli  (bin `typhon`)   codon/app/main.cpp
-  ├── typhon-jupyter        jupyter/*, codon/util/jupyter.*
-  ├── typhon-pyjit          jit/codon/*.pyx|pxd (pyo3 extension) + decorator.py (kept as Python)
+  ├── typhon-compiler       codon/compiler/{compiler,error}            -> everything above
+  ├── typhon-cli  (bin `typhon`)   codon/app/main.cpp (run / build / doc modes; no jit REPL, no jupyter)
   ├── typhon-runtime        codon/runtime/** -> `libcodonrt` (staticlib + cdylib, C ABI)
   └── typhon-testsuite      test/main.cpp, test/types.cpp, test/cir/**, test/dsl/**
 ```
@@ -96,8 +102,8 @@ blocks in the type checker become `match` on the `Result`.
 | OpenBLAS / Accelerate | numpy linalg | `openblas-src` / `accelerate-src` + `cblas-sys` |
 | mimalloc | optional allocator | `mimalloc` |
 | complex math (`std::complex`) | numpy zmath | `num-complex` |
-| xeus / xeus-zmq | Jupyter kernel | `jupyter-protocol` + `zeromq` + `tokio` |
-| Cython (`jit.pyx`) | Python `@codon.jit` bridge | `pyo3` |
+| xeus / xeus-zmq | Jupyter kernel | out of scope (not ported) |
+| Cython (`jit.pyx`) | Python `@codon.jit` bridge | out of scope (not ported) |
 | llvm::cl options (CLI) | command line | `clap` |
 | dlopen | plugins, JIT symbols | `libloading` |
 | googletest | C++ tests | `libtest-mimic` (data-driven `.codon` tests) + `#[test]` + `insta` |

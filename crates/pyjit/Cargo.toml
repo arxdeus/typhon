@@ -1,8 +1,0 @@
-[package]
-name = "typhon-pyjit"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-
-[dependencies]
-typhon-common.workspace = true

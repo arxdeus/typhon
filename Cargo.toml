@@ -11,8 +11,6 @@ members = [
     "crates/runtime",
     "crates/compiler",
     "crates/cli",
-    "crates/jupyter",
-    "crates/pyjit",
     "crates/testsuite",
 ]
 default-members = [
@@ -119,11 +117,8 @@ blas-src = { version = "0.14", default-features = false }
 glidesort = "0.1"            # numpy sort kernels (highway vqsort replacement)
 pulp = "0.22"                # portable SIMD (highway replacement)
 
-# ---- integrations ----
-pyo3 = { version = "0.30", features = ["abi3-py39"] }
-jupyter-protocol = "2.0"
-zeromq = "0.7"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+# Jupyter kernel (jupyter/) and the Python @codon.jit bridge (jit/) are intentionally
+# out of scope for the port (user decision): no pyo3 / jupyter-protocol / zeromq deps.
 
 # ---- testing ----
 libtest-mimic = "0.8"         # googletest replacement (parametrized .codon tests)
