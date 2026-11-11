@@ -1671,7 +1671,14 @@ impl<'ctx> LlvmVisitor<'ctx> {
             K::BytesConst(x) => {
                 let s = x.val.clone();
                 self.b.at_end(self.block);
-                self.value = self.bytes_const(s.as_bytes());
+                // PORT-NOTE: bytes literals are stored byte-per-char (Latin-1); raw `rb`
+                // literals may contain arbitrary text, which is emitted as UTF-8.
+                let raw: Vec<u8> = if s.chars().all(|c| (c as u32) < 0x100) {
+                    s.chars().map(|c| c as u8).collect()
+                } else {
+                    s.into_bytes()
+                };
+                self.value = self.bytes_const(&raw);
             }
             K::VarValue(_) => self.visit_var_value(m, v),
             K::PointerValue(_) => self.visit_pointer_value(m, v),

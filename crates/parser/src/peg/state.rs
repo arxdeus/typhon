@@ -290,6 +290,9 @@ impl<'a> ParseState<'a> {
             p.prefix = "f".into();
         } else if lp != "r" && lp != "rb" && lp != "br" {
             match typhon_common::strings::unescape(raw, lp != "b") {
+                // Bytes literals are stored byte-per-char (Latin-1) so the LLVM emitter can
+                // recover the exact bytes (see `LLVMVisitor::bytes_const`).
+                Ok(bytes) if lp == "b" => p.value = bytes.into_iter().map(|c| c as char).collect(),
                 Ok(bytes) => p.value = bytes_to_string(bytes),
                 Err(e) => {
                     self.set_message(start, &format!("invalid code in a string: {}", e.0));
