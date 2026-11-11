@@ -22,6 +22,7 @@ ryu.workspace = true
 lexical-core.workspace = true
 unicode-segmentation.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 postcard.workspace = true
 
 [dev-dependencies]

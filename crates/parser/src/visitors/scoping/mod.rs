@@ -48,6 +48,7 @@ pub(crate) struct ScopeBlock {
 
 /// `Context::Item`.
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub(crate) struct Item {
     pub src: SrcInfo,
     pub scope: Vec<i32>,
