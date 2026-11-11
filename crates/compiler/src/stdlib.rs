@@ -12,6 +12,24 @@ pub const WORKSPACE_STDLIB: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../.
 #[cfg(feature = "embed-stdlib")]
 static EMBEDDED: include_dir::Dir<'static> = include_dir::include_dir!("$CARGO_MANIFEST_DIR/../../../stdlib");
 
+/// Generated stdlib modules (`internal/unicode/generated`, `internal/numeric/generated`)
+/// unpacked by `build.rs` (C++: `${CMAKE_BINARY_DIR}/stdlib`).
+pub const GENERATED_STDLIB: &str = env!("TYPHON_GENERATED_STDLIB");
+
+/// Directory holding the generated modules: `TYPHON_GENERATED_STDLIB_DIR`, an installed
+/// stdlib that already contains them, or the build-time directory.
+pub fn generated_stdlib_dir(stdlib: Option<&std::path::Path>) -> Option<PathBuf> {
+    const PROBE: &str = "internal/numeric/generated/float_dtoa_tables.codon";
+    if let Ok(d) = std::env::var("TYPHON_GENERATED_STDLIB_DIR") {
+        return Some(PathBuf::from(d));
+    }
+    if stdlib.is_some_and(|s| s.join(PROBE).exists()) {
+        return None;
+    }
+    let p = PathBuf::from(GENERATED_STDLIB);
+    p.join(PROBE).exists().then_some(p)
+}
+
 /// Candidate stdlib directories in priority order: `TYPHON_STDLIB_DIR`, `CODON_PATH`,
 /// `<exe>/../lib/codon/stdlib`, `<exe>/../stdlib`, then the workspace stdlib.
 pub fn stdlib_dirs() -> Vec<PathBuf> {
@@ -58,6 +76,11 @@ pub fn default_filesystem(argv0: &str) -> Rc<RefCell<dyn FileSystem>> {
         let mut fresh = DiskFileSystem::default();
         fresh.argv0 = argv0.to_string();
         fresh.add_search_path(&canon);
+        // PORT-NOTE: C++ serves generated tables from the build tree via cmrc; here they
+        // are an extra stdlib root right after the main one.
+        if let Some(g) = generated_stdlib_dir(Some(&dir)) {
+            fresh.add_search_path(&g.to_string_lossy());
+        }
         for p in paths {
             fresh.add_search_path(&p);
         }
