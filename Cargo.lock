@@ -851,6 +851,13 @@ dependencies = [
 name = "typhon-ir"
 version = "0.1.0"
 dependencies = [
+ "indexmap",
+ "la-arena",
+ "once_cell",
+ "pretty_assertions",
+ "rustc-hash",
+ "smallvec",
+ "thiserror",
  "typhon-common",
 ]
 
@@ -926,7 +933,7 @@ dependencies = [
 name = "typhon-runtime"
 version = "0.1.0"
 dependencies = [
- "typhon-common",
+ "libc",
 ]
 
 [[package]]

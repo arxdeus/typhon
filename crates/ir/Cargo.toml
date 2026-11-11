@@ -1,8 +1,18 @@
 [package]
 name = "typhon-ir"
+description = "Codon IR (CIR): nodes, types, module, visitors, formatting, cloning, pass traits (port of codon/cir core + cir/util)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 typhon-common.workspace = true
+la-arena.workspace = true
+indexmap.workspace = true
+rustc-hash.workspace = true
+smallvec.workspace = true
+thiserror.workspace = true
+once_cell.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
