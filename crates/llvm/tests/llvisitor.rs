@@ -377,3 +377,68 @@ fn fake_exception(ty: &'static [u8], msg: &'static [u8]) -> *mut u8 {
     };
     Box::into_raw(Box::new(Obj { info, hdr })) as *mut u8
 }
+
+/// Regression: typed `except` under the JIT. The LSDA type table references the
+/// private `codon.typeidx.*` globals via `ARM64_RELOC_POINTER_TO_GOT` on Mach-O;
+/// RTDyld used to drop the symbol offset (GOT entry -> section base), so the
+/// personality read the wrong type index and libunwind aborted in phase 2.
+#[test]
+fn jit_typed_catch_reads_correct_type_index() {
+    use inkwell::memory_buffer::MemoryBuffer;
+    codonrt::lib_rt::seq_init(0);
+    // `@pad` precedes the type-info globals in `__const`, so a section-base
+    // GOT entry would read 0 (catch-all) instead of the real index.
+    let ir = r#"
+@pad = private unnamed_addr constant { i32 } { i32 0 }
+@"codon.typeidx.A" = private unnamed_addr constant { i32 } { i32 -1 }
+@"codon.typeidx.B" = private unnamed_addr constant { i32 } { i32 0 }
+declare i32 @seq_personality(i32, i32, i64, ptr, ptr)
+declare ptr @seq_alloc_exc(ptr)
+declare void @seq_throw(ptr)
+define i64 @padval() { %v = load i32, ptr @pad
+  %w = sext i32 %v to i64
+  ret i64 %w }
+define void @thrower(ptr %o) {
+  %e = call ptr @seq_alloc_exc(ptr %o)
+  call void @seq_throw(ptr %e)
+  unreachable }
+define void @mid(ptr %o) personality ptr @seq_personality {
+  invoke void @thrower(ptr %o) to label %ok unwind label %lp
+ok:
+  ret void
+lp:
+  %l = landingpad { ptr, i32 } cleanup
+  resume { ptr, i32 } %l }
+define i64 @typed(ptr %o) personality ptr @seq_personality {
+  invoke void @mid(ptr %o) to label %ok unwind label %lp
+ok:
+  ret i64 1000
+lp:
+  %l = landingpad { ptr, i32 } catch ptr @"codon.typeidx.A" catch ptr @"codon.typeidx.B"
+  %s = extractvalue { ptr, i32 } %l, 1
+  %r = sext i32 %s to i64
+  ret i64 %r }
+"#;
+    let ctx = Context::create();
+    let buf = MemoryBuffer::create_from_memory_range_copy(ir.as_bytes(), "eh");
+    let module = ctx.create_module_from_ir(buf).expect("parse");
+    let engine = Engine::new(&opts(), EngineConfig::default()).expect("engine");
+    use codonrt as rt;
+    engine
+        .define_absolute(&[
+            ("seq_personality", rt::exc::seq_personality as *const () as usize as u64),
+            ("seq_alloc_exc", rt::exc::seq_alloc_exc as *const () as usize as u64),
+            ("seq_throw", rt::exc::seq_throw as *const () as usize as u64),
+        ])
+        .expect("define");
+    engine.add_module(&module).expect("add module");
+    let obj = fake_exception(b"ValueError", b"typed");
+    unsafe {
+        let padval: extern "C" fn() -> i64 = std::mem::transmute(engine.lookup("padval").unwrap() as usize);
+        assert_eq!(padval(), 0);
+        let typed: extern "C" fn(*mut u8) -> i64 = std::mem::transmute(engine.lookup("typed").unwrap() as usize);
+        // BASE_EXCEPTION_SELECTOR (-1) matches; the selector must be that index.
+        assert_eq!(typed(obj), -1);
+        assert_eq!(typed(obj), -1);
+    }
+}

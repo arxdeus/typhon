@@ -208,6 +208,8 @@ pub(crate) extern "C" fn finalize(
     _err: *mut *mut libc::c_char,
 ) -> llvm_sys::prelude::LLVMBool {
     let ctx = unsafe { &mut *(opaque as *mut ObjectContext) };
+    #[cfg(target_os = "macos")]
+    fix_pointer_to_got(ctx);
     let ps = page_size();
     for a in &ctx.allocations {
         let len = (a.size.max(1) + ps - 1) & !(ps - 1);
@@ -269,6 +271,82 @@ pub(crate) extern "C" fn finalize(
         ctx.shared.debug.register(key, obj, std::mem::take(&mut ctx.sections), opaque as usize);
     }
     0
+}
+
+/// PORT-NOTE: works around an RTDyld bug (absent in C++, which uses JITLink).
+/// `RuntimeDyldMachOAArch64` handles `ARM64_RELOC_POINTER_TO_GOT` by zeroing the
+/// target offset before creating the GOT stub. Local symbols (e.g. the private
+/// `codon.typeidx.*` globals referenced from the LSDA type table) resolve to
+/// section+offset, so every such GOT entry points at the *section base*, and all
+/// of them share one stub. Typed `except` clauses then read a wrong type index
+/// (search phase matched, cleanup phase did not -> libunwind abort).
+/// Here every 32-bit pc-relative POINTER_TO_GOT field gets a fresh, correct
+/// 8-byte slot and is re-pointed at it.
+#[cfg(target_os = "macos")]
+fn fix_pointer_to_got(ctx: &mut ObjectContext) {
+    use object::{Object, ObjectSection, ObjectSymbol, RelocationTarget};
+    let Some(obj) = ctx.object.as_deref() else { return };
+    let Ok(f) = object::File::parse(obj) else { return };
+    if f.architecture() != object::Architecture::Aarch64 {
+        return;
+    }
+    // Load address of an object section: match by name and size (names repeat,
+    // e.g. two `__const`); stubs may make the loaded copy larger.
+    let load_of = |s: &object::Section| -> Option<u64> {
+        let n = s.name().ok()?;
+        let seg = s.segment_name().ok().flatten().unwrap_or("");
+        let full = format!("{seg},{n}");
+        let mut best: Option<&LoadedSection> = None;
+        for l in &ctx.sections {
+            if (l.name == n || l.name == full || l.name.ends_with(&format!(",{n}"))) && l.size >= s.size() {
+                if best.is_none_or(|b| l.size < b.size) {
+                    best = Some(l);
+                }
+            }
+        }
+        best.map(|l| l.addr)
+    };
+    let mut fixes: Vec<(usize, u64)> = vec![]; // (field address, target address)
+    for sec in f.sections() {
+        let Some(sec_load) = load_of(&sec) else { continue };
+        for (off, r) in sec.relocations() {
+            // ARM64_RELOC_POINTER_TO_GOT == 7
+            let object::RelocationFlags::MachO { r_type, r_pcrel: true, r_length: 2 } = r.flags() else { continue };
+            if r_type != object::macho::ARM64_RELOC_POINTER_TO_GOT {
+                continue;
+            }
+            let RelocationTarget::Symbol(si) = r.target() else { continue };
+            let Ok(sym) = f.symbol_by_index(si) else { continue };
+            if !sym.is_local() || sym.is_undefined() {
+                continue; // external symbols are resolved correctly by name
+            }
+            let Some(ts) = sym.section_index().and_then(|i| f.section_by_index(i).ok()) else { continue };
+            let Some(t_load) = load_of(&ts) else { continue };
+            fixes.push(((sec_load + off) as usize, t_load + (sym.address() - ts.address())));
+        }
+    }
+    if fixes.is_empty() {
+        return;
+    }
+    let slots = ctx.shared.allocate(fixes.len() * 8, 8) as usize;
+    if slots == 0 {
+        return;
+    }
+    ctx.allocations.push(Allocation { addr: slots, size: fixes.len() * 8, code: false, read_only: true });
+    for (i, &(field, target)) in fixes.iter().enumerate() {
+        let slot = slots + i * 8;
+        let rel = slot as i64 - field as i64;
+        if rel < i32::MIN as i64 || rel > i32::MAX as i64 {
+            continue;
+        }
+        unsafe {
+            (slot as *mut u64).write(target);
+            (field as *mut i32).write_unaligned(rel as i32);
+        }
+    }
+    if std::env::var_os("TYPHON_JIT_DEBUG").is_some() {
+        eprintln!("fixed {} POINTER_TO_GOT relocations", fixes.len());
+    }
 }
 
 pub(crate) extern "C" fn destroy(opaque: *mut libc::c_void) {
