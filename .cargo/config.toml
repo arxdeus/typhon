@@ -1,0 +1,8 @@
+# LLVM 20.1 toolchain already used by the C++ Codon build (see build/CMakeCache.txt LLVM_DIR).
+# inkwell feature `llvm20-1` -> llvm-sys 201.x reads this prefix.
+[env]
+LLVM_SYS_201_PREFIX = { value = "/Users/mind/orca/toolchains/llvm-codon", force = false }
+TYPHON_STDLIB_DIR = { value = "../stdlib", relative = true, force = false }
+
+[build]
+target-dir = "target"

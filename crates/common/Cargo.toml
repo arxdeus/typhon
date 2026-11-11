@@ -1,0 +1,20 @@
+[package]
+name = "typhon-common"
+description = "Shared foundation: source locations, diagnostics, logging, string utils, name mangling, options (port of codon/util, codon/compiler/error, codon/parser/common)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ustr.workspace = true
+thiserror.workspace = true
+bitflags.workspace = true
+codespan-reporting.workspace = true
+unicode-segmentation.workspace = true
+once_cell.workspace = true
+parking_lot.workspace = true
+rustc-hash.workspace = true
+indexmap.workspace = true
+serde.workspace = true
+include_dir.workspace = true
+dirs.workspace = true
