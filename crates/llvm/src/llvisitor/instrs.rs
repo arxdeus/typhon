@@ -17,7 +17,11 @@ impl<'ctx> LlvmVisitor<'ctx> {
     /// array; the length word packs the kind in its top byte.
     pub(super) fn string_const(&mut self, utf8: &str) -> V {
         // `&str` is valid UTF-8, so decoding cannot fail (C++ validates by hand).
-        let codepoints: Vec<u32> = utf8.chars().map(|c| c as u32).collect();
+        // PORT-NOTE: C++ literals are WTF-8 (lone surrogates from `\ud800` allowed);
+        // the parser stores such non-UTF-8 literals byte-per-char (Latin-1,
+        // `bytes_to_string`). Recover the C++ decoding for that form.
+        let codepoints: Vec<u32> = Self::wtf8_from_latin1_fallback(utf8)
+            .unwrap_or_else(|| utf8.chars().map(|c| c as u32).collect());
         let maxchar = codepoints.iter().copied().max().unwrap_or(0);
         let (kind, elem) = if maxchar > 0xFFFF {
             (3u64, self.b.i32())
@@ -47,6 +51,49 @@ impl<'ctx> LlvmVisitor<'ctx> {
         // IRBuilder constant-folds the insertvalues of constants: emit the constant directly.
         let _ = str_type;
         ll::const_struct(self.c, &[str_var, meta])
+    }
+
+    /// If every char is <= 0xFF and the bytes are invalid UTF-8 but valid WTF-8 (the
+    /// C++ `visit(StringConst*)` grammar, which admits surrogates), decode them.
+    fn wtf8_from_latin1_fallback(s: &str) -> Option<Vec<u32>> {
+        if s.is_ascii() || s.chars().any(|c| c as u32 > 0xFF) {
+            return None;
+        }
+        let b: Vec<u8> = s.chars().map(|c| c as u8).collect();
+        if std::str::from_utf8(&b).is_ok() {
+            return None;
+        }
+        let mut out = Vec::with_capacity(b.len());
+        let mut pos = 0;
+        while pos < b.len() {
+            let byte = b[pos];
+            let (mut cp, width) = match byte {
+                0..=0x7F => (byte as u32, 1),
+                0xC2..=0xDF => ((byte & 0x1F) as u32, 2),
+                0xE0..=0xEF => ((byte & 0x0F) as u32, 3),
+                0xF0..=0xF4 => ((byte & 0x07) as u32, 4),
+                _ => return None,
+            };
+            if pos + width > b.len() {
+                return None;
+            }
+            for &c in &b[pos + 1..pos + width] {
+                if c & 0xC0 != 0x80 {
+                    return None;
+                }
+                cp = (cp << 6) | (c & 0x3F) as u32;
+            }
+            let ok = (width == 1 || cp >= 0x80)
+                && (width != 3 || cp >= 0x800)
+                && (width != 4 || cp >= 0x10000)
+                && cp <= 0x10FFFF;
+            if !ok {
+                return None;
+            }
+            out.push(cp);
+            pos += width;
+        }
+        Some(out)
     }
 
     /// `visit(const BytesConst*)`.

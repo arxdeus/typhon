@@ -72,6 +72,7 @@ impl Pattern {
                 Err(e) => return Pattern::failed(format!("invalid UTF-8: {e}")),
             }
         };
+        let src = rewrite_re2_escapes(&src);
         let unicode = !is_bytes && flags & ASCII == 0;
         let cfg = syntax::Config::new()
             .case_insensitive(flags & IGNORECASE != 0)
@@ -137,6 +138,30 @@ impl Pattern {
         let re = self.re.as_ref()?;
         re.group_info().to_name(PatternID::ZERO, index)
     }
+}
+
+/// RE2 treats `\` followed by any ASCII punctuation as that literal character;
+/// `regex-syntax` gives `\<`/`\>` word-boundary meaning (an error inside a class).
+/// Rewrite those to hex escapes so `re.escape` output round-trips like RE2.
+fn rewrite_re2_escapes(src: &str) -> String {
+    let mut out = String::with_capacity(src.len());
+    let mut it = src.chars();
+    while let Some(c) = it.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match it.next() {
+            Some('<') => out.push_str("\\x3C"),
+            Some('>') => out.push_str("\\x3E"),
+            Some(n) => {
+                out.push('\\');
+                out.push(n);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
 }
 
 /// RE2::QuoteMeta.
