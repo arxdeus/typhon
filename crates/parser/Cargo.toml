@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 typhon-common.workspace = true
-# NOTE(phase 1): no dependency on typhon-ir yet; added when translate/ lands.
+typhon-ir.workspace = true
 peg.workspace = true
 la-arena.workspace = true
 indexmap.workspace = true

@@ -155,7 +155,7 @@ impl TypeArena {
     pub(crate) fn func_get_unbounds(&self, this: TypeId, ig: bool) -> Vec<TypeId> {
         let f = self.func_data(this);
         let mut u: Vec<TypeId> = vec![];
-        let mut prepend = |mut tu: Vec<TypeId>, u: &mut Vec<TypeId>| {
+        let prepend = |mut tu: Vec<TypeId>, u: &mut Vec<TypeId>| {
             tu.append(u);
             *u = tu;
         };
