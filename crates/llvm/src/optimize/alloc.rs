@@ -967,16 +967,26 @@ pub fn allocation_hoister_with(info: &AllocInfo, func: V) -> bool {
         li.worklist_order().into_iter().rev().map(|l| cfg.blocks[li.loops[l].header]).collect()
     };
     let mut changed = false;
+    // Analyses are only recomputed after a loop was actually transformed; on
+    // unchanged IR they are deterministic, so reusing them is equivalent.
+    let mut cached: Option<(Cfg, LoopInfo, DomTree, FxHashSet<usize>)> = None;
     // `SmallPriorityWorklist::pop_back_val` processes the last appended loop first.
     for header in headers.into_iter().rev() {
-        let cfg = Cfg::new(func);
+        if cached.is_none() {
+            let cfg = Cfg::new(func);
+            let dt = DomTree::dominators(&cfg);
+            let li = LoopInfo::new(&cfg, &dt);
+            let pdt = DomTree::post_dominators(&cfg);
+            let irreducible = analysis::irreducible_blocks(&cfg, &dt, &li);
+            cached = Some((cfg, li, pdt, irreducible));
+        }
+        let (cfg, li, pdt, irreducible) = cached.as_ref().unwrap();
         let Some(&h) = cfg.index.get(&header) else { continue };
-        let dt = DomTree::dominators(&cfg);
-        let li = LoopInfo::new(&cfg, &dt);
         let Some(lid) = li.loops.iter().position(|l| l.header == h) else { continue };
-        let pdt = DomTree::post_dominators(&cfg);
-        let irreducible = analysis::irreducible_blocks(&cfg, &dt, &li);
-        changed |= process_loop(info, func, lid, &cfg, &li, &pdt, &irreducible);
+        if process_loop(info, func, lid, cfg, li, pdt, irreducible) {
+            changed = true;
+            cached = None;
+        }
     }
     changed
 }

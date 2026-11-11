@@ -48,6 +48,9 @@ pub struct DomTree {
     idom: Vec<Option<usize>>,
     reachable: Vec<bool>,
     depth: Vec<usize>,
+    /// DFS entry/exit numbers over the dominator forest (O(1) `dominates`).
+    tin: Vec<u32>,
+    tout: Vec<u32>,
 }
 
 impl DomTree {
@@ -153,13 +156,49 @@ impl DomTree {
                 }
             }
         }
-        DomTree { idom, reachable: visited, depth }
+        let mut dt = DomTree { idom, reachable: visited, depth, tin: vec![0; n], tout: vec![0; n] };
+        dt.number();
+        dt
+    }
+
+    fn number(&mut self) {
+        let n = self.idom.len();
+        let mut children: Vec<Vec<usize>> = vec![Vec::new(); n];
+        let mut roots = Vec::new();
+        for b in 0..n {
+            if !self.reachable[b] {
+                continue;
+            }
+            match self.parent(b) {
+                Some(p) => children[p].push(b),
+                None => roots.push(b),
+            }
+        }
+        let mut t: u32 = 0;
+        for r in roots {
+            let mut stack: Vec<(usize, usize)> = vec![(r, 0)];
+            self.tin[r] = t;
+            t += 1;
+            while let Some(&mut (v, ref mut k)) = stack.last_mut() {
+                if *k < children[v].len() {
+                    let c = children[v][*k];
+                    *k += 1;
+                    self.tin[c] = t;
+                    t += 1;
+                    stack.push((c, 0));
+                } else {
+                    self.tout[v] = t;
+                    t += 1;
+                    stack.pop();
+                }
+            }
+        }
     }
 
     /// Dominators of a function CFG rooted at the entry block.
     pub fn dominators(cfg: &Cfg) -> Self {
         if cfg.blocks.is_empty() {
-            return DomTree { idom: vec![], reachable: vec![], depth: vec![] };
+            return DomTree { idom: vec![], reachable: vec![], depth: vec![], tin: vec![], tout: vec![] };
         }
         Self::compute(cfg.blocks.len(), &[0], &|b| cfg.succs[b].clone(), &|b| cfg.preds[b].clone())
     }
@@ -220,16 +259,7 @@ impl DomTree {
         if !self.is_reachable(a) {
             return false;
         }
-        let mut x = b;
-        loop {
-            if x == a {
-                return true;
-            }
-            match self.parent(x) {
-                Some(p) => x = p,
-                None => return false,
-            }
-        }
+        a == b || (self.tin[a] <= self.tin[b] && self.tout[b] <= self.tout[a])
     }
 
     /// Nearest common dominator, `None` if only a virtual root dominates both.
@@ -338,9 +368,23 @@ impl LoopInfo {
             .collect();
         // nesting: parent = smallest strictly-containing loop
         let count = loops.len();
+        // Loops containing each header block, in ascending loop index (same
+        // candidate order as a full 0..count scan).
+        let mut header_loop: FxHashMap<usize, usize> = FxHashMap::default();
+        for (i, l) in loops.iter().enumerate() {
+            header_loop.insert(l.header, i);
+        }
+        let mut containing: Vec<Vec<usize>> = vec![Vec::new(); count];
+        for (j, l) in loops.iter().enumerate() {
+            for b in &l.blocks {
+                if let Some(&i) = header_loop.get(b) {
+                    containing[i].push(j);
+                }
+            }
+        }
         for i in 0..count {
             let mut best: Option<usize> = None;
-            for j in 0..count {
+            for &j in &containing[i] {
                 if i == j {
                     continue;
                 }
