@@ -206,13 +206,16 @@ fn build_mode(argv0: &str, exe_argv0: &str, args: &[String]) -> i32 {
         }
         return 0;
     }
+    // `-relocation-model=pic` (llvm::codegen flag) forces PIC objects.
+    // PORT-NOTE: only `pic` vs default is distinguishable through the visitor API.
+    let pic = matches!(cli.relocation_model.as_str(), "pic" | "dynamic-no-pic");
     let ctx = Context::create();
     let mut v = codegen(&compiler, &ctx);
     let r = match kind {
         BuildKind::Llvm => v.write_to_ll_file(&filename, true),
         BuildKind::Bitcode => v.write_to_bitcode_file(&filename),
-        BuildKind::Object => v.write_to_object_file(&filename, false, false),
-        BuildKind::Assembly => v.write_to_object_file(&filename, false, true),
+        BuildKind::Object => v.write_to_object_file(&filename, pic, false),
+        BuildKind::Assembly => v.write_to_object_file(&filename, pic, true),
         BuildKind::Executable => {
             let lf = if cli.pie { format!("{} -pie", cli.lflags) } else { cli.lflags.clone() };
             v.write_to_executable(&filename, exe_argv0, false, &cli.libs, &lf)

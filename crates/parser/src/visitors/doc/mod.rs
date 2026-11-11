@@ -295,7 +295,18 @@ impl<'a> DocVisitor<'a> {
             crate::ast::StmtTag::Class => self.visit_class(s),
             crate::ast::StmtTag::Assign => self.visit_assign(s),
             crate::ast::StmtTag::Import => self.visit_import(s),
-            _ => Ok(String::new()),
+            _ => {
+                // C++ DocVisitor is a CallbackASTVisitor: unhandled statements (if/while/
+                // suite/...) still visit their child statements, so names bound inside them
+                // (e.g. `if __dict_unordered__: dict = ...`) are registered. The child
+                // result is discarded (C++ `resultStmt` of the outer visitor stays "").
+                for c in crate::visitors::visitor::stmt_children(&self.shared.cache.ast, s) {
+                    if let crate::ast::children::Child::Stmt(x) | crate::ast::children::Child::Suite(x) = c {
+                        self.transform_stmt(Some(x))?;
+                    }
+                }
+                Ok(String::new())
+            }
         }
     }
 
