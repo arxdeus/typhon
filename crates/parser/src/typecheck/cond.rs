@@ -148,6 +148,10 @@ impl<'a> TypecheckVisitor<'a> {
         let is = self.cache.ast[s].kind.as_if().unwrap().clone();
         let b = self.get_stdlib_type(&st.bool_)?;
         self.cache.ast[is.cond.unwrap()].expected_type = Some(b);
+        // PORT-NOTE: C++ reads `(*ci)[1]` after call reordering dropped the generic `T`
+        // slot from `items` (stale read past `size()` that yields the original type arg);
+        // keep that original argument explicitly.
+        let orig_type_arg = self.cache.ast[is.cond.unwrap()].kind.as_call().and_then(|c| c.items.get(1)).and_then(|a| a.value);
         let mut cond = self.transform(is.cond)?.unwrap();
         self.cache.ast[s].kind.as_if_mut().unwrap().cond = Some(cond);
 
@@ -189,7 +193,7 @@ impl<'a> TypecheckVisitor<'a> {
                     let a1 = self.c_assign(cn, cond);
                     let tn = self.id_n(&tmp_name);
                     let gf = self.id_n(&replace_first(&fname, "_isinstance", "_getinstance"));
-                    let gc = self.call_n(gf, vec![a0, ci.items[1].value.unwrap()]);
+                    let gc = self.call_n(gf, vec![a0, ci.items.get(1).and_then(|a| a.value).or(orig_type_arg).unwrap()]);
                     let a2 = self.c_assign(tn, gc);
                     let inner = self.c_suite(vec![a2, if_suite]);
                     let cn = self.id_n(&cond_name);
