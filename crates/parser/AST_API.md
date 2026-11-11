@@ -119,7 +119,7 @@ kind (`as_<snake>`), plus `ExprKind::tag() -> ExprTag`, `StmtKind::tag() -> Stmt
 | AssignMemberStmt | `AssignMember` | `lhs, member, rhs, type_expr` |
 | CommentStmt | `Comment` | `comment` |
 
-Arena helpers: `function_star_args`, `function_kw_star_args`, `function_docstr`, `class_docstr`,
+`FunctionStmt::{star_args, kw_star_args, add_param, call_layout}`. Arena helpers: `function_docstr`, `class_docstr`,
 `non_inferrable_generics(stmt)`, `has_function_attribute(stmt, name)`, `class_is_record`,
 `is_class_var(&Param)`, `contains_id(expr, name)`, `parse_params(Vec<Param>)`,
 `new_call(src, f, &[args])`, `call_arg(name, value)`, `new_class`, `new_with_pairs`, `clone_param`,
