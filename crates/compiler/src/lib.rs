@@ -127,6 +127,25 @@ impl Compiler {
         self.loaded_plugins.contains(path)
     }
 
+    /// `plugins->loadRuntimeLibraries()` (called by C++ `LLVMVisitor::run`), then make
+    /// every plugin library (runtime and compiler) visible to the JIT's process symbol
+    /// search.
+    ///
+    /// PORT-NOTE: `typhon-dsl` opens libraries with `libloading::Library::new`
+    /// (RTLD_LOCAL); C++ `LoadLibraryPermanently` makes symbols globally resolvable.
+    /// Re-opening with RTLD_GLOBAL promotes the already-loaded image.
+    pub fn load_plugin_runtime_libraries(&self) -> Result<()> {
+        self.plm.borrow_mut().load_runtime_libraries()?;
+        for p in self.plm.borrow().iter() {
+            for lib in [p.info.runtime_dylib_path(), p.info.compiler_dylib_path()] {
+                if !lib.is_empty() && std::path::Path::new(lib).exists() {
+                    runtime::load_global(std::path::Path::new(lib))?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// `parse(isCode, file, code, startLine, testFlags, defines)`.
     pub fn parse(
         &mut self,

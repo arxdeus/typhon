@@ -156,6 +156,11 @@ fn run_mode(argv0: &str, args: &[String]) -> i32 {
     let mut prog_args = vec![compiler.input().to_string()];
     prog_args.extend(cli.prog_args.iter().cloned());
     v.set_jit_symbols(typhon_compiler::runtime::builtin_symbols());
+    // C++ `LLVMVisitor::run`: `plugins->loadRuntimeLibraries()` before JIT'ing.
+    if let Err(e) = compiler.load_plugin_runtime_libraries() {
+        report(&e);
+        return 1;
+    }
     let config = EngineConfig { gc_roots: rt.gc_roots, ..Default::default() };
     let r = v.run(&prog_args, &cli.libs, config);
     flush_c_stdio();
