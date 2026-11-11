@@ -24,4 +24,5 @@ libc.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+typhon-parser.workspace = true
 typhon-ir.workspace = true
