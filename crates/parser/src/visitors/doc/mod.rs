@@ -84,6 +84,23 @@ pub struct DocShared {
 }
 
 impl DocShared {
+    /// Fresh shared state with an empty prelude module `""`.
+    pub fn new(argv0: &str, cache: Cache) -> Self {
+        let mut s = Self {
+            item_id: 1,
+            j: Map::new(),
+            modules: FxHashMap::default(),
+            argv0: argv0.to_string(),
+            cache,
+            generics: FxHashMap::default(),
+        };
+        s.modules.insert(String::new(), Rc::new(RefCell::new(Context::new(""))));
+        s
+    }
+    /// New `DocContext` for a module file.
+    pub fn new_context(&self, filename: &str) -> DocContextRef {
+        Rc::new(RefCell::new(Context::new(filename)))
+    }
     fn next_id(&mut self) -> i32 {
         let i = self.item_id;
         self.item_id += 1;
@@ -155,16 +172,8 @@ impl<'a> DocVisitor<'a> {
     /// `DocVisitor::apply(argv0, files)`. The cache must have `hooks.parse_file` /
     /// `hooks.parse_code` installed and a file system.
     pub fn apply(argv0: &str, files: &[String], cache: Cache) -> Result<Value> {
-        let mut shared = DocShared {
-            item_id: 1,
-            j: Map::new(),
-            modules: FxHashMap::default(),
-            argv0: argv0.to_string(),
-            cache,
-            generics: FxHashMap::default(),
-        };
-        let root: DocContextRef = Rc::new(RefCell::new(Context::new("")));
-        shared.modules.insert(String::new(), root.clone());
+        let mut shared = DocShared::new(argv0, cache);
+        let root = shared.modules[""].clone();
 
         let stdlib = crate::typecheck::helpers::get_import_file(&mut shared.cache, STDLIB_INTERNAL_MODULE, "", true)
             .ok_or_else(|| CompilerError::custom("cannot find stdlib", SrcInfo::default()))?;
