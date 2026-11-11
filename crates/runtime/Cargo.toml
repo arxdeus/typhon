@@ -4,10 +4,33 @@ description = "Codon runtime library libcodonrt (port of codon/runtime/**): GC a
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+build = "build.rs"
 
 [lib]
 name = "codonrt"
 crate-type = ["rlib", "staticlib", "cdylib"]
 
+[features]
+default = ["openmp", "blas"]
+# Link the GC-patched LLVM libomp (provides __kmpc_* / omp_* and __kmpc_set_gc_callbacks).
+openmp = []
+# Link a BLAS/LAPACK: Accelerate on macOS, OpenBLAS (ILP64, `64_` suffix) on Linux.
+blas = []
+openblas = ["dep:openblas-src"]
+
 [dependencies]
 libc.workspace = true
+bdwgc-alloc-sys = { version = "0.6.16", default-features = false, features = ["cmake"] }
+regex = "1.13.1"
+regex-automata = "0.4.18"
+regex-syntax = "0.8.11"
+backtrace = "0.3.69"
+libz-rs-sys = { version = "0.6.8", features = ["gz", "export-symbols"] }
+libbz2-rs-sys = { version = "0.2.6", features = ["export-symbols"] }
+liblzma-sys = { version = "0.4.9", default-features = false, features = ["static"] }
+fast-float2 = "0.2.4"
+glidesort = "0.1.2"
+num-complex = "0.4.6"
+libm = "0.2.16"
+parking_lot = "0.12.5"
+openblas-src = { version = "0.10", optional = true, default-features = false, features = ["static"] }
