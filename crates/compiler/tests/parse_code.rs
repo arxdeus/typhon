@@ -86,7 +86,6 @@ print(string.ascii_lowercase)
 }
 
 #[test]
-#[ignore = "translate: Module::parse_code from an IR pass yields codegen panic `could not find a.NNN var` (llvisitor/instrs.rs:137)"]
 fn imports_from_ir_pass_run_before_user_code() {
     let dir = tempfile::tempdir().expect("tempdir");
     for debug in [true, false] {
