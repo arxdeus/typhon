@@ -23,3 +23,6 @@ addr2line = { version = "0.27", default-features = false, features = ["std"] }
 [dev-dependencies]
 # No openmp/blas: rpath link args of the runtime do not propagate to test binaries.
 typhon-runtime = { path = "../runtime", default-features = false }
+
+[build-dependencies]
+cc = "1"

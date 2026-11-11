@@ -442,3 +442,43 @@ lp:
         assert_eq!(typed(obj), -1);
     }
 }
+
+/// Thread-local globals must link under the JIT (MachO TLV / ELF TLS relocations
+/// are rejected by RTDyld; the engine lowers them to emulated TLS) and stay
+/// per-thread.
+#[test]
+fn jit_thread_local_global_links_and_is_per_thread() {
+    use inkwell::memory_buffer::MemoryBuffer;
+    codonrt::lib_rt::seq_init(0);
+    let ir = r#"
+@tls = thread_local global i64 0
+define i64 @bump() {
+  %v = load i64, ptr @tls
+  %w = add i64 %v, 1
+  store i64 %w, ptr @tls
+  ret i64 %w }
+"#;
+    let ctx = Context::create();
+    let buf = MemoryBuffer::create_from_memory_range_copy(ir.as_bytes(), "tls");
+    let module = ctx.create_module_from_ir(buf).expect("parse");
+    let engine = Engine::new(&opts(), EngineConfig::default()).expect("engine");
+    engine
+        .define_absolute(&[(
+            "__emutls_get_address",
+            codonrt::emutls::__emutls_get_address as *const () as usize as u64,
+        )])
+        .expect("define");
+    engine.add_module(&module).expect("add module");
+    let addr = engine.lookup("bump").expect("lookup") as usize;
+    let bump: extern "C" fn() -> i64 = unsafe { std::mem::transmute(addr) };
+    assert_eq!(bump(), 1);
+    assert_eq!(bump(), 2);
+    let other = std::thread::spawn(move || {
+        let bump: extern "C" fn() -> i64 = unsafe { std::mem::transmute(addr) };
+        (bump(), bump())
+    })
+    .join()
+    .unwrap();
+    assert_eq!(other, (1, 2));
+    assert_eq!(bump(), 3);
+}

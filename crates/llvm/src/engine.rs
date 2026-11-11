@@ -66,6 +66,11 @@ impl Drop for ResourceTracker {
     }
 }
 
+unsafe extern "C" {
+    /// `cpp/tm_shim.cpp`: sets `TargetMachine::Options.EmulatedTLS`.
+    fn typhon_tm_set_emulated_tls(tm: llvm_sys::target_machine::LLVMTargetMachineRef, on: libc::c_int);
+}
+
 fn check(e: LLVMErrorRef) -> Result<()> {
     match ffi::take_error(e) {
         None => Ok(()),
@@ -167,6 +172,12 @@ impl Engine {
             // process symbols anywhere in the address space.
             let tm = crate::target::host_target_machine_with_model(options, false, inkwell::targets::CodeModel::Large)?;
             let raw_tm = tm.as_mut_ptr();
+            // PORT-NOTE: RTDyld cannot link native MachO TLV (ARM64_RELOC_TLVP_*) or
+            // ELF TLS relocations, which C++ handles via JITLink. JIT code therefore
+            // uses emulated TLS: thread_local globals lower to `__emutls_v.*` control
+            // blocks resolved through `__emutls_get_address` (runtime `emutls.rs`).
+            // AOT output keeps native TLS.
+            typhon_tm_set_emulated_tls(raw_tm, 1);
             std::mem::forget(tm); // ownership moves into the JTMB below
             let jtmb = LLVMOrcJITTargetMachineBuilderCreateFromTargetMachine(raw_tm);
             let builder = LLVMOrcCreateLLJITBuilder();
