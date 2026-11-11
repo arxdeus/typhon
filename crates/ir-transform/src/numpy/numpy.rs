@@ -1315,7 +1315,7 @@ pub struct NumPyFunctionExpressions {
     pub types: NumPyPrimitiveTypes,
     pub rd: Rc<RDInspector>,
     pub cfg: Rc<CFGraph>,
-    pub side_effects: SideEffectResult,
+    pub side_effects: Rc<SideEffectResult>,
     pub arena: ExprArena,
     pub exprs: Vec<NumPyOptimizationUnit>,
     pub destinations: Vec<DestinationExpression>,
@@ -1514,7 +1514,7 @@ impl NumPyFunctionExpressions {
         func: FuncId,
         rd: Rc<RDInspector>,
         cfg: Rc<CFGraph>,
-        side_effects: SideEffectResult,
+        side_effects: Rc<SideEffectResult>,
         mut resolver: Option<&mut HelperResolver<'_>>,
     ) -> Self {
         let types = NumPyPrimitiveTypes::new(m);
@@ -1570,7 +1570,7 @@ impl NumPyFunctionExpressions {
 /// passes (`get`/`take`), like the C++ lazy `get`.
 pub struct NumPyExpressionResult {
     pub reaching: RDResult,
-    pub side_effects: SideEffectResult,
+    pub side_effects: Rc<SideEffectResult>,
     functions: RefCell<FxHashMap<Id, Option<NumPyFunctionExpressions>>>,
 }
 
@@ -1582,7 +1582,7 @@ impl AnalysisResult for NumPyExpressionResult {
 
 impl NumPyExpressionResult {
     pub fn new(reaching: RDResult, side_effects: SideEffectResult) -> Self {
-        Self { reaching, side_effects, functions: RefCell::new(FxHashMap::default()) }
+        Self { reaching, side_effects: Rc::new(side_effects), functions: RefCell::new(FxHashMap::default()) }
     }
 
     /// `extract(func, resolver)`.
@@ -1660,7 +1660,7 @@ impl NumPyFusionPass {
     fn visit(&self, m: &mut Module, func: FuncId, ctx: &dyn PassContext) {
         let Some(exprs) = ctx.get_analysis::<NumPyExpressionResult>(&self.expressions_key) else { return };
         let Some(mut ex) = exprs.take(m, func) else { return };
-        let se = ctx.get_analysis::<SideEffectResult>(&self.side_effects_key).unwrap_or(&exprs.side_effects).clone();
+        let se = ctx.get_analysis::<SideEffectResult>(&self.side_effects_key).unwrap_or(&exprs.side_effects);
         let types = ex.types;
         for d in ex.destinations.iter_mut() {
             d.optimize(m, &mut ex.arena, &types);
