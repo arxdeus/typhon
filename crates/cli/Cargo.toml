@@ -1,5 +1,6 @@
 [package]
 name = "typhon-cli"
+description = "Typhon CLI (port of codon/app/main.cpp)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,5 +9,13 @@ license.workspace = true
 name = "typhon"
 path = "src/main.rs"
 
+[features]
+embed-stdlib = ["typhon-compiler/embed-stdlib"]
+
 [dependencies]
 typhon-common.workspace = true
+typhon-compiler.workspace = true
+typhon-llvm.workspace = true
+typhon-ir.workspace = true
+# Built so that libcodonrt.{dylib,a} lands in target/<profile> next to the binary.
+typhon-runtime = { workspace = true }

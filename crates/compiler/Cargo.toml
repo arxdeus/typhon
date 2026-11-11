@@ -1,8 +1,26 @@
 [package]
 name = "typhon-compiler"
+description = "Compiler driver (port of codon/compiler/compiler.{h,cpp})"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = []
+# Embed ../stdlib into the binary (replaces cmrc ResourceFilesystem).
+embed-stdlib = []
+
 [dependencies]
 typhon-common.workspace = true
+typhon-ir.workspace = true
+typhon-ir-analyze.workspace = true
+typhon-ir-transform.workspace = true
+typhon-parser.workspace = true
+typhon-dsl.workspace = true
+typhon-llvm.workspace = true
+include_dir.workspace = true
+libloading.workspace = true
+libc.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
