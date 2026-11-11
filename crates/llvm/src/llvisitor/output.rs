@@ -224,7 +224,8 @@ impl<'ctx> LlvmVisitor<'ctx> {
         #[cfg(windows)]
         let extra = ["-lcodonrt", "-llibomp", "-llibopenblas", "-o", filename];
         #[cfg(not(windows))]
-        let extra = ["-lcodonrt", "-lomp", "-lpthread", "-ldl", "-lz", "-lm", "-lc", "-o", filename];
+        // PORT-NOTE: OpenMP (`__kmpc_*`, `omp_*`) is linked into libcodonrt (typhon-omp); no `-lomp`.
+        let extra = ["-lcodonrt", "-lpthread", "-ldl", "-lz", "-lm", "-lc", "-o", filename];
         command.extend(extra.iter().map(|s| s.to_string()));
         command.extend(user_flags);
         #[cfg(not(windows))]
