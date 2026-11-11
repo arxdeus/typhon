@@ -43,8 +43,8 @@ unsafe fn unary_loop<T: Copy>(input: *const T, is: usize, out: *mut T, os: usize
         } else {
             let (ib, ob) = (input as *const u8, out as *mut u8);
             for i in 0..n {
-                let x = (ib.add(i * is) as *const T).read_unaligned();
-                (ob.add(i * os) as *mut T).write_unaligned(f(x));
+                let x = (ib.wrapping_add(i.wrapping_mul(is)) as *const T).read_unaligned();
+                (ob.wrapping_add(i.wrapping_mul(os)) as *mut T).write_unaligned(f(x));
             }
         }
     }
@@ -74,9 +74,9 @@ unsafe fn binary_loop<T: Copy>(
         } else {
             let (a, b, o) = (in1 as *const u8, in2 as *const u8, out as *mut u8);
             for i in 0..n {
-                let x = (a.add(i * is1) as *const T).read_unaligned();
-                let y = (b.add(i * is2) as *const T).read_unaligned();
-                (o.add(i * os) as *mut T).write_unaligned(f(x, y));
+                let x = (a.wrapping_add(i.wrapping_mul(is1)) as *const T).read_unaligned();
+                let y = (b.wrapping_add(i.wrapping_mul(is2)) as *const T).read_unaligned();
+                (o.wrapping_add(i.wrapping_mul(os)) as *mut T).write_unaligned(f(x, y));
             }
         }
     }
@@ -137,9 +137,9 @@ macro_rules! complex_abs {
             let (ib, ob) = (input as *const u8, out as *mut u8);
             for i in 0..n {
                 unsafe {
-                    let z = ib.add(i * is) as *const $t;
+                    let z = ib.wrapping_add(i.wrapping_mul(is)) as *const $t;
                     let r = $h(z.read_unaligned(), z.add(1).read_unaligned());
-                    (ob.add(i * os) as *mut $t).write_unaligned(r);
+                    (ob.wrapping_add(i.wrapping_mul(os)) as *mut $t).write_unaligned(r);
                 }
             }
         }
