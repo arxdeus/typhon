@@ -16,3 +16,5 @@ once_cell.workspace = true
 parking_lot.workspace = true
 gimli.workspace = true
 object.workspace = true
+# DWARF symbolization for JIT backtraces (replaces llvm::symbolize::LLVMSymbolizer).
+addr2line = { version = "0.27", default-features = false, features = ["std"] }
