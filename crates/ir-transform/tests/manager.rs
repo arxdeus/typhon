@@ -142,8 +142,6 @@ fn disabled_at_registration() {
 }
 
 /// `PassManagerTest.HonorsDisabledPassesAtRegistration` (types.cpp).
-// PORT-NOTE: the numpy lane has not landed yet; the numpy pass assertions are
-// enabled once `numpy::*` registers in the standard pipeline.
 #[test]
 fn honors_disabled_passes_at_registration() {
     let mut o = Options::default();
@@ -151,11 +149,9 @@ fn honors_disabled_passes_at_registration() {
     let enabled = PassManager::new(o.clone());
     assert!(enabled.has_pass("core-folding-pass-group"));
     assert!(enabled.has_pass("core-devirtualize"));
-    let numpy = enabled.has_pass("core-numpy-inline");
-    if numpy {
-        assert!(enabled.has_pass("core-numpy-fusion"));
-        assert!(enabled.has_pass("core-numpy-lifetime"));
-    }
+    assert!(enabled.has_pass("core-numpy-inline"));
+    assert!(enabled.has_pass("core-numpy-fusion"));
+    assert!(enabled.has_pass("core-numpy-lifetime"));
     assert!(!enabled.is_disabled("core-numpy-fusion"));
 
     o.disabled = vec!["core-numpy-fusion".into(), "core-numpy-lifetime".into(), "not-a-pass".into(), "core-devirtualize".into()];
@@ -163,7 +159,7 @@ fn honors_disabled_passes_at_registration() {
     assert!(!disabled.has_pass("core-numpy-fusion"));
     assert!(!disabled.has_pass("core-numpy-lifetime"));
     assert!(!disabled.has_pass("core-devirtualize"));
-    assert_eq!(disabled.has_pass("core-numpy-inline"), numpy);
+    assert!(disabled.has_pass("core-numpy-inline"));
     assert!(disabled.is_disabled("not-a-pass"));
     disabled.options_mut().disabled.clear();
     assert!(!disabled.is_disabled("core-numpy-fusion"));

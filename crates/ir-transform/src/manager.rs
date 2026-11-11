@@ -386,27 +386,33 @@ mod lanes {
         pr(pm, Box::new(DevirtualizationPass::new(rd.clone())), &[&rd], &[&cfg, &rd, &global]);
     }
 
-    /// Passes from lanes that have not landed yet (numpy, parallel).
+    /// Passes owned by the numpy and parallel modules (kept as small factories so the
+    /// pipeline above reads like the C++ `registerStandardPasses`).
     mod gated {
         use typhon_ir::pass::{Analysis, Pass};
+
+        use crate::numpy::{
+            NumPyBoundsCheckElisionPass, NumPyExpressionAnalysis, NumPyFusionPass, NumPyInlinePass,
+            NumPyLifetimePass,
+        };
 
         pub(super) fn openmp() -> Option<Box<dyn Pass>> {
             Some(Box::new(crate::parallel::OpenMPPass::new()))
         }
-        pub(super) fn numpy_expression_analysis(_rd: &str, _se: &str) -> Option<Box<dyn Analysis>> {
-            None
+        pub(super) fn numpy_expression_analysis(rd: &str, se: &str) -> Option<Box<dyn Analysis>> {
+            Some(Box::new(NumPyExpressionAnalysis::new(rd, se)))
         }
-        pub(super) fn numpy_inline(_np: &str) -> Option<Box<dyn Pass>> {
-            None
+        pub(super) fn numpy_inline(np: &str) -> Option<Box<dyn Pass>> {
+            Some(Box::new(NumPyInlinePass::new(np)))
         }
-        pub(super) fn numpy_fusion(_np: &str, _se: &str) -> Option<Box<dyn Pass>> {
-            None
+        pub(super) fn numpy_fusion(np: &str, se: &str) -> Option<Box<dyn Pass>> {
+            Some(Box::new(NumPyFusionPass::new(np, se)))
         }
-        pub(super) fn numpy_lifetime(_rd: &str) -> Option<Box<dyn Pass>> {
-            None
+        pub(super) fn numpy_lifetime(rd: &str) -> Option<Box<dyn Pass>> {
+            Some(Box::new(NumPyLifetimePass::new(rd)))
         }
-        pub(super) fn numpy_bounds_check_elision(_rd: &str) -> Option<Box<dyn Pass>> {
-            None
+        pub(super) fn numpy_bounds_check_elision(rd: &str) -> Option<Box<dyn Pass>> {
+            Some(Box::new(NumPyBoundsCheckElisionPass::new(rd)))
         }
     }
 }
