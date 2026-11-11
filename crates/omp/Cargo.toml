@@ -4,6 +4,11 @@ description = "OpenMP runtime in Rust: implements the __kmpc_* / omp_* C ABI use
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+build = "build.rs"
+
+[lib]
+# rlib: linked into libcodonrt; cdylib: drop-in `libomp.dylib` for oracle runs.
+crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 libc.workspace = true
