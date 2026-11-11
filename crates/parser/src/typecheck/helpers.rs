@@ -16,6 +16,17 @@ use crate::types::{Generic, InstantiationCache, LinkKind, LiteralKind, string_fr
 
 /// `getImportFile(cache, what, relativeTo, forceStdlib)` (parser/common.cpp).
 pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_stdlib: bool) -> Option<ImportFile> {
+    // C++ `path.replace_extension(ext)`: `Path::with_extension` is a no-op on paths ending
+    // in `..` (`from .. import x`), which would then match the parent *directory*.
+    fn replace_ext(p: PathBuf, ext: &str) -> PathBuf {
+        if p.file_name().is_some() {
+            p.with_extension(ext)
+        } else {
+            let mut s = p.into_os_string();
+            s.push(format!(".{ext}"));
+            PathBuf::from(s)
+        }
+    }
     let fs = cache.fs.clone()?;
     let mut paths: Vec<String> = vec![];
     let parent = Path::new(relative_to).parent().map(|p| p.to_path_buf()).unwrap_or_default();
@@ -23,9 +34,9 @@ pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_s
     if what != "<jit>" && !force_stdlib {
         let f = fs.borrow();
         for p in [
-            parent.join(what).with_extension("codon"),
+            replace_ext(parent.join(what), "codon"),
             parent.join(what).join("__init__.codon"),
-            parent.join(what).with_extension("py"),
+            replace_ext(parent.join(what), "py"),
             parent.join(what).join("__init__.py"),
         ] {
             if f.exists(&p) {
@@ -55,7 +66,7 @@ pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_s
     for p in sps {
         {
             let f = fs.borrow();
-            for c in [p.join(what).with_extension("codon"), p.join(what).join("__init__.codon")] {
+            for c in [replace_ext(p.join(what), "codon"), p.join(what).join("__init__.codon")] {
                 if f.exists(&c) {
                     paths.push(gen_(f.canonical(&c)));
                 }
