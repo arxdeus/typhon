@@ -143,7 +143,7 @@ fn clone_gen_into(
         m.remove_var(f);
         return None;
     };
-    let mut cv = CloneVisitor::new(false);
+    let mut cv = CloneVisitor::new(true);
     let body = cv.clone_value_into(m, gb, Some(f), &remap);
     m.set_func_body(f, Some(body));
     if m.as_series_flow(body).is_none() {
@@ -644,7 +644,7 @@ impl Operator for GeneratorLoopFusion {
             m.replace_all_value(cr, setup);
             setup = m.nr_series_flow();
         }
-        let mut clone = CloneVisitor::new(false);
+        let mut clone = CloneVisitor::new(true);
         let body = clone.clone_value_into(m, gen_body, Some(parent), &arguments);
         // A one-shot loop gives producer returns a common exit.
         let wrapper = m.nr_series_flow();
