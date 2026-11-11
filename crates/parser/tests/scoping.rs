@@ -60,7 +60,8 @@ fn global_and_nonlocal() {
     ScopingVisitor::apply(&mut c, top, None, false).unwrap();
     let b = c.ast[f].attrs.get_bindings().unwrap();
     assert_eq!(b.captures.get("x"), Some(&CaptureType::Global));
-    assert!(c.ast[a].attrs.has(Attr::ExprDominated));
+    let lhs = c.ast[a].kind.as_assign().unwrap().lhs.unwrap();
+    assert!(c.ast[lhs].attrs.has(Attr::ExprDominated));
 }
 
 #[test]
@@ -103,7 +104,8 @@ fn conditional_binding_dominated() {
     ScopingVisitor::apply(&mut c, top, None, false).unwrap();
     let b = c.ast[top].attrs.get_bindings().unwrap();
     assert_eq!(b.bindings["x"].count, 1);
-    assert!(c.ast[a].attrs.has(Attr::ExprDominatedUsed));
+    let lhs = c.ast[a].kind.as_assign().unwrap().lhs.unwrap();
+    assert!(c.ast[lhs].attrs.has(Attr::ExprDominatedUsed));
 }
 
 #[test]

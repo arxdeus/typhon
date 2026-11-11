@@ -120,8 +120,10 @@ impl Visitor for ScopingVisitor<'_> {
             self.cache.ast[id].attrs.set(Attr::ExprNoUndefCheck);
         }
         let src = self.cache.ast[id].src.clone();
-        let root = self.ctx.root;
-        self.visit_name(&value, root.is_some(), root, &src);
+        let adding = self.ctx.root.is_some();
+        // C++: `visitName(value, ctx->root != nullptr, expr, ...)`: the binding node is the
+        // IdExpr itself, so domination attributes land on the assignment lhs.
+        self.visit_name(&value, adding, Some(Node::Expr(id)), &src);
     }
 
     fn visit_dot(&mut self, id: ExprId) {
