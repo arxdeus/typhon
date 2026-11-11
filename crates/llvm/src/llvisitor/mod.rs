@@ -511,7 +511,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             let llvm_type = self.get_llvm_type(m, m.var_type(var).expect("var without type"));
             if !self.is_storable_type(llvm_type) {
                 let d = self.get_dummy_value(llvm_type);
-                self.vars.insert(m.var_uid(var), d);
+                self.insert_var(m.var_uid(var), d);
                 return;
             }
             let external = m.is_external(var);
@@ -519,7 +519,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             let linkage = if self.options.jit || external { LLVMExternalLinkage } else { LLVMPrivateLinkage };
             let init = (!external).then(|| ll::const_null(llvm_type));
             let storage = ll::new_global(self.m(), llvm_type, false, linkage, init, &Self::get_name_for_var(m, var));
-            self.vars.insert(m.var_uid(var), storage);
+            self.insert_var(m.var_uid(var), storage);
             let triple = ll::triple(self.m());
             if external {
                 if self.options.jit {
@@ -580,7 +580,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
                         true,
                     );
                     ll::add_global_debug_info(storage, gve);
-                    self.vars.insert(uid, storage);
+                    self.insert_var(uid, storage);
                     return storage;
                 }
                 Some(_) => {}
@@ -1053,6 +1053,13 @@ impl<'ctx> LlvmVisitor<'ctx> {
         !ll::is_void(t) && ll::alloc_size(self.m(), t) != 0
     }
     /// `getDummyValue`.
+    /// `insertVar`: C++ `vars.emplace(id, x)`; never overwrites an existing entry (a
+    /// global registered at module level must win over a shadowing local alloca, e.g.
+    /// a top-level loop variable listed in main's symbols).
+    fn insert_var(&mut self, uid: Id, x: V) {
+        self.vars.entry(uid).or_insert(x);
+    }
+
     fn get_dummy_value(&self, t: Ty) -> V {
         if ll::is_void(t) { self.get_dummy_void_value() } else { ll::undef(t) }
     }
@@ -1510,7 +1517,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             let llvm_type = self.get_llvm_type(m, vt);
             self.b.at_end(entry);
             let storage = self.b.alloca(llvm_type);
-            self.vars.insert(m.var_uid(var), storage);
+            self.insert_var(m.var_uid(var), storage);
             if self.is_storable_type(llvm_type) {
                 self.b.store(ll::param(func, i as u32), storage);
             }
@@ -1528,11 +1535,11 @@ impl<'ctx> LlvmVisitor<'ctx> {
             let llvm_type = self.get_llvm_type(m, vt);
             if ll::is_void(llvm_type) {
                 let d = self.get_dummy_value(llvm_type);
-                self.vars.insert(m.var_uid(var), d);
+                self.insert_var(m.var_uid(var), d);
             } else {
                 self.b.at_end(entry);
                 let storage = self.b.alloca(llvm_type);
-                self.vars.insert(m.var_uid(var), storage);
+                self.insert_var(m.var_uid(var), storage);
                 let src = Self::src_info(m, var.into());
                 let file = self.db.file(&Self::src_file(&src));
                 let dt = self.get_di_type(m, vt);
