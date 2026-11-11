@@ -73,7 +73,9 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
     while i < args.len() {
         let arg = &args[i];
         i += 1;
-        if input_seen {
+        // `run` uses cl::ConsumeAfter (everything after the input goes to the program);
+        // `build` has no ConsumeAfter, so options may follow the input.
+        if input_seen && !build {
             cli.prog_args.push(arg.clone());
             continue;
         }
@@ -82,6 +84,9 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
             break;
         }
         if !arg.starts_with('-') || arg == "-" {
+            if input_seen {
+                usage_error(&format!("Too many positional arguments specified! Can specify at most 1 positional argument: See: typhon build --help (extra: '{arg}')"));
+            }
             cli.input = arg.clone();
             input_seen = true;
             continue;
