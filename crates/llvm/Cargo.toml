@@ -1,8 +1,18 @@
 [package]
 name = "typhon-llvm"
+description = "LLVM backend: CIR -> LLVM IR codegen, optimization pipeline, GPU, native target features, ORC JIT engine (port of codon/cir/llvm, codon/compiler/{engine,memory_manager,debug_listener})"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 typhon-common.workspace = true
+inkwell.workspace = true
+llvm-sys.workspace = true
+libc.workspace = true
+rustc-hash.workspace = true
+thiserror.workspace = true
+once_cell.workspace = true
+parking_lot.workspace = true
+gimli.workspace = true
+object.workspace = true
