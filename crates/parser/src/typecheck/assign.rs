@@ -709,7 +709,9 @@ impl<'a> TypecheckVisitor<'a> {
 
         // Case: in-place updates (e.g., `a += b`).
         // They are stored as `Update(a, Binary(a + b, inPlace=true))`
-        let rhs = stmt.rhs.unwrap();
+        // PORT-NOTE: C++ `cast<...>(nullptr)` tolerates annotation-only updates (`x: T`
+        // dominated by an earlier binding): no rhs means no special update case applies.
+        let Some(rhs) = stmt.rhs else { return Ok((false, None)) };
         if let Some(bin) = self.cache.ast[rhs].kind.as_binary().cloned().filter(|b| b.in_place) {
             let bl = self.transform(bin.lexpr)?;
             let br = self.transform(bin.rexpr)?;
