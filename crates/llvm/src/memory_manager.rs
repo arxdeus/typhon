@@ -215,7 +215,10 @@ pub(crate) extern "C" fn finalize(opaque: *mut libc::c_void, _err: *mut *mut lib
         } else {
             libc::PROT_READ | libc::PROT_WRITE
         };
-        unsafe { libc::mprotect(a.addr as *mut _, len, prot) };
+        let r = unsafe { libc::mprotect(a.addr as *mut _, len, prot) };
+        if std::env::var_os("TYPHON_JIT_DEBUG").is_some() {
+            eprintln!("mprotect {:#x}+{:#x} code={} ro={} -> {}", a.addr, len, a.code, a.read_only, r);
+        }
         if a.code {
             invalidate_icache(a.addr, a.size);
         }

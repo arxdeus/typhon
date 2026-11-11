@@ -31,7 +31,13 @@ pub fn target_machine_for_module(module: &Module, options: &Options,
 
 /// Host triple / CPU / features helpers.
 pub fn host_triple() -> String;
+pub fn host_cpu_name() -> String;
+pub fn host_cpu_features() -> String;
 pub fn host_target_machine(options: &Options, pic: bool) -> Result<TargetMachine>;
+pub fn host_target_machine_with_model(options: &Options, pic: bool, cm: CodeModel) -> Result<TargetMachine>;
+pub fn target_machine_with_model(triple, cpu, features, march, pic, cm) -> Result<Option<TargetMachine>>;
+pub fn data_layout_string(tm: &TargetMachine) -> String;
+pub fn set_function_attributes_for(module: &Module, cpu: &str, features: &str);
 ```
 
 Typical llvisitor use: `module.set_triple(&TargetTriple::create(&host_triple()))`,
@@ -60,6 +66,9 @@ pub fn optimize(module: &Module, options: &Options, hooks: &[&dyn LlvmPassHooks]
 /// C++ verify(): Err with message + dump to `_dump.ll` when broken.
 pub fn verify(module: &Module) -> Result<()>;
 
+/// Run a textual new-PM pipeline (LLVMRunPasses).
+pub fn run_passes(module: &Module, passes: &str, tm: Option<&TargetMachine>) -> Result<()>;
+
 /// Global ctor name used by the visitor (LLVMVisitor::getGlobalCtorName()).
 pub const GLOBAL_CTOR_NAME: &str = ".main.ctor";
 ```
@@ -69,7 +78,12 @@ Individual Codon passes are public in `typhon_llvm::optimize::passes`
 `coro_branch_simplifier`, `coro_unroll_control`, `coro_unroll_cleanup`,
 `coro_resume_inliner`, `openmp_thread_id_optimizer`, `apply_debug_transformations`,
 `apply_fast_math_transformations`). Each takes `&Module` (or `FunctionValue`) and
-returns `bool` (changed).
+returns `bool` (changed). Function passes take a raw `LLVMValueRef`
+(`FunctionValue::as_value_ref()`), module passes a raw `LLVMModuleRef` (`Module::as_mut_ptr()`).
+
+NOTE for JIT users: the engine compiles with the **Large code model** (RTDyld on
+MachO/AArch64 has no far-branch stubs). The visitor need not care: the engine
+re-targets modules on `add_module`.
 
 ## GPU (`typhon_llvm::gpu`)
 
@@ -95,6 +109,7 @@ pub struct GcRootCallbacks { pub add_roots: unsafe extern "C" fn(*mut c_void, *m
 pub struct EngineConfig { pub gc_roots: Option<GcRootCallbacks>, pub optimize_on_add: bool }
 
 pub struct Engine { .. }   // owns LLVMOrcLLJITRef; Drop disposes it. !Send.
+// Engine::options(&self) -> &Options
 impl Engine {
     pub fn new(options: &Options, config: EngineConfig) -> Result<Engine>;
     pub fn data_layout(&self) -> String;

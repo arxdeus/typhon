@@ -158,7 +158,14 @@ impl Engine {
         let transform = Box::new(TransformCtx { options: options.clone() });
         unsafe {
             // EngineBuilder().setMArch/MCPU/MAttrs().selectTarget()
-            let tm = crate::target::host_target_machine(options, false)?;
+            // PORT-NOTE: C++ JITLink inserts branch stubs for far calls. RTDyld on
+            // MachO/AArch64 does not, so JIT code uses the Large code model to reach
+            // process symbols anywhere in the address space.
+            let tm = crate::target::host_target_machine_with_model(
+                options,
+                false,
+                inkwell::targets::CodeModel::Large,
+            )?;
             let raw_tm = tm.as_mut_ptr();
             std::mem::forget(tm); // ownership moves into the JTMB below
             let jtmb = LLVMOrcJITTargetMachineBuilderCreateFromTargetMachine(raw_tm);

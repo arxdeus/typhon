@@ -30,3 +30,6 @@ pub use target::{
     data_layout_string, features_str, host_target_machine, host_triple, initialize_targets, target_machine_for,
     target_machine_for_module,
 };
+
+#[doc(hidden)]
+pub mod test_support;

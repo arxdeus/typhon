@@ -76,6 +76,18 @@ fn lookup_target(triple: &str, march: &str) -> std::result::Result<Target, Strin
 /// default TargetOptions, `Default` reloc model (unless `pic`) and `Default` code
 /// model are used, which is what those flags resolve to when unset.
 pub fn target_machine_for(triple: &str, cpu: &str, features: &str, march: &str, pic: bool) -> Result<Option<TargetMachine>> {
+    target_machine_with_model(triple, cpu, features, march, pic, CodeModel::Default)
+}
+
+/// Like [`target_machine_for`] with an explicit code model.
+pub fn target_machine_with_model(
+    triple: &str,
+    cpu: &str,
+    features: &str,
+    march: &str,
+    pic: bool,
+    code_model: CodeModel,
+) -> Result<Option<TargetMachine>> {
     initialize_targets();
     let target = match lookup_target(triple, march) {
         Ok(t) => t,
@@ -87,7 +99,7 @@ pub fn target_machine_for(triple: &str, cpu: &str, features: &str, march: &str, 
         features,
         OptimizationLevel::Aggressive,
         if pic { RelocMode::PIC } else { RelocMode::Default },
-        CodeModel::Default,
+        code_model,
     );
     match tm {
         Some(tm) => Ok(Some(tm)),
@@ -158,10 +170,14 @@ pub(crate) fn string_attr_value(f: ffi::V, key: &str) -> Option<String> {
 /// with `setMCPU("")` is the generic CPU; Codon's JIT then overrides per-function
 /// attributes through the native pass, so we match the effective result).
 pub fn host_target_machine(options: &Options, pic: bool) -> Result<TargetMachine> {
+    host_target_machine_with_model(options, pic, CodeModel::Default)
+}
+
+pub fn host_target_machine_with_model(options: &Options, pic: bool, code_model: CodeModel) -> Result<TargetMachine> {
     let triple = host_triple();
     let cpu = options.mcpu.clone();
     let features = features_str(&options.mattrs);
-    target_machine_for(&triple, &cpu, &features, &options.march, pic)?
+    target_machine_with_model(&triple, &cpu, &features, &options.march, pic, code_model)?
         .ok_or_else(|| CompilerError::Llvm(format!("could not find target for '{triple}'")))
 }
 
