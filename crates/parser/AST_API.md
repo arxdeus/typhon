@@ -121,7 +121,9 @@ kind (`as_<snake>`), plus `ExprKind::tag() -> ExprTag`, `StmtKind::tag() -> Stmt
 
 Arena helpers: `function_star_args`, `function_kw_star_args`, `function_docstr`, `class_docstr`,
 `non_inferrable_generics(stmt)`, `has_function_attribute(stmt, name)`, `class_is_record`,
-`ClassStmt::is_class_var(arena, &Param)`, `generator_loop_count`, `generator_final_expr`,
+`is_class_var(&Param)`, `contains_id(expr, name)`, `parse_params(Vec<Param>)`,
+`new_call(src, f, &[args])`, `call_arg(name, value)`, `new_class`, `new_with_pairs`, `clone_param`,
+`first_in_block`, `suite_flatten`, `suite_add_stmt`, `generator_final_slot/gen_slot_get/gen_slot_set`, `generator_loop_count`, `generator_final_expr`,
 `generator_set_final_expr`, `generator_set_final_stmt`, `get_static_generic -> LiteralKind`.
 
 ## Attributes (`ast::attr`)
@@ -139,7 +141,8 @@ Methods: `set(a)`, `set_int`, `set_str`, `set_value(a, AttrValue)`, `has`, `get`
 * `arena.expr_to_codon(id, attributes, indent, level)`, `stmt_to_codon` — `toCodonString`.
 * `arena.expr_to_python(id, attrs, indent, level)`, `stmt_to_python` — `toPythonString`.
 * `codon_string::format_float(f64)` — Python `repr(float)`.
-* `FormatVisitor::apply_stmt(&arena, id, hooks, html)` / `apply_expr` — source-like text / HTML.
+* `FormatVisitor::apply_stmt(&arena, id, Option<&dyn FormatCacheHooks>, html)` / `apply_expr` — source-like
+  text / HTML. `FormatCacheHooks` (cache lane implements) supplies function/class realizations.
 
 ## Visitors (`visitors::visitor`)
 
@@ -165,25 +168,31 @@ pub trait Visitor: AstCtx {
 pub fn walk_expr<V: Visitor + ?Sized>(v: &mut V, id: ExprId)   // CallbackASTVisitor / Replacing default
 pub fn walk_stmt<V: Visitor + ?Sized>(v: &mut V, id: StmtId)
 ```
-Default `visit_*` = walk children in C++ order, calling `transform_*` and **writing back** the
-returned ids (ReplacingCallbackASTVisitor semantics; suite slots are re-wrapped with
-`wrap_suite`). A non-replacing visitor just returns the same id. A visitor that wants C++
-`ASTVisitor` no-op defaults overrides `visit_*`. `IdMapper` + `ExprKind::map_ids/StmtKind::map_ids`
-give generic child traversal in the same order.
+Default `visit_*` calls `default_visit_expr/stmt`, which defaults to `walk_*`: walk children in C++
+order, calling `transform_*` and **writing back** the returned ids (ReplacingCallbackASTVisitor
+semantics; suite slots are re-wrapped with `wrap_suite`). A non-replacing visitor just returns the
+same id. For C++ `ASTVisitor` no-op defaults, override `default_visit_expr/stmt` with `{}`.
+Like C++, f-string part expressions of `StringExpr` are not visited. `expr_children/stmt_children`
+list children; `IdMapper` + `ExprKind::map_ids/StmtKind::map_ids` give generic traversal.
+`impl AstCtx for AstArena` exists for standalone visitors.
 
 ## Matching (`matching`)
 
 `M` pattern tree: `M::ignore()` (`M_`), `M::any()` (`MAny`), `M::str("x")`, `M::starts/ends/contains`,
-`M::int(i)`, `M::bool(b)`, `M::float(f)`, `M::or(vec)`, `M::expr(ExprTag::Id, vec![...])`
-(`M<IdExpr>(...)`), `M::stmt(StmtTag::Expr, ...)`, `.bind_expr(&Cell<Option<ExprId>>)` (`MVar`),
-`.call(|arena, node| ...)` (`MCall`). `match_expr(arena, Option<ExprId>, &M) -> bool`,
-`match_stmt`. Members per node follow C++ `match_members()` order.
+`M::Int(i)`, `M::Bool(b)`, `M::Float(f)`, `M::or(vec)`, `M::expr(ExprTag::Id, vec![...])`
+(`M<IdExpr>(...)`, empty vec = any node of that kind), `M::stmt(StmtTag::Expr, ...)`,
+`.bind_expr(&Rc<Cell<Option<ExprId>>>)` / `.bind_stmt` (`MVar`), `.call_expr(|id| ..)` / `.call_stmt` (`MCall`).
+`match_expr(arena, Option<ExprId>, &M) -> bool`, `match_stmt`. Members per node follow C++
+`match_members()` order (`expr_members` / `stmt_members`); vector/enum members are opaque (only `M_` matches).
+`StringExpr` exposes its simple value as the single member.
 
 ## Serialization
 
-All node structs derive `serde::{Serialize, Deserialize}`. `arena.serialize_stmt(root) -> Vec<u8>`
-(postcard, subtree copied into a fresh arena), `AstArena::deserialize(&[u8]) -> Result<(AstArena, StmtId)>`
-then `arena.import_stmt(&loaded, root)`. `ty`/`expected_type` are not serialized (as in C++).
+All node structs derive `serde::{Serialize, Deserialize}`. `arena.serialize_stmt(root) -> Result<Vec<u8>>` /
+`serialize_expr` (postcard, subtree copied into a compact arena), `AstArena::deserialize_stmt(&[u8]) ->
+Result<(AstArena, StmtId)>` / `deserialize_expr`, then `arena.import_stmt(&loaded, root)` to merge.
+`ty`, `expected_type`, `PipeExpr::in_types`, `AwaitExpr::transformed`, FunctionStmt caches are not
+serialized (as in C++). `orig_expr` is dropped by `import_*`.
 
 ## C++ -> Rust name table
 
