@@ -155,6 +155,7 @@ fn run_mode(argv0: &str, args: &[String]) -> i32 {
     // PORT-NOTE: C++ loads `-l` libraries via DynamicLibrary::LoadLibraryPermanently; same here.
     let mut prog_args = vec![compiler.input().to_string()];
     prog_args.extend(cli.prog_args.iter().cloned());
+    v.set_jit_symbols(typhon_compiler::runtime::builtin_symbols());
     let config = EngineConfig { gc_roots: rt.gc_roots, ..Default::default() };
     let r = v.run(&prog_args, &cli.libs, config);
     flush_c_stdio();

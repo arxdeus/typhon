@@ -79,6 +79,47 @@ fn dlsym_global(name: &str) -> Option<usize> {
     }
 }
 
+unsafe extern "C" {
+    fn __addtf3();
+    fn __subtf3();
+    fn __multf3();
+    fn __divtf3();
+    fn __eqtf2();
+    fn __netf2();
+    fn __lttf2();
+    fn __letf2();
+    fn __gttf2();
+    fn __getf2();
+    fn __unordtf2();
+    fn __extenddftf2();
+    fn __extendsftf2();
+    fn __trunctfdf2();
+    fn __trunctfsf2();
+    fn __fixtfdi();
+    fn __fixtfsi();
+    fn __fixunstfdi();
+    fn __floatditf();
+    fn __floatsitf();
+    fn __floatunditf();
+}
+
+/// Soft-float `f128` libcalls (compiler-rt builtins) for JIT'd code.
+///
+/// PORT-NOTE: C++ codon links LLVM's compiler-rt into the binary; Apple's libSystem
+/// does not export the `*tf*` routines, so the JIT could not resolve them. Rust's
+/// `compiler_builtins` (always linked) provides them; we hand their addresses to the
+/// engine as absolute symbols.
+pub fn builtin_symbols() -> Vec<(String, u64)> {
+    macro_rules! syms {
+        ($($f:ident),*) => { vec![$((stringify!($f).to_string(), $f as *const () as usize as u64)),*] };
+    }
+    syms!(
+        __addtf3, __subtf3, __multf3, __divtf3, __eqtf2, __netf2, __lttf2, __letf2, __gttf2, __getf2, __unordtf2,
+        __extenddftf2, __extendsftf2, __trunctfdf2, __trunctfsf2, __fixtfdi, __fixtfsi, __fixunstfdi, __floatditf,
+        __floatsitf, __floatunditf
+    )
+}
+
 /// The loaded runtime: GC root callbacks for the JIT engine.
 pub struct Runtime {
     pub path: PathBuf,
