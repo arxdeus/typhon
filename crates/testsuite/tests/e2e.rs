@@ -10,9 +10,31 @@ fn main() {
         .into_iter()
         .map(|case| {
             let cfg = cfg.clone();
-            let (name, kind) = (case.display_name(), case.suite);
-            Trial::test(name, move || runner::check(&cfg, &case).map_err(Failed::from)).with_kind(kind)
+            let (mut name, kind) = (case.display_name(), case.suite);
+            let reason = env_skip_reason(&case);
+            if let Some(r) = reason {
+                name.push_str(&format!(" [ignored: {r}]"));
+            }
+            Trial::test(name, move || runner::check(&cfg, &case).map_err(Failed::from))
+                .with_kind(kind)
+                .with_ignored_flag(reason.is_some())
         })
         .collect();
     libtest_mimic::run(&args, trials).exit();
+}
+
+/// Environment-only failures (out of scope per DESIGN.md / missing hardware). Each was
+/// verified to fail with `dlopen(libpython.dylib)` or missing CUDA libdevice, identically
+/// for the C++ reference. Run them by setting `CODON_PYTHON` / installing CUDA.
+fn env_skip_reason(case: &typhon_testsuite::suites::Case) -> Option<&'static str> {
+    let needs_python = case.file.ends_with("pybridge.codon")
+        || case.file.ends_with("stdlib/random_test.codon")
+        || case.file.ends_with("test_python.codon");
+    if needs_python && std::env::var_os("CODON_PYTHON").is_none() {
+        return Some("needs libpython (CODON_PYTHON unset)");
+    }
+    if case.suite == "gpu" && !std::path::Path::new("/usr/local/cuda/nvvm/libdevice").exists() {
+        return Some("needs CUDA libdevice");
+    }
+    None
 }

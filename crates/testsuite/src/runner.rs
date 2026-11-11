@@ -133,6 +133,17 @@ pub fn execute(cfg: &Config, case: &Case) -> Result<Outcome, String> {
     std::fs::create_dir(cwd.path().join("build")).map_err(|e| e.to_string())?;
     #[cfg(unix)]
     std::os::unix::fs::symlink(&cfg.test_dir, cwd.path().join("test")).map_err(|e| e.to_string())?;
+    // C++ tests ran from the build dir, where `./libcodonrt.<ext>` resolves
+    // (types/import_c_dylib*). Expose the runtime next to the scratch cwd.
+    #[cfg(unix)]
+    if let Some(dir) = cfg.bin.parent() {
+        for ext in ["dylib", "so"] {
+            let rt = dir.join(format!("libcodonrt.{ext}"));
+            if rt.exists() {
+                let _ = std::os::unix::fs::symlink(&rt, cwd.path().join(format!("libcodonrt.{ext}")));
+            }
+        }
+    }
     cmd.current_dir(cwd.path());
     let out = run_process(cmd, cfg.timeout).map_err(|e| format!("spawn failed: {e}"));
     drop(compile_out);
