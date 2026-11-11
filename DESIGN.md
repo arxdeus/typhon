@@ -31,6 +31,8 @@ typhon-common        codon/util, compiler/error, compiler/options, parser/common
   ├── typhon-compiler       codon/compiler/{compiler,error}            -> everything above
   ├── typhon-cli  (bin `typhon`)   codon/app/main.cpp (run / build / doc modes; no jit REPL, no jupyter)
   ├── typhon-runtime        codon/runtime/** -> `libcodonrt` (staticlib + cdylib, C ABI)
+  ├── typhon-omp            OpenMP runtime ABI (`__kmpc_*`, `omp_*`) in Rust, linked into libcodonrt
+                            (replaces the GC-patched LLVM libomp the C++ build depends on)
   └── typhon-testsuite      test/main.cpp, test/types.cpp, test/cir/**, test/dsl/**
 ```
 
@@ -104,6 +106,7 @@ blocks in the type checker become `match` on the `Result`.
 | complex math (`std::complex`) | numpy zmath | `num-complex` |
 | xeus / xeus-zmq | Jupyter kernel | out of scope (not ported) |
 | Cython (`jit.pyx`) | Python `@codon.jit` bridge | out of scope (not ported) |
+| LLVM libomp (Codon fork with `__kmpc_set_gc_callbacks`) | `@par` loops, `threading`, `joblib` | `typhon-omp`: own Rust runtime on `std::thread` + `parking_lot` + `crossbeam-utils`/`crossbeam-deque`, tiny `cc` C shim for variadic `__kmpc_fork_call`; libomp kept only as opt-in fallback feature |
 | llvm::cl options (CLI) | command line | `clap` |
 | dlopen | plugins, JIT symbols | `libloading` |
 | googletest | C++ tests | `libtest-mimic` (data-driven `.codon` tests) + `#[test]` + `insta` |
