@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 typhon-common.workspace = true
+typhon-ir.workspace = true
 inkwell.workspace = true
 llvm-sys.workspace = true
 libc.workspace = true
@@ -18,3 +19,6 @@ gimli.workspace = true
 object.workspace = true
 # DWARF symbolization for JIT backtraces (replaces llvm::symbolize::LLVMSymbolizer).
 addr2line = { version = "0.27", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+typhon-runtime.workspace = true

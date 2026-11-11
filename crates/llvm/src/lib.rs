@@ -15,6 +15,7 @@ pub mod debug_listener;
 pub mod engine;
 pub(crate) mod ffi;
 pub mod gpu;
+pub mod llvisitor;
 pub mod memory_manager;
 pub mod native;
 pub mod optimize;
@@ -24,6 +25,7 @@ pub use inkwell;
 pub use llvm_sys;
 
 pub use debug_listener::{DebugListener, LineInfo};
+pub use llvisitor::{CodegenBuilder, LlvmVisitor, PluginLinkInfo, TypeBuilder, ValueBuilder};
 pub use engine::{Engine, EngineConfig, GcRootCallbacks, ResourceTracker};
 pub use optimize::{GLOBAL_CTOR_NAME, LlvmPassHooks, PassStage, optimize, verify};
 pub use target::{
