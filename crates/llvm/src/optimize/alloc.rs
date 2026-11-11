@@ -958,6 +958,10 @@ pub fn allocation_hoister_with(info: &AllocInfo, func: V) -> bool {
     if ffi::is_declaration(func) {
         return false;
     }
+    // Fast path: no loop can have a hoisting candidate without an allocation call.
+    if !ffi::fn_instructions(func).into_iter().any(|i| ffi::is_call(i) && info.is_alloc(i)) {
+        return false;
+    }
     // Loop headers in worklist order; analyses are recomputed per loop since the
     // transformation splits blocks (C++ updates them incrementally).
     let headers: Vec<BB> = {
@@ -1128,10 +1132,8 @@ pub fn allocation_auto_free(func: V) -> bool {
     if ffi::is_declaration(func) {
         return false;
     }
-    let cfg = Cfg::new(func);
-    let dt = DomTree::dominators(&cfg);
-    let pdt = DomTree::post_dominators(&cfg);
-    let li = LoopInfo::new(&cfg, &dt);
+    // Analyses are built lazily: most functions have no candidate allocation.
+    let mut an: Option<(Cfg, DomTree, DomTree, LoopInfo)> = None;
     let mut changed = false;
     for i in ffi::fn_instructions(func) {
         if ffi::opcode(i) != Op::LLVMCall {
@@ -1144,7 +1146,14 @@ pub fn allocation_auto_free(func: V) -> bool {
         if pointer_may_be_captured(i, true, 20) {
             continue;
         }
-        changed |= insert_free(&info, i, func, &cfg, &dt, &pdt, &li);
+        let (cfg, dt, pdt, li) = an.get_or_insert_with(|| {
+            let cfg = Cfg::new(func);
+            let dt = DomTree::dominators(&cfg);
+            let pdt = DomTree::post_dominators(&cfg);
+            let li = LoopInfo::new(&cfg, &dt);
+            (cfg, dt, pdt, li)
+        });
+        changed |= insert_free(&info, i, func, cfg, dt, pdt, li);
     }
     changed
 }

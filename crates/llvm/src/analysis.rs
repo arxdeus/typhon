@@ -54,7 +54,9 @@ pub struct DomTree {
 }
 
 impl DomTree {
-    fn compute(n: usize, roots: &[usize], succ: &dyn Fn(usize) -> Vec<usize>, pred: &dyn Fn(usize) -> Vec<usize>) -> Self {
+    fn compute(n: usize, roots: &[usize], succ_l: &[Vec<usize>], pred_l: &[Vec<usize>]) -> Self {
+        let succ = |b: usize| -> &[usize] { &succ_l[b] };
+        let pred = |b: usize| -> &[usize] { &pred_l[b] };
         // reverse postorder from roots
         let mut visited = vec![false; n];
         let mut post = Vec::with_capacity(n);
@@ -116,7 +118,7 @@ impl DomTree {
                 }
                 let mut new: Option<usize> = None;
                 let mut failed = false;
-                for p in pred(b) {
+                for &p in pred(b) {
                     if !visited[p] || idom[p].is_none() {
                         continue;
                     }
@@ -200,7 +202,7 @@ impl DomTree {
         if cfg.blocks.is_empty() {
             return DomTree { idom: vec![], reachable: vec![], depth: vec![], tin: vec![], tout: vec![] };
         }
-        Self::compute(cfg.blocks.len(), &[0], &|b| cfg.succs[b].clone(), &|b| cfg.preds[b].clone())
+        Self::compute(cfg.blocks.len(), &[0], &cfg.succs, &cfg.preds)
     }
 
     /// Post-dominators (roots = blocks without successors).
@@ -237,7 +239,7 @@ impl DomTree {
                 }
             }
         }
-        Self::compute(n, &roots, &|b| cfg.preds[b].clone(), &|b| cfg.succs[b].clone())
+        Self::compute(n, &roots, &cfg.preds, &cfg.succs)
     }
 
     pub fn is_reachable(&self, b: usize) -> bool {
