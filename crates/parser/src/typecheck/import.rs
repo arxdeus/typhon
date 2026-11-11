@@ -482,9 +482,11 @@ impl<'a> TypecheckVisitor<'a> {
         let parse = self.cache.hooks.parse_file.clone().ok_or_else(|| CompilerError::custom("no parser hook installed", self.src))?;
         let node = parse(self.cache, &file.path)?;
         let n = self.xm_suite(&[n, Some(node)]);
-        if let Some(sc) = self.cache.hooks.scoping.clone() {
-            // PORT-NOTE: `ScopingVisitor::apply(cache, n, &ictx->globalShadows, !isStdlibLoading)`;
-            // the hook derives the last flag from the context it is given.
+        if let Some(sc) = self.cache.hooks.scoping_import.clone() {
+            // `ScopingVisitor::apply(cache, n, &ictx->globalShadows, !ctx->isStdlibLoading)`
+            let dominate_all = !self.ctx.borrow().is_stdlib_loading;
+            sc(self.cache, n, ictx.clone(), dominate_all)?;
+        } else if let Some(sc) = self.cache.hooks.scoping.clone() {
             sc(self.cache, n, Some(ictx.clone()))?;
         }
         if !self.cache.errors.is_empty() {

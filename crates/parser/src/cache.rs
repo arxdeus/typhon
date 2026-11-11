@@ -206,6 +206,8 @@ pub struct CacheHooks {
     pub scoping: Option<Rc<dyn Fn(&mut Cache, StmtId, Option<CtxRef>) -> Result<()>>>,
     /// `TranslateVisitor(codegenCtx).translateStmts(stmt)`.
     pub translate: Option<Rc<dyn Fn(&mut Cache, StmtId) -> Result<()>>>,
+    /// `ScopingVisitor::apply(cache, n, &ictx->globalShadows, dominateAll)` for new imports.
+    pub scoping_import: Option<Rc<dyn Fn(&mut Cache, StmtId, CtxRef, bool) -> Result<()>>>,
     /// `Cache::parseCode` IR part (translate the typechecked `node` into a fresh series
     /// flow attached to main); returns the series flow value.
     pub translate_parsed: Option<Rc<dyn Fn(&mut Cache, StmtId) -> Result<typhon_ir::ValueId>>>,

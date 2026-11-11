@@ -127,6 +127,12 @@ pub fn install_hooks(cache: &mut Cache) {
         }
         Ok(())
     }));
+    cache.hooks.scoping_import = Some(std::rc::Rc::new(|cache: &mut Cache, stmt: StmtId, ctx: CtxRef, dominate_all: bool| {
+        let mut shadows = FxHashMap::default();
+        ScopingVisitor::apply(cache, stmt, Some(&mut shadows), dominate_all)?;
+        ctx.borrow_mut().global_shadows.extend(shadows);
+        Ok(())
+    }));
 }
 
 impl<'a> ScopingVisitor<'a> {
