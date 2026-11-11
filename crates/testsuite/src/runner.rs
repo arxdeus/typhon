@@ -116,6 +116,9 @@ pub fn execute(cfg: &Config, case: &Case) -> Result<Outcome, String> {
 
     // CODON_TEST_FLAGS = 1 + barebones (C++: testFlags = 1 + get<5>)
     cmd.env("CODON_TEST_FLAGS", (1 + case.barebones as i32).to_string());
+    // C++ runCompileAndRun: options->test = true (release pipeline in debug too,
+    // plus TestOutliner/TestInliner/EscapeValidator).
+    cmd.env("TYPHON_TEST_MODE", "1");
     cmd.env("CODON_PATH", &cfg.stdlib);
     cmd.env("TYPHON_STDLIB_DIR", &cfg.stdlib);
     let mut py = cfg.test_dir.join("python").into_os_string();
