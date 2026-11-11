@@ -189,7 +189,9 @@ fn run_llvm_optimization_passes(module: &Module, hooks: &[&dyn LlvmPassHooks], o
     if speed {
         for_each_definition(m, coro::coro_branch_simplifier);
         peephole(m, options, tm)?;
-        run_pipeline(m, "function(instcombine,simplifycfg)", tm)?;
+        // `instcombine` named directly verifies a 1-iteration fixpoint and aborts
+        // (O3's internal instances don't); this extra run is a port approximation.
+        run_pipeline(m, "function(instcombine<no-verify-fixpoint>,simplifycfg)", tm)?;
     }
     run_hooks(PassStage::VectorizerStart, module, hooks, debug, tm)?;
     run_hooks(PassStage::OptimizerLast, module, hooks, debug, tm)?;
