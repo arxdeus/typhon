@@ -101,3 +101,16 @@ pub struct OutlineResult { pub func: Option<FuncId>, pub call: Option<ValueId>, 
 pub enum ArgKind { Constant, Modified }
 ```
 Outlining with modified vars / outflows needs a `TypeRealizer` (`ptr_load/ptr_store`, `==`).
+
+## Notes (as implemented)
+
+* `RDInspector::analyze(&mut self, m)` takes the module; `get_reaching_definitions(m, var: impl Into<CfVar>, loc)`.
+* `ReachingDef::{assignment_uid(), assignee_uid(), assignment_value()}`; `get_killed`/`get_generated` are public.
+* `CaptureAnalysis::compute(m, &rd, &dom)`, `SideEffectAnalysis::compute(m, &cr, global_assign_se)`,
+  `RDAnalysis::compute(m, &cfg)`, `DominatorAnalysis::compute(&cfg)`, `CFAnalysis::compute(m)`,
+  `GlobalVarsAnalyses::compute(m)` run analyses without a `PassContext`.
+* `outline_region(m, parent, series, begin: usize, end: usize, ...)` outlines `series[begin..end]`.
+* `util::walk::ConstWalker`: read-only walk in `Operator` order; `util::bitset::BitSet`.
+* PORT-NOTEs: dominators use the C++ iterative bitset algorithm (no petgraph dependency);
+  DSL custom flows/instrs need `register_cf_builder`; missing dependency analyses are recomputed;
+  C++ null-deref / assert paths become conservative results.
