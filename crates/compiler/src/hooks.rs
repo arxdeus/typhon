@@ -4,22 +4,48 @@
 //! Each lane exposes its own entry point; this module is the single place that
 //! connects them so the rest of the driver only talks to `Cache::hooks`.
 
-use typhon_common::Result;
-use typhon_parser::cache::Cache;
+use std::rc::Rc;
+
+use typhon_common::{CompilerError, Result, SrcInfo};
+use typhon_parser::ast::FormatSpec;
+use typhon_parser::cache::{Cache, ImportModule};
+use typhon_parser::ids::ExprId;
+use typhon_parser::peg::{self, ParseOptions};
 
 /// Install all parser-lane hooks into `cache`.
 pub fn install(cache: &mut Cache) {
     install_grammar(cache);
     typhon_parser::visitors::scoping::install_hooks(cache);
-    install_translate(cache);
+    typhon_parser::visitors::translate::install_hooks(cache);
 }
 
-fn install_grammar(_cache: &mut Cache) {
-    // Filled in when `typhon_parser::peg` lands (parse_code / parse_file / parse_expr).
+/// DSL keywords currently registered in the cache, as the grammar wants them.
+fn parse_options(cache: &Cache) -> ParseOptions {
+    ParseOptions {
+        custom_block_stmts: cache.custom_block_stmts.iter().map(|(k, (e, _))| (k.clone(), *e)).collect(),
+        custom_expr_stmts: cache.custom_expr_stmts.keys().cloned().collect(),
+    }
 }
 
-fn install_translate(_cache: &mut Cache) {
-    // Filled in when `typhon_parser::visitors::translate` lands.
+fn parse_expr_hook(cache: &mut Cache, code: &str, offset: &SrcInfo) -> Result<(ExprId, FormatSpec)> {
+    let opts = parse_options(cache);
+    peg::parse_expr(&mut cache.ast, &opts, code, offset)
+}
+
+fn install_grammar(cache: &mut Cache) {
+    cache.hooks.parse_code = Some(Rc::new(|cache: &mut Cache, file: &str, code: &str, line: i32| {
+        let opts = parse_options(cache);
+        peg::parse_code(&mut cache.ast, &opts, file, code, line)
+    }));
+    cache.hooks.parse_file = Some(Rc::new(|cache: &mut Cache, file: &str| {
+        let opts = parse_options(cache);
+        let fs = cache.fs.clone().ok_or_else(|| CompilerError::Io("no filesystem".into()))?;
+        let fsb = fs.borrow();
+        let (stmt, lines) = peg::parse_file(&mut cache.ast, &opts, &*fsb, file)?;
+        cache.imports.entry(file.to_string()).or_insert_with(ImportModule::new).content = lines;
+        Ok(stmt)
+    }));
+    typhon_parser::visitors::scoping::set_parse_expr_hook(parse_expr_hook);
 }
 
 /// `DocVisitor::apply(argv0, files)` -> JSON string.
