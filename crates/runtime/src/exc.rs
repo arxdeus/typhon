@@ -256,8 +256,13 @@ mod apple {
 
 /// Port of `seq_exc_init` (C++-mangled internal in the original; not exported).
 pub fn seq_exc_init(flags: c_int) {
+    // PORT-NOTE: C++ registers a callback reporting only the fake mach header
+    // (JITLink's UnwindInfoManager supplies the sections there). Typhon's RTDyld
+    // JIT registers a real per-object callback (typhon-llvm `eh_frames`); this
+    // catch-all one claims every PC with empty sections and, being registered
+    // first, would shadow it, so it is disabled unless explicitly requested.
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    if flags & SEQ_FLAG_STANDALONE == 0 {
+    if flags & SEQ_FLAG_STANDALONE == 0 && std::env::var_os("TYPHON_RT_FAKE_UNWIND_SECTIONS").is_some() {
         unsafe {
             let sym = libc::dlsym(libc::RTLD_DEFAULT, c"__unw_add_find_dynamic_unwind_sections".as_ptr());
             if !sym.is_null() {

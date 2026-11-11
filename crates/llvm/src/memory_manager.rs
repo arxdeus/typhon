@@ -203,7 +203,10 @@ pub(crate) extern "C" fn allocate_data(
     p
 }
 
-pub(crate) extern "C" fn finalize(opaque: *mut libc::c_void, _err: *mut *mut libc::c_char) -> llvm_sys::prelude::LLVMBool {
+pub(crate) extern "C" fn finalize(
+    opaque: *mut libc::c_void,
+    _err: *mut *mut libc::c_char,
+) -> llvm_sys::prelude::LLVMBool {
     let ctx = unsafe { &mut *(opaque as *mut ObjectContext) };
     let ps = page_size();
     for a in &ctx.allocations {
@@ -222,6 +225,40 @@ pub(crate) extern "C" fn finalize(opaque: *mut libc::c_void, _err: *mut *mut lib
         if a.code {
             invalidate_icache(a.addr, a.size);
         }
+    }
+    // Register DWARF unwind info (RTDyld has already applied relocations).
+    let code = ctx.allocations.iter().filter(|a| a.code);
+    let lo = code.clone().map(|a| a.addr).min().unwrap_or(0);
+    let hi = code.map(|a| a.addr + a.size).max().unwrap_or(0);
+    if let Some(eh) = ctx.sections.iter().find(|s| {
+        let n = s.name.rsplit(',').next().unwrap_or(&s.name);
+        n == "__eh_frame" || n == ".eh_frame"
+    }) {
+        #[cfg(target_os = "macos")]
+        if let Some(obj) = ctx.object.as_deref() {
+            use object::{Object, ObjectSection};
+            if let Ok(f) = object::File::parse(obj) {
+                let addr_of = |n: &str| f.section_by_name(n).map(|s| s.address() as isize);
+                let load_of = |n: &str| ctx.sections.iter().find(|s| s.name.ends_with(n)).map(|s| s.addr as isize);
+                if let (Some(t_obj), Some(e_obj), Some(t_load)) =
+                    (addr_of("__text"), addr_of("__eh_frame"), load_of("__text"))
+                {
+                    let eh_slide = eh.addr as isize - e_obj;
+                    let pc_delta = eh_slide - (t_load - t_obj);
+                    let lsda_delta = match (addr_of("__gcc_except_tab"), load_of("__gcc_except_tab")) {
+                        (Some(g_obj), Some(g_load)) => eh_slide - (g_load - g_obj),
+                        _ => 0,
+                    };
+                    if std::env::var_os("TYPHON_JIT_DEBUG").is_some() {
+                        eprintln!("eh_frame fixup pc_delta={pc_delta:#x} lsda_delta={lsda_delta:#x}");
+                    }
+                    unsafe {
+                        crate::eh_frames::adjust_fde_pcs(eh.addr as usize, eh.size as usize, pc_delta, lsda_delta)
+                    };
+                }
+            }
+        }
+        crate::eh_frames::register(lo, hi, eh.addr as usize, eh.size as usize, opaque as usize);
     }
     if let Some(obj) = ctx.object.take() {
         let key = {
@@ -242,6 +279,7 @@ pub(crate) extern "C" fn destroy(opaque: *mut libc::c_void) {
         }
     }
     ctx.shared.debug.unregister_owner(opaque as usize);
+    crate::eh_frames::deregister_owner(opaque as usize);
     // PORT-NOTE: memory stays reserved in the slab (bump allocator); C++ releases
     // the mapping. JIT code lives for the process lifetime in Codon anyway.
 }

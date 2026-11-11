@@ -35,7 +35,11 @@ fn llvm_binop(m: &mut Module, name: &str, op: &str, ret: TypeId) -> FuncId {
     let f = m.nr_llvm_func(name);
     let ft = m.unsafe_get_func_type(&format!("fn.{name}"), ret, vec![i, i], false);
     m.realize_func(f, ft, &["a".to_string(), "b".to_string()]);
-    let rt = if op.starts_with("icmp") { "%c = {} i64 %a, %b\n  %r = zext i1 %c to i8\n  ret i8 %r" } else { "%r = {} i64 %a, %b\n  ret i64 %r" };
+    let rt = if op.starts_with("icmp") {
+        "%c = {} i64 %a, %b\n  %r = zext i1 %c to i8\n  ret i8 %r"
+    } else {
+        "%r = {} i64 %a, %b\n  ret i64 %r"
+    };
     let body = format!("entry:\n  {}", rt.replacen("{}", op, 1));
     // `{}` in the body would be format placeholders; literals are escaped by the parser.
     let fd = m.func_mut(f).unwrap();
@@ -182,6 +186,60 @@ fn codegen_and_jit_small_programs() {
     let body = series(&mut m, &[ax, tc, r]);
     m.set_func_body(f4, Some(body));
 
+    // nested(o) -> int:
+    //   x = 0
+    //   try:
+    //     try:
+    //       try: raise o
+    //       finally: x = x + 10
+    //     except: x = x + 100; raise o      (re-raise from a handler)
+    //   except: x = x + 1
+    //   return x                              -> 111
+    let f6 = func(&mut m, "nested", i, &[p], &["o"]);
+    let o = m.func_args(f6)[0];
+    let x = m.nr_var(i, false, "x");
+    m.func_push_symbol(f6, x);
+    let add_to = |m: &mut Module, k: i64| {
+        let vx = m.nr_var_value(x);
+        let c = m.nr_int_const(k, i);
+        let s = call(m, add, vec![vx, c]);
+        m.nr_assign(x, s)
+    };
+    let zero = m.nr_int_const(0, i);
+    let a0 = m.nr_assign(x, zero);
+    let vo = m.nr_var_value(o);
+    let th = m.nr_throw(Some(vo));
+    let inner_body = series(&mut m, &[th]);
+    let a10 = add_to(&mut m, 10);
+    let inner_fin = series(&mut m, &[a10]);
+    let inner = m.nr_try_catch_flow(inner_body, Some(inner_fin), None);
+    let mid_body = series(&mut m, &[inner]);
+    let mid = m.nr_try_catch_flow(mid_body, None, None);
+    let a100 = add_to(&mut m, 100);
+    let vo = m.nr_var_value(o);
+    let rethrow = m.nr_throw(Some(vo));
+    let mid_h = series(&mut m, &[a100, rethrow]);
+    m.try_catch_push(mid, mid_h, None, None);
+    let outer_body = series(&mut m, &[mid]);
+    let outer = m.nr_try_catch_flow(outer_body, None, None);
+    let a1 = add_to(&mut m, 1);
+    let outer_h = series(&mut m, &[a1]);
+    m.try_catch_push(outer, outer_h, None, None);
+    let vx = m.nr_var_value(x);
+    let r = m.nr_return(Some(vx));
+    let body = series(&mut m, &[a0, outer, r]);
+    m.set_func_body(f6, Some(body));
+
+    // boom(o) -> int: raise o   (uncaught)
+    let f7 = func(&mut m, "boom", i, &[p], &["o"]);
+    let o = m.func_args(f7)[0];
+    let vo = m.nr_var_value(o);
+    let th = m.nr_throw(Some(vo));
+    let z = m.nr_int_const(0, i);
+    let r = m.nr_return(Some(z));
+    let body = series(&mut m, &[th, r]);
+    m.set_func_body(f7, Some(body));
+
     // generator: gen() yields 1, 2, 3; fn gsum() = sum(gen())
     let gt = m.get_generator_type(i);
     let gen_f = m.nr_bodied_func("gen");
@@ -238,14 +296,84 @@ fn codegen_and_jit_small_programs() {
         assert_eq!(rec(3, 2), 100);
         let gsum: extern "C" fn() -> i64 = std::mem::transmute(engine.lookup("gsum").unwrap() as usize);
         assert_eq!(gsum(), 6);
-        // The try/catch function is always lowered and verified above. Executing it needs
-        // the engine to register JIT EH frames with the system unwinder; RTDyld on
-        // macOS/arm64 does not yet (see llvm-infra lane), so execution is opt-in.
-        let exc_addr = engine.lookup("exc").unwrap();
-        assert_ne!(exc_addr, 0);
-        if std::env::var_os("TYPHON_TEST_JIT_EXCEPTIONS").is_some() {
-            let exc: extern "C" fn() -> i64 = std::mem::transmute(exc_addr as usize);
-            assert_eq!(exc(), 42);
+        // Exceptions thrown and caught inside JIT code (needs JIT EH frame registration).
+        let exc: extern "C" fn() -> i64 = std::mem::transmute(engine.lookup("exc").unwrap() as usize);
+        assert_eq!(exc(), 42);
+        let obj = fake_exception(b"ValueError", b"bad value");
+        let nested: extern "C" fn(*mut u8) -> i64 = std::mem::transmute(engine.lookup("nested").unwrap() as usize);
+        assert_eq!(nested(obj), 111);
+        let boom: extern "C" fn(*mut u8) -> i64 = std::mem::transmute(engine.lookup("boom").unwrap() as usize);
+        if std::env::var_os(UNCAUGHT_CHILD).is_some() {
+            // No Rust `catch_unwind` frame may sit between the throw and the end of the
+            // stack (Rust aborts on foreign exceptions), so call from a raw pthread:
+            // the unwinder reaches end-of-stack and `seq_throw` calls `seq_terminate`.
+            struct Arg(extern "C" fn(*mut u8) -> i64, *mut u8);
+            extern "C" fn start(a: *mut libc::c_void) -> *mut libc::c_void {
+                let a = unsafe { &*(a as *const Arg) };
+                (a.0)(a.1);
+                std::ptr::null_mut()
+            }
+            let arg = Arg(boom, obj);
+            let mut t: libc::pthread_t = std::mem::zeroed();
+            libc::pthread_create(&mut t, std::ptr::null(), start, &arg as *const Arg as *mut _);
+            libc::pthread_join(t, std::ptr::null_mut());
+            unreachable!("uncaught exception returned");
         }
     }
+    // Uncaught exception: run in a child process, expect a Codon-style report and failure.
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["codegen_and_jit_small_programs", "--exact", "--nocapture", "--test-threads=1"])
+        .env(UNCAUGHT_CHILD, "1")
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success(), "child should fail: {err}");
+    assert!(err.contains("ValueError") && err.contains("bad value") && err.contains("Raised from:"), "stderr: {err}");
+}
+
+const UNCAUGHT_CHILD: &str = "TYPHON_TEST_UNCAUGHT_CHILD";
+
+/// A minimal Codon exception object: `{ *TypeInfo, CodonExceptionHeader }`.
+fn fake_exception(ty: &'static [u8], msg: &'static [u8]) -> *mut u8 {
+    use codonrt::exc::CodonExceptionHeader;
+    use codonrt::rtti::TypeInfo;
+    use codonrt::types::SeqStr;
+    let s = |b: &'static [u8]| SeqStr { ptr: b.as_ptr() as *mut u8, meta: b.len() as i64 };
+    let info = Box::leak(Box::new(TypeInfo {
+        id: 1,
+        n_mro: 0,
+        mro: std::ptr::null(),
+        offsets: std::ptr::null(),
+        sorted_mro: std::ptr::null(),
+        n_slots: 0,
+        slots: std::ptr::null(),
+        n_methods: 0,
+        methods: std::ptr::null(),
+        rtti: false,
+        raw_name: s(ty),
+        nice_name: s(ty),
+        base_name: s(ty),
+        n_params: 0,
+        params: std::ptr::null(),
+        size: 0,
+        reference: true,
+        inline_value: false,
+        exception_offset: 8,
+        system_exit_offset: -1,
+    }));
+    #[repr(C)]
+    struct Obj {
+        info: *const TypeInfo,
+        hdr: CodonExceptionHeader,
+    }
+    let hdr = CodonExceptionHeader {
+        msg: s(msg),
+        func: s(b"boom"),
+        file: s(b"test.codon"),
+        line: 3,
+        col: 5,
+        python_type: std::ptr::null_mut(),
+        cause: std::ptr::null_mut(),
+    };
+    Box::into_raw(Box::new(Obj { info, hdr })) as *mut u8
 }

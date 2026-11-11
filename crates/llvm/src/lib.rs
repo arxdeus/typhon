@@ -12,6 +12,7 @@
 
 pub(crate) mod analysis;
 pub mod debug_listener;
+mod eh_frames;
 pub mod engine;
 pub(crate) mod ffi;
 pub mod gpu;
@@ -25,8 +26,8 @@ pub use inkwell;
 pub use llvm_sys;
 
 pub use debug_listener::{DebugListener, LineInfo};
-pub use llvisitor::{CodegenBuilder, LlvmVisitor, PluginLinkInfo, TypeBuilder, ValueBuilder};
 pub use engine::{Engine, EngineConfig, GcRootCallbacks, ResourceTracker};
+pub use llvisitor::{CodegenBuilder, LlvmVisitor, PluginLinkInfo, TypeBuilder, ValueBuilder};
 pub use optimize::{GLOBAL_CTOR_NAME, LlvmPassHooks, PassStage, optimize, verify};
 pub use target::{
     data_layout_string, features_str, host_target_machine, host_triple, initialize_targets, target_machine_for,

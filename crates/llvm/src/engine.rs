@@ -122,6 +122,10 @@ extern "C" fn capture_object(ctx: *mut libc::c_void, obj: *mut LLVMMemoryBufferR
         let start = llvm_sys::core::LLVMGetBufferStart(buf) as *const u8;
         let size = llvm_sys::core::LLVMGetBufferSize(buf);
         let bytes = std::slice::from_raw_parts(start, size).to_vec();
+        // Debug aid: TYPHON_JIT_DUMP=<path> writes the last emitted object file.
+        if let Some(d) = std::env::var_os("TYPHON_JIT_DUMP") {
+            let _ = std::fs::write(d, &bytes);
+        }
         shared.pending_objects.lock().push_back(bytes);
     }
     std::ptr::null_mut()
@@ -161,11 +165,7 @@ impl Engine {
             // PORT-NOTE: C++ JITLink inserts branch stubs for far calls. RTDyld on
             // MachO/AArch64 does not, so JIT code uses the Large code model to reach
             // process symbols anywhere in the address space.
-            let tm = crate::target::host_target_machine_with_model(
-                options,
-                false,
-                inkwell::targets::CodeModel::Large,
-            )?;
+            let tm = crate::target::host_target_machine_with_model(options, false, inkwell::targets::CodeModel::Large)?;
             let raw_tm = tm.as_mut_ptr();
             std::mem::forget(tm); // ownership moves into the JTMB below
             let jtmb = LLVMOrcJITTargetMachineBuilderCreateFromTargetMachine(raw_tm);
