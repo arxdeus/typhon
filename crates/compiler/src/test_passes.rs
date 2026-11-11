@@ -58,7 +58,7 @@ impl Operator for TestOutliner {
         }
         if let (Some(b), Some(e)) = (begin, end) {
             let Some(parent) = self.parent_func(m) else { return };
-            let r = outline_region(m, parent, v, b, e, false, false, false);
+            let r = outline_region(m, parent, v, b, e, true, false, false);
             if r.func.is_some() {
                 self.successes += 1;
             } else {
