@@ -1101,33 +1101,41 @@ impl Module {
     }
 
     /// `replaceUsedValue(id_t id, Value *new)`.
+    ///
+    /// Panics (after leaving the node untouched for that slot) if a flow-typed slot
+    /// would receive a non-flow value, like the C++ `seqassert`.
     pub fn replace_used_value_uid(&mut self, n: NodeRef, id: Id, new: Option<ValueId>) -> i32 {
         let new_is_flow = new.map(|v| self.is_flow(v)).unwrap_or(false);
-        let new_desc = new.map(|v| self.reference_string(v.into())).unwrap_or_else(|| "(null)".into());
-        let check_flow = |m: &Module| {
-            assert!(new_is_flow, "{} is not a flow", new_desc);
-            let _ = m;
-        };
-        match self.actual(n) {
+        let failed = std::cell::Cell::new(false);
+        let count = match self.actual(n) {
             NodeRef::Value(v) => {
                 let mut kind = std::mem::replace(&mut self.values[v].kind, ValueKind::Any { flow: false });
-                let count = self.replace_value_in_kind(&mut kind, id, new, &check_flow);
+                let count = self.replace_value_in_kind(&mut kind, id, new, new_is_flow, &failed);
                 self.values[v].kind = kind;
                 count
             }
             NodeRef::Var(v) => {
                 let body = self.vars[v].func.as_ref().and_then(|f| f.body());
-                if let Some(b) = body {
-                    if self.value_uid(b) == id {
-                        check_flow(self);
-                        self.vars[v].func.as_mut().unwrap().set_body(new);
-                        return 1;
+                match body {
+                    Some(b) if self.value_uid(b) == id => {
+                        if new_is_flow {
+                            self.vars[v].func.as_mut().unwrap().set_body(new);
+                            1
+                        } else {
+                            failed.set(true);
+                            0
+                        }
                     }
+                    _ => 0,
                 }
-                0
             }
             _ => 0,
+        };
+        if failed.get() {
+            let desc = new.map(|v| self.reference_string(v.into())).unwrap_or_else(|| "(null)".into());
+            panic!("{desc} is not a flow");
         }
+        count
     }
 
     fn replace_value_in_kind(
@@ -1135,16 +1143,26 @@ impl Module {
         kind: &mut ValueKind,
         id: Id,
         new: Option<ValueId>,
-        check_flow: &dyn Fn(&Module),
+        new_is_flow: bool,
+        failed: &std::cell::Cell<bool>,
     ) -> i32 {
         let is = |x: ValueId| self.value_uid(x) == id;
         let req = |slot: &mut ValueId, flow: bool| -> i32 {
             if is(*slot) {
-                if flow {
-                    check_flow(self);
+                if flow && !new_is_flow {
+                    failed.set(true);
+                    return 0;
                 }
-                *slot = new.expect("cannot replace a required operand with null");
-                1
+                match new {
+                    Some(nv) => {
+                        *slot = nv;
+                        1
+                    }
+                    None => {
+                        failed.set(true);
+                        0
+                    }
+                }
             } else {
                 0
             }
@@ -1152,8 +1170,9 @@ impl Module {
         let opt = |slot: &mut Option<ValueId>, flow: bool| -> i32 {
             if let Some(s) = *slot {
                 if is(s) {
-                    if flow {
-                        check_flow(self);
+                    if flow && new.is_some() && !new_is_flow {
+                        failed.set(true);
+                        return 0;
                     }
                     *slot = new;
                     return 1;

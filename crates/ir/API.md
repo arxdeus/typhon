@@ -82,7 +82,8 @@ with `is_primitive()`, `is_membered()`, `is_derived()`; name helpers `int_type_n
   `replace_used_value_uid(n, uid, new)`, `used_types`, `replace_used_type(n, old, new)`,
   `replace_used_type_name(n, name, new)`, `used_variables`, `replace_used_variable(n, old, new)`,
   `replace_used_variable_uid`.
-* values: `value(id)`, `value_mut`, `kind`, `kind_mut`, `actual_value`, `value_uid`, `value_type(id)`,
+* values: `value(id)`, `value_mut`, `kind`, `kind_mut`, `actual_value`, `value_uid`, `value_type(id)` (`&self`; panics if the
+  pointer type of a `PointerValue` was never created) / `value_type_mut(id)` (creates it),
   `replace_all_value(a, b)` (`replaceAll`).
 * vars/funcs: `var`, `var_mut`, `actual_var`, `var_uid`, `var_type`, `set_var_type`, `func(id) -> Option<&FuncData>`,
   `func_mut`, `is_func`, `replace_all_var`, `realize_func(f, ty, names)` (`Func::realize`),
@@ -173,7 +174,9 @@ pub trait Operator {
 }
 OperatorState::new(children_first)
 ```
-`OperatorPass` = `operator_pass!` macro / `run_operator(op, m)` (reset + process module).
+`OperatorPass` = implement `Pass` + `Operator` and call `pass::run_operator_pass(self, m)` (reset + process module).
+Other provided methods: `parent_series(m)`, `parents()`, `process_value`, `visit_value_op` (LAMBDA_VISIT body).
+`insert_before/insert_after` operate on the innermost series flow being iterated (index-based iterator stack).
 
 ## Formatting, cloning, matching, tools
 
@@ -181,9 +184,13 @@ OperatorState::new(children_first)
 * `util::cloning::CloneVisitor::new(clone_loop)`, `.clone_value(m, v) -> ValueId`,
   `.clone_value_opt`, `.clone_value_into(m, v, clone_to: Option<FuncId>, remaps: &FxHashMap<Id, VarId>)`,
   `.clone_var(m, v)`, `.force_clone_value`, `.force_clone_var`, `.force_remap(NodeRef, NodeRef)`, `.clone_stage`.
-* `util::matching::{match_nodes(m, a, b, check_names, var_id_match), match_values, match_vars}`.
-* `util::irtools::*` (`is_export`, `set_export`, `call`, `virtual_call`, `is_call_of`, `make_tuple`,
-  `make_var`, `get_var`, `get_func`, `is_const_val`, `get_const`, `ptr_load`, `ptr_store`, `tuple_get`, ...).
+* `util::matching::{match_nodes(m, Option<NodeRef>, Option<NodeRef>, check_names, var_id_match), match_values, match_vars,
+  match_types, match_nodes_strict_ids}`. Wildcards: `m.nr_any_value(flow)`, `m.nr_any_var(func)`.
+* `util::irtools::*`: `has_attribute`, `is_export`, `set_export`, `is_gpu_kernel`, `is_inline`, `is_no_inline`,
+  `derived_func_name`, `is_stdlib_func`, `is_int`, `call`, `virtual_call`, `is_call_of`, `is_call_of_types`,
+  `is_magic_method_call`, `make_tuple`, `make_var`, `alloc`, `alloc_n`, `series`, `is_const::<T>`, `is_const_val`,
+  `get_const::<T>` (T = i64/f64/bool/String), `get_var`, `get_func`, `ptr_load`, `ptr_store`, `tuple_get`,
+  `tuple_store`, `get_stdlib_func`, `return_type`, `set_return_type`.
 * `util::side_effect::{SideEffectStatus, NON_PURE_ATTR, PURE_ATTR, ...}`.
 * `util::context::CirContext<Frame>`.
 
@@ -207,7 +214,25 @@ pub struct NullPassContext;   // no analyses, no options
 `used_values()`, `replace_used_value(m, uid, new)`.
 `rewrite::{RewriteRule (fn apply(&mut self, m, v) -> Option<ValueId>), Rewriter{register_rule, rewrite, num_replacements, reset}}`.
 `dsl::{CustomValue, CustomType, CustomNode, CustomCategory}` (builders: `as_any()` for downcast in typhon-llvm).
+`CustomValue::ty(&self, m) -> Option<TypeId>` (`None` = none type), `matches`, `do_clone(cv, m)`, `format(m)`,
+`side_effect_status(local)`, used/replace hooks for values/types/vars.
 `pyext::{PyModule, PyFunction, PyFunctionType, PyMember, PyMemberType, PyGetSet, PyType}`.
+
+## Series / helpers
+`m.series_push(s, v)`, `m.series_insert(s, idx, v)`, `m.try_catch_push(tc, handler, ty, var)`,
+`m.set_throw_fallback`, `m.func_push_symbol(f, v)`, `m.set_func_body(f, b)`, `m.func_body(f)`, `m.func_args(f)`,
+`m.set_intrinsic(f, kind, ty)`. Payload structs are directly mutable via `as_*_mut`.
+
+## Semantics notes (PORT-NOTEs)
+* `replace_used_value*` panics (`"X is not a flow"`) when a flow slot gets a non-flow value or a required slot gets
+  `None`; the node is left consistent.
+* `Module::new` eagerly creates the structural `NoneType` record so `value_type(&self)` works for flows/instrs.
+* No realizer: `get_pointer_type`/`get_int_type_n`/`get_optional_type`/`get_tuple_type`/... use structural types.
+* `IdMixin` counter is thread-local.
+* Visitor `default_visit` is a no-op (C++ throws).
+* `util::match` ignores `var_id_match` exactly like C++ (bug preserved); `match_nodes_strict_ids` honours it.
+  `TryCatchFlow`s never match (C++ bug preserved).
+* `Rewriter` rules apply in registration order.
 
 ## C++ -> Rust name table (selection)
 
@@ -226,7 +251,7 @@ pub struct NullPassContext;   // no analyses, no options
 | `t->getMemberType("x")` | `m.member_type(t, "x")` |
 | `util::format(n)` | `util::format::format(m, n)` |
 | `cv.clone(v)` | `cv.clone_value(m, v)` |
-| `util::match(a, b)` | `util::matching::match_nodes(m, a.into(), b.into(), false, false)` |
+| `util::match(a, b)` | `util::matching::match_values(m, a, b)` / `match_vars` |
 | `node->setAttribute(make_unique<KeyValueAttribute>())` | `m.set_attribute(n, Attribute::KeyValue(..))` |
 | `node->getAttribute<SrcInfoAttribute>()` | `m.get_attribute(n, attr_id::SRC_INFO)` / `m.src_info(n)` |
 | `Pass::getAnalysisResult<T>(key)` | `ctx.get_analysis::<T>(key)` |
