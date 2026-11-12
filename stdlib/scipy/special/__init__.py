@@ -17,6 +17,7 @@ from . import _ellip as E
 from . import _orth as O
 from . import _roots as R
 from . import _specfun as SPF
+from . import _faddeeva as FD
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -200,6 +201,18 @@ def poch(a, m): return _map2(G2.poch, a, m)
 def polygamma(n, x): return _map2(G2.polygamma, n, x)
 def owens_t(h, a): return _map2(G2.owens_t, h, a)
 def _scaled_exp1(x): return _map1(G2.scaled_exp1, x)
+
+def _sici0(x: float) -> float: return G2.sici(x)[0]
+def _sici1(x: float) -> float: return G2.sici(x)[1]
+def _shichi0(x: float) -> float: return G2.shichi(x)[0]
+def _shichi1(x: float) -> float: return G2.shichi(x)[1]
+def _fres0(x: float) -> float: return G2.fresnel(x)[0]
+def _fres1(x: float) -> float: return G2.fresnel(x)[1]
+def erfi(x): return _map1(FD.erfi, x)
+def dawsn(x): return _map1(FD.dawsn, x)
+def sici(x): return (_map1(_sici0, x), _map1(_sici1, x))
+def shichi(x): return (_map1(_shichi0, x), _map1(_shichi1, x))
+def fresnel(z): return (_map1(_fres0, z), _map1(_fres1, z))
 
 # noncentral distributions (_noncentral)
 def chndtr(x, df, nc): return _map3(NC.chndtr, x, df, nc)

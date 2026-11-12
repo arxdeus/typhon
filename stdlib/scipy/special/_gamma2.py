@@ -543,3 +543,146 @@ def owens_t(h: float, a: float) -> float:
     if a < 0:
         return -result
     return result
+
+# ------------------------------------------------------------------ sici / shichi / fresnel (cephes)
+def _hyp3f0(a1: float, a2: float, a3: float, z: float) -> float:
+    m = pow(z, -1.0 / 3)
+    maxiter = int(m) if m < 50 else 50
+    term = 1.0
+    s = term
+    for n in range(maxiter):
+        term *= (a1 + n) * (a2 + n) * (a3 + n) * z / (n + 1)
+        s += term
+        if fabs(term) < 1e-13 * fabs(s) or term == 0:
+            break
+    err = fabs(term)
+    if err > 1e-13 * fabs(s):
+        return NAN
+    return s
+
+def shichi(x: float):
+    """Returns (shi, chi)."""
+    from C import sinh(float) -> float
+    from C import cosh(float) -> float
+    sign = False
+    if x < 0.0:
+        sign = True
+        x = -x
+    if x == 0.0:
+        return (0.0, -INF)
+    s = 0.0
+    c = 0.0
+    if x >= 8.0:
+        if x < 18.0:
+            a = (576.0 / x - 52.0) / 10.0
+            k = exp(x) / x
+            s = k * K._chbevl(a, GC._shichi_S1)
+            c = k * K._chbevl(a, GC._shichi_C1)
+        elif x <= 88.0:
+            a = (6336.0 / x - 212.0) / 70.0
+            k = exp(x) / x
+            s = k * K._chbevl(a, GC._shichi_S2)
+            c = k * K._chbevl(a, GC._shichi_C2)
+        else:
+            si = 0.0
+            ci = 0.0
+            if x > 1000:
+                si = INF
+                ci = INF
+            else:
+                a = _hyp3f0(0.5, 1., 1., 4.0 / (x * x))
+                b = _hyp3f0(1., 1., 1.5, 4.0 / (x * x))
+                si = cosh(x) / x * a + sinh(x) / (x * x) * b
+                ci = sinh(x) / x * a + cosh(x) / (x * x) * b
+            if sign:
+                si = -si
+            return (si, ci)
+    else:
+        z = x * x
+        a = 1.0
+        s = 1.0
+        c = 0.0
+        k = 2.0
+        while True:
+            a *= z / k
+            c += a / k
+            k += 1.0
+            a /= k
+            s += a / k
+            k += 1.0
+            if not (fabs(a / s) > MACHEP):
+                break
+        s *= x
+    if sign:
+        s = -s
+    return (s, EULER + log(x) + c)
+
+def sici(x: float):
+    """Returns (si, ci)."""
+    PI_2 = 1.57079632679489661923
+    sign = False
+    if x < 0.0:
+        sign = True
+        x = -x
+    if x == 0.0:
+        return (0.0, -INF)
+    if x > 1.0e9:
+        if x == INF:
+            if sign:
+                return (-PI_2, NAN)
+            return (PI_2, 0.0)
+    if x > 4.0:
+        s = sin(x)
+        c = cos(x)
+        z = 1.0 / (x * x)
+        f = 0.0
+        g = 0.0
+        if x < 8.0:
+            f = _polevl(z, GC._sici_FN4) / (x * _p1evl(z, GC._sici_FD4))
+            g = z * _polevl(z, GC._sici_GN4) / _p1evl(z, GC._sici_GD4)
+        else:
+            f = _polevl(z, GC._sici_FN8) / (x * _p1evl(z, GC._sici_FD8))
+            g = z * _polevl(z, GC._sici_GN8) / _p1evl(z, GC._sici_GD8)
+        si = PI_2 - f * c - g * s
+        if sign:
+            si = -si
+        return (si, f * s - g * c)
+    z = x * x
+    s = x * _polevl(z, GC._sici_SN) / _polevl(z, GC._sici_SD)
+    c = z * _polevl(z, GC._sici_CN) / _polevl(z, GC._sici_CD)
+    if sign:
+        s = -s
+    return (s, EULER + log(x) + c)
+
+def fresnel(xxa: float):
+    """Returns (S, C)."""
+    cc = 0.0
+    ss = 0.0
+    if xxa == INF or xxa == -INF:
+        cc = 0.5
+        ss = 0.5
+    else:
+        x = fabs(xxa)
+        x2 = x * x
+        if x2 < 2.5625:
+            t = x2 * x2
+            ss = x * x2 * _polevl(t, GC._fresnl_sn) / _p1evl(t, GC._fresnl_sd)
+            cc = x * _polevl(t, GC._fresnl_cn) / _polevl(t, GC._fresnl_cd)
+        elif x > 36974.0:
+            cc = 0.5 + 1 / (PI * x) * B.sinpi(x * x / 2)
+            ss = 0.5 - 1 / (PI * x) * B.cospi(x * x / 2)
+        else:
+            t = PI * x2
+            u = 1.0 / (t * t)
+            t = 1.0 / t
+            f = 1.0 - u * _polevl(u, GC._fresnl_fn) / _p1evl(u, GC._fresnl_fd)
+            g = t * _polevl(u, GC._fresnl_gn) / _p1evl(u, GC._fresnl_gd)
+            c = B.cospi(x2 / 2)
+            s = B.sinpi(x2 / 2)
+            t = PI * x
+            cc = 0.5 + (f * s - g * c) / t
+            ss = 0.5 - (f * c + g * s) / t
+    if xxa < 0.0:
+        cc = -cc
+        ss = -ss
+    return (ss, cc)
