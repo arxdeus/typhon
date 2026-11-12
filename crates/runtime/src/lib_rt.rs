@@ -76,7 +76,9 @@ static LAST_HEAP: AtomicUsize = AtomicUsize::new(0);
 /// `GC_default_stop_func` (`GC_collect_or_expand`); refusing to start one makes the
 /// collector expand the heap instead. We only veto that forced post-growth GC (the
 /// heap size changed since the last collection we allowed) and only while fewer
-/// bytes were allocated since the last GC than `in_use / (2 * free_space_divisor)`.
+/// bytes were allocated since the last GC than `in_use / free_space_divisor`
+/// (`in_use / (2 * div)` vetoed too little: binary_trees 17 ran 103 GCs vs 67,
+/// float 9 vs 5, ~1.12x the C++ baseline's time; same heap size and peak RSS).
 /// Ordinary threshold-triggered GCs (8.3's own `min_bytes_allocd`, which already
 /// weights atomic data at 1/4) are never vetoed, so the heap stays as tight as
 /// the C++ baseline's (binary_trees 20: 263 MB vs 540 MB with the earlier `2*in_use/div` veto).
@@ -87,7 +89,7 @@ unsafe extern "C" fn gc_growth_stop_func() -> c_int {
     unsafe { gc::GC_get_prof_stats_unsafe(&mut s, core::mem::size_of::<gc::GC_prof_stats_s>()) };
     let in_use = s.heapsize_full.saturating_sub(s.free_bytes_full);
     let grew = s.heapsize_full != LAST_HEAP.load(Ordering::Relaxed);
-    let min_allocd = in_use / 2 / GC_DIVISOR.load(Ordering::Relaxed).max(1);
+    let min_allocd = in_use / GC_DIVISOR.load(Ordering::Relaxed).max(1);
     // Bound the growth we accept without collecting to `in_use / divisor`: large
     // arrays grow the heap by one request at a time, and chaining those vetoes
     // overshoots the C++ baseline (np_matmul 224 vs 192 MiB heap).
