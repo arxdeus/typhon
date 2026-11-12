@@ -1,3 +1,4 @@
+# Copyright (C) 2026 the Typhon authors
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
 # LogisticRegression, L2 penalty, same objective as sklearn's lbfgs path:
