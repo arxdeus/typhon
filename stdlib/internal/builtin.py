@@ -21,8 +21,65 @@ def id(x, /) -> int:
     else:
         return 0
 
+class _TextSink:
+    """Target of contextlib.redirect_stdout/redirect_stderr (virtual write)."""
+    def write(self, s: str) -> None:
+        pass
+
+    def flush(self) -> None:
+        pass
+
+
+class _TextSinkOf[T](_TextSink):
+    obj: T
+
+    def __init__(self, obj: T):
+        self.obj = obj
+
+    def write(self, s: str) -> None:
+        self.obj.write(s)
+
+    def flush(self) -> None:
+        if hasattr(self.obj, "flush"):
+            self.obj.flush()
+
+
+# Active redirections for print() without `file=` / with file=sys.stderr.
+_stdout_sink: Optional[_TextSink] = None
+_stderr_sink: Optional[_TextSink] = None
+
+
+def _swap_print_sink(is_stderr: bool, sink: Optional[_TextSink]) -> Optional[_TextSink]:
+    """Install `sink` for stdout/stderr print(); returns the previous one."""
+    global _stdout_sink, _stderr_sink
+    if is_stderr:
+        old = _stderr_sink
+        _stderr_sink = sink
+        return old
+    old = _stdout_sink
+    _stdout_sink = sink
+    return old
+
+
+def _print_sink(sink: _TextSink, args, sep: str, end: str, flush: bool):
+    parts = List[str](2 * len(args) + 1)
+    j = 0
+    for a in args:
+        if j and sep:
+            parts.append(sep)
+        parts.append(str(a))
+        j += 1
+    parts.append(end)
+    sink.write("".join(parts))
+    if flush:
+        sink.flush()
+
+
 def print(*args, sep: str = " ", end: str = "\n", file=None, flush: bool = False):
     if file is None:
+        if _stdout_sink is not None:
+            _print_sink(_stdout_sink, args, sep, end, flush)
+            return
         print(*args, sep=sep, end=end, file=_C.seq_stdout(), flush=flush)
         return
 
@@ -31,6 +88,12 @@ def print(*args, sep: str = " ", end: str = "\n", file=None, flush: bool = False
         fp = file
     elif hasattr(file, "_state"):
         fp = file._state._fp
+        if _stderr_sink is not None and fp == _C.seq_stderr():
+            _print_sink(_stderr_sink, args, sep, end, flush)
+            return
+        if _stdout_sink is not None and fp == _C.seq_stdout():
+            _print_sink(_stdout_sink, args, sep, end, flush)
+            return
     else:
         # Any object with a write(str) method (e.g. io.StringIO).
         parts = List[str](2 * len(args) + 1)
@@ -170,6 +233,15 @@ def max(*args, key=None, default=None):
 
 def len(x, /) -> int:
     return x.__len__()
+
+def callable(obj, /) -> bool:
+    """True for functions, lambdas, partials, classes and instances with `__call__`."""
+    if isinstance(obj, type):
+        return True
+    elif hasattr(obj, "__call__"):
+        return True
+    else:
+        return False
 
 def iter(x, /):
     return x.__iter__()

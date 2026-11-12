@@ -158,3 +158,39 @@ class ExitStack:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
         return False
+
+
+from internal.builtin import _TextSink, _TextSinkOf, _swap_print_sink
+
+
+class _redirect_stream[T]:
+    target: T
+    _is_stderr: bool
+    _saved: Optional[_TextSink]
+
+    def __init__(self, target: T, is_stderr: bool):
+        self.target = target
+        self._is_stderr = is_stderr
+        self._saved = None
+
+    def __enter__(self) -> T:
+        sink: _TextSink = _TextSinkOf(self.target)
+        self._saved = _swap_print_sink(self._is_stderr, sink)
+        return self.target
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        _swap_print_sink(self._is_stderr, self._saved)
+        return False
+
+
+def redirect_stdout(new_target):
+    """Redirect print() output (default file / sys.stdout) to `new_target`.
+
+    Only print() is redirected: sys.stdout itself keeps its static File type,
+    so direct `sys.stdout.write()` calls still go to the process stdout."""
+    return _redirect_stream(new_target, False)
+
+
+def redirect_stderr(new_target):
+    """Redirect print(..., file=sys.stderr) to `new_target` (see redirect_stdout)."""
+    return _redirect_stream(new_target, True)

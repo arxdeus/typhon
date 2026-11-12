@@ -191,3 +191,19 @@ def test_generator_throw_close():
         hit = True
     assert hit
 test_generator_throw_close()
+
+
+@test
+def test_redirect():
+    import io
+    import sys
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        print("a", 1)
+        print("b", end="")
+    assert buf.getvalue() == "a 1\nb"
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        print("e", file=sys.stderr)
+    assert err.getvalue() == "e\n"
+test_redirect()
