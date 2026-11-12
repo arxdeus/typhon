@@ -104,9 +104,9 @@ macro_rules! hf_impl {
             #[inline(always)] fn bits(self) -> $u { self.to_bits() }
             #[inline(always)] fn from_bits(b: $u) -> Self { <$t>::from_bits(b) }
             #[inline(always)] fn is_nan(self) -> bool { <$t>::is_nan(self) }
-            // Via i64 so f64 lanes convert with one vector instruction; lanes out of
-            // i32 range only occur where the kernel masks the result anyway.
-            #[inline(always)] fn to_i32(self) -> i32 { self as i64 as i32 }
+            // Same-width int so lanes convert with one vector instruction (f64 via
+            // i64); out-of-i32 lanes only occur where the kernel masks the result.
+            #[inline(always)] fn to_i32(self) -> i32 { if $bits == 32 { self as i32 } else { self as i64 as i32 } }
             #[inline(always)] fn nearest_i32(self) -> i32 { let f: fn($t) -> i32 = $nearest; f(self) }
             #[inline(always)] fn from_i32(i: i32) -> Self { i as $t }
             #[inline(always)] fn from_sint(i: i64) -> Self { if $bits == 32 { i as i32 as $t } else { i as $t } }
@@ -165,7 +165,7 @@ impl Polys<f64> {
 }
 
 hf_impl!(f32, u32, 23, 127, 32, [3.140625, 0.0009670257568359375, 6.2771141529083251953e-7, 1.2154201256553420762e-10],
-    |x: f32| x.round_ties_even() as i64 as i32);
+    |x: f32| x.round_ties_even() as i32);
 hf_impl!(f64, u64, 52, 1023, 64, [3.1415926218032836914, 3.1786509424591713469e-8, 1.2246467864107188502e-16, 1.2736634327021899816e-24],
     |x: f64| x.round_ties_even() as i64 as i32);
 
