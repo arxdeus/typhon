@@ -610,7 +610,7 @@ def _ev_call(evs, idx: int, t: float, y: np.ndarray[float, 1], args) -> float:
 
 _METHODS = ('RK23', 'RK45', 'DOP853', 'Radau', 'BDF', 'LSODA')
 
-def _f1(fun, args, vectorized: bool, n: int, t: float, y: np.ndarray[float, 1]) -> np.ndarray[float, 1]:
+def _f1(fun, args, vectorized: Literal[bool], n: int, t: float, y: np.ndarray[float, 1]) -> np.ndarray[float, 1]:
     if vectorized:
         Y = np.empty((n, 1))
         for i in range(n):
@@ -622,7 +622,7 @@ def _f1(fun, args, vectorized: bool, n: int, t: float, y: np.ndarray[float, 1]) 
         raise ValueError("fun returned an array of wrong size")
     return r.reshape(n)
 
-def _fv(fun, args, vectorized: bool, n: int, t: float, Y: np.ndarray[float, 2]) -> np.ndarray[float, 2]:
+def _fv(fun, args, vectorized: Literal[bool], n: int, t: float, Y: np.ndarray[float, 2]) -> np.ndarray[float, 2]:
     k = Y.shape[1]
     if vectorized:
         r = np.asarray(fun(t, Y, *args)).astype(float)
@@ -657,7 +657,7 @@ def _jac_mode(jac) -> int:
         return 1
 
 def solve_ivp(fun, t_span, y0, method: str = 'RK45', t_eval=None, dense_output: bool = False,
-              events=None, vectorized: bool = False, args=None, first_step: Optional[float] = None,
+              events=None, vectorized: Literal[bool] = False, args=None, first_step: Optional[float] = None,
               max_step: float = float('inf'), rtol: float = 1e-3, atol=1e-6, jac=None,
               jac_sparsity=None, min_step: float = 0.0, lband: Optional[int] = None,
               uband: Optional[int] = None):
@@ -680,7 +680,7 @@ def solve_ivp(fun, t_span, y0, method: str = 'RK45', t_eval=None, dense_output: 
             raise TypeError("Supplied 'args' cannot be unpacked. Please supply `args` as a tuple")
 
 def _solve(ufun, args, t0: float, tf: float, y0, method: str, t_eval, dense_output: bool, events,
-           first_step: Optional[float], max_step: float, rtol: float, atol, vectorized: bool,
+           first_step: Optional[float], max_step: float, rtol: float, atol, vectorized: Literal[bool],
            jac, min_step: float):
     ya = np.asarray(y0).astype(float)
     if ya.ndim != 1:

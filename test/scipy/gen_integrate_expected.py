@@ -9,13 +9,6 @@ from scipy import integrate as I
 def lit(v):
     return repr(np.asarray(v, dtype=float).tolist())
 
-def decay(t, y): return -0.5 * y
-def osc(t, y): return [y[1], -y[0]]
-def lv(t, z, a, b, c, d): return [a*z[0] - b*z[0]*z[1], -c*z[1] + d*z[0]*z[1]]
-def cannon(t, y): return [y[1], -0.5]
-def hit(t, y): return y[0]
-hit.terminal = True; hit.direction = -1
-def apex(t, y): return y[1]
 
 Q = {
  'poly': I.quad(lambda x: x*x, 0, 4),
@@ -40,6 +33,50 @@ print('QUAD = {')
 for k, v in Q.items():
     print(f'    {k!r}: ({v[0]!r}, {v[1]!r}),')
 print('}')
+W = {
+ 'cauchy': I.quad(lambda x: 1.0 / (1.0 + x*x), -1.0, 2.0, weight='cauchy', wvar=0.3),
+ 'alg': I.quad(lambda x: math.exp(x), 0.0, 1.0, weight='alg', wvar=(-0.5, 0.3)),
+ 'alga': I.quad(lambda x: 1.0 + x, 0.0, 1.0, weight='alg-loga', wvar=(0.2, -0.4)),
+ 'algb': I.quad(lambda x: 1.0 + x, 0.0, 1.0, weight='alg-logb', wvar=(0.0, 0.5)),
+ 'alglog': I.quad(lambda x: math.cos(x), 0.0, 2.0, weight='alg-log', wvar=(0.5, 0.5)),
+ 'cos': I.quad(lambda x: math.exp(-x), 0.0, 10.0, weight='cos', wvar=20.0),
+ 'sin': I.quad(lambda x: x*x, 0.0, 3.0, weight='sin', wvar=1.5),
+ 'cosinf': I.quad(lambda x: math.exp(-x), 0.0, np.inf, weight='cos', wvar=2.0),
+ 'sininf': I.quad(lambda x: 1.0/(1.0+x*x), 1.0, np.inf, weight='sin', wvar=3.0),
+ 'sinninf': I.quad(lambda x: math.exp(x), -np.inf, 0.0, weight='sin', wvar=2.0),
+}
+print('WQUAD = {')
+for k, v in W.items():
+    print(f'    {k!r}: ({v[0]!r}, {v[1]!r}),')
+print('}')
+r = I.quad(lambda x: math.cos(50*x), 0, 1, limit=3, full_output=1)
+print('FULL1 =', (r[2]['neval'], r[2]['last'], r[2]['iord'].tolist(), r[2]['alist'].tolist(), r[2]['blist'].tolist(), r[2]['rlist'].tolist(), r[2]['elist'].tolist(), r[3][:45]))
+r = I.quad(lambda x: x*x, 0, 4, full_output=1, points=[1.0])
+print('FULLP =', (r[2]['neval'], r[2]['last'], r[2]['iord'].tolist()[:2], r[2]['level'].tolist()[:2], r[2]['pts'].tolist(), r[2]['ndin'].tolist()))
+r = I.quad(lambda x: math.exp(-x), 0.0, np.inf, weight='cos', wvar=2.0, full_output=1)
+print('FULLF =', (r[2]['lst'], r[2]['neval'], r[2]['rslst'].tolist()[:5], r[2]['erlst'].tolist()[:5]))
+r = I.quad(lambda x: x*x, 0.0, 3.0, weight='sin', wvar=50.0, full_output=1)
+print('FULLO =', (r[0], r[2]['neval'], r[2]['last'], r[2]['momcom'], r[2]['chebmo'][:3, 0].tolist()))
+r = I.quad(lambda x: complex(math.cos(x), math.sin(2*x)), 0.0, 1.0, complex_func=True)
+print('CPLX =', (r[0].real, r[0].imag, r[1].real, r[1].imag))
+r = I.quad_vec(lambda x: np.array([x, x*x, math.sin(x)]), 0.0, 2.0, full_output=True)
+print('QV1 =', (r[0].tolist(), r[1], r[2].neval, r[2].status, r[2].intervals.shape[0]))
+print('QV2 =', I.quad_vec(lambda x: math.exp(-x*x), -np.inf, np.inf))
+r = I.quad_vec(lambda x: np.array([math.exp(-x), 1.0/(1.0+x*x)]), 0.0, np.inf, norm='max', full_output=True)
+print('QV3 =', (r[0].tolist(), r[1], r[2].neval))
+r = I.quad_vec(lambda x: math.sqrt(x), 0.0, 1.0, quadrature='trapezoid', epsrel=1e-6, full_output=True)
+print('QV4 =', (r[0], r[1], r[2].neval))
+r = I.quad_vec(lambda x: np.array([abs(x - 0.3), x]), 0.0, 1.0, points=[0.3], quadrature='gk21', full_output=True)
+print('QV5 =', (r[0].tolist(), r[2].neval))
+print('NQ2 =', I.nquad(lambda x, y: x*y, [[0.0, 1.0], [0.0, 2.0]]))
+r = I.nquad(lambda x, y, z: x + y*z, [[0.0, 1.0], lambda z: (0.0, z), [0.0, 2.0]], full_output=True)
+print('NQ3 =', (r[0], r[1], r[2]['neval']))
+print('NQA =', I.nquad(lambda x, y, a: a*x + y, [[0.0, 1.0], [0.0, 1.0]], args=(2.0,), opts={'epsrel': 1e-10}))
+print('NC =', ([I.newton_cotes(n)[0].tolist() for n in (1, 2, 4)], [I.newton_cotes(n)[1] for n in (1, 2, 4, 7)]))
+an, B = I.newton_cotes(np.array([0, 1, 2.5, 3]))
+print('NCX =', (an.tolist(), float(B)))
+an, B = I.newton_cotes(16)
+print('NC16 =', (an.tolist(), float(B)))
 print('FIXED =', [float(I.fixed_quad(np.cos, 0.0, 1.0, n=n)[0]) for n in (1, 2, 4, 5, 10, 30)])
 print('FIXED_ARGS =', I.fixed_quad(lambda x, p: x**p, 0, 2, args=(3,), n=2)[0])
 
@@ -64,27 +101,3 @@ r = np.exp(-np.linspace(0, 2, 17))
 print('ROMB =', lit([I.romb(r, dx=2/16), I.romb(r[:9]), I.romb(r[:2])]))
 print('ROMB2 =', lit(I.romb(np.vstack([r, r**2]), dx=0.125)))
 
-print('IVP0 = [')
-for m in ['RK45', 'RK23', 'DOP853']:
-    s = I.solve_ivp(decay, [0, 10], [2, 4, 8], method=m)
-    print(f'    ({m!r}, {s.nfev}, {lit(s.t)}, {lit(s.y)}),')
-print(']')
-print('IVP1 = [')
-for m in ['RK45', 'RK23', 'DOP853']:
-    s = I.solve_ivp(osc, (0.0, 20.0), [1.0, 0.0], method=m, rtol=1e-8, atol=1e-10)
-    print(f'    ({m!r}, {s.nfev}, {lit(s.t[-3:])}, {lit(s.y[:, -1])}),')
-print(']')
-s = I.solve_ivp(lv, [0, 15], [10, 5], args=(1.5, 1, 3, 1), dense_output=True)
-print('LV =', (s.nfev, s.t.size, s.y[:, -1].tolist(), s.sol(7.3).tolist(), s.sol([0.5, 14.0]).tolist()))
-s = I.solve_ivp(decay, [0, 10], [2.0], t_eval=[0, 1, 2.5, 10])
-print('TEVAL =', (s.nfev, s.t.tolist(), s.y.tolist()))
-s = I.solve_ivp(cannon, [0, 100], [0, 10], events=(hit, apex))
-print('EVENTS =', (s.status, s.nfev, float(s.t[-1]), s.y[:, -1].tolist(), s.t_events[0].tolist(), s.t_events[1].tolist(), s.y_events[1].tolist()))
-s = I.solve_ivp(decay, [10, 0], [2.0], method='DOP853', dense_output=True, t_eval=[9.0, 3.0])
-print('BACK =', (s.nfev, s.t.tolist(), s.y.tolist(), s.sol(4.0).tolist()))
-s = I.solve_ivp(osc, [0, 5], [1.0, 0.0], method='RK23', dense_output=True, max_step=0.1, atol=[1e-6, 1e-8], first_step=0.01)
-print('OPTS =', (s.nfev, s.t.size, s.y[:, -1].tolist(), s.sol(2.345).tolist()))
-s = I.solve_ivp(osc, [0, 5], [1.0, 0.0], method='DOP853', dense_output=True)
-print('DOPDENSE =', (s.nfev, s.sol(1.234).tolist(), s.sol(4.9).tolist()))
-s = I.solve_ivp(decay, [0, 0], [1.0])
-print('ZERO =', (s.nfev, s.t.tolist(), s.y.tolist(), s.status))
