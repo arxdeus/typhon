@@ -156,3 +156,21 @@ def test_combined_indexing():
     assert np.array(42)[()] == 42
 
 test_combined_indexing()
+
+@test
+def test_setitem_optional():
+    a = np.zeros(3)
+    v: Optional[float] = 1.5
+    a[1] = v
+    w: Optional[int] = 2
+    a[2] = w
+    assert a[1] == 1.5 and a[2] == 2.0
+    n: Optional[float] = None
+    raised = False
+    try:
+        a[0] = n
+    except:
+        raised = True
+    assert raised and a[0] == 0.0
+
+test_setitem_optional()

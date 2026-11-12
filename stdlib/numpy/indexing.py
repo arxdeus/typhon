@@ -590,4 +590,8 @@ class ndarray:
         return _getset(self, indexes, None, dtype)
 
     def __setitem__(self, indexes, item):
-        _getset(self, indexes, item=item, dtype=dtype)
+        if isinstance(item, Optional) and not isinstance(dtype, Optional):
+            # `arr[i] = opt` stores the payload (raises on None), like plain assignment.
+            _getset(self, indexes, item=item.__unwrap__(), dtype=dtype)
+        else:
+            _getset(self, indexes, item=item, dtype=dtype)
