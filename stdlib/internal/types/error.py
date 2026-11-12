@@ -90,7 +90,7 @@ class NameError(Exception):
 
 def _errno() -> int:
     import internal.static as static
-    if static.platform() == "darwin":
+    if __apple__:
         from C import __error() -> Ptr[i32]
         return int(__error()[0])
     elif static.platform() == "win32":
@@ -98,6 +98,9 @@ def _errno() -> int:
         code = i32(0)
         _get_errno(__ptr__(code))
         return int(code)
+    elif __android__:
+        from C import __errno() -> Ptr[i32]
+        return int(__errno()[0])
     else:
         from C import __errno_location() -> Ptr[i32]
         return int(__errno_location()[0])
@@ -119,7 +122,7 @@ class OSError(Exception):
                    filename2: Optional[str] = None) -> OSError:
         import internal.static as static
         code = unwrap(errno) if errno is not None else 0
-        darwin = static.platform() == "darwin"
+        darwin = __apple__
         windows = static.platform() == "win32"
         if code == 2:
             return FileNotFoundError(errno, strerror, filename, winerror, filename2)

@@ -6,7 +6,7 @@ import internal.static as static
 fint = Int[32 if __windows__ else 64]
 fintp = Ptr[fint]
 
-if static.platform() == "darwin":
+if __apple__:
     _suffix_blas: Literal[str] = "$NEWLAPACK$ILP64"
     _suffix_lapack: Literal[str] = "$NEWLAPACK$ILP64"
 else:

@@ -54,7 +54,7 @@ if static.platform() == "win32":
     O_TRUNC: Literal[int] = 0x200
     O_BINARY: Literal[int] = 0x8000
     O_NOINHERIT: Literal[int] = 0x80
-elif static.platform() == "darwin":
+elif __apple__:
     O_APPEND: Literal[int] = 0x8
     O_CREAT: Literal[int] = 0x200
     O_EXCL: Literal[int] = 0x800
@@ -650,8 +650,8 @@ def chmod(path: str, mode: int, *, follow_symlinks: bool = True):
         return _win32.chmod(path, mode)
     if not follow_symlinks:
         from C import fchmodat(i32, cobj, u32, i32) -> i32
-        directory = -2 if static.platform() == "darwin" else -100
-        flags = 0x20 if static.platform() == "darwin" else 0x100
+        directory = -2 if __apple__ else -100
+        flags = 0x20 if __apple__ else 0x100
         if fchmodat(i32(directory), _cstring(path), u32(mode), i32(flags)) != i32(0):
             _error("chmod", path)
         return

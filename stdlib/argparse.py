@@ -597,10 +597,10 @@ def _terminal_columns() -> int:
         if GetConsoleScreenBufferInfo(GetStdHandle(u32(-11)), info):
             width = int(info[7]) - int(info[5]) + 1
             if width > 0: return width
-    elif sys.platform == "darwin" or sys.platform == "linux":
+    elif __apple__ or __linux__:
         from C import ioctl(i32, u64, ...) -> i32
         dimensions = __array__[u16](4)
-        request = 0x40087468 if sys.platform == "darwin" else 0x5413
+        request = 0x40087468 if __apple__ else 0x5413
         if ioctl(i32(1), u64(request), dimensions) == i32(0) and dimensions[1] > u16(0):
             return int(dimensions[1])
     return 80
