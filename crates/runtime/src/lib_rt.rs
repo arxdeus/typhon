@@ -122,6 +122,12 @@ pub fn gc_init() {
             setenv(c"GC_RETRY_SIGNALS".as_ptr(), c"0".as_ptr(), 0);
         }
         gc::GC_init();
+        // GC_init registers the calling thread. In a `-lib` that is whichever foreign
+        // thread first entered the library (dlopen or first export call), and it may
+        // exit: unregister it at exit like threads registered by
+        // `seq_register_current_thread`, or the next stop-the-world signals its stale
+        // pthread_t (bionic aborts). No effect on a main thread that ends via exit().
+        FOREIGN_THREAD_GUARD.with(|g| g.set(true));
         gc::GC_set_warn_proc(Some(gc::GC_ignore_warn_proc));
         gc::GC_set_finalizer_notifier(Some(run_finalizers));
         GC_DIVISOR.store(gc::GC_get_free_space_divisor(), Ordering::Relaxed);

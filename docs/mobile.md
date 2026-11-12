@@ -86,6 +86,10 @@ Strings and memory ownership:
   calling thread with the GC, so Dart isolates and other foreign threads can call
   exported functions. After the first call on a thread it is a thread-local flag
   check (no lock), so the per-call overhead is a few ns.
+- Foreign threads may exit freely: a thread-local destructor unregisters each thread the
+  library registered from the GC, including the thread that initialized the GC on the
+  first call. A dead thread left registered makes the next collection signal a stale
+  `pthread_t`, which bionic aborts on.
 - Exceptions must not escape an exported function. Catch them and return an error code.
 
 ## Compile-time defines and platform
