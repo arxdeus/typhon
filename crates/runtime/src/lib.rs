@@ -25,7 +25,7 @@ pub mod re;
 pub mod rtti;
 pub mod types;
 
-pub use bdwgc_alloc_sys as gc;
+pub mod gc;
 pub use exc::{JitError, make_backtrace_frame_string, set_jit_error_callback};
 pub use lib_rt::get_captured_output;
 

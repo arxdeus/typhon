@@ -24,7 +24,6 @@ openblas = ["dep:openblas-src"]
 [dependencies]
 libc.workspace = true
 typhon-omp = { workspace = true, optional = true }
-bdwgc-alloc-sys = { version = "0.6.16", default-features = false, features = ["cmake"] }
 regex = "1.13.1"
 regex-automata = "0.4.18"
 regex-syntax = "0.8.11"
@@ -40,3 +39,7 @@ num-complex = "0.4.6"
 libm = "0.2.16"
 parking_lot = "0.12.5"
 openblas-src = { version = "0.10", optional = true, default-features = false, features = ["static", "cblas", "lapacke"] }
+
+[build-dependencies]
+# Builds the vendored bdwgc v8.2.12 (vendor/bdwgc) with the C++ Codon CMake options.
+cmake = "0.1.58"

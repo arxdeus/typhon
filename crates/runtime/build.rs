@@ -3,8 +3,11 @@ use std::env;
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=vendor/bdwgc");
     println!("cargo:rerun-if-env-changed=CODON_LIBOMP_DIR");
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+
+    build_bdwgc(&target_os);
 
     let omp_rust = env::var_os("CARGO_FEATURE_OMP_RUST").is_some();
     let omp_libomp = env::var_os("CARGO_FEATURE_OPENMP_LIBOMP").is_some();
@@ -46,4 +49,33 @@ fn main() {
             println!("cargo:rustc-cdylib-link-arg=-Wl,--export-dynamic-symbol=omp_*");
         }
     }
+}
+
+/// bdwgc v8.2.12 (vendor/bdwgc, same tag as C++ `cmake/deps.cmake`) built with the
+/// same CMake options as the C++ libcodonrt. The `bdwgc-alloc-sys` crate vendors a
+/// bdwgc 8.3 snapshot without `enable_large_config`, whose heap-growth policy
+/// collects ~7x more often on allocation-heavy programs (float.py: 41 vs 6 GCs).
+fn build_bdwgc(target_os: &str) {
+    let mut cfg = cmake::Config::new("vendor/bdwgc");
+    cfg.profile("Release")
+        .define("CMAKE_POSITION_INDEPENDENT_CODE", "ON")
+        .define("BUILD_SHARED_LIBS", "OFF")
+        .define("build_cord", "OFF")
+        .define("build_tests", "OFF")
+        .define("enable_docs", "OFF")
+        .define("install_headers", "ON")
+        .define("enable_threads", "ON")
+        .define("enable_large_config", "ON")
+        .define("enable_thread_local_alloc", "ON");
+    if target_os == "windows" {
+        cfg.define("enable_parallel_mark", "OFF")
+            .define("disable_handle_fork", "ON")
+            .define("enable_single_obj_compilation", "ON")
+            .cflag("-DGC_BUILTIN_ATOMIC");
+    } else {
+        cfg.define("enable_handle_fork", "ON");
+    }
+    let dst = cfg.build();
+    println!("cargo:rustc-link-search=native={}", dst.join("lib").display());
+    println!("cargo:include={}", dst.join("include").display());
 }

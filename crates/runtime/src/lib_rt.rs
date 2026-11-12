@@ -8,7 +8,7 @@ use std::sync::Once;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use bdwgc_alloc_sys as gc;
+use crate::gc;
 use parking_lot::{Condvar, Mutex, ReentrantMutex};
 
 use crate::types::*;

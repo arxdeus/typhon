@@ -88,6 +88,29 @@ fn host_feature_list() -> Vec<String> {
     target::host_cpu_features().split(',').filter(|s| !s.is_empty()).map(str::to_string).collect()
 }
 
+unsafe extern "C" {
+    /// `cpp/tm_shim.cpp`: TargetParser default feature list for an AArch64 CPU.
+    fn typhon_aarch64_cpu_default_features(cpu: *const libc::c_char, buf: *mut libc::c_char, cap: libc::c_ulong) -> libc::c_long;
+}
+
+/// `None` if LLVM does not know the CPU (mirrors `if (!cpuInfo) return "";`).
+fn aarch64_cpu_default_features(cpu: &str) -> Option<Vec<String>> {
+    let c = std::ffi::CString::new(cpu).ok()?;
+    let mut buf = vec![0u8; 4096];
+    loop {
+        let n = unsafe { typhon_aarch64_cpu_default_features(c.as_ptr(), buf.as_mut_ptr().cast(), buf.len() as _) };
+        if n < 0 {
+            return None;
+        }
+        let n = n as usize;
+        if n < buf.len() {
+            let s = std::str::from_utf8(&buf[..n]).ok()?;
+            return Some(s.split(',').filter(|s| !s.is_empty()).map(str::to_string).collect());
+        }
+        buf.resize(n + 1, 0);
+    }
+}
+
 /// Port of `targets/aarch64.cpp`.
 pub struct Aarch64;
 
@@ -98,14 +121,13 @@ impl NativeTarget for Aarch64 {
 
     fn features(&self, triple: &Triple) -> String {
         let cpu = target::host_cpu_name();
-        // PORT-NOTE: `AArch64::parseCpu` + `ExtensionSet::addCPUDefaults/addArchDefaults`
-        // (TargetParser) are not exposed by the C API. LLVM's host feature query already
-        // reports the CPU's extensions, which are then appended in C++ anyway, so we
-        // only keep that list. An empty / "generic" CPU mirrors `if (!cpuInfo) return "";`.
-        if cpu.is_empty() || cpu == "generic" {
+        // `AArch64::parseCpu` + `addCPUDefaults/addArchDefaults` via cpp/tm_shim.cpp.
+        // These defaults matter: on macOS `getHostCPUFeatures()` is empty, so without
+        // them functions get no NEON/v8.x features and run several times slower.
+        let Some(mut features) = aarch64_cpu_default_features(&cpu) else {
             return String::new();
-        }
-        let mut features = host_feature_list();
+        };
+        features.extend(host_feature_list());
         if cpu == "cyclone" || cpu.starts_with("apple") {
             features.push("+zcm".into());
             features.push("+zcz".into());
