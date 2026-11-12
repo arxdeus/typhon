@@ -96,11 +96,6 @@ pub fn get_generated(cfg: &CFGraph, m: &Module, val: CfValue) -> Option<(Id, Rea
     }
 }
 
-#[derive(Debug, Default)]
-struct BlockData {
-    /// var uid -> incoming definitions (insertion ordered)
-    in_: FxHashMap<Id, IndexSet<ReachingDef>>,
-}
 
 #[derive(Debug, Default)]
 struct BlockIndex {
@@ -111,14 +106,20 @@ struct BlockIndex {
 #[derive(Debug)]
 pub struct RDInspector {
     invalid: FxHashSet<Id>,
-    sets: FxHashMap<BlockId, BlockData>,
+    /// Per-block incoming definitions (bit `i` = `ordering[i]`), queried lazily
+    /// instead of materializing a per-block var -> def-set map (O(blocks*defs)).
+    in_bits: Vec<BitSet>,
+    /// Assignment values, in definition-index order.
+    ordering: Vec<CfValue>,
+    /// var uid -> ascending definition indices into `ordering`.
+    var_defs: FxHashMap<Id, Vec<usize>>,
     index: RefCell<FxHashMap<BlockId, Rc<BlockIndex>>>,
     cfg: Rc<CFGraph>,
 }
 
 impl RDInspector {
     pub fn new(cfg: Rc<CFGraph>) -> Self {
-        Self { invalid: FxHashSet::default(), sets: FxHashMap::default(), index: RefCell::default(), cfg }
+        Self { invalid: FxHashSet::default(), in_bits: Vec::new(), ordering: Vec::new(), var_defs: FxHashMap::default(), index: RefCell::default(), cfg }
     }
     pub fn cfg(&self) -> &Rc<CFGraph> {
         &self.cfg
@@ -208,14 +209,15 @@ impl RDInspector {
             }
         }
 
-        for (b, data) in bitsets.iter().enumerate() {
-            let entry = self.sets.entry(b).or_default();
-            for i in data.in_.iter_ones() {
-                if let Some((var, def)) = get_generated(&cfg, m, ordering[i]) {
-                    entry.in_.entry(var).or_default().insert(def);
-                }
+        let mut var_defs: FxHashMap<Id, Vec<usize>> = FxHashMap::default();
+        for (i, &val) in ordering.iter().enumerate() {
+            if let Some((var, _)) = get_generated(&cfg, m, val) {
+                var_defs.entry(var).or_default().push(i);
             }
         }
+        self.in_bits = bitsets.into_iter().map(|s| s.in_).collect();
+        self.ordering = ordering;
+        self.var_defs = var_defs;
     }
 
     fn block_index(&self, m: &Module, b: BlockId) -> Rc<BlockIndex> {
@@ -265,10 +267,19 @@ impl RDInspector {
         if blk == cfg.entry_block() {
             return Vec::new();
         }
-        match self.sets.get(&blk).and_then(|e| e.in_.get(&var_uid)) {
-            Some(s) => s.iter().copied().collect(),
-            None => Vec::new(),
+        let (Some(bits), Some(defs)) = (self.in_bits.get(blk), self.var_defs.get(&var_uid)) else {
+            return Vec::new();
+        };
+        let mut out: Vec<ReachingDef> = Vec::new();
+        for &i in defs {
+            if bits.get(i)
+                && let Some((_, d)) = get_generated(cfg, m, self.ordering[i])
+                && !out.contains(&d)
+            {
+                out.push(d);
+            }
         }
+        out
     }
 
     /// `isInvalid(var)`.

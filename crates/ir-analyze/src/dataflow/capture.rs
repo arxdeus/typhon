@@ -736,11 +736,12 @@ impl<'c, 'a> CaptureTracker<'c, 'a> {
 
     /// `runToCompletion(func)`.
     fn run_to_completion(&mut self, m: &Module, func: FuncId) {
+        // The visiting order is fixed (the module is not mutated): walk once.
+        let mut order = Vec::new();
+        ConstWalker::new().walk_func(m, func, &mut |v| order.push(v));
         loop {
             let old = self.size();
-            let mut order = Vec::new();
-            ConstWalker::new().walk_func(m, func, &mut |v| order.push(v));
-            for v in order {
+            for &v in &order {
                 self.handle(m, v);
             }
             if self.size() == old {
