@@ -67,22 +67,42 @@ unsafe extern "C" fn run_finalizers() {
 }
 
 static GC_DIVISOR: AtomicUsize = AtomicUsize::new(3);
+/// Heap size seen at the last collection we allowed (detects heap growth).
+static LAST_HEAP: AtomicUsize = AtomicUsize::new(0);
 
 /// bdwgc 8.3 (`bdwgc-alloc-sys`) `GC_should_collect()` forces a full collection
 /// right after every heap growth (`GC_last_heap_growth_gc_no == GC_gc_no`), which
 /// bdwgc 8.2.12 (C++ Codon) does not; on allocation-heavy programs that is ~4x more
 /// collections (float.py: 22 vs 6). Allocation-triggered collections go through
 /// `GC_default_stop_func` (`GC_collect_or_expand`); refusing to start one makes the
-/// collector expand the heap instead. We refuse while fewer bytes were allocated
-/// since the last GC than 8.2's `min_bytes_allocd()` estimate
-/// (`2 * in_use / free_space_divisor`). Called with the allocator lock held; the
-/// answer is constant while the world is stopped, so marking is never abandoned.
+/// collector expand the heap instead. We only veto that forced post-growth GC (the
+/// heap size changed since the last collection we allowed) and only while fewer
+/// bytes were allocated since the last GC than `in_use / (2 * free_space_divisor)`.
+/// Ordinary threshold-triggered GCs (8.3's own `min_bytes_allocd`, which already
+/// weights atomic data at 1/4) are never vetoed, so the heap stays as tight as
+/// Codon's (binary_trees 20: 263 MB vs 540 MB with the earlier `2*in_use/div` veto).
+/// Called with the allocator lock held; once a GC is allowed LAST_HEAP is updated so
+/// repeated calls during marking keep answering "continue".
 unsafe extern "C" fn gc_growth_stop_func() -> c_int {
     let mut s = gc::GC_prof_stats_s::default();
     unsafe { gc::GC_get_prof_stats_unsafe(&mut s, core::mem::size_of::<gc::GC_prof_stats_s>()) };
     let in_use = s.heapsize_full.saturating_sub(s.free_bytes_full);
-    let min_allocd = 2 * in_use / GC_DIVISOR.load(Ordering::Relaxed).max(1);
-    (s.gc_no > 1 && s.bytes_allocd_since_gc < min_allocd) as c_int
+    let grew = s.heapsize_full != LAST_HEAP.load(Ordering::Relaxed);
+    let min_allocd = in_use / 2 / GC_DIVISOR.load(Ordering::Relaxed).max(1);
+    let stop = s.gc_no > 1 && grew && s.bytes_allocd_since_gc < min_allocd;
+    if !stop {
+        LAST_HEAP.store(s.heapsize_full, Ordering::Relaxed);
+    }
+    stop as c_int
+}
+
+extern "C" fn print_gc_stats() {
+    let mut s = gc::GC_prof_stats_s::default();
+    unsafe { gc::GC_get_prof_stats_unsafe(&mut s, core::mem::size_of::<gc::GC_prof_stats_s>()) };
+    eprintln!(
+        "typhon gc: collections={} heap={} KiB free={} KiB unmapped={} KiB obtained_from_os={} KiB",
+        s.gc_no, s.heapsize_full >> 10, s.free_bytes_full >> 10, s.unmapped_bytes >> 10, s.obtained_from_os_bytes >> 10
+    );
 }
 
 static GC_INIT: Once = Once::new();
@@ -96,6 +116,13 @@ pub fn gc_init() {
         gc::GC_set_finalizer_notifier(Some(run_finalizers));
         GC_DIVISOR.store(gc::GC_get_free_space_divisor(), Ordering::Relaxed);
         gc::GC_set_stop_func(Some(gc_growth_stop_func));
+        // `TYPHON_GC_STATS=1`: print collection count and heap stats at exit.
+        if std::env::var_os("TYPHON_GC_STATS").is_some() {
+            unsafe extern "C" {
+                fn atexit(f: extern "C" fn()) -> c_int;
+            }
+            atexit(print_gc_stats);
+        }
         #[cfg(feature = "omp-rust")]
         // Same C ABI; typhon-omp spells the stack-base pointer as `void *`.
         typhon_omp::__kmpc_set_gc_callbacks(
@@ -114,6 +141,18 @@ pub fn gc_init() {
         #[cfg(not(any(feature = "omp-rust", feature = "openmp-libomp")))]
         let _ = (register_thread_shim as GcSetupCallback, gc::GC_add_roots as GcRootsCallback);
     });
+    // libtest runs each test on its own thread; register it so the collector scans
+    // its stack (unregistered threads' roots are invisible and objects get freed).
+    #[cfg(test)]
+    {
+        seq_allow_register_threads();
+        let mut sb = gc::GC_stack_base { mem_base: core::ptr::null_mut() };
+        unsafe {
+            if gc::GC_get_stack_base(&mut sb) == 0 {
+                gc::GC_register_my_thread(&sb); // returns GC_DUPLICATE if already registered
+            }
+        }
+    }
 }
 
 #[unsafe(no_mangle)]

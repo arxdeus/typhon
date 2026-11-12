@@ -14,8 +14,29 @@ Two differences made Typhon collect far more often, and both are compensated:
 2. **Collect-after-growth.** 8.3's `GC_should_collect()` returns true whenever the
    heap grew since the last GC, so it collects after every expansion. `gc_init`
    (`src/lib_rt.rs`) installs `GC_set_stop_func(gc_growth_stop_func)`, which declines
-   allocation-triggered collections until 8.2's `min_bytes_allocd`
-   (`2 * in_use / free_space_divisor`) bytes were allocated, so the heap expands instead.
+   only the forced post-growth collection (heap size changed since the last GC it
+   allowed) and only while fewer than `in_use / (2 * free_space_divisor)` bytes were
+   allocated since the last GC. Ordinary threshold GCs (8.3's own `min_bytes_allocd`,
+   which counts atomic data at 1/4 like 8.2) are never declined. An earlier version
+   declined every GC below `2 * in_use / divisor`, which kept the heap ~2x Codon's.
+
+`TYPHON_GC_STATS=1` prints collection count and heap stats at exit. Parallel
+marking, `GC_MARKERS`, initial heap size and unmapping made no measurable RSS
+difference; `GC_FREE_SPACE_DIVISOR` still works as a runtime override.
+
+### Memory policy result (2026-11-12, M-series, `-release`, median of 3-5)
+
+| benchmark | Codon RSS / time / GCs | Typhon before (1a148483) | Typhon now |
+|---|---|---|---|
+| binary_trees 17 | 45 MB / 0.31 s / 42 | 56 MB / 0.30 s / 41 | 36 MB / 0.34 s / 72 |
+| binary_trees 20 | 264 MB / 3.71 s / 111 | 540 MB / 2.98 s | 263 MB / 3.66 s / 127 |
+| chaos | 56 MB / 0.72 s / 416 | 143 MB / 0.63 s / 31 | 57 MB / 0.71 s / 357 |
+| float 10000000 | 493 MB / 0.40 s / 6 | 492 MB / 0.34 s / 3 | 492 MB / 0.38 s / 9 |
+| spectral_norm 40 | 13 MB / 0.09 s | 15 MB / 0.08 s | 11 MB / 0.08 s |
+| fannkuch, go, mandelbrot, nbody, primes, set_partition | 7-13 MB | 0.5 MB below Codon | unchanged, 0.5 MB below Codon |
+
+Runtimes now track Codon (within noise); the old policy was faster on GC-heavy
+programs only because it let the heap grow ~2x.
 
 Measured 2026-11-12 (M-series, AOT `-release`, 5 runs, median):
 
