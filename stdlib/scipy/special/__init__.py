@@ -14,6 +14,7 @@ from . import _kolmogorov as KS
 from . import _hyp as H
 from . import _misc as M
 from . import _ellip as E
+from . import _orth as O
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -275,6 +276,77 @@ def elliprd(x, y, z): return _map3(E.elliprd, x, y, z)
 def elliprf(x, y, z): return _map3(E.elliprf, x, y, z)
 def elliprg(x, y, z): return _map3(E.elliprg, x, y, z)
 def elliprj(x, y, z, p): return _map4(E.elliprj, x, y, z, p)
+
+# orthogonal polynomials (_orth): integer-typed n uses scipy's recurrence
+# ('p' loops), float n uses the hypergeometric representation.
+def _ncall1(fl, fi, v, x: float) -> float:
+    if isinstance(v, int) or isinstance(v, bool):
+        return fi(int(v), x)
+    else:
+        return fl(float(v), x)
+def _ncall2(fl, fi, v, a: float, x: float) -> float:
+    if isinstance(v, int) or isinstance(v, bool):
+        return fi(int(v), a, x)
+    else:
+        return fl(float(v), a, x)
+def _ncall3(fl, fi, v, a: float, b: float, x: float) -> float:
+    if isinstance(v, int) or isinstance(v, bool):
+        return fi(int(v), a, b, x)
+    else:
+        return fl(float(v), a, b, x)
+def _mapn1(fl, fi, n, x):
+    if _is_arr(n) or _is_arr(x):
+        shp = _bshape(n, x)
+        A = np.broadcast_to(np.asarray(n), shp)
+        X = np.broadcast_to(np.asarray(x), shp)
+        out = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            out[idx] = _ncall1(fl, fi, A[idx], float(X[idx]))
+        return out
+    else:
+        return _ncall1(fl, fi, n, float(x))
+def _mapn2(fl, fi, n, a, x):
+    if _is_arr(n) or _is_arr(a) or _is_arr(x):
+        shp = _bshape(n, a, x)
+        A = np.broadcast_to(np.asarray(n), shp)
+        P = np.broadcast_to(np.asarray(a), shp)
+        X = np.broadcast_to(np.asarray(x), shp)
+        out = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            out[idx] = _ncall2(fl, fi, A[idx], float(P[idx]), float(X[idx]))
+        return out
+    else:
+        return _ncall2(fl, fi, n, float(a), float(x))
+def _mapn3(fl, fi, n, a, b, x):
+    if _is_arr(n) or _is_arr(a) or _is_arr(b) or _is_arr(x):
+        shp = _bshape(n, a, b, x)
+        A = np.broadcast_to(np.asarray(n), shp)
+        P = np.broadcast_to(np.asarray(a), shp)
+        Q = np.broadcast_to(np.asarray(b), shp)
+        X = np.broadcast_to(np.asarray(x), shp)
+        out = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            out[idx] = _ncall3(fl, fi, A[idx], float(P[idx]), float(Q[idx]), float(X[idx]))
+        return out
+    else:
+        return _ncall3(fl, fi, n, float(a), float(b), float(x))
+def _herm_f(n: float, x: float) -> float: return O.eval_hermite(int(n), x)
+def _hermn_f(n: float, x: float) -> float: return O.eval_hermitenorm(int(n), x)
+def eval_jacobi(n, alpha, beta, x): return _mapn3(O.eval_jacobi, O.eval_jacobi_l, n, alpha, beta, x)
+def eval_sh_jacobi(n, p, q, x): return _mapn3(O.eval_sh_jacobi, O.eval_sh_jacobi_l, n, p, q, x)
+def eval_gegenbauer(n, alpha, x): return _mapn2(O.eval_gegenbauer, O.eval_gegenbauer_l, n, alpha, x)
+def eval_chebyt(n, x): return _mapn1(O.eval_chebyt, O.eval_chebyt_l, n, x)
+def eval_chebyu(n, x): return _mapn1(O.eval_chebyu, O.eval_chebyu_l, n, x)
+def eval_chebys(n, x): return _mapn1(O.eval_chebys, O.eval_chebys_l, n, x)
+def eval_chebyc(n, x): return _mapn1(O.eval_chebyc, O.eval_chebyc_l, n, x)
+def eval_sh_chebyt(n, x): return _mapn1(O.eval_sh_chebyt, O.eval_sh_chebyt_l, n, x)
+def eval_sh_chebyu(n, x): return _mapn1(O.eval_sh_chebyu, O.eval_sh_chebyu_l, n, x)
+def eval_legendre(n, x): return _mapn1(O.eval_legendre, O.eval_legendre_l, n, x)
+def eval_sh_legendre(n, x): return _mapn1(O.eval_sh_legendre, O.eval_sh_legendre_l, n, x)
+def eval_genlaguerre(n, alpha, x): return _mapn2(O.eval_genlaguerre, O.eval_genlaguerre_l, n, alpha, x)
+def eval_laguerre(n, x): return _mapn1(O.eval_laguerre, O.eval_laguerre_l, n, x)
+def eval_hermite(n, x): return _mapn1(_herm_f, O.eval_hermite, n, x)
+def eval_hermitenorm(n, x): return _mapn1(_hermn_f, O.eval_hermitenorm, n, x)
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:
