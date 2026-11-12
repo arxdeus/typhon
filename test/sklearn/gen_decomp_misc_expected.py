@@ -89,5 +89,46 @@ def mixture():
             S(tag + "_it", b.n_iter_); S(tag + "_lb", b.lower_bound_); L(tag + "_ss", b.score_samples(X[:4]))
             L(tag + "_dof", b.degrees_of_freedom_)
 
+def feature_selection():
+    from sklearn.feature_selection import (f_classif, f_regression, r_regression, chi2, mutual_info_classif,
+        mutual_info_regression, SelectKBest, SelectPercentile, SelectFpr, SelectFdr, SelectFwe,
+        GenericUnivariateSelect, VarianceThreshold, SelectFromModel, RFE, RFECV, SequentialFeatureSelector)
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+    X, y = data(40, 8, 3)
+    yr = X[:, 0] * 2.0 - X[:, 3] + 0.1 * np.arange(40) % 7
+    Xp = np.abs(X)
+    f, p = f_classif(X, y); L("fc_f", f); L("fc_p", p)
+    f, p = f_regression(X, yr); L("fr_f", f); L("fr_p", p)
+    L("rr", r_regression(X, yr)); L("rr_nc", r_regression(X, yr, center=False))
+    c, p = chi2(Xp, y); L("chi_c", c); L("chi_p", p)
+    L("mic", mutual_info_classif(X, y, random_state=0))
+    L("mir", mutual_info_regression(X, yr, random_state=0))
+    Xd = np.floor(np.abs(X[:, :3]))
+    L("mic_d", mutual_info_classif(Xd, y, discrete_features=True, random_state=1))
+    L("mir_d", mutual_info_regression(np.hstack([Xd, X[:, 3:5]]), yr, discrete_features=[0, 1, 2], random_state=2))
+    L("kb", SelectKBest(f_classif, k=3).fit(X, y).get_support())
+    L("kb_t", SelectKBest(chi2, k=2).fit_transform(Xp, y)[:3])
+    L("pc", SelectPercentile(f_regression, percentile=40).fit(X, yr).get_support())
+    L("fpr", SelectFpr(f_classif, alpha=0.3).fit(X, y).get_support())
+    L("fdr", SelectFdr(f_classif, alpha=0.5).fit(X, y).get_support())
+    L("fwe", SelectFwe(f_classif, alpha=0.5).fit(X, y).get_support())
+    L("gus", GenericUnivariateSelect(f_classif, mode="k_best", param=4).fit(X, y).get_support())
+    Xv = X.copy(); Xv[:, 2] = 1.0; Xv[:, 5] *= 0.1
+    vt = VarianceThreshold(0.05).fit(Xv); L("vt_var", vt.variances_); L("vt_sup", vt.get_support())
+    vt0 = VarianceThreshold().fit(Xv); L("vt0_sup", vt0.get_support())
+    sfm = SelectFromModel(LogisticRegression(max_iter=500)).fit(X, y)
+    L("sfm_sup", sfm.get_support()); S("sfm_th", sfm.threshold_)
+    sfm2 = SelectFromModel(LinearDiscriminantAnalysis(), threshold="1.2*median", max_features=3).fit(X, y)
+    L("sfm2_sup", sfm2.get_support())
+    rfe = RFE(LogisticRegression(max_iter=500), n_features_to_select=3, step=2).fit(X, y)
+    L("rfe_sup", rfe.support_); L("rfe_rank", rfe.ranking_)
+    rcv = RFECV(LinearDiscriminantAnalysis(), cv=4).fit(X, y)
+    L("rcv_sup", rcv.support_); L("rcv_rank", rcv.ranking_); L("rcv_mean", rcv.cv_results_["mean_test_score"])
+    sfs = SequentialFeatureSelector(LinearDiscriminantAnalysis(), n_features_to_select=3, cv=3).fit(X, y)
+    L("sfs_f", sfs.get_support())
+    sfs = SequentialFeatureSelector(LinearDiscriminantAnalysis(), n_features_to_select=5, direction="backward", cv=3).fit(X, y)
+    L("sfs_b", sfs.get_support())
+
 for sec in sys.argv[1:]:
     globals()[sec]()
