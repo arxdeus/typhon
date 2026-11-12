@@ -556,9 +556,6 @@ impl Ctx<'_> {
                 field("suite", fs(s.suite)),
                 field("async_", fbool(s.async_)),
             ],
-            StmtKind::Custom(s) => {
-                vec![field("keyword", fstr(&s.keyword)), field("expr", fe(s.expr)), field("suite", fs(s.suite))]
-            }
             StmtKind::Directive(s) => vec![field("key", fstr(&s.key)), field("value", fstr(&s.value))],
             StmtKind::AssignMember(s) => vec![
                 field("lhs", fe(s.lhs)),

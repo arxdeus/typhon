@@ -19,12 +19,9 @@ pub fn install(cache: &mut Cache) {
     typhon_parser::visitors::translate::install_hooks(cache);
 }
 
-/// DSL keywords currently registered in the cache, as the grammar wants them.
-fn parse_options(cache: &Cache) -> ParseOptions {
-    ParseOptions {
-        custom_block_stmts: cache.custom_block_stmts.iter().map(|(k, (e, _))| (k.clone(), *e)).collect(),
-        custom_expr_stmts: cache.custom_expr_stmts.keys().cloned().collect(),
-    }
+/// Grammar parse options.
+fn parse_options(_cache: &Cache) -> ParseOptions {
+    ParseOptions {}
 }
 
 fn parse_expr_hook(cache: &mut Cache, code: &str, offset: &SrcInfo) -> Result<(ExprId, FormatSpec)> {

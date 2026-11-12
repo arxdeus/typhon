@@ -87,7 +87,7 @@ visitor_trait! {
         visit_match => Match, visit_import => Import, visit_except => Except,
         visit_try => Try, visit_throw => Throw, visit_global => Global,
         visit_function => Function, visit_class => Class, visit_yield_from => YieldFrom,
-        visit_with => With, visit_custom => Custom, visit_directive => Directive,
+        visit_with => With, visit_directive => Directive,
         visit_assign_member => AssignMember, visit_comment => Comment,
     }
 }

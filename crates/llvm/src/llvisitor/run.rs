@@ -50,7 +50,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
         if let Some(db) = &self.db.builder {
             db.finalize();
         }
-        let hooks: Vec<&dyn crate::optimize::LlvmPassHooks> = self.plugins.iter().map(|p| p.as_ref()).collect();
-        crate::optimize::optimize(self.module.as_ref().expect("no module"), &self.options, &hooks)
+        crate::optimize::optimize(self.module.as_ref().expect("no module"), &self.options)
     }
 }

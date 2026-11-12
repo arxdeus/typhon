@@ -436,13 +436,6 @@ impl AstArena {
                 }
                 format!("(with ({}){}{})", r#as.join(" "), pad, self.ss(s.suite, sub))
             }
-            StmtKind::Custom(s) => format!(
-                "(custom-{} {}{}{})",
-                s.keyword,
-                s.expr.map(|e| format!(" #:expr {}", self.expr_to_string(e, indent))).unwrap_or_default(),
-                pad,
-                s.suite.map(|x| self.stmt_to_string(x, sub)).unwrap_or_default()
-            ),
             StmtKind::Directive(s) => format!("(directive {} '{}')", s.key, s.value),
             StmtKind::AssignMember(s) => {
                 format!("(assign-member {} {} {})", self.es(s.lhs, indent), s.member, self.es(s.rhs, indent))

@@ -15,7 +15,7 @@ full C++ dependency -> Rust crate mapping.
   AST -> IR translation, Codon IR with all analyses and optimization passes
   (cleanup, folding, lowering, pythonic, NumPy fusion, OpenMP/GPU), LLVM code
   generation, `run` via an in-process ORC JIT, `build` to exe/obj/lib/llvm/bc/asm/pyext,
-  `doc`, the DSL/plugin system, the runtime library `libtyphonrt`, and the C++ tests.
+  `doc`, the runtime library `libtyphonrt`, and the C++ tests.
 * Not ported (by decision): the incremental JIT / REPL (`codon jit`), the Jupyter
   kernel and the Python `@codon.jit` bridge.
 * Replaced with Rust: LLVM's `libomp` (OpenMP runtime) is reimplemented in
@@ -31,7 +31,6 @@ full C++ dependency -> Rust crate mapping.
 | `typhon-ir-analyze` | `codon/cir/analyze/**`, `cir/util/{inlining,outlining}` | CFG, dominators, reaching defs, capture, side effects |
 | `typhon-ir-transform` | `codon/cir/transform/**` | pass manager and all IR passes |
 | `typhon-llvm` | `codon/cir/llvm/**`, `compiler/{engine,memory_manager,debug_listener}` | inkwell + llvm-sys (LLVM 20), ORC JIT |
-| `typhon-dsl` | `codon/dsl/**` | plugin manager, Rust cdylib plugin ABI |
 | `typhon-compiler` | `codon/compiler/compiler.*` | driver wiring all stages |
 | `typhon-cli` | `codon/app/main.cpp` | `typhon` binary, CLI-compatible with `codon` |
 | `typhon-runtime` | `codon/runtime/**` | `libtyphonrt` (C ABI): GC, exceptions, I/O, regex, numpy kernels |

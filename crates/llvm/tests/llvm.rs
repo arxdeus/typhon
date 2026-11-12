@@ -26,7 +26,7 @@ fn opts() -> Options {
 /// Port of `compileAndOptimizeIR`.
 fn compile_and_optimize_ir<'c>(ctx: &'c Context, ir: &str) -> Module<'c> {
     let m = parse(ctx, ir);
-    optimize(&m, &opts(), &[]).expect("optimize");
+    optimize(&m, &opts()).expect("optimize");
     m.verify().expect("verify");
     m
 }
@@ -607,33 +607,12 @@ exit:
         o.debug = debug;
         o.native = true;
         m.set_triple(&inkwell::targets::TargetTriple::create(&typhon_llvm::host_triple()));
-        optimize(&m, &o, &[]).expect("optimize");
+        optimize(&m, &o).expect("optimize");
         m.verify().unwrap();
         if !debug {
             assert_eq!(loop_count(&m, "sum"), 0, "closed form expected:\n{}", m.print_to_string());
         }
     }
-}
-
-#[test]
-fn optimize_runs_plugin_hooks() {
-    use std::cell::RefCell;
-    struct Hook(RefCell<Vec<typhon_llvm::PassStage>>);
-    impl typhon_llvm::LlvmPassHooks for Hook {
-        fn add_llvm_passes(&self, stage: typhon_llvm::PassStage, _m: &Module, _d: bool) -> typhon_common::Result<()> {
-            self.0.borrow_mut().push(stage);
-            Ok(())
-        }
-        fn pipeline_text(&self, stage: typhon_llvm::PassStage, _d: bool) -> Option<String> {
-            (stage == typhon_llvm::PassStage::OptimizerLast).then(|| "globaldce".to_string())
-        }
-    }
-    let ctx = Context::create();
-    let m = parse(&ctx, "define internal void @dead() { ret void }\ndefine void @live() { ret void }");
-    let h = Hook(RefCell::new(vec![]));
-    optimize(&m, &opts(), &[&h]).unwrap();
-    assert!(h.0.borrow().contains(&typhon_llvm::PassStage::Peephole));
-    assert!(m.get_function("dead").is_none());
 }
 
 #[test]
@@ -679,7 +658,7 @@ define ptr @host() {
     );
     let mut o = opts();
     o.libdevice = dir.to_string_lossy().into_owned();
-    optimize(&m, &o, &[]).expect("optimize with gpu");
+    optimize(&m, &o).expect("optimize with gpu");
     let ptx = m.get_global(".ptx").expect("embedded ptx");
     let init = ptx.get_initializer().unwrap().into_array_value();
     let s = String::from_utf8_lossy(init.as_const_string().unwrap()).into_owned();

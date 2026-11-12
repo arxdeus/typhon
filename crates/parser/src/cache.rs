@@ -189,9 +189,6 @@ pub struct Function {
     pub captures: BTreeSet<String>,
 }
 
-/// Custom statement handler (`std::function<Stmt *(TypecheckVisitor *, CustomStmt *)>`).
-pub type CustomStmtFn = Rc<dyn for<'a> Fn(&mut TypecheckVisitor<'a>, StmtId) -> Result<Option<StmtId>>>;
-
 /// Hooks into other front-end lanes that the cache needs (parser, scoping, translation).
 /// C++ calls these functions directly; Rust breaks the module cycle through hooks
 /// installed by the compiler driver.
@@ -213,8 +210,6 @@ pub struct CacheHooks {
     pub translate_parsed: Option<Rc<dyn Fn(&mut Cache, StmtId) -> Result<typhon_ir::ValueId>>>,
     /// `TranslateVisitor::apply(cache, stmts)` (whole-program translation; returns main).
     pub translate_apply: Option<Rc<dyn Fn(&mut Cache, StmtId) -> Result<typhon_ir::FuncId>>>,
-    /// `cache->compiler->isPluginLoaded/load` (plugin search in `getImportFile`).
-    pub load_plugin: Option<Rc<dyn Fn(&mut Cache, &str) -> Result<bool>>>,
 }
 
 /// Cache encapsulation that holds data structures shared across various transformation
@@ -268,11 +263,6 @@ pub struct Cache {
     /// Realizations that must be restarted due to a widened slot.
     pub empty_literal_restarts: BTreeSet<String>,
 
-    /// Custom block statements: keyword -> (has-expr, handler).
-    pub custom_block_stmts: FxHashMap<String, (bool, CustomStmtFn)>,
-    /// Custom expression statements.
-    pub custom_expr_stmts: FxHashMap<String, CustomStmtFn>,
-
     pub jit_cell: i32,
 
     pub generated_tuples: FxHashSet<usize>,
@@ -322,8 +312,6 @@ impl Cache {
             empty_literal_unions: BTreeMap::new(),
             empty_literal_slots: BTreeMap::new(),
             empty_literal_restarts: BTreeSet::new(),
-            custom_block_stmts: FxHashMap::default(),
-            custom_expr_stmts: FxHashMap::default(),
             jit_cell: 0,
             generated_tuples: FxHashSet::default(),
             generated_kw_tuples: FxHashMap::default(),

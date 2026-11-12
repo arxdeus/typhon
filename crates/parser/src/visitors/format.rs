@@ -409,7 +409,7 @@ impl<'a> FormatVisitor<'a> {
             StmtKind::Function(f) => self.function(f),
             StmtKind::Class(c) => self.class(id, c),
             StmtKind::YieldFrom(s) => format!("{} {}", kw("yield from"), te(s.expr)),
-            StmtKind::With(_) | StmtKind::Directive(_) | StmtKind::Custom(_) => String::new(),
+            StmtKind::With(_) | StmtKind::Directive(_) => String::new(),
             StmtKind::Comment(s) => format!("{}# {}{}", self.st.comment_start, s.comment, self.st.comment_end),
         }
     }

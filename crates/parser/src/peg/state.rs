@@ -4,25 +4,21 @@
 //! INDENT/SAMEDENT/DEDENT/EXTERNDENT predicates and actions, error reporting).
 
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
+
 
 use peg::RuleResult;
 use typhon_common::{CompilerError, ErrorMessage, ParserErrors, SrcInfo};
 
 use crate::ast::*;
 
-/// Custom keywords registered by DSL plugins (C++ `cache->customBlockStmts` /
-/// `cache->customExprStmts`). The cache lane owns the data and passes it in.
+/// Parse options (currently none).
 #[derive(Clone, Debug, Default)]
-pub struct ParseOptions {
-    /// keyword -> whether the block statement takes an expression (`kw expr:` vs `kw:`).
-    pub custom_block_stmts: HashMap<String, bool>,
-    pub custom_expr_stmts: HashSet<String>,
-}
+pub struct ParseOptions {}
 
 /// `ParseContext`: indentation stack, parens counter, offsets, plus the AST builder.
 pub struct ParseState<'a> {
     arena: RefCell<&'a mut AstArena>,
+    #[allow(dead_code)]
     opts: &'a ParseOptions,
     pub file: String,
     pub line_offset: i32,
@@ -222,13 +218,6 @@ impl<'a> ParseState<'a> {
             *m = Some((pos, msg.to_string()));
         }
     }
-    pub fn has_custom_stmt_keyword(&self, kwd: &str, has_expr: bool) -> bool {
-        self.opts.custom_block_stmts.get(kwd).is_some_and(|&h| h == has_expr)
-    }
-    pub fn has_custom_expr_stmt(&self, kwd: &str) -> bool {
-        self.opts.custom_expr_stmts.contains(kwd)
-    }
-
     /// `NLP` user rule: `\` consumes one char; inside parentheses an empty match.
     pub fn nlp(&self) -> impl FnOnce(&str, usize) -> RuleResult<()> + '_ {
         move |i: &str, p: usize| {

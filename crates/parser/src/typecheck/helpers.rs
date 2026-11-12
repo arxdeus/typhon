@@ -42,24 +42,6 @@ pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_s
             }
         }
     }
-    let check_plugin = |cache: &mut Cache, paths: &mut Vec<String>, path: &Path| {
-        let f = fs.borrow();
-        let init = path.join(what).join("stdlib").join(what).join("__init__.py");
-        if f.exists(&path.join(what).join("plugin.toml")) && f.exists(&init) {
-            drop(f);
-            let ok = match cache.hooks.load_plugin.clone() {
-                Some(h) => h(cache, &path.join(what).to_string_lossy()).unwrap_or(false),
-                None => true,
-            };
-            if ok {
-                paths.push(gen_(fs.borrow().canonical(&init)));
-            }
-        }
-    };
-    if paths.is_empty() {
-        // Load a plugin maybe
-        check_plugin(cache, &mut paths, &parent);
-    }
     let sps: Vec<PathBuf> = fs.borrow().search_paths().to_vec();
     for p in sps {
         {
@@ -70,7 +52,6 @@ pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_s
                 }
             }
         }
-        check_plugin(cache, &mut paths, &p);
     }
     let first = paths.first()?;
     Some(fs.borrow().root_of(Path::new(first)))

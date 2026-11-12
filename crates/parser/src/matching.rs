@@ -174,7 +174,6 @@ pub fn stmt_members(a: &AstArena, id: StmtId) -> Vec<Val> {
         StmtKind::Class(x) => vec![s(&x.name), Stmt(x.suite), Opaque, Opaque, Opaque],
         StmtKind::YieldFrom(x) => vec![Expr(x.expr)],
         StmtKind::With(x) => vec![Opaque, Opaque, Stmt(x.suite)],
-        StmtKind::Custom(x) => vec![s(&x.keyword), Expr(x.expr), Stmt(x.suite)],
         StmtKind::Directive(x) => vec![s(&x.key), s(&x.value)],
         StmtKind::AssignMember(x) => vec![Expr(x.lhs), s(&x.member), Expr(x.rhs), Expr(x.type_expr)],
         StmtKind::Comment(x) => vec![s(&x.comment)],

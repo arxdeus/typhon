@@ -592,9 +592,6 @@ impl AstArena {
                     vec![format!("items={}", py_list(&v, indent, sub)), format!("body={}", ps(s.suite))],
                 )
             }
-            StmtKind::Custom(s) => {
-                n("Custom", vec![format!("keyword={}", py_quote(&s.keyword)), format!("body={}", ps(s.suite))])
-            }
             StmtKind::Directive(s) => {
                 n("Directive", vec![format!("key={}", py_quote(&s.key)), format!("value={}", py_quote(&s.value))])
             }

@@ -45,9 +45,7 @@ use typhon_ir::util::irtools;
 use typhon_ir::var::{FuncKind, Intrinsic};
 
 use self::ll::{BB, Builder, DiBuilder, Md, Ty, V};
-use crate::optimize::LlvmPassHooks;
 
-pub use output::PluginLinkInfo;
 
 const MAIN_UNCLASH: &str = ".main.unclash";
 const MAIN_CTOR: &str = ".main.ctor";
@@ -259,8 +257,6 @@ pub struct LlvmVisitor<'ctx> {
     finally: Vec<TryCatchData>,
     catches: Vec<CatchData>,
     next_sequence_number: i64,
-    plugins: Vec<Rc<dyn LlvmPassHooks>>,
-    plugin_libs: Vec<PluginLinkInfo>,
     value_builders: Vec<ValueBuilderCast>,
     type_builders: Vec<TypeBuilderCast>,
     jit_symbols: Vec<(String, u64)>,
@@ -302,8 +298,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
             finally: Vec::new(),
             catches: Vec::new(),
             next_sequence_number: 0,
-            plugins: Vec::new(),
-            plugin_libs: Vec::new(),
             value_builders: Vec::new(),
             type_builders: Vec::new(),
             jit_symbols: Vec::new(),
@@ -378,14 +372,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
     /// `getRuntimeInitializerName()`.
     pub fn runtime_initializer_name(&self) -> &str {
         &self.runtime_initializer_name
-    }
-    /// `setPluginManager` (LLVM pass hooks of loaded DSL plugins).
-    pub fn set_plugins(&mut self, hooks: Vec<Rc<dyn LlvmPassHooks>>) {
-        self.plugins = hooks;
-    }
-    /// Runtime libraries / link arguments of loaded plugins (`plugin->info`).
-    pub fn set_plugin_libs(&mut self, libs: Vec<PluginLinkInfo>) {
-        self.plugin_libs = libs;
     }
     /// Absolute symbols to define in the JIT before running (e.g. runtime functions
     /// linked into the host process).

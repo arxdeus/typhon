@@ -140,7 +140,7 @@ extern "C" fn optimize_module_op(ctx: *mut libc::c_void, m: LLVMModuleRef) -> LL
     let t = unsafe { &*(ctx as *const TransformCtx) };
     // SAFETY: borrow the module for the duration of the call without taking ownership.
     let module = std::mem::ManuallyDrop::new(unsafe { Module::new(m) });
-    match crate::optimize::optimize(&module, &t.options, &[]) {
+    match crate::optimize::optimize(&module, &t.options) {
         Ok(()) => std::ptr::null_mut(),
         Err(e) => {
             let msg = ffi::cstr(&e.to_string());

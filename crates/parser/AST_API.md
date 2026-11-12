@@ -114,7 +114,6 @@ kind (`as_<snake>`), plus `ExprKind::tag() -> ExprTag`, `StmtKind::tag() -> Stmt
 | FunctionStmt | `Function` | `name, items: Vec<Param>, ret, suite, decorators: Vec<ExprId>, async_`, non-serialized caches `non_inferrable_generics`, `call_layout: Option<Box<CallLayout>>` |
 | ClassStmt | `Class` | `name, items: Vec<Param>, suite, decorators, base_classes` |
 | WithStmt | `With` | `items: Vec<ExprId>, vars: Vec<String>, suite, async_` |
-| CustomStmt | `Custom` | `keyword, expr, suite` |
 | DirectiveStmt | `Directive` | `key, value` |
 | AssignMemberStmt | `AssignMember` | `lhs, member, rhs, type_expr` |
 | CommentStmt | `Comment` | `comment` |

@@ -1,6 +1,6 @@
 //! Port of codon/parser/visitors/typecheck/typecheck.cpp, part 1: `apply`,
 //! `loadStdLibrary`, `transform*`, node dispatch and the statements owned by
-//! typecheck.cpp (`SuiteStmt`, `ExprStmt`, `StmtExpr`, `CustomStmt`, `CommentStmt`,
+//! typecheck.cpp (`SuiteStmt`, `ExprStmt`, `StmtExpr`, `CommentStmt`,
 //! `DirectiveStmt`). Helpers are in [`super::helpers`].
 
 use std::collections::HashMap;
@@ -390,7 +390,6 @@ impl<'a> TypecheckVisitor<'a> {
             StmtTag::Class => self.visit_class(s),
             StmtTag::YieldFrom => self.visit_yield_from(s),
             StmtTag::With => self.visit_with(s),
-            StmtTag::Custom => self.visit_custom(s),
             StmtTag::Directive => self.visit_directive(s),
             StmtTag::Comment => self.visit_comment(s),
             StmtTag::Except => Err(CompilerError::custom(
@@ -495,21 +494,6 @@ impl<'a> TypecheckVisitor<'a> {
         if e.is_some_and(|e| self.cache.ast[e].done) {
             self.set_done_stmt(s);
         }
-        Ok(())
-    }
-
-    /// `visit(CustomStmt*)`: dispatch to a registered DSL keyword handler.
-    pub fn visit_custom(&mut self, s: StmtId) -> Result<()> {
-        let c = self.cache.ast[s].kind.as_custom().unwrap().clone();
-        let f = if c.suite.is_some() {
-            self.cache.custom_block_stmts.get(&c.keyword).map(|x| x.1.clone())
-        } else {
-            self.cache.custom_expr_stmts.get(&c.keyword).cloned()
-        };
-        let Some(f) = f else {
-            return Err(CompilerError::custom(format!("unknown keyword {}", c.keyword), self.src));
-        };
-        self.result_stmt = f(self, s)?;
         Ok(())
     }
 

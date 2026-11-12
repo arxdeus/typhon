@@ -115,17 +115,6 @@ fn peg_line_continuation_and_comments() {
 }
 
 #[test]
-fn peg_custom_keywords() {
-    let mut o = ParseOptions::default();
-    o.custom_block_stmts.insert("parallel".into(), true);
-    o.custom_block_stmts.insert("block".into(), false);
-    o.custom_expr_stmts.insert("emit".into());
-    let s = sx_opts("parallel x:\n  pass\nblock:\n  pass\nemit 1, 2\n", &o);
-    assert!(s.contains("(custom-parallel #:expr 'x") && s.contains("(custom-emit"), "{s}");
-    assert!(err("block:\n  pass\n").contains("syntax error"));
-}
-
-#[test]
 fn peg_srcinfo() {
     let mut a = AstArena::new();
     let s = parse_code(&mut a, &ParseOptions::default(), "f", "\nx = foo", 10).unwrap();

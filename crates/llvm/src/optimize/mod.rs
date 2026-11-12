@@ -8,19 +8,17 @@
 //!
 //! 1. `applyDebugTransformations`, `applyFastMathTransformations` (as in C++);
 //! 2. **PipelineStart / EarlySimplification** stage: `ArchNativePass` (native),
-//!    `CoroResumeInliner` (marking + `always-inline`), plugin hooks;
-//! 3. **LateLoopOptimizations** stage: `CoroUnrollControl`, `CoroBranchSimplifier`,
-//!    plugin hooks;
+//!    `CoroResumeInliner` (marking + `always-inline`);
+//! 3. **LateLoopOptimizations** stage: `CoroUnrollControl`, `CoroBranchSimplifier`;
 //! 4. **Peephole** stage: `OpenMPThreadIdOptimizer`, `AllocationRemover`,
 //!    `loop-simplify,lcssa`, `AllocationHoister`, `AllocationAutoFree` (if
-//!    `autofree`), plugin hooks;
+//!    `autofree`);
 //! 5. `default<O3>` (or `default<O0>` in debug mode) via `LLVMRunPasses`;
 //! 6. **Peephole (late)**: the peephole group is run again after the standard
 //!    pipeline followed by `instcombine,simplifycfg` — this approximates the
 //!    C++ placement inside the pipeline (where the peephole EP runs after every
 //!    InstCombine), so allocations exposed by inlining are still demoted;
-//! 7. **VectorizerStart / OptimizerLast** plugin hooks;
-//! 8. `CoroUnrollControl::cleanup`, `applyDebugTransformations`.
+//! 7. `CoroUnrollControl::cleanup`, `applyDebugTransformations`.
 //!
 //! PORT-NOTE: every Codon pass therefore runs at most twice per pipeline
 //! invocation rather than at each extension point instance inside the O3
@@ -50,7 +48,7 @@ pub mod passes {
     };
 }
 
-/// Mirrors the C++ `PassBuilder` extension points at which plugins and Codon
+/// Mirrors the C++ `PassBuilder` extension points at which Codon
 /// passes are registered.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PassStage {
@@ -63,19 +61,6 @@ pub enum PassStage {
     VectorizerStart,
     OptimizerEarly,
     OptimizerLast,
-}
-
-/// Replacement for `DSL::addLLVMPasses(PassBuilder*, bool debug)`.
-///
-/// Implementors either transform the module directly at the requested stage or
-/// return a textual new-PM pipeline that is run at that stage.
-pub trait LlvmPassHooks {
-    fn add_llvm_passes(&self, _stage: PassStage, _module: &Module, _debug: bool) -> Result<()> {
-        Ok(())
-    }
-    fn pipeline_text(&self, _stage: PassStage, _debug: bool) -> Option<String> {
-        None
-    }
 }
 
 /// Run a textual new-PM pipeline over a raw module.
@@ -107,18 +92,6 @@ fn for_each_definition(m: LLVMModuleRef, mut f: impl FnMut(ffi::V) -> bool) -> b
     changed
 }
 
-fn run_hooks(stage: PassStage, module: &Module, hooks: &[&dyn LlvmPassHooks], debug: bool, tm: LLVMTargetMachineRef) -> Result<()> {
-    for h in hooks {
-        h.add_llvm_passes(stage, module, debug)?;
-        if let Some(p) = h.pipeline_text(stage, debug) {
-            if !p.is_empty() {
-                run_pipeline(module.as_mut_ptr(), &p, tm)?;
-            }
-        }
-    }
-    Ok(())
-}
-
 /// The peephole group (`registerPeepholeEPCallback`).
 fn peephole(m: LLVMModuleRef, options: &Options, tm: LLVMTargetMachineRef) -> Result<()> {
     for_each_definition(m, coro::openmp_thread_id_optimizer);
@@ -132,7 +105,7 @@ fn peephole(m: LLVMModuleRef, options: &Options, tm: LLVMTargetMachineRef) -> Re
 }
 
 /// Port of `runLLVMOptimizationPasses`.
-fn run_llvm_optimization_passes(module: &Module, hooks: &[&dyn LlvmPassHooks], options: &Options) -> Result<()> {
+fn run_llvm_optimization_passes(module: &Module, options: &Options) -> Result<()> {
     let m = module.as_mut_ptr();
     coro::apply_debug_transformations(m, options.debug, options.jit);
     if options.fastmath {
@@ -163,24 +136,17 @@ fn run_llvm_optimization_passes(module: &Module, hooks: &[&dyn LlvmPassHooks], o
             }
         }
     }
-    run_hooks(PassStage::PipelineStart, module, hooks, debug, tm)?;
-    run_hooks(PassStage::PipelineEarlySimplification, module, hooks, debug, tm)?;
 
     // LateLoopOptimizations
     if speed {
         for_each_definition(m, coro::coro_unroll_control);
         for_each_definition(m, coro::coro_branch_simplifier);
     }
-    run_hooks(PassStage::LateLoopOptimizations, module, hooks, debug, tm)?;
-    run_hooks(PassStage::LoopOptimizerEnd, module, hooks, debug, tm)?;
 
     // Peephole (early)
     if speed {
         peephole(m, options, tm)?;
     }
-    run_hooks(PassStage::ScalarOptimizerLate, module, hooks, debug, tm)?;
-    run_hooks(PassStage::Peephole, module, hooks, debug, tm)?;
-    run_hooks(PassStage::OptimizerEarly, module, hooks, debug, tm)?;
 
     // Standard pipeline
     run_pipeline(m, if debug { "default<O0>" } else { "default<O3>" }, tm)?;
@@ -193,8 +159,6 @@ fn run_llvm_optimization_passes(module: &Module, hooks: &[&dyn LlvmPassHooks], o
         // (O3's internal instances don't); this extra run is a port approximation.
         run_pipeline(m, "function(instcombine<no-verify-fixpoint>,simplifycfg)", tm)?;
     }
-    run_hooks(PassStage::VectorizerStart, module, hooks, debug, tm)?;
-    run_hooks(PassStage::OptimizerLast, module, hooks, debug, tm)?;
 
     coro::coro_unroll_cleanup(m);
     coro::apply_debug_transformations(m, options.debug, options.jit);
@@ -213,8 +177,8 @@ pub fn verify(module: &Module) -> Result<()> {
     Ok(())
 }
 
-/// Port of `ir::optimize(module, options, plugins)`.
-pub fn optimize(module: &Module, options: &Options, hooks: &[&dyn LlvmPassHooks]) -> Result<()> {
+/// Port of `ir::optimize(module, options)`.
+pub fn optimize(module: &Module, options: &Options) -> Result<()> {
     verify(module)?;
     let gpu_module = {
         let _t = Timer::new("preparing/gpu");
@@ -222,22 +186,22 @@ pub fn optimize(module: &Module, options: &Options, hooks: &[&dyn LlvmPassHooks]
     };
     {
         let _t = Timer::new("llvm/opt1");
-        run_llvm_optimization_passes(module, hooks, options)?;
+        run_llvm_optimization_passes(module, options)?;
     }
     if !options.debug {
         let _t = Timer::new("llvm/opt2");
-        run_llvm_optimization_passes(module, hooks, options)?;
+        run_llvm_optimization_passes(module, options)?;
     }
     if let Some(g) = gpu_module {
         let mut gpu_options = options.clone();
         gpu_options.native = false;
         {
             let _t = Timer::new("llvm/gpuopt1");
-            run_llvm_optimization_passes(&g, &[], &gpu_options)?;
+            run_llvm_optimization_passes(&g, &gpu_options)?;
         }
         {
             let _t = Timer::new("llvm/gpuopt2");
-            run_llvm_optimization_passes(&g, &[], &gpu_options)?;
+            run_llvm_optimization_passes(&g, &gpu_options)?;
         }
         let _t = Timer::new("llvm/gpu");
         gpu::apply_gpu_transformations(module, g, options, "")?;

@@ -68,7 +68,7 @@ fn jit<'c>(ctx: &'c Context, m: &Module) -> (Engine, inkwell::module::Module<'c>
     if let Err(e) = module.verify() {
         panic!("invalid module: {}\n{}", e.to_string(), module.print_to_string().to_string());
     }
-    optimize(&module, &opts(), &[]).expect("optimize");
+    optimize(&module, &opts()).expect("optimize");
     let engine = Engine::new(&opts(), EngineConfig::default()).expect("engine");
     use typhonrt as rt;
     let syms: Vec<(&str, u64)> = vec![

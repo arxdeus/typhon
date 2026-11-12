@@ -12,15 +12,6 @@ use typhon_common::{CompilerError, Result};
 use super::ll::{self, Builder};
 use super::{LlvmVisitor, MAIN_CTOR, MAIN_UNCLASH};
 
-/// Link information of a loaded DSL plugin (`plugin->info`).
-#[derive(Clone, Debug, Default)]
-pub struct PluginLinkInfo {
-    /// Runtime dylib path (`getRuntimeDylibPath()`), may be empty.
-    pub runtime_dylib: String,
-    /// Explicit link arguments (`linkArgs`).
-    pub link_args: Vec<String>,
-}
-
 fn io_err(e: impl std::fmt::Display) -> CompilerError {
     CompilerError::Io(e.to_string())
 }
@@ -80,8 +71,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         if let Some(db) = &self.db.builder {
             db.finalize();
         }
-        let hooks: Vec<&dyn crate::optimize::LlvmPassHooks> = self.plugins.iter().map(|p| p.as_ref()).collect();
-        crate::optimize::optimize(self.module.as_ref().expect("no module"), &self.options, &hooks)
+        crate::optimize::optimize(self.module.as_ref().expect("no module"), &self.options)
     }
 
     /// `dump`.
@@ -198,28 +188,8 @@ impl<'ctx> LlvmVisitor<'ctx> {
         for r in &rpaths {
             add_rpath(&mut command, r);
         }
-        for p in &self.plugin_libs {
-            if p.runtime_dylib.is_empty() {
-                continue;
-            }
-            let dir = Path::new(&p.runtime_dylib).parent().map(|d| std::fs::canonicalize(d).unwrap_or(d.to_path_buf()));
-            if let Some(d) = dir {
-                add_rpath(&mut command, &d.to_string_lossy());
-            }
-        }
         for l in libs {
             command.push(format!("-l{l}"));
-        }
-        for p in &self.plugin_libs {
-            if p.link_args.is_empty() {
-                if p.runtime_dylib.is_empty() {
-                    continue;
-                }
-                let stem = Path::new(&p.runtime_dylib).file_stem().unwrap_or_default().to_string_lossy().into_owned();
-                command.push(format!("-l{}", stem.strip_prefix("lib").unwrap_or(&stem)));
-            } else {
-                command.extend(p.link_args.iter().cloned());
-            }
         }
         #[cfg(windows)]
         let extra = ["-ltyphonrt", "-llibomp", "-llibopenblas", "-o", filename];

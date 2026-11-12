@@ -94,7 +94,6 @@ rule small_stmt() -> StmtId
     / print_stmt()
     / import_stmt()
     / p:position!() e:expressions() &(_ ";" / _ EOL()) q:position!() { st.s(ExprStmt { expr: Some(e) }, (p, q)) }
-    / custom_small_stmt()
 
 rule assignment() -> StmtId
     = p:position!() l:primary() _ ":" _ t:expression() r:(_ "=" _ r:star_expressions() {r})? q:position!() {
@@ -200,7 +199,7 @@ rule suite() -> StmtId
     / (_ EOL())+ &INDENT() s:statements() (_ EOL())* &DEDENT() {s}
 rule compound_stmt() -> StmtId
     = function() / if_stmt() / class() / with_stmt_async() / for_() / try_stmt()
-    / while_stmt() / match_stmt() / custom_stmt()
+    / while_stmt() / match_stmt()
 rule if_stmt() -> StmtId
     = p:position!() "if" SPACE() c:named_expression() _ ":" _ s:suite()
       el:(SAMEDENT() "elif" SPACE() c:named_expression() _ ":" _ s:suite() {(c, s)})*
@@ -390,17 +389,6 @@ rule match_pattern() -> ExprId
             None => e,
             Some(n) => { let i = st.id(&n, (p, q)); st.e(AssignExpr { var: Some(i), expr: Some(e) }, (p, q)) }
         }
-    }
-rule custom_stmt() -> StmtId
-    = p:position!() n:NAME() SPACE() e:expression() _ ":" _ s:suite() q:position!() x:#{cond(st.has_custom_stmt_keyword(&n, true).then_some(()))} {
-        st.s(CustomStmt { keyword: n, expr: Some(e), suite: Some(s) }, (p, q))
-    }
-    / p:position!() n:NAME() _ ":" _ s:suite() q:position!() x:#{cond(st.has_custom_stmt_keyword(&n, false).then_some(()))} {
-        st.s(CustomStmt { keyword: n, expr: None, suite: Some(s) }, (p, q))
-    }
-rule custom_small_stmt() -> StmtId
-    = p:position!() n:NAME() SPACE() e:expressions() q:position!() x:#{cond(st.has_custom_expr_stmt(&n).then_some(()))} {
-        st.s(CustomStmt { keyword: n, expr: Some(e), suite: None }, (p, q))
     }
 rule directive() -> StmtId
     = p:position!() "##" _ "codon:" _ n:NAME() _ "=" _ v:(INT() / NAME()) q:position!() {

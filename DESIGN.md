@@ -8,7 +8,7 @@ program into an ORC JIT and execute `main`, i.e. `LLVMVisitor::run` + `compiler/
 is ported. NOT ported: the incremental JIT / REPL (`codon jit` mode, `compiler/jit.cpp`
 `JIT::init/compile/execute`), the Jupyter kernel (`../jupyter`, `codon/util/jupyter.*`)
 and the Python `@codon.jit` bridge (`../jit`, `jit_extern.h`, `JIT::executePython`).
-Everything else (`run`, `build` to exe/obj/llvm/bc/lib/pyext, `doc`, plugins/DSL,
+Everything else (`run`, `build` to exe/obj/llvm/bc/lib/pyext, `doc`,
 all IR passes, GPU, OpenMP, runtime) is in scope.
 Nothing outside `typhon/` is modified. The Codon-language standard library
 (`../stdlib/**/*.codon`) and the `.codon` test programs (`../test/**`) are *inputs*
@@ -27,7 +27,6 @@ typhon-common        codon/util, compiler/error, compiler/options, parser/common
   │     │                       compiler/{engine,memory_manager,debug_listener}
   │     └── typhon-parser       codon/parser/** (ast, types, peg grammar, visitors, cache, ctx,
   │                             match, capi)
-  ├── typhon-dsl            codon/dsl/* (DSL trait, PluginManager)    -> parser, ir-transform, llvm
   ├── typhon-compiler       codon/compiler/{compiler,error}            -> everything above
   ├── typhon-cli  (bin `typhon`)   codon/app/main.cpp (run / build / doc modes; no jit REPL, no jupyter)
   ├── typhon-runtime        codon/runtime/** -> `libtyphonrt` (staticlib + cdylib, C ABI)
@@ -48,8 +47,6 @@ C++ freely includes in both directions (`cir/module.h` <-> `parser/cache.h`,
 | `ast::ASTNode : ir::Node` (attributes) | AST owns its own attribute map (`AttrValue` enum). Translate converts to IR attributes. |
 | `cir/util/side_effect.cpp`, transforms using `ast::getMangledFunc` / `ast::StdlibTypes` | `typhon_common::mangle` (`mangled_func`, `stdlib()`). |
 | `cache->compiler->getOptions()` | `typhon_common::Options` passed in / stored in `Cache`. |
-| parser loading plugins / DSL keywords (`PluginManager`) | `typhon_parser::PluginHost` trait, implemented in `typhon-dsl`. Keyword callback type is defined in the parser. |
-| `optimize.h`/`llvisitor.h` -> `dsl/plugins.h` (`addLLVMPasses`, custom node codegen) | `typhon_llvm::LlvmHooks` trait + `typhon_ir::dsl` builder traits downcast in `typhon-llvm`. |
 | `analyze::Analysis : transform::Pass` vs manager in transform | `Pass`, `PassGroup`, `Analysis`, `AnalysisResult` traits live in `typhon-ir::pass`; `PassManager` lives in `typhon-ir-transform`. |
 
 ## Memory model
@@ -74,7 +71,7 @@ C++ uses raw pointers into a node graph with LLVM-style RTTI (`isA<>`, `cast<>`,
 ## Errors
 
 C++ exceptions -> `typhon_common::Result<T>` with `CompilerError`
-(`Parser(ParserErrors) | Runtime{..} | Plugin | Io | Llvm`). `E(Error::X, src, args...)`
+(`Parser(ParserErrors) | Runtime{..} | Io | Llvm`). `E(Error::X, src, args...)`
 -> `bail_e!(ErrorKind::X, src, args...)`. Speculative `try { ... } catch (ParserException&)`
 blocks in the type checker become `match` on the `Result`.
 
@@ -85,8 +82,6 @@ blocks in the type checker become `match` on the `Result`.
 | LLVM 20 C++ API | IR building, passes, codegen, ORC JIT, DWARF | `inkwell` 0.11 (`llvm20-1`) + `llvm-sys` 201 (ORC LLJIT, `LLVMRunPasses`, DIBuilder bits) |
 | upstream/cpp-peglib + `util/peg2cpp.cpp` | PEG grammar (`grammar.peg`, `openmp.peg`) | `peg` 0.8 (grammar compiled by proc-macro, no code generator needed) |
 | fmtlib/fmt | formatting | `std::fmt` / `format!` |
-| marzer/tomlplusplus | plugin manifests | `toml` |
-| Neargye/semver | plugin version checks | `semver` |
 | cmrc (embedded resources) | embedded stdlib | `include_dir` |
 | util/tser.h, util/serialize.h | AST (de)serialization | `serde` + `postcard` |
 | `InternedString` | file names | `ustr` |

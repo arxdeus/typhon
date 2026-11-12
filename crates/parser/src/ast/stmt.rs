@@ -267,12 +267,6 @@ pub struct WithStmt {
     pub async_: bool,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct CustomStmt {
-    pub keyword: String,
-    pub expr: Option<ExprId>,
-    pub suite: Option<StmtId>,
-}
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct DirectiveStmt {
     pub key: String,
     pub value: String,
@@ -344,7 +338,6 @@ stmt_kinds! {
     Class(ClassStmt) => as_class, as_class_mut;
     YieldFrom(YieldFromStmt) => as_yield_from, as_yield_from_mut;
     With(WithStmt) => as_with, as_with_mut;
-    Custom(CustomStmt) => as_custom, as_custom_mut;
     Directive(DirectiveStmt) => as_directive, as_directive_mut;
     AssignMember(AssignMemberStmt) => as_assign_member, as_assign_member_mut;
     Comment(CommentStmt) => as_comment, as_comment_mut;
@@ -378,7 +371,6 @@ impl StmtTag {
             Class => "ClassStmt",
             YieldFrom => "YieldFromStmt",
             With => "WithStmt",
-            Custom => "CustomStmt",
             Directive => "DirectiveStmt",
             AssignMember => "AssignMemberStmt",
             Comment => "CommentStmt",

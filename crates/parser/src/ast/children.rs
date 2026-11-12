@@ -235,10 +235,6 @@ impl StmtKind {
                 ve(m, &mut s.items);
                 osu(m, &mut s.suite);
             }
-            Custom(s) => {
-                oe(m, &mut s.expr);
-                osu(m, &mut s.suite);
-            }
         }
     }
 }
