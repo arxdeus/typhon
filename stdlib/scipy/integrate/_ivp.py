@@ -2,8 +2,9 @@
 #
 # solve_ivp with the explicit Runge-Kutta methods RK23, RK45 (default) and
 # DOP853, including t_eval, dense_output, events and args.
-# Deviations: implicit methods (Radau, BDF, LSODA), `vectorized`, complex y0
-# and custom OdeSolver classes are not supported (ValueError). `events` may be
+# Implicit methods Radau, BDF and LSODA live in _ivp_implicit.py / _lsoda.py.
+# Deviations: complex y0, `jac_sparsity` and custom OdeSolver classes are not
+# supported (ValueError). `events` may be
 # a callable or a tuple/list of callables; `terminal`/`direction` are read
 # from attributes of callable objects when present. When no events are given
 # `t_events`/`y_events` are empty lists (scipy: None).
@@ -11,6 +12,7 @@
 import math
 import numpy as np
 from _dop853_coefficients import _DC, _DA, _DE3, _DE5, _DD
+from _ivp_implicit import _Radau, _BDF, _LsodaSolver, _base_step
 
 _EPS = 2.220446049250313e-16
 _SAFETY = 0.9
@@ -42,7 +44,10 @@ _RK45_P = [[1.0, -8048581381 / 2820520608, 8663915743 / 2820520608, -12715105075
            [0.0, 40617522 / 29380423, -110615467 / 29380423, 69997945 / 29380423]]
 
 class _Interp:
-    # kind: 0 = RK polynomial (Q), 1 = DOP853 (F), 2 = constant
+    # kind: 0 = RK polynomial (Q), 1 = DOP853 (F), 2 = constant,
+    # 3 = Radau (Q, n x 3), 4 = BDF (Q = D[:order+1], hh = h),
+    # 5 = LSODA (Q = Nordsieck yh n x (order+1), hh = h)
+    hh: float
     t_old: float
     t: float
     h: float
@@ -58,6 +63,7 @@ class _Interp:
         self.y_old = y_old
         self.Q = Q
         self.kind = kind
+        self.hh = 0.0
 
     def at(self, t: float) -> np.ndarray[float, 1]:
         n = self.y_old.shape[0]
@@ -66,7 +72,35 @@ class _Interp:
             for j in range(n):
                 y[j] = self.y_old[j]
             return y
+        if self.kind == 4:
+            order = self.Q.shape[0] - 1
+            hh = self.hh
+            p = [0.0] * order
+            acc = 1.0
+            for k in range(order):
+                acc *= (t - (self.t - hh * k)) / (hh * (1 + k))
+                p[k] = acc
+            for j in range(n):
+                sacc = 0.0
+                for k in range(order):
+                    sacc += self.Q[k + 1, j] * p[k]
+                y[j] = sacc + self.Q[0, j]
+            return y
+        if self.kind == 5:
+            m = self.Q.shape[1]
+            xs = (t - self.t) / self.hh
+            p = [xs ** float(k) for k in range(m)]
+            for j in range(n):
+                sacc = 0.0
+                for k in range(m):
+                    sacc += self.Q[j, k] * p[k]
+                y[j] = sacc
+            return y
         x = (t - self.t_old) / self.h
+        if self.kind == 3:
+            for j in range(n):
+                y[j] = self.Q[j, 0] * x + self.Q[j, 1] * x * x + self.Q[j, 2] * x * x * x + self.y_old[j]
+            return y
         if self.kind == 0:
             m = self.Q.shape[1]
             p = [0.0] * m
@@ -213,6 +247,8 @@ class _RK:
     K: np.ndarray[float, 2]
     status: str
     nfev: int
+    njev: int
+    nlu: int
     error_exponent: float
 
     def __init__(self, method: int, t0: float, y0: np.ndarray[float, 1], t_bound: float,
@@ -256,6 +292,8 @@ class _RK:
         self.atol = atol
         self.status = 'running'
         self.nfev = 0
+        self.njev = 0
+        self.nlu = 0
         self.h_previous = 0.0
         self.h_abs = 0.0
         nk = 16 if method == 2 else self.n_stages + 1
@@ -572,37 +610,78 @@ def _ev_call(evs, idx: int, t: float, y: np.ndarray[float, 1], args) -> float:
 
 _METHODS = ('RK23', 'RK45', 'DOP853', 'Radau', 'BDF', 'LSODA')
 
+def _f1(fun, args, vectorized: bool, n: int, t: float, y: np.ndarray[float, 1]) -> np.ndarray[float, 1]:
+    if vectorized:
+        Y = np.empty((n, 1))
+        for i in range(n):
+            Y[i, 0] = y[i]
+        r = np.asarray(fun(t, Y, *args)).astype(float)
+        return r.reshape(n)
+    r = np.asarray(fun(t, y, *args)).astype(float)
+    if r.size != n:
+        raise ValueError("fun returned an array of wrong size")
+    return r.reshape(n)
+
+def _fv(fun, args, vectorized: bool, n: int, t: float, Y: np.ndarray[float, 2]) -> np.ndarray[float, 2]:
+    k = Y.shape[1]
+    if vectorized:
+        r = np.asarray(fun(t, Y, *args)).astype(float)
+        return r.reshape(n, k)
+    out = np.empty((n, k))
+    for c in range(k):
+        yc = np.empty(n)
+        for i in range(n):
+            yc[i] = Y[i, c]
+        rc = np.asarray(fun(t, yc, *args)).astype(float).reshape(n)
+        for i in range(n):
+            out[i, c] = rc[i]
+    return out
+
+def _jmat(jac, args, n: int, t: float, y: np.ndarray[float, 1]) -> np.ndarray[float, 2]:
+    if jac is None:
+        return np.zeros((n, n))
+    elif isinstance(jac, np.ndarray) or isinstance(jac, List):
+        J = np.asarray(jac).astype(float)
+    else:
+        J = np.asarray(jac(t, y, *args)).astype(float)
+    if J.ndim != 2 or J.shape[0] != n or J.shape[1] != n:
+        raise ValueError(f"`jac` is expected to have shape {(n, n)}, but actually has {J.shape}.")
+    return J.reshape(n, n)
+
+def _jac_mode(jac) -> int:
+    if jac is None:
+        return 0
+    elif isinstance(jac, np.ndarray) or isinstance(jac, List):
+        return 2
+    else:
+        return 1
+
 def solve_ivp(fun, t_span, y0, method: str = 'RK45', t_eval=None, dense_output: bool = False,
               events=None, vectorized: bool = False, args=None, first_step: Optional[float] = None,
-              max_step: float = float('inf'), rtol: float = 1e-3, atol=1e-6):
-    m = -1
-    if method == 'RK23':
-        m = 0
-    elif method == 'RK45':
-        m = 1
-    elif method == 'DOP853':
-        m = 2
-    elif method in _METHODS:
-        raise ValueError(f"method '{method}' is not supported (only RK23, RK45, DOP853)")
-    else:
+              max_step: float = float('inf'), rtol: float = 1e-3, atol=1e-6, jac=None,
+              jac_sparsity=None, min_step: float = 0.0, lband: Optional[int] = None,
+              uband: Optional[int] = None):
+    if method not in _METHODS:
         raise ValueError(f"`method` must be one of {_METHODS} or OdeSolver class.")
-    if vectorized:
-        raise ValueError("vectorized=True is not supported")
+    if jac_sparsity is not None:
+        raise ValueError("`jac_sparsity` is not supported")
+    if lband is not None or uband is not None:
+        raise ValueError("`lband`/`uband` are not supported")
     t0 = float(t_span[0])
     tf = float(t_span[1])
     if args is None:
-        return _solve(fun, (), t0, tf, y0, m, t_eval, dense_output, events, first_step,
-                      max_step, rtol, atol)
+        return _solve(fun, (), t0, tf, y0, method, t_eval, dense_output, events, first_step,
+                      max_step, rtol, atol, vectorized, jac, min_step)
     else:
         if isinstance(args, Tuple):
-            return _solve(fun, args, t0, tf, y0, m, t_eval, dense_output, events, first_step,
-                          max_step, rtol, atol)
+            return _solve(fun, args, t0, tf, y0, method, t_eval, dense_output, events, first_step,
+                          max_step, rtol, atol, vectorized, jac, min_step)
         else:
             raise TypeError("Supplied 'args' cannot be unpacked. Please supply `args` as a tuple")
 
-def _solve(ufun, args, t0: float, tf: float, y0, m: int, t_eval, dense_output: bool, events,
-           first_step: Optional[float], max_step: float, rtol: float, atol):
-    fn = lambda t, y: ufun(t, y, *args)
+def _solve(ufun, args, t0: float, tf: float, y0, method: str, t_eval, dense_output: bool, events,
+           first_step: Optional[float], max_step: float, rtol: float, atol, vectorized: bool,
+           jac, min_step: float):
     ya = np.asarray(y0).astype(float)
     if ya.ndim != 1:
         raise ValueError("`y0` must be 1-dimensional.")
@@ -629,6 +708,60 @@ def _solve(ufun, args, t0: float, tf: float, y0, m: int, t_eval, dense_output: b
     for i in range(n):
         if atv[i] < 0:
             raise ValueError("`atol` must be positive.")
+    F = (lambda t, y: _f1(ufun, args, vectorized, n, t, y),
+         lambda t, Y: _fv(ufun, args, vectorized, n, t, Y),
+         lambda t, y: _jmat(jac, args, n, t, y))
+    jm = _jac_mode(jac)
+    if method == 'Radau':
+        rs = _Radau(t0, yv, tf, max_step, rtol, atv, jm)
+        rs.init_step(F, first_step)
+        return _drive(rs, F, args, t0, tf, yv, n, t_eval, dense_output, events)
+    elif method == 'BDF':
+        bs = _BDF(t0, yv, tf, max_step, rtol, atv, jm)
+        bs.init_step(F, first_step)
+        return _drive(bs, F, args, t0, tf, yv, n, t_eval, dense_output, events)
+    elif method == 'LSODA':
+        ls = _LsodaSolver(t0, yv, tf, first_step, min_step, max_step, rtol, atv, jm != 0)
+        return _drive(ls, F, args, t0, tf, yv, n, t_eval, dense_output, events)
+    m = 1
+    if method == 'RK23':
+        m = 0
+    elif method == 'DOP853':
+        m = 2
+    solver = _RK(m, t0, yv, tf, max_step, rtol, atv)
+    solver.init_step(F[0], first_step)
+    return _drive(solver, F, args, t0, tf, yv, n, t_eval, dense_output, events)
+
+def _sstep(solver, F) -> str:
+    if isinstance(solver, _RK):
+        return solver.step(F[0])
+    else:
+        return _base_step(solver, F)
+
+def _sdense(solver, F) -> _Interp:
+    if isinstance(solver, _RK):
+        return solver.dense_output(F[0])
+    elif isinstance(solver, _Radau):
+        if solver.t == solver.t_old:
+            return _Interp(solver.t_old, solver.t, solver.y, np.zeros((0, 0)), 2)
+        return _Interp(solver.t_old, solver.t, solver.sol_y_old, solver.sol_Q, 3)
+    elif isinstance(solver, _BDF):
+        if solver.t == solver.t_old:
+            return _Interp(solver.t_old, solver.t, solver.y, np.zeros((0, 0)), 2)
+        hh, order, Dc = solver.dense_Q()
+        it = _Interp(solver.t_old, solver.t, solver.y, Dc, 4)
+        it.hh = hh
+        return it
+    else:
+        if solver.t == solver.t_old:
+            return _Interp(solver.t_old, solver.t, solver.y, np.zeros((0, 0)), 2)
+        hh, yh = solver.dense_data()
+        it = _Interp(solver.t_old, solver.t, solver.y, yh, 5)
+        it.hh = hh
+        return it
+
+def _drive(solver, F, args, t0: float, tf: float, yv: np.ndarray[float, 1], n: int, t_eval,
+           dense_output: bool, events):
     has_te = t_eval is not None
     te: List[float] = []
     if t_eval is not None:
@@ -645,9 +778,6 @@ def _solve(ufun, args, t0: float, tf: float, y0, m: int, t_eval, dense_output: b
                 raise ValueError("Values in `t_eval` are not properly sorted.")
         te = tel if tf > t0 else tel[::-1]
     t_eval_i = 0 if (not has_te or tf > t0) else len(te)
-
-    solver = _RK(m, t0, yv, tf, max_step, rtol, atv)
-    solver.init_step(fn, first_step)
 
     ts: List[float] = []
     ys: List[np.ndarray[float, 1]] = []
@@ -670,7 +800,7 @@ def _solve(ufun, args, t0: float, tf: float, y0, m: int, t_eval, dense_output: b
     status = -2
     message = ''
     while status == -2:
-        message = solver.step(fn)
+        message = _sstep(solver, F)
         if solver.status == 'finished':
             status = 0
         elif solver.status == 'failed':
@@ -678,10 +808,10 @@ def _solve(ufun, args, t0: float, tf: float, y0, m: int, t_eval, dense_output: b
             break
         t_old = solver.t_old
         t = solver.t
-        y = solver.y
+        y = solver.y.copy()
         sol: Optional[_Interp] = None
         if dense_output:
-            sol = solver.dense_output(fn)
+            sol = _sdense(solver, F)
             interpolants.append(sol)
         if has_ev:
             g_new = _ev_values(evs, t, y, args)
@@ -694,7 +824,7 @@ def _solve(ufun, args, t0: float, tf: float, y0, m: int, t_eval, dense_output: b
                     active.append(i)
             if len(active) > 0:
                 if sol is None:
-                    sol = solver.dense_output(fn)
+                    sol = _sdense(solver, F)
                 sl = sol
                 for i in active:
                     event_count[i] += 1
@@ -750,7 +880,7 @@ def _solve(ufun, args, t0: float, tf: float, y0, m: int, t_eval, dense_output: b
                 t_eval_i = i_new
             if len(step_ts) > 0:
                 if sol is None:
-                    sol = solver.dense_output(fn)
+                    sol = _sdense(solver, F)
                 for tv in step_ts:
                     ts.append(tv)
                     ys.append(sol.at(tv))
@@ -780,4 +910,7 @@ def _solve(ufun, args, t0: float, tf: float, y0, m: int, t_eval, dense_output: b
             for j in range(n):
                 ye[k, j] = y_events[i][k][j]
         yev.append(ye)
-    return OdeResult(tarr, yarr, osol, tev, yev, solver.nfev, status, message)
+    res = OdeResult(tarr, yarr, osol, tev, yev, solver.nfev, status, message)
+    res.njev = solver.njev
+    res.nlu = solver.nlu
+    return res
