@@ -8,6 +8,7 @@ import internal.static as static
 from . import _kernels as K
 from . import _cdf as C
 from . import _bessel as B
+from . import _gamma2 as G2
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -166,6 +167,22 @@ def _bip(x: float) -> float: return B.airy(x)[3]
 def airy(z):
     """Real-argument Airy functions: (Ai, Ai', Bi, Bi')."""
     return (_map1(_ai, z), _map1(_aip, z), _map1(_bi, z), _map1(_bip, z))
+
+# gamma-family extras (_gamma2)
+def zeta(x, q = None):
+    if q is None:
+        return _map1(G2.riemann_zeta, x)
+    else:
+        return _map2(G2.zeta, x, q)
+def zetac(x): return _map1(G2.zetac, x)
+def exp1(x): return _map1(G2.exp1, x)
+def expi(x): return _map1(G2.expi, x)
+def expn(n, x): return _map2(G2.expn, n, x)
+def spence(x): return _map1(G2.spence, x)
+def poch(a, m): return _map2(G2.poch, a, m)
+def polygamma(n, x): return _map2(G2.polygamma, n, x)
+def owens_t(h, a): return _map2(G2.owens_t, h, a)
+def _scaled_exp1(x): return _map1(G2.scaled_exp1, x)
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:
