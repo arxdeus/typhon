@@ -13,3 +13,4 @@ from ._spectral import SpectralClustering, spectral_embedding, discretize, clust
 from ._optics import OPTICS, compute_optics_graph, cluster_optics_dbscan, cluster_optics_xi
 from ._hdbscan import HDBSCAN
 from ._structured import ward_tree, linkage_tree
+from ._birch import Birch
