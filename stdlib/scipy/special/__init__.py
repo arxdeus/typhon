@@ -9,6 +9,7 @@ from . import _kernels as K
 from . import _cdf as C
 from . import _bessel as B
 from . import _gamma2 as G2
+from . import _noncentral as NC
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -183,6 +184,27 @@ def poch(a, m): return _map2(G2.poch, a, m)
 def polygamma(n, x): return _map2(G2.polygamma, n, x)
 def owens_t(h, a): return _map2(G2.owens_t, h, a)
 def _scaled_exp1(x): return _map1(G2.scaled_exp1, x)
+
+# noncentral distributions (_noncentral)
+def chndtr(x, df, nc): return _map3(NC.chndtr, x, df, nc)
+def chndtrix(p, df, nc): return _map3(NC.chndtrix, p, df, nc)
+def nctdtr(df, nc, t): return _map3(NC.nctdtr, df, nc, t)
+def nctdtrit(df, nc, p): return _map3(NC.nctdtrit, df, nc, p)
+def _map4(f, a, b, c, d):
+    if _is_arr(a) or _is_arr(b) or _is_arr(c) or _is_arr(d):
+        shp = _bshape(a, b, c, d)
+        A = np.broadcast_to(np.asarray(a), shp)
+        Bb = np.broadcast_to(np.asarray(b), shp)
+        Cc = np.broadcast_to(np.asarray(c), shp)
+        D = np.broadcast_to(np.asarray(d), shp)
+        out = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            out[idx] = f(float(A[idx]), float(Bb[idx]), float(Cc[idx]), float(D[idx]))
+        return out
+    else:
+        return f(float(a), float(b), float(c), float(d))
+def ncfdtr(dfn, dfd, nc, f): return _map4(NC.ncfdtr, dfn, dfd, nc, f)
+def ncfdtri(dfn, dfd, nc, p): return _map4(NC.ncfdtri, dfn, dfd, nc, p)
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:
