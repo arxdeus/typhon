@@ -25,7 +25,7 @@ sqrt(100.0)  #! name 'sqrt' is not defined
 
 #%% import_c_dylib,barebones
 from internal.dlopen import dlext
-RT = "codonrt.dll" if dlext() == "dll" else "./libcodonrt." + dlext()
+RT = "typhonrt.dll" if dlext() == "dll" else "./libtyphonrt." + dlext()
 from C import RT.seq_print(str) -> None as sp
 sp("hello\n")  #: hello
 
@@ -171,7 +171,7 @@ run()
 
 #%% import_c_dylib_abi,barebones
 from internal.dlopen import dlext
-RT = "codonrt.dll" if dlext() == "dll" else "./libcodonrt." + dlext()
+RT = "typhonrt.dll" if dlext() == "dll" else "./libtyphonrt." + dlext()
 from C import RT.seq_locale_decimal_point() -> str as decimal_point
 from C import RT.seq_pid() -> int as pid
 assert decimal_point.__raw__() != cobj()

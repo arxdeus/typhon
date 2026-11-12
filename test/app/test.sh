@@ -58,7 +58,7 @@ if [[ "$(uname -s)" == "Linux" ]]; then
 		"$codon" build -release -obj --relocation-model=static \
 			-o "$arg/test_pie_static.o" "$testdir/build.py" || exit 2
 		if g++ -pie "$arg/test_pie_static.o" -L"$arg" -Wl,-rpath,"$arg" \
-			-lcodonrt -lomp -lpthread -ldl -lz -lm -lc -o "$arg/test_pie_static" \
+			-ltyphonrt -lomp -lpthread -ldl -lz -lm -lc -o "$arg/test_pie_static" \
 			> "$arg/pie_stdout" 2> "$arg/pie_stderr"; then
 			exit 2
 		fi

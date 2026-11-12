@@ -69,7 +69,7 @@ class BuildCodonExt(build_ext):
 
         print('-->', extension_path)
         library_dirs = [str(codon_path / "lib" / "codon")]
-        libraries = ["codonrt"]
+        libraries = ["typhonrt"]
         if os.name == "nt":
             # LLVM objects do not contain MSVC's implicit CRT link directives.
             libraries += ["libomp", "libopenblas", "msvcrt", "vcruntime", "ucrt",
