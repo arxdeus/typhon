@@ -57,6 +57,14 @@ Two differences made Typhon collect far more often, and both are compensated:
    allocated since the last GC. Ordinary threshold GCs (8.3's own `min_bytes_allocd`,
    which counts atomic data at 1/4 like 8.2) are never declined. An earlier version
    declined every GC below `2 * in_use / divisor`, which kept the heap ~2x the baseline.
+   The veto also stops once the heap grew by more than `in_use / divisor` since the
+   last allowed GC: big NumPy arrays grow the heap one request at a time, and chained
+   vetoes overshot the baseline (np_matmul heap 224 vs 192 MiB).
+3. **NO_BLACK_LISTING** (also in `CFLAGS_<triple>`). With black-listing, every heap
+   growth for a large request adds `min(needed, 2 * black_list_spacing)` of slop, so
+   a 32 MiB array grows the heap by 64 MiB. NumPy buffers are pointer-free
+   (`GC_malloc_atomic`), so the blacklist buys nothing there. This was the main cause of
+   np_matmul/np_eigh_svd peak RSS 1.17x/1.21x over Codon (now 0.84x/0.93x).
 
 `TYPHON_GC_STATS=1` prints collection count and heap stats at exit. Parallel
 marking, `GC_MARKERS`, initial heap size and unmapping made no measurable RSS

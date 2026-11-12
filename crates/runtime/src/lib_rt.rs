@@ -88,7 +88,12 @@ unsafe extern "C" fn gc_growth_stop_func() -> c_int {
     let in_use = s.heapsize_full.saturating_sub(s.free_bytes_full);
     let grew = s.heapsize_full != LAST_HEAP.load(Ordering::Relaxed);
     let min_allocd = in_use / 2 / GC_DIVISOR.load(Ordering::Relaxed).max(1);
-    let stop = s.gc_no > 1 && grew && s.bytes_allocd_since_gc < min_allocd;
+    // Bound the growth we accept without collecting to `in_use / divisor`: large
+    // arrays grow the heap by one request at a time, and chaining those vetoes
+    // overshoots the C++ baseline (np_matmul 224 vs 192 MiB heap).
+    let grown = s.heapsize_full.saturating_sub(LAST_HEAP.load(Ordering::Relaxed));
+    let max_grown = in_use / GC_DIVISOR.load(Ordering::Relaxed).max(1);
+    let stop = s.gc_no > 1 && grew && grown <= max_grown && s.bytes_allocd_since_gc < min_allocd;
     if !stop {
         LAST_HEAP.store(s.heapsize_full, Ordering::Relaxed);
     }

@@ -49,7 +49,7 @@ for t in "${targets[@]}"; do
         *) echo "unsupported Android target $t" >&2; exit 2;;
       esac
       export "CC_$l=$cc" "AR_$l=$bin/llvm-ar" "CARGO_TARGET_${u}_LINKER=$cc" "CARGO_TARGET_${u}_AR=$bin/llvm-ar"
-      export "CFLAGS_$l=-DLARGE_CONFIG -fPIC"
+      export "CFLAGS_$l=-DLARGE_CONFIG -DNO_BLACK_LISTING -fPIC"
       # bdwgc-alloc-sys runs bindgen on gc.h: give libclang the NDK sysroot.
       export "BINDGEN_EXTRA_CLANG_ARGS_$l=--sysroot=$bin/../sysroot"
       export "CMAKE_TOOLCHAIN_FILE_$l=$root/tools/cmake/android/android.toolchain.cmake"
@@ -64,7 +64,7 @@ for t in "${targets[@]}"; do
       arch=arm64; [ "${t%%-*}" = x86_64 ] && arch=x86_64
       export IPHONEOS_DEPLOYMENT_TARGET="$ios_min"
       export "CC_$l=$(xcrun --sdk $sdk -f clang)" "AR_$l=$(xcrun --sdk $sdk -f ar)"
-      export "CFLAGS_$l=-DLARGE_CONFIG $min -isysroot $sysroot"
+      export "CFLAGS_$l=-DLARGE_CONFIG -DNO_BLACK_LISTING $min -isysroot $sysroot"
       export "BINDGEN_EXTRA_CLANG_ARGS_$l=-isysroot $sysroot"
       export "CMAKE_TOOLCHAIN_FILE_$l=$root/tools/cmake/ios.toolchain.cmake"
       export TYPHON_IOS_SYSROOT="$sysroot" TYPHON_IOS_ARCH="$arch" TYPHON_IOS_MIN="$ios_min"
