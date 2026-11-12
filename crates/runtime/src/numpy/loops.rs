@@ -11,8 +11,15 @@ unsafe fn binary_loop<T: Copy>(
     in1: *const T, is1: usize, in2: *const T, is2: usize, out: *mut T, os: usize, n: usize, f: impl Fn(T, T) -> T,
 ) {
     let sz = core::mem::size_of::<T>();
+    let apart = |p: *const T| (out as usize) >= (p as usize) + n * sz || (p as usize) >= (out as usize) + n * sz;
     unsafe {
-        if is1 == sz && is2 == sz && os == sz {
+        if is1 == sz && is2 == sz && os == sz && apart(in1) && apart(in2) {
+            // Disjoint slices give LLVM noalias (no alias check / scalar loop copy).
+            let (a, b) = (core::slice::from_raw_parts(in1, n), core::slice::from_raw_parts(in2, n));
+            for ((o, &x), &y) in core::slice::from_raw_parts_mut(out, n).iter_mut().zip(a).zip(b) {
+                *o = f(x, y);
+            }
+        } else if is1 == sz && is2 == sz && os == sz {
             for i in 0..n {
                 out.add(i).write_unaligned(f(in1.add(i).read_unaligned(), in2.add(i).read_unaligned()));
             }
@@ -40,32 +47,24 @@ unsafe fn binary_loop<T: Copy>(
 /// Block size: the range check and the vectorized map run per block.
 const W: usize = 256;
 
-/// Contiguous fast path over whole `W` blocks: range-check a block, then map it
-/// with a plain pointer loop (kept out of line so the vectorized body owns the
-/// registers). Lanes failing `ok` fall back per 128-bit group, as in Codon.
-/// Returns the number of elements processed.
+/// Fast path over whole `W` blocks of disjoint, aligned slices: range-check a
+/// block, then map it (out of line so the vectorized body owns the registers).
+/// Lanes failing `ok` fall back per 128-bit group, as in Codon. Returns the
+/// number of elements processed.
 #[inline(never)]
-unsafe fn contiguous<T: Copy>(
-    input: *const T, out: *mut T, n: usize, v: &impl Fn(T) -> T, ok: &impl Fn(T) -> bool, lib: fn(T) -> T,
-) -> usize {
+fn contiguous<T: Copy>(x: &[T], y: &mut [T], v: &impl Fn(T) -> T, ok: &impl Fn(T) -> bool, lib: fn(T) -> T) -> usize {
     let g = 16 / core::mem::size_of::<T>();
-    let mut i = 0;
-    while i + W <= n {
-        let (p, o) = unsafe { (input.add(i), out.add(i)) };
-        let mut good = true;
-        for k in 0..W {
-            good &= ok(unsafe { p.add(k).read_unaligned() });
-        }
-        if good {
-            for k in 0..W {
-                unsafe { o.add(k).write_unaligned(v(p.add(k).read_unaligned())) };
+    let n = x.len().min(y.len()) / W * W;
+    for (xs, ys) in x[..n].chunks_exact(W).zip(y[..n].chunks_exact_mut(W)) {
+        if xs.iter().fold(true, |a, &e| a & ok(e)) {
+            for (o, &e) in ys.iter_mut().zip(xs) {
+                *o = v(e);
             }
         } else {
-            fallback(p, o, g, ok, v, lib);
+            fallback(xs.as_ptr(), ys.as_mut_ptr(), g, ok, v, lib);
         }
-        i += W;
     }
-    i
+    n
 }
 
 #[cold]
@@ -81,7 +80,7 @@ fn fallback<T: Copy>(p: *const T, o: *mut T, g: usize, ok: &impl Fn(T) -> bool, 
 }
 
 /// Highway-style unary loop (Codon `UnaryLoop`): whole blocks go through the
-/// branchless port `v` (strided input is gathered into a stack block first);
+/// branchless port `v` (strided or in-place input goes through stack blocks);
 /// vectors with a lane failing `ok` and the scalar tail use libm `lib`.
 #[allow(clippy::too_many_arguments)]
 #[inline(always)]
@@ -94,16 +93,20 @@ unsafe fn hwy_unary<T: Copy + Default>(
     let st = |i: usize, x: T| unsafe { (ob.wrapping_add(i.wrapping_mul(os)) as *mut T).write_unaligned(x) };
     let sz = core::mem::size_of::<T>();
     let mut i = 0;
-    if is == sz && os == sz {
-        i = unsafe { contiguous(input, out, n, &v, &ok, lib) };
+    let disjoint = (out as usize) >= (input as usize) + n * sz || (input as usize) >= (out as usize) + n * sz;
+    if is == sz && os == sz && disjoint {
+        // Disjoint slices give LLVM noalias: no runtime alias check / scalar copy.
+        let (x, y) = unsafe { (core::slice::from_raw_parts(input, n), core::slice::from_raw_parts_mut(out, n)) };
+        i = contiguous(x, y, &v, &ok, lib);
     } else {
         let mut buf = [T::default(); W];
         while i + W <= n {
             for (j, b) in buf.iter_mut().enumerate() {
                 *b = ld(i + j);
             }
-            unsafe { contiguous(buf.as_ptr(), buf.as_mut_ptr(), W, &v, &ok, lib) };
-            for (j, &b) in buf.iter().enumerate() {
+            let mut res = [T::default(); W];
+            contiguous(&buf, &mut res, &v, &ok, lib);
+            for (j, &b) in res.iter().enumerate() {
                 st(i + j, b);
             }
             i += W;
@@ -376,6 +379,20 @@ mod tests {
                 assert!(close(y as f64, r as f64, tol, floor), "{name}_f32({x}) = {y}, libm {r}");
             }
         }
+    }
+
+    #[test]
+    fn in_place_matches_out_of_place() {
+        let x: Vec<f64> = (0..1000).map(|k| k as f64 * 0.37 - 150.0).collect();
+        let mut a = vec![0.0; x.len()];
+        unsafe { cnp_tanh_float64(x.as_ptr(), 8, a.as_mut_ptr(), 8, x.len()) };
+        let mut b = x.clone();
+        unsafe { cnp_tanh_float64(b.as_ptr(), 8, b.as_mut_ptr(), 8, b.len()) };
+        assert_eq!(a, b);
+        let mut c = vec![0.0; x.len()];
+        unsafe { cnp_hypot_float64(x.as_ptr(), 8, a.as_ptr(), 8, c.as_mut_ptr(), 8, x.len()) };
+        unsafe { cnp_hypot_float64(x.as_ptr(), 8, a.as_ptr(), 8, a.as_mut_ptr(), 8, x.len()) };
+        assert_eq!(a, c);
     }
 
     #[test]
