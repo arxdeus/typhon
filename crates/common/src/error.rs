@@ -10,7 +10,7 @@ use std::fmt::{self, Display};
 pub type Result<T, E = CompilerError> = std::result::Result<T, E>;
 
 /// Discriminants match the reference enum order (used as
-/// error codes in `https://upstream.io/error/{:04}` links).
+/// numeric error codes).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(i32)]
 #[allow(non_camel_case_types)]

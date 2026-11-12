@@ -2,7 +2,7 @@
 //! `MessageGroupPos`.
 //!
 //! Output format is byte-compatible with the reference implementation (ANSI bold header,
-//! `file:line (col-end): error: msg (see https://upstream.io/error/NNNN)`), so the
+//! `file:line (col-end): error: msg`), so the
 //! test-suite expectations on stderr carry over. `codespan-reporting` is available
 //! for richer rendering via [`render_codespan`].
 
@@ -52,12 +52,8 @@ fn compilation_message(
     if !file.is_empty() {
         out.push_str(": ");
     }
-    let link = if error_code != -1 {
-        format!(" (see https://upstream.io/error/{error_code:04})")
-    } else {
-        String::new()
-    };
-    out.push_str(&format!("{header}\x1b[1m {msg}\x1b[0m{link}\n"));
+    let _ = error_code;
+    out.push_str(&format!("{header}\x1b[1m {msg}\x1b[0m\n"));
     let _ = std::io::stderr().write_all(out.as_bytes());
 }
 
