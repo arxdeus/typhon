@@ -154,9 +154,7 @@ def _div(K: Literal[int], c1, c2):
         e = np.zeros(i + 1)
         e[i] = 1.0
         p = _mul(K, e, b)
-        # explicit last index: arr[-1] reads 0.0 in -release inside
-        # descending range loops (compiler bug, see lane report)
-        q = rem[len(rem) - 1] / p[len(p) - 1]
+        q = rem[-1] / p[-1]
         rem = rem[:-1] - q * p[:-1]
         quo[i] = q
     return quo, trimseq(rem)
