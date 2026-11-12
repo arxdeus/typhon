@@ -8,6 +8,34 @@ import numpy as np
 from ._common import *
 from ._common import (_ScalarFunction, _approx_grad, _approx_jac, _bound_val, _call_scalar, _call_vec, _e1, _e2, _eps_for_method, _epsilon, _fd_steps, _has_opt, _norm2, _norm_inf, _old_bound_to_new, _opt_bool, _opt_float, _opt_int, _prepare_bounds_pair, _scalar_eps, _sign, _sqrt, _standardize_bounds, _status_message_maxfev, _status_message_maxiter, _status_message_nan, _status_message_oob, _status_message_pr_loss, _status_message_success, _vec)
 from ._minpack import _hybrd, _lmdif, _leastsq_cov
+from ._lsq_ext import _Loss, _scale_for_robust_loss_function, _RMulMV, \
+    _RMulRMV, _RegMV, _RegRMV, _JhOp, _lsmr_tr, _lsmr_solve, \
+    _solve_trust_region_2d, _qr2
+from scipy.sparse.linalg import LinearOperator
+
+def _lsmr_bool(tr_options, key: str, default: bool) -> bool:
+    if tr_options is None:
+        return default
+    else:
+        if key in tr_options:
+            return bool(tr_options[key])
+        return default
+
+def _cb_ls(callback, x, f_true, nit: int, nfev: int, cost: float) -> bool:
+    # least_squares callback(intermediate_result) / callback(x)
+    if callback is None:
+        return False
+    else:
+        try:
+            r = OptimizeResult(x.copy(), f_true, np.empty(0, float), nit=nit,
+                               nfev=nfev, cost=cost)
+            if static.function.can_call(callback, intermediate_result=r):
+                callback(intermediate_result=r)
+            else:
+                callback(x.copy())
+        except StopIteration:
+            return True
+        return False
 
 _TERMINATION_MESSAGES = ["Improper input parameters status returned from `leastsq`",
                          "The maximum number of function evaluations is exceeded.",
@@ -284,7 +312,9 @@ def _select_step(x, J_h, diag_h, g_h, p, p_h, d, Delta: float, lb, ub,
         return ag, ag_h, -ag_value
 
 def _trf(fun, jac, x0, f0, J0, lb, ub, ftol: float, xtol: float, gtol: float,
-         max_nfev: int, x_scale, jac_scale: bool, bounded: bool):
+         max_nfev: int, x_scale, jac_scale: bool, bounded: bool,
+         loss_function = None, tr_solver: str = 'exact', tr_options = None,
+         callback = None):
     x = x0.copy()
     f = f0
     f_true = f.copy()
@@ -293,7 +323,15 @@ def _trf(fun, jac, x0, f0, J0, lb, ub, ftol: float, xtol: float, gtol: float,
     njev = 1
     m = J.shape[0]
     n = J.shape[1]
-    cost = 0.5 * float(np.dot(f, f))
+    cost = 0.0
+    if loss_function is not None:
+        rho = loss_function(f)
+        cost = 0.5 * float(np.sum(rho[0]))
+        J, f = _scale_for_robust_loss_function(J, f, rho)
+    else:
+        cost = 0.5 * float(np.dot(f, f))
+    lsmr_reg = _lsmr_bool(tr_options, 'regularize', True)
+    lsmr_damp = _lsmr_tr(tr_options, 'damp', 0.0)
     g = J.T @ f
     scale = x_scale
     scale_inv = 1 / x_scale
@@ -347,7 +385,9 @@ def _trf(fun, jac, x0, f0, J0, lb, ub, ftol: float, xtol: float, gtol: float,
         s = g
         V = J_h
         uf = g
-        if bounded:
+        if tr_solver == 'lsmr':
+            pass
+        elif bounded:
             J_aug = np.zeros((m + n, n))
             J_aug[:m] = J_h
             for i in range(n):
@@ -364,8 +404,47 @@ def _trf(fun, jac, x0, f0, J0, lb, ub, ftol: float, xtol: float, gtol: float,
         theta = max(0.995, 1 - g_norm)
         actual_reduction = -1.0
         step_norm = 0.0
+        S = np.zeros((n, 2))
+        B_S = np.zeros((2, 2))
+        g_S = np.zeros(2)
+        if tr_solver == 'lsmr':
+            Jop = _JhOp(J, d)
+            reg_term = 0.0
+            if lsmr_reg:
+                if bounded:
+                    a1, b1, _c1 = _build_quadratic_1d(Jop, g_h, -g_h, diag_h, None)
+                else:
+                    a1, b1, _c1 = _build_quadratic_1d(Jop, g_h, -g_h, None, None)
+                to_tr = Delta / _norm2(g_h)
+                _, agv = _minimize_quadratic_1d(a1, b1, 0.0, to_tr)
+                reg_term = -agv / Delta ** 2
+            gn_h = np.zeros(n)
+            if bounded:
+                f_aug = np.zeros(m + n)
+                f_aug[:m] = f
+                dg = (diag_h + reg_term) ** 0.5
+                op = LinearOperator((m + n, n), _RegMV(J, d, dg), _RegRMV(J, d, dg))
+                gn_h = _lsmr_solve(op, f_aug, 0.0, tr_options)
+            else:
+                op = LinearOperator((m, n), _RMulMV(J, d), _RMulRMV(J, d))
+                gn_h = _lsmr_solve(op, f, (lsmr_damp ** 2 + reg_term) ** 0.5, tr_options)
+            S0 = np.empty((n, 2))
+            S0[:, 0] = g_h
+            S0[:, 1] = gn_h
+            S = _qr2(S0)
+            JS = J_h @ S
+            if bounded:
+                B_S = JS.T @ JS + (S.T * diag_h) @ S
+            else:
+                B_S = JS.T @ JS
+            g_S = S.T @ g_h
         while actual_reduction <= 0 and nfev < max_nfev:
-            p_h, alpha, n_iter = _solve_lsq_trust_region(n, m, uf, s, V, Delta, alpha)
+            p_h = np.zeros(n)
+            if tr_solver == 'lsmr':
+                p_S, _ = _solve_trust_region_2d(B_S, g_S, Delta)
+                p_h = S @ p_S
+            else:
+                p_h, alpha, n_iter = _solve_lsq_trust_region(n, m, uf, s, V, Delta, alpha)
             step = p_h
             step_h = p_h
             predicted_reduction = 0.0
@@ -389,7 +468,10 @@ def _trf(fun, jac, x0, f0, J0, lb, ub, ftol: float, xtol: float, gtol: float,
             if not finite:
                 Delta = 0.25 * step_h_norm
                 continue
-            cost_new = 0.5 * float(np.dot(f_new, f_new))
+            if loss_function is not None:
+                cost_new = loss_function.cost(f_new)
+            else:
+                cost_new = 0.5 * float(np.dot(f_new, f_new))
             actual_reduction = cost - cost_new
             Delta_new, ratio = _update_tr_radius(Delta, actual_reduction,
                                                  predicted_reduction, step_h_norm,
@@ -409,17 +491,252 @@ def _trf(fun, jac, x0, f0, J0, lb, ub, ftol: float, xtol: float, gtol: float,
             cost = cost_new
             J = jac(x, f)
             njev += 1
+            if loss_function is not None:
+                rho = loss_function(f)
+                J, f = _scale_for_robust_loss_function(J, f, rho)
             g = J.T @ f
             if jac_scale:
                 scale_inv = np.maximum(np.sqrt(np.sum(J ** 2, axis=0)), scale_inv)
                 scale = 1 / scale_inv
         iteration += 1
+        if _cb_ls(callback, x, f_true, iteration, nfev, cost):
+            termination_status = -2
+            break
     if termination_status == -100:
         termination_status = 0
     active_mask = np.zeros(n, int)
     if bounded:
         active_mask = _find_active(x, lb, ub, xtol)
     return x, cost, f_true, J, g, g_norm, active_mask, nfev, njev, termination_status
+
+# ---------------------------------------------------------------- dogbox
+
+def _find_intersection(x, tr_bounds, lb, ub):
+    lb_centered = lb - x
+    ub_centered = ub - x
+    lb_total = np.maximum(lb_centered, -tr_bounds)
+    ub_total = np.minimum(ub_centered, tr_bounds)
+    n = x.size
+    orig_l = np.zeros(n, bool)
+    orig_u = np.zeros(n, bool)
+    tr_l = np.zeros(n, bool)
+    tr_u = np.zeros(n, bool)
+    for i in range(n):
+        orig_l[i] = lb_total[i] == lb_centered[i]
+        orig_u[i] = ub_total[i] == ub_centered[i]
+        tr_l[i] = lb_total[i] == -tr_bounds[i]
+        tr_u[i] = ub_total[i] == tr_bounds[i]
+    return lb_total, ub_total, orig_l, orig_u, tr_l, tr_u
+
+def _dogleg_step(x, newton_step, g, a: float, b: float, tr_bounds, lb, ub):
+    lb_total, ub_total, orig_l, orig_u, tr_l, tr_u = _find_intersection(x, tr_bounds, lb, ub)
+    n = x.size
+    bound_hits = np.zeros(n, int)
+    if _in_bounds(newton_step, lb_total, ub_total):
+        return newton_step, bound_hits, False
+    to_bounds, _ = _step_size_to_bound(np.zeros(n), -g, lb_total, ub_total)
+    cs, _ = _minimize_quadratic_1d(a, b, 0.0, to_bounds)
+    cauchy_step = -cs * g
+    step_diff = newton_step - cauchy_step
+    step_size, hits = _step_size_to_bound(cauchy_step, step_diff, lb_total, ub_total)
+    tr_hit = False
+    for i in range(n):
+        if hits[i] < 0 and orig_l[i]:
+            bound_hits[i] = -1
+        if hits[i] > 0 and orig_u[i]:
+            bound_hits[i] = 1
+        if (hits[i] < 0 and tr_l[i]) or (hits[i] > 0 and tr_u[i]):
+            tr_hit = True
+    return cauchy_step + step_size * step_diff, bound_hits, tr_hit
+
+def _subcols(J: np.ndarray[float, 2], idx: List[int]) -> np.ndarray[float, 2]:
+    m = J.shape[0]
+    R = np.empty((m, len(idx)))
+    for k in range(len(idx)):
+        for i in range(m):
+            R[i, k] = J[i, idx[k]]
+    return R
+
+def _subvec(v: np.ndarray[float, 1], idx: List[int]) -> np.ndarray[float, 1]:
+    R = np.empty(len(idx))
+    for k in range(len(idx)):
+        R[k] = v[idx[k]]
+    return R
+
+class _DogLsmrMV:
+    J: np.ndarray[float, 2]
+    d: np.ndarray[float, 1]
+
+    def __init__(self, J: np.ndarray[float, 2], d: np.ndarray[float, 1]):
+        self.J = J
+        self.d = d
+
+    def __call__(self, x) -> np.ndarray[float, 1]:
+        return self.J @ (np.ravel(x) * self.d)
+
+class _DogLsmrRMV:
+    J: np.ndarray[float, 2]
+    d: np.ndarray[float, 1]
+    active: np.ndarray[bool, 1]
+
+    def __init__(self, J: np.ndarray[float, 2], d: np.ndarray[float, 1],
+                 active: np.ndarray[bool, 1]):
+        self.J = J
+        self.d = d
+        self.active = active
+
+    def __call__(self, x) -> np.ndarray[float, 1]:
+        r = self.d * (self.J.T @ np.ravel(x))
+        for i in range(r.size):
+            if self.active[i]:
+                r[i] = 0.0
+        return r
+
+def _dogbox(fun, jac, x0, f0, J0, lb, ub, ftol: float, xtol: float, gtol: float,
+            max_nfev: int, x_scale, jac_scale: bool, loss_function = None,
+            tr_solver: str = 'exact', tr_options = None, callback = None):
+    f = f0
+    f_true = f.copy()
+    nfev = 1
+    J = J0
+    njev = 1
+    m = J.shape[0]
+    n = J.shape[1]
+    cost = 0.0
+    if loss_function is not None:
+        rho = loss_function(f)
+        cost = 0.5 * float(np.sum(rho[0]))
+        J, f = _scale_for_robust_loss_function(J, f, rho)
+    else:
+        cost = 0.5 * float(np.dot(f, f))
+    g = J.T @ f
+    scale = x_scale
+    scale_inv = 1 / x_scale
+    if jac_scale:
+        scale_inv = np.sqrt(np.sum(J ** 2, axis=0))
+        for i in range(n):
+            if scale_inv[i] == 0:
+                scale_inv[i] = 1.0
+        scale = 1 / scale_inv
+    Delta = _norm_inf(x0 * scale_inv)
+    if Delta == 0:
+        Delta = 1.0
+    on_bound = np.zeros(n, int)
+    for i in range(n):
+        if x0[i] == lb[i]:
+            on_bound[i] = -1
+        if x0[i] == ub[i]:
+            on_bound[i] = 1
+    x = x0
+    step = np.empty(n)
+    termination_status = -100
+    iteration = 0
+    g_norm = 0.0
+    g_full = g.copy()
+    cost_new = cost
+    x_new = x
+    f_new = f
+    while True:
+        active_set = np.zeros(n, bool)
+        free_idx = List[int]()
+        for i in range(n):
+            active_set[i] = on_bound[i] * g[i] < 0
+            if not active_set[i]:
+                free_idx.append(i)
+        g_free = _subvec(g, free_idx)
+        g_full = g.copy()
+        for i in range(n):
+            if active_set[i]:
+                g[i] = 0.0
+        g_norm = _norm_inf(g)
+        if g_norm < gtol:
+            termination_status = 1
+        if termination_status != -100 or nfev == max_nfev:
+            break
+        x_free = _subvec(x, free_idx)
+        lb_free = _subvec(lb, free_idx)
+        ub_free = _subvec(ub, free_idx)
+        scale_free = _subvec(scale, free_idx)
+        J_free = _subcols(J, free_idx)
+        newton_step = np.zeros(len(free_idx))
+        a = 0.0
+        b = 0.0
+        if tr_solver == 'lsmr':
+            op = LinearOperator((m, n), _DogLsmrMV(J, scale), _DogLsmrRMV(J, scale, active_set))
+            ns = _lsmr_solve(op, f, 0.0, tr_options)
+            newton_step = -_subvec(ns, free_idx)
+            newton_step *= scale_free
+            a, b, _c = _build_quadratic_1d(J, g, -g, None, None)
+        else:
+            newton_step = np.linalg.lstsq(J_free, -f, rcond=-1)[0]
+            a, b, _c = _build_quadratic_1d(J_free, g_free, -g_free, None, None)
+        actual_reduction = -1.0
+        on_bound_free = np.zeros(len(free_idx), int)
+        step_norm = 0.0
+        while actual_reduction <= 0 and nfev < max_nfev:
+            tr_bounds = Delta * scale_free
+            step_free, obf, tr_hit = _dogleg_step(x_free, newton_step, g_free,
+                                                  a, b, tr_bounds, lb_free, ub_free)
+            on_bound_free = obf
+            step.fill(0.0)
+            for k in range(len(free_idx)):
+                step[free_idx[k]] = step_free[k]
+            predicted_reduction = 0.0
+            if tr_solver == 'lsmr':
+                predicted_reduction = -_evaluate_quadratic(J, g, step, None)
+            else:
+                predicted_reduction = -_evaluate_quadratic(J_free, g_free, step_free, None)
+            x_new = np.clip(x + step, lb, ub)
+            f_new = fun(x_new)
+            nfev += 1
+            step_h_norm = _norm_inf(step * scale_inv)
+            finite = True
+            for vv in f_new:
+                if not math.isfinite(vv):
+                    finite = False
+            if not finite:
+                Delta = 0.25 * step_h_norm
+                continue
+            if loss_function is not None:
+                cost_new = loss_function.cost(f_new)
+            else:
+                cost_new = 0.5 * float(np.dot(f_new, f_new))
+            actual_reduction = cost - cost_new
+            Delta, ratio = _update_tr_radius(Delta, actual_reduction,
+                                             predicted_reduction, step_h_norm, tr_hit)
+            step_norm = _norm2(step)
+            termination_status = _check_termination(actual_reduction, cost, step_norm,
+                                                     _norm2(x), ratio, ftol, xtol)
+            if termination_status != -100:
+                break
+        if actual_reduction > 0:
+            for k in range(len(free_idx)):
+                on_bound[free_idx[k]] = on_bound_free[k]
+            x = x_new
+            for i in range(n):
+                if on_bound[i] == -1:
+                    x[i] = lb[i]
+                elif on_bound[i] == 1:
+                    x[i] = ub[i]
+            f = f_new
+            f_true = f.copy()
+            cost = cost_new
+            J = jac(x, f)
+            njev += 1
+            if loss_function is not None:
+                rho = loss_function(f)
+                J, f = _scale_for_robust_loss_function(J, f, rho)
+            g = J.T @ f
+            if jac_scale:
+                scale_inv = np.maximum(np.sqrt(np.sum(J ** 2, axis=0)), scale_inv)
+                scale = 1 / scale_inv
+        iteration += 1
+        if _cb_ls(callback, x, f, iteration, nfev, cost_new):
+            termination_status = -2
+            break
+    if termination_status == -100:
+        termination_status = 0
+    return x, cost, f_true, J, g_full, g_norm, on_bound, nfev, njev, termination_status
 
 # ----------------------------------------------------------- least_squares
 
@@ -490,29 +807,56 @@ class _JacAt[JF]:
     def __call__(self, x: np.ndarray[float, 1]) -> np.ndarray[float, 2]:
         return self.jf(x, self.jf._f(x.copy()))
 
+def _ls_result(x, cost: float, f, J, g, gn: float, am, nfev: int, njev: int,
+               status: int):
+    return OptimizeResult(x, f, J, nfev=nfev, njev=njev, status=status,
+                          success=status > 0, message=_term_msg(status),
+                          cost=cost, grad=g, optimality=gn, active_mask=am)
+
 def least_squares(fun, x0, jac = '2-point', bounds = (-float('inf'), float('inf')),
                   method: str = 'trf', ftol: Optional[float] = 1e-08,
                   xtol: Optional[float] = 1e-08, gtol: Optional[float] = 1e-08,
-                  x_scale = None, loss: str = 'linear', f_scale: float = 1.0,
-                  diff_step: Optional[float] = None,
-                  max_nfev: Optional[int] = None, verbose: int = 0, args = ()):
+                  x_scale = None, loss = 'linear', f_scale: float = 1.0,
+                  diff_step: Optional[float] = None, tr_solver: Optional[str] = None,
+                  tr_options = None, jac_sparsity = None,
+                  max_nfev: Optional[int] = None, verbose: int = 0, args = (),
+                  kwargs = None, callback = None):
     if not isinstance(args, Tuple):
         return least_squares(fun, x0, jac, bounds, method, ftol, xtol, gtol,
-                             x_scale, loss, f_scale, diff_step, max_nfev,
-                             verbose, (args,))
+                             x_scale, loss, f_scale, diff_step, tr_solver,
+                             tr_options, jac_sparsity, max_nfev, verbose,
+                             (args,), kwargs, callback)
     if method != 'trf' and method != 'dogbox' and method != 'lm':
         raise ValueError("`method` must be 'trf', 'dogbox' or 'lm'.")
-    if method == 'dogbox':
-        raise ValueError("method='dogbox' is not supported by this port; use 'trf' or 'lm'.")
+    if kwargs is not None:
+        compile_error("least_squares: `kwargs` is not supported; bind them in `fun`")
+    if tr_solver is not None:
+        if tr_solver != 'exact' and tr_solver != 'lsmr':
+            raise ValueError("`tr_solver` must be None, 'exact' or 'lsmr'.")
+    is_linear_loss = False
+    if isinstance(loss, str):
+        is_linear_loss = loss == 'linear'
+        if not is_linear_loss and loss != 'huber' and loss != 'soft_l1' and \
+                loss != 'cauchy' and loss != 'arctan':
+            raise ValueError("`loss` must be one of ['linear', 'huber', 'soft_l1', 'cauchy', 'arctan'] or a callable.")
+    if method == 'lm' and not is_linear_loss:
+        raise ValueError("method='lm' supports only 'linear' loss function.")
+    if method == 'lm' and tr_solver is not None:
+        pass
+    if jac_sparsity is not None and method == 'lm':
+        raise ValueError("method='lm' does not support `jac_sparsity`.")
+    if jac_sparsity is not None and tr_solver == 'exact':
+        raise ValueError("tr_solver='exact' is incompatible with `jac_sparsity`.")
+    tsolver = 'exact'
+    if tr_solver is not None:
+        tsolver = tr_solver
+    elif jac_sparsity is not None:
+        tsolver = 'lsmr'
     if isinstance(jac, str):
         if jac != '2-point' and jac != '3-point' and jac != 'cs':
             raise ValueError("`jac` must be '2-point', '3-point', 'cs' or callable.")
         if jac == 'cs':
             raise ValueError("jac='cs' is not supported by this port.")
-    if loss != 'linear':
-        if method == 'lm':
-            raise ValueError("method='lm' supports only 'linear' loss function.")
-        raise ValueError("only loss='linear' is supported by this port.")
     if verbose != 0 and verbose != 1 and verbose != 2:
         raise ValueError('`verbose` must be in [0, 1, 2].')
     if max_nfev is not None and max_nfev <= 0:
@@ -597,8 +941,29 @@ def least_squares(fun, x0, jac = '2-point', bounds = (-float('inf'), float('inf'
                               optimality=_norm_inf(g),
                               active_mask=np.zeros(n, int))
     mfev = 100 * n if max_nfev is None else max_nfev
+    if not is_linear_loss:
+        lossf = _Loss(loss, f_scale)
+        if not isinstance(loss, str):
+            rho0 = np.asarray(loss((f0 / f_scale) ** 2), float)
+            if rho0.ndim != 2 or rho0.shape[0] != 3 or rho0.shape[1] != m:
+                raise ValueError('The return value of `loss` callable has wrong shape.')
+        if method == 'dogbox':
+            x, cost, f, J, g, gn, am, nfev, njev, status = _dogbox(
+                vf, jacf, x0v, f0, J0, lb, ub, ft, xt, gt, mfev, xs, jac_scale,
+                lossf, tsolver, tr_options, callback)
+            return _ls_result(x, cost, f, J, g, gn, am, nfev, njev, status)
+        x, cost, f, J, g, gn, am, nfev, njev, status = _trf(
+            vf, jacf, x0v, f0, J0, lb, ub, ft, xt, gt, mfev, xs, jac_scale,
+            not unb, lossf, tsolver, tr_options, callback)
+        return _ls_result(x, cost, f, J, g, gn, am, nfev, njev, status)
+    if method == 'dogbox':
+        x, cost, f, J, g, gn, am, nfev, njev, status = _dogbox(
+            vf, jacf, x0v, f0, J0, lb, ub, ft, xt, gt, mfev, xs, jac_scale,
+            None, tsolver, tr_options, callback)
+        return _ls_result(x, cost, f, J, g, gn, am, nfev, njev, status)
     x, cost, f, J, g, gn, am, nfev, njev, status = _trf(
-        vf, jacf, x0v, f0, J0, lb, ub, ft, xt, gt, mfev, xs, jac_scale, not unb)
+        vf, jacf, x0v, f0, J0, lb, ub, ft, xt, gt, mfev, xs, jac_scale, not unb,
+        None, tsolver, tr_options, callback)
     return OptimizeResult(x, f, J, nfev=nfev, njev=njev, status=status,
                           success=status > 0, message=_term_msg(status),
                           cost=cost, grad=g, optimality=gn, active_mask=am)
@@ -656,10 +1021,10 @@ def _cf_trf(func, jac, jobj, p0v, lb, ub, meth: str, ft: float, xt: float,
             gt: float, mfev: Optional[int]):
     if jac is None:
         return least_squares(func, p0v, '2-point', (lb, ub), meth, ft, xt, gt,
-                             None, 'linear', 1.0, None, mfev)
+                             None, 'linear', 1.0, None, max_nfev=mfev)
     else:
         return least_squares(func, p0v, jobj, (lb, ub), meth, ft, xt, gt,
-                             None, 'linear', 1.0, None, mfev)
+                             None, 'linear', 1.0, None, max_nfev=mfev)
 
 def curve_fit(f, xdata, ydata, p0 = None, sigma = None,
               absolute_sigma: bool = False, check_finite: bool = True,
