@@ -12,6 +12,7 @@ from . import _gamma2 as G2
 from . import _noncentral as NC
 from . import _kolmogorov as KS
 from . import _hyp as H
+from . import _misc as M
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -234,6 +235,25 @@ def hyp2f1(a, b, c, z): return _map4(H.hyp2f1, a, b, c, z)
 def hyp0f1(v, z): return _map2(H.hyp0f1, v, z)
 def hyp1f1(a, b, x): return _map3(H.hyp1f1, a, b, x)
 def hyperu(a, b, x): return _map3(H.hyperu, a, b, x)
+
+# misc (_misc)
+def boxcox1p(x, lmbda): return _map2(M.boxcox1p, x, lmbda)
+def inv_boxcox(y, lmbda): return _map2(M.inv_boxcox, y, lmbda)
+def inv_boxcox1p(y, lmbda): return _map2(M.inv_boxcox1p, y, lmbda)
+def betainccinv(a, b, y): return _map3(M.betainccinv, a, b, y)
+def binom(n, k): return _map2(M.binom, n, k)
+def sindg(x): return _map1(M.sindg, x)
+def cosdg(x): return _map1(M.cosdg, x)
+def tandg(x): return _map1(M.tandg, x)
+def cotdg(x): return _map1(M.cotdg, x)
+def radian(d, m, s): return _map3(M.radian, d, m, s)
+def cosm1(x): return _map1(M.cosm1, x)
+def round(x): return _map1(M.cround, x)
+def exp2(x): return _map1(M.exp2, x)
+def exp10(x): return _map1(M.exp10, x)
+def cbrt(x): return _map1(M.cbrt, x)
+def huber(delta, r): return _map2(M.huber, delta, r)
+def pseudo_huber(delta, r): return _map2(M.pseudo_huber, delta, r)
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:
