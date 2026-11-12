@@ -97,3 +97,17 @@ def test_basic_config():
     logging.getLogger("x.y").warning("w")
     assert buf.getvalue() == "INFO - a b\nWARNING - w\n"
 test_basic_config()
+
+
+@test
+def test_exception_traceback():
+    try:
+        raise ValueError("tb")
+    except ValueError as e:
+        t = logging._exc_text(e)
+        assert t is not None
+        s: str = t
+        assert s.startswith("Traceback (most recent call last):\n  File ")
+        assert 'raise ValueError("tb")' in s
+        assert s.endswith("ValueError: tb")
+test_exception_traceback()

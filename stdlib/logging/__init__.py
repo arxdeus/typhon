@@ -613,16 +613,46 @@ class Logger(Filterer):
 
 
 def _exc_text(exc_info) -> Optional[str]:
-    # Tracebacks are not available at runtime: only the exception line is
-    # rendered (CPython prints "Traceback ..." followed by this line).
+    # Only the raise site is recorded on exceptions (no frame stack), so the
+    # traceback block has a single frame: the `raise` location.
     if isinstance(exc_info, NoneType):
         return None
     elif isinstance(exc_info, bool):
         return None
     elif isinstance(exc_info, BaseException):
-        return f"{exc_info.typename}: {exc_info}"
+        e: BaseException = exc_info
+        s = "Traceback (most recent call last):\n"
+        if e.file:
+            func = e.func
+            if func.startswith("std.") or not func or func == "<main>" or func.startswith("main"):
+                func = "<module>"
+            else:
+                i = func.find(".")
+                if i > 0 and func[i + 1:].replace(":", "").replace(".", "").isdigit():
+                    func = func[:i]
+            s += f'  File "{e.file}", line {e.line}, in {func}\n'
+            src = _source_line(e.file, e.line)
+            if src:
+                s += f"    {src}\n"
+        msg = str(exc_info)
+        if isinstance(exc_info, KeyError):
+            msg = repr(msg)
+        return s + (f"{exc_info.typename}: {msg}" if msg else exc_info.typename)
     else:
         return None
+
+
+def _source_line(path: str, line: int) -> str:
+    try:
+        with open(path) as f:
+            i = 1
+            for ln in f:
+                if i == line:
+                    return ln.strip()
+                i += 1
+    except:
+        pass
+    return ""
 
 
 _disable_level = 0
