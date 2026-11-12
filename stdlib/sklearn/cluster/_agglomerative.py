@@ -225,6 +225,9 @@ class AgglomerativeClustering:
     linkage: str
     distance_threshold: Optional[float]
     compute_distances: bool
+    has_conn: bool
+    connectivity_: np.ndarray[float, 2]
+    full_tree: int
     n_clusters_: int
     labels_: np.ndarray[int, 1]
     children_: np.ndarray[int, 2]
@@ -236,8 +239,6 @@ class AgglomerativeClustering:
     def __init__(self, n_clusters: Optional[int] = 2, *, metric: str = "euclidean", memory = None,
                  connectivity = None, compute_full_tree = "auto", linkage: str = "ward",
                  distance_threshold: Optional[float] = None, compute_distances: bool = False):
-        if connectivity is not None:
-            compile_error("AgglomerativeClustering: connectivity is not supported")
         if linkage != "ward" and linkage != "complete" and linkage != "average" and linkage != "single":
             raise ValueError(f"Unknown linkage type {linkage}")
         self.n_clusters = n_clusters
@@ -245,6 +246,13 @@ class AgglomerativeClustering:
         self.linkage = linkage
         self.distance_threshold = distance_threshold
         self.compute_distances = compute_distances
+        self.has_conn = connectivity is not None
+        self.connectivity_ = np.empty((0, 0))
+        if connectivity is not None:
+            self.connectivity_ = np.asarray(connectivity, dtype=float)
+        self.full_tree = -1
+        if isinstance(compute_full_tree, bool):
+            self.full_tree = 1 if compute_full_tree else 0
         self.n_clusters_ = 0
         self.labels_ = np.empty(0, dtype=int)
         self.children_ = np.empty((0, 2), dtype=int)
@@ -260,6 +268,8 @@ class AgglomerativeClustering:
         if self.linkage == "ward" and self.metric != "euclidean" and self.metric != "l2":
             raise ValueError(f"{self.metric} was provided as metric. Ward can only work with euclidean distances (i.e. 'euclidean' and 'l2').")
         n = Xa.shape[0]
+        if self.has_conn:
+            return self._fit_structured(Xa)
         Z = _tree(Xa, self.linkage, self.metric)
         ch = np.empty((n - 1, 2), dtype=int)
         dist = np.empty(n - 1)
@@ -282,5 +292,114 @@ class AgglomerativeClustering:
         self.n_features_in_ = Xa.shape[1]
         return self
 
+    def _fit_structured(self, Xa: np.ndarray[float, 2]):
+        from ._structured import ward_tree, linkage_tree, _hc_get_heads
+        n = Xa.shape[0]
+        if self.distance_threshold is not None and self.full_tree == 0:
+            raise ValueError("compute_full_tree must be True if distance_threshold is set.")
+        full = True
+        if self.full_tree == 1:
+            full = True
+        elif self.full_tree == 0:
+            full = False
+        else:
+            if self.distance_threshold is not None:
+                full = True
+            else:
+                full = float(self.n_clusters.__val__()) < max(100.0, 0.02 * n)
+        ncl: Optional[int] = None
+        if not full:
+            ncl = self.n_clusters
+        if self.linkage == "ward":
+            ch, ncc, nl, parents, dist = ward_tree(Xa, connectivity=self.connectivity_, n_clusters=ncl)
+        else:
+            ch, ncc, nl, parents, dist = linkage_tree(Xa, self.connectivity_, ncl, self.linkage, self.metric)
+        self.children_ = ch
+        self.n_connected_components_ = ncc
+        self.n_leaves_ = nl
+        if self.distance_threshold is not None or self.compute_distances:
+            self.distances_ = dist
+        if self.distance_threshold is not None:
+            c = 0
+            for i in range(dist.shape[0]):
+                if dist[i] >= self.distance_threshold.__val__():
+                    c += 1
+            self.n_clusters_ = c + 1
+        else:
+            self.n_clusters_ = self.n_clusters.__val__()
+        if full:
+            self.labels_ = _hc_cut(self.n_clusters_, ch, nl)
+        else:
+            heads = _hc_get_heads(parents)[:n].copy()
+            self.labels_ = np.searchsorted(np.unique(heads), heads)
+        self.n_features_in_ = Xa.shape[1]
+        return self
+
     def fit_predict(self, X, y = None):
         return self.fit(X).labels_
+
+class FeatureAgglomeration:
+    _agg: AgglomerativeClustering
+    labels_: np.ndarray[int, 1]
+    n_clusters_: int
+    children_: np.ndarray[int, 2]
+    distances_: np.ndarray[float, 1]
+    n_leaves_: int
+    n_connected_components_: int
+    n_features_in_: int
+
+    def __init__(self, n_clusters: Optional[int] = 2, *, metric: str = "euclidean", memory = None,
+                 connectivity = None, compute_full_tree = "auto", linkage: str = "ward",
+                 pooling_func = None, distance_threshold: Optional[float] = None,
+                 compute_distances: bool = False):
+        self._agg = AgglomerativeClustering(n_clusters, metric=metric, connectivity=connectivity,
+                                            compute_full_tree=compute_full_tree, linkage=linkage,
+                                            distance_threshold=distance_threshold,
+                                            compute_distances=compute_distances)
+        self.labels_ = np.empty(0, dtype=int)
+        self.n_clusters_ = 0
+        self.children_ = np.empty((0, 2), dtype=int)
+        self.distances_ = np.empty(0)
+        self.n_leaves_ = 0
+        self.n_connected_components_ = 1
+        self.n_features_in_ = 0
+
+    def fit(self, X, y = None):
+        Xa = _as2d(X)
+        if Xa.shape[1] < 2:
+            raise ValueError("FeatureAgglomeration requires at least 2 features")
+        self._agg.fit(np.ascontiguousarray(Xa.T))
+        self.labels_ = self._agg.labels_
+        self.n_clusters_ = self._agg.n_clusters_
+        self.children_ = self._agg.children_
+        self.distances_ = self._agg.distances_
+        self.n_leaves_ = self._agg.n_leaves_
+        self.n_connected_components_ = self._agg.n_connected_components_
+        self.n_features_in_ = Xa.shape[1]
+        return self
+
+    def transform(self, X):
+        Xa = _as2d(X)
+        k = 0
+        for v in self.labels_:
+            if v + 1 > k:
+                k = v + 1
+        size = np.zeros(k)
+        for v in self.labels_:
+            size[v] += 1.0
+        out = np.zeros((Xa.shape[0], k))
+        for i in range(Xa.shape[0]):
+            for f in range(Xa.shape[1]):
+                out[i, self.labels_[f]] += Xa[i, f]
+            for c in range(k):
+                out[i, c] /= size[c]
+        return out
+
+    def fit_transform(self, X, y = None):
+        return self.fit(X).transform(X)
+
+    def inverse_transform(self, X):
+        Xa = np.asarray(X, dtype=float)
+        uniq = np.unique(self.labels_)
+        inv = np.searchsorted(uniq, self.labels_)
+        return Xa[..., inv]
