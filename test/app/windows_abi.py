@@ -1,4 +1,4 @@
-"""Compare Codon's direct, indirect and exported POD ABI against Clang C."""
+"""Compare Typhon's direct, indirect and exported POD ABI against Clang C."""
 from pathlib import Path
 import json
 import subprocess
@@ -120,8 +120,8 @@ def check(compiler, root, mode, env, runtime_env):
     subprocess.run([str(compiler), 'build', mode, '-o', str(executable), flags, str(source)],
                    env=env, cwd=root, check=True)
     subprocess.run([str(executable)], env=runtime_env, cwd=root, check=True)
-    codon_library = root / f'Codon exports {mode}.dll'
-    subprocess.run([str(compiler), 'build', mode, '-o', str(codon_library),
+    typhon_library = root / f'Typhon exports {mode}.dll'
+    subprocess.run([str(compiler), 'build', mode, '-o', str(typhon_library),
                     flags, str(source)], env=env, cwd=root, check=True)
     client_source = root / 'C ABI consumer.c'
     client_source.write_text('\n'.join(declarations[:2] +
@@ -131,5 +131,5 @@ def check(compiler, root, mode, env, runtime_env):
     subprocess.run(['clang', '-fms-runtime-lib=dll', '-Wl,/nodefaultlib:libcmt',
                     str(client_source), '-o', str(client_exe)],
                    env=env, cwd=root, check=True)
-    subprocess.run([str(client_exe), str(codon_library)], env=runtime_env, cwd=root, check=True)
+    subprocess.run([str(client_exe), str(typhon_library)], env=runtime_env, cwd=root, check=True)
     print(f'Win64 POD ABI checks passed ({mode})', flush=True)

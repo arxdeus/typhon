@@ -2,7 +2,7 @@
 
 # Series and DataFrame. Values live in runtime-typed Columns (float64,
 # int64, bool, str), so a DataFrame can hold columns of different dtypes
-# while staying a single static Codon type.
+# while staying a single static Typhon type.
 
 import numpy as np
 from numpy import ndarray
@@ -2424,7 +2424,7 @@ def concat(objs, axis: int = 0, ignore_index: bool = False):
         return _concat_frames(objs, axis, ignore_index)
 
 def concat_series_axis1(objs: List[Series]) -> DataFrame:
-    # Codon: concat([s1, s2], axis=1) has a different result type than axis=0
+    # Typhon: concat([s1, s2], axis=1) has a different result type than axis=0
     cols = [s._col.copy() for s in objs]
     labels = List[Scalar]()
     for k in range(len(objs)):
@@ -2698,7 +2698,7 @@ def read_csv(filepath_or_buffer: str, sep: str = ",", header: Optional[int] = 0,
 def read_csv_string(text: str, sep: str = ",", header: Optional[int] = 0, names: Optional[List[str]] = None,
                     index_col = None, usecols: Optional[List[str]] = None, nrows: Optional[int] = None,
                     skiprows: int = 0):
-    # Codon extension: parse CSV text directly (pandas: read_csv(io.StringIO(text)))
+    # Typhon extension: parse CSV text directly (pandas: read_csv(io.StringIO(text)))
     return _read_csv_text(text, sep, header, names, index_col, usecols, nrows, skiprows)
 
 def _read_csv_text(text: str, sep: str, header: Optional[int], names: Optional[List[str]], index_col, usecols: Optional[List[str]], nrows: Optional[int], skiprows: int):

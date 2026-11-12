@@ -35,7 +35,7 @@ def _transform_all(steps, X):
 class Pipeline[S]:
     """Pipeline over a STATIC tuple of (name, estimator) pairs.
 
-    Codon resolves each step's type at compile time, so `steps` is a tuple
+    Typhon resolves each step's type at compile time, so `steps` is a tuple
     (a Python list literal of pairs also works when all steps share a type)."""
     steps: S
     memory: Optional[str]  # not used (no transformer caching)

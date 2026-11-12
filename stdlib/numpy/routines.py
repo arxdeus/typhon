@@ -1137,7 +1137,7 @@ def require(a, dtype: type = NoneType, requirements = None):
         order = 'C'
         req &= ~REQ_C
 
-    # Codon-NumPy ignores other flags/properties currently
+    # Typhon-NumPy ignores other flags/properties currently
 
     copy = ((req & REQ_O) != 0)
     arr = array(a, dtype=dtype, order=order, copy=copy)
@@ -2518,7 +2518,7 @@ def block(arrays):
     result_ndim: Literal[int] = arr_ndim if arr_ndim > list_ndim else list_ndim
 
     # Note: This is just the heuristic NumPy uses. I have not tested how
-    # good it is for Codon.
+    # good it is for Typhon.
     if list_ndim * final_size > (2 * 512 * 512):
         return _block_slicing(arrays, list_ndim, result_ndim)
     else:
@@ -2696,7 +2696,7 @@ def array_equiv(a1, a2):
 
 def squeeze(a, axis = None):
     if axis is None:
-        compile_error("squeeze() must specify 'axis' argument in Codon-NumPy")
+        compile_error("squeeze() must specify 'axis' argument in Typhon-NumPy")
 
     if isinstance(axis, int):
         return squeeze(a, (axis,))

@@ -3,7 +3,7 @@
 # EEGModuleMixin: signal-related parameter resolution shared by all models.
 # Usage: class M(EEGModuleMixin, nn.Sequential) and call
 # `EEGModuleMixin.__init__(self, ...)` then `nn.Sequential.__init__(self)`
-# (Codon has no cooperative super() across two bases). chs_info is a list of
+# (Typhon has no cooperative super() across two bases). chs_info is a list of
 # channel dicts (Dict[str, str]-like); only its length is used here.
 
 import torch

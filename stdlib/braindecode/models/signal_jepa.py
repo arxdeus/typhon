@@ -1,6 +1,6 @@
 # Ported from braindecode 2.0.0 (BSD-3-Clause)
 #
-# SignalJEPA and its three downstream architectures. Codon notes:
+# SignalJEPA and its three downstream architectures. Typhon notes:
 # - chs_info entries are Dict[str, str]; the channel position is read from
 #   "loc" as whitespace separated floats (first 3 used).
 # - channel_embedding="scratch" and channel_strategy="native" only;
@@ -166,14 +166,14 @@ class _PosEncoder(nn.Module):
 
 def _scratch_locations(chs_info: Optional[List[Dict[str, str]]], channel_embedding: str) -> List[Optional[List[float]]]:
     if channel_embedding != "scratch":
-        raise NotImplementedError("SignalJEPA: only channel_embedding='scratch' is supported in Codon")
+        raise NotImplementedError("SignalJEPA: only channel_embedding='scratch' is supported in Typhon")
     if chs_info is None:
         raise ValueError("chs_info is required when channel_embedding='scratch'")
     return [_parse_loc(c) for c in chs_info.__val__()]
 
 def _check_native(channel_strategy: str):
     if channel_strategy != "native":
-        raise NotImplementedError("SignalJEPA: only channel_strategy='native' is supported in Codon")
+        raise NotImplementedError("SignalJEPA: only channel_strategy='native' is supported in Typhon")
 
 class SignalJEPA(EEGModuleMixin, nn.Module):
     """SignalJEPA from Guetschel et al (2024): contextual features

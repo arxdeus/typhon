@@ -1,6 +1,6 @@
 # Ported from torch 2.15.0 (BSD-3-Clause)
 #
-# Native Codon implementation of a torch (CPU) subset. See docs/libraries/torch.md.
+# Native Typhon implementation of a torch (CPU) subset. See docs/libraries/torch.md.
 
 from torch._random import Generator, default_generator
 from torch._tensor import *

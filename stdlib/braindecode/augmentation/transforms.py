@@ -1,6 +1,6 @@
 # Ported from braindecode 2.0.0 (BSD-3-Clause)
 #
-# Transform classes. Codon is statically typed, so every transform is the same
+# Transform classes. Typhon is statically typed, so every transform is the same
 # class `Transform` with a kind tag and its parameters; the braindecode names
 # (TimeReverse, SignFlip, ...) are constructors returning a Transform. That
 # lets Compose hold a plain List[Transform]. Batches are

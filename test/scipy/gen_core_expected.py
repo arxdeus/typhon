@@ -1,5 +1,5 @@
 # Generates expected literals for test/scipy/test_{linalg,special,stats}.py.
-# Run: /Users/mind/orca/projects/codon-test/.venv/bin/python test/scipy/gen_core_expected.py [section]
+# Run: /Users/mind/orca/projects/typhon-test/.venv/bin/python test/scipy/gen_core_expected.py [section]
 import sys
 import numpy as np
 import scipy
@@ -173,7 +173,7 @@ if __name__ == '__main__':
 
 def stdtrit_tails():
     # Deep-tail Student t quantiles (scipy 1.18 uses Boost fast_students_t_quantile).
-    # Prints a Codon @test block to append to test_special.py:
+    # Prints a Typhon @test block to append to test_special.py:
     #   python gen_core_expected.py stdtrit_tails
     import math
     import scipy.special as sp

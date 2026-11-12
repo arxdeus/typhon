@@ -348,7 +348,7 @@ def test_list():
     assert list(list('abc')[::-1]) == ['c', 'b', 'a']
     assert list(reversed(List[str]())) == List[str]()
 
-    # https://github.com/upstream/codon/issues/402
+    # upstream issue 402
     b1 = [1 for _ in range(0)]
     b2 = [str(x) for x in b1]
     b3 = List[float](capacity=0)
@@ -1255,7 +1255,7 @@ def test_slice():
 
     # ... but it should be fine to use a custom class that provides index.
     assert slice(0, 10, 1).indices(5) == (0, 5, 1)
-    '''  # not yet supported in Codon
+    '''  # not yet supported in Typhon
     assert slice(MyIndexable(0), 10, 1).indices(5) == (0, 5, 1)
     assert slice(0, MyIndexable(10), 1).indices(5) == (0, 5, 1)
     assert slice(0, 10, MyIndexable(1)).indices(5) == (0, 5, 1)

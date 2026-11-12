@@ -226,7 +226,7 @@ class TestTimeDelta(TestCase):
         eq(str(td(milliseconds=1)), "0:00:00.001000")
         eq(str(td(microseconds=3)), "0:00:00.000003")
 
-        # Codon's timedelta has a smaller range than Python's
+        # Typhon's timedelta has a smaller range than Python's
         # since it uses a pure microseconds representation, so
         # below case is not supported.
         """

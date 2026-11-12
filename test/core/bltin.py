@@ -1837,7 +1837,7 @@ import bz2
 test_files(bz2.open)
 
 
-# Codon-specific
+# Typhon-specific
 
 @pure
 @llvm

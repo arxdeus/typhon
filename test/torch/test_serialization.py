@@ -36,7 +36,7 @@ def test_roundtrip():
     e = load(blob)
     for k in d.keys():
         assert e[k].dtype == d[k].dtype and torch.equal(e[k], d[k])
-    path = "/tmp/_codon_torch_ser_test.pt"
+    path = "/tmp/_typhon_torch_ser_test.pt"
     torch.manual_seed(0)
     sd = {"a": torch.randn(3, 4).t(), "b": torch.arange(5)}
     torch.save(sd, path)

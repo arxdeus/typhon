@@ -48,7 +48,7 @@ class KFold:
         indices = np.arange(n)
         if self.shuffle:
             if self.random_state is None:
-                raise ValueError("KFold(shuffle=True) needs an integer random_state in Codon")
+                raise ValueError("KFold(shuffle=True) needs an integer random_state in Typhon")
             indices = _legacy_permutation(n, self.random_state)
         out = List[np.ndarray[int, 1]]()
         current = 0
@@ -110,7 +110,7 @@ class StratifiedKFold:
                 j += self.n_splits
         rng = _LegacyRS(0 if self.random_state is None else self.random_state)
         if self.shuffle and self.random_state is None:
-            raise ValueError("StratifiedKFold(shuffle=True) needs an integer random_state in Codon")
+            raise ValueError("StratifiedKFold(shuffle=True) needs an integer random_state in Typhon")
         test_folds = np.empty(n, dtype=int)
         for k in range(nc):
             tot = int(np.sum(alloc[:, k]))
@@ -194,7 +194,7 @@ def _tts_indices(n: int, test_size, train_size, random_state: Optional[int], shu
     if not shuffle:
         return np.arange(ntr), np.arange(ntr, ntr + nt)
     if random_state is None:
-        raise ValueError("train_test_split(shuffle=True) needs an integer random_state in Codon")
+        raise ValueError("train_test_split(shuffle=True) needs an integer random_state in Typhon")
     rng = _LegacyRS(random_state)
     if stratify is None:
         perm = rng.permutation(n)

@@ -1,6 +1,6 @@
 # Ported from pandas 3.1.1 (BSD-3-Clause)
 
-# Native Codon implementation of a pandas subset. See docs/libraries/pandas.md.
+# Native Typhon implementation of a pandas subset. See docs/libraries/pandas.md.
 
 from .scalar import Scalar
 from .index import Index

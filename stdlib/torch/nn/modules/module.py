@@ -1,6 +1,6 @@
 # Ported from torch 2.15.0 (BSD-3-Clause)
 #
-# torch.nn.Module for Codon.
+# torch.nn.Module for Typhon.
 #
 # Design: parameters, buffers and submodules live in ordered registries
 # (name lists + object lists) on the base class, so traversal
@@ -10,7 +10,7 @@
 # All in-place updates (optimizers, load_state_dict, to(dtype)) mutate the
 # Tensor object itself, so the aliases stay valid.
 #
-# Every subclass must declare at least one field (Codon auto-deduces fields of
+# Every subclass must declare at least one field (Typhon auto-deduces fields of
 # field-less classes, which breaks inheritance). forward has the single
 # signature `forward(self, input: Tensor) -> Tensor`; virtual dispatch through
 # `Module`-typed references works.

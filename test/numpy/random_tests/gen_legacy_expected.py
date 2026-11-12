@@ -4,11 +4,11 @@ RandomState / module-level np.random.* functions.
 Run with numpy 2.5.x:
     python test/numpy/random_tests/gen_legacy_expected.py > test/numpy/random_tests/test_legacy.py
 
-Each case is an expression valid both in Python and Codon, evaluated against a
+Each case is an expression valid both in Python and Typhon, evaluated against a
 fresh RandomState(seed). Kinds:
   'exact' : MT outputs / integer draws / pure arithmetic on MT doubles, ==
   'close' : involves libm transcendental functions (log/exp/pow/sqrt/cos/acos,
-            loggam); compared with rel tol 2e-15 + tiny abs tol because Codon
+            loggam); compared with rel tol 2e-15 + tiny abs tol because Typhon
             and numpy may be linked against libm builds differing by a few ulp
             (e.g. vonmises on glibc vs Apple libm differs by ~1.1e-15 relative).
 """

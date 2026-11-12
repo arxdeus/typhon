@@ -10,7 +10,7 @@ mne.set_log_level("ERROR")
 
 
 def make_X(n_ep=40, n_ch=8, n_t=256):
-    # deterministic pseudo-random data (no RNG so Codon reproduces it exactly)
+    # deterministic pseudo-random data (no RNG so Typhon reproduces it exactly)
     e = np.arange(n_ep)[:, None, None]
     c = np.arange(n_ch)[None, :, None]
     t = np.arange(n_t)[None, None, :]

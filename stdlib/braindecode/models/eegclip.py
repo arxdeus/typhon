@@ -1,7 +1,7 @@
 # Ported from braindecode 2.0.0 (BSD-3-Clause)
 #
 # EEGCLIP with its default Deep4Net EEG encoder. Custom eeg/text encoders are
-# not supported in Codon: encode_text takes precomputed text features
+# not supported in Typhon: encode_text takes precomputed text features
 # (batch, text_embedding_dim) or (batch, seq, text_embedding_dim).
 
 import math
@@ -44,7 +44,7 @@ def to_dense_prediction_model(model: nn.Module, axis = (2, 3)):
                 ns[a] = 1
             p.stride = ns
         elif isinstance(m, AvgPool2dWithConv):
-            raise NotImplementedError("to_dense_prediction_model: AvgPool2dWithConv is not supported in Codon")
+            raise NotImplementedError("to_dense_prediction_model: AvgPool2dWithConv is not supported in Typhon")
 
 def _projection_head(in_dim: int, out_dim: int, n_layers: int, activation, drop_prob: float) -> nn.Sequential:
     s = nn.Sequential()
@@ -81,7 +81,7 @@ class EEGCLIP(EEGModuleMixin, nn.Module):
         if text_pooling != "cls" and text_pooling != "mean":
             raise ValueError("text_pooling must be 'cls' or 'mean'.")
         if text_encoder is not None or eeg_encoder is not None:
-            raise NotImplementedError("EEGCLIP: custom encoders are not supported in Codon")
+            raise NotImplementedError("EEGCLIP: custom encoders are not supported in Typhon")
         self.text_pooling = text_pooling
         self.text_embedding_dim = text_embedding_dim
         self.eeg_embedding_dim = eeg_embedding_dim

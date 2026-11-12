@@ -1,6 +1,6 @@
 # Ported from torch 2.15.0 (BSD-3-Clause)
 #
-# Native Codon implementation of torch.Tensor.
+# Native Typhon implementation of torch.Tensor.
 #
 # Design: one static `Tensor` class. dtype is a RUNTIME tag (see _DType) and
 # shape/strides are runtime List[int], exactly like torch, so that modules can

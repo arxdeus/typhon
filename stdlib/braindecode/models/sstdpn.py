@@ -186,7 +186,7 @@ class _SSTEncoder(nn.Module):
 
 class SSTDPN(EEGModuleMixin, nn.Module):
     """SSTDPN from Han et al (2025). forward returns logits (return_features
-    is not supported in Codon; call `encoder` for the features)."""
+    is not supported in Typhon; call `encoder` for the features)."""
     n_spectral_filters_temporal: int
     n_fused_filters: int
     mvp_kernel_sizes: List[int]
@@ -209,7 +209,7 @@ class SSTDPN(EEGModuleMixin, nn.Module):
                                 input_window_seconds=input_window_seconds, sfreq=sfreq)
         nn.Module.__init__(self)
         if return_features:
-            raise NotImplementedError("SSTDPN: return_features=True is not supported in Codon")
+            raise NotImplementedError("SSTDPN: return_features=True is not supported in Typhon")
         self.n_spectral_filters_temporal = n_spectral_filters_temporal
         self.n_fused_filters = n_fused_filters
         self.mvp_kernel_sizes = mvp_kernel_sizes if mvp_kernel_sizes is not None else [50, 100, 200]

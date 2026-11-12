@@ -1,6 +1,6 @@
 # Ported from torch 2.15.0 (BSD-3-Clause)
 #
-# torch.nn.functional for Codon. Composite ops are built from autograd-aware
+# torch.nn.functional for Typhon. Composite ops are built from autograd-aware
 # Tensor methods; convolution, pooling and padding use native kernels in
 # torch.nn._ops with explicit backward nodes.
 

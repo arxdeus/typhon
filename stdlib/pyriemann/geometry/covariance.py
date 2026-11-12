@@ -150,7 +150,7 @@ def covariances(X, estimator: str = "cov"):
     else:
         raise ValueError(
             f"Unknown function name '{estimator}'. Must be one of corr cov hub lwf "
-            "mcd oas sch scm stu tyl (mcd, hub, stu, tyl are not available in Codon)")
+            "mcd oas sch scm stu tyl (mcd, hub, stu, tyl are not available in Typhon)")
 
 def normalize(X, norm: str):
     X = np.asarray(X)

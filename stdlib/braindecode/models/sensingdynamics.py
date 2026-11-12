@@ -1,7 +1,7 @@
 # Ported from braindecode 2.0.0 (BSD-3-Clause)
 #
 # SensingDynamics (16-channel emg2pose adaptation). forward(x) only: the
-# optional precomputed x_lowpass argument is not supported in Codon.
+# optional precomputed x_lowpass argument is not supported in Typhon.
 
 import math
 import torch

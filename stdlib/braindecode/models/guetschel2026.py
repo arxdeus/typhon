@@ -1,6 +1,6 @@
 # Ported from braindecode 2.0.0 (BSD-3-Clause)
 #
-# Guetschel2026 (EEG foundation model with masked pretexts). Codon notes:
+# Guetschel2026 (EEG foundation model with masked pretexts). Typhon notes:
 # - chs_info entries are Dict[str, str]; "loc" holds whitespace separated
 #   floats in metres (MNE head frame); "coord_frame" if given must be "head"
 #   or "4" (FIFFV_COORD_HEAD).
@@ -214,7 +214,7 @@ class Guetschel2026(EEGModuleMixin, nn.Module):
                  random_projection: Optional[int] = None, random_projection_seed: int = 0,
                  channel_strategy: str = "native"):
         if channel_strategy != "native":
-            raise NotImplementedError("Guetschel2026: only channel_strategy='native' is supported in Codon")
+            raise NotImplementedError("Guetschel2026: only channel_strategy='native' is supported in Typhon")
         EEGModuleMixin.__init__(self, n_outputs=n_outputs, n_chans=n_chans, chs_info=chs_info, n_times=n_times,
                                 input_window_seconds=input_window_seconds, sfreq=sfreq)
         nn.Module.__init__(self)

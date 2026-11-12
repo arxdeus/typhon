@@ -91,7 +91,7 @@ def preprocess(concat_ds, preprocessors: List[Preprocessor], save_dir: Optional[
                parallel_kwargs = None, max_nbytes = "1M"):
     """Apply preprocessors in place to every recording (n_jobs is ignored)."""
     if save_dir is not None:
-        raise NotImplementedError("save_dir is not supported in Codon braindecode")
+        raise NotImplementedError("save_dir is not supported in Typhon braindecode")
     for ds in concat_ds.datasets:
         for p in preprocessors:
             p.apply(ds.raw)

@@ -1,7 +1,7 @@
 
-"""Native process streams, encoding queries and Codon implementation metadata.
+"""Native process streams, encoding queries and Typhon implementation metadata.
 
-Version information describes Codon, not a CPython language compatibility level.
+Version information describes Typhon, not a CPython language compatibility level.
 The compiled runtime does not expose interpreter frames or reference counts.
 
 `exit()` accepts integers, booleans, strings and `None`, including optional values.
@@ -76,7 +76,7 @@ class _implementation:
     hexversion: int
     cache_tag: Optional[str]
 
-implementation = _implementation("codon", version_info, hexversion, None)
+implementation = _implementation("typhon", version_info, hexversion, None)
 
 @tuple
 class _float_info:

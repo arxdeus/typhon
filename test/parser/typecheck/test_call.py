@@ -1831,7 +1831,7 @@ print(Int[a])
 #: <class 'Int[34]'>
 
 #%% generator_overload_element_types,barebones
-# core_containers_codon: iterable-to-generator conversion must use the actual
+# core_containers_typhon: iterable-to-generator conversion must use the actual
 # yielded type when choosing between scalar and key/value overloads.
 def consume(values: Generator[int]):
     return "ints"

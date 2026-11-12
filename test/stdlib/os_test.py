@@ -373,7 +373,7 @@ def test_expanduser():
         del os.environ["HOME"]
         home = path.expanduser("~")
         assert home == "~" or path.isabs(home)
-        unknown = "~codon-missing-user-" + str(os.getpid())
+        unknown = "~typhon-missing-user-" + str(os.getpid())
         assert path.expanduser(unknown + "/child") == unknown + "/child"
     finally:
         if old_home is None:
@@ -430,7 +430,7 @@ def test_posix_path_encoders():
             assert error.start == 0 and error.end == 1
             assert error.reason == "surrogates not allowed"
     try:
-        dlopen("build/codon-missing-library-" + str(os.getpid()) + chr(0xDCFF))
+        dlopen("build/typhon-missing-library-" + str(os.getpid()) + chr(0xDCFF))
         assert False
     except CError:
         pass
@@ -565,9 +565,9 @@ def test_filesystem():
     from C import setenv(cobj, cobj, i32) -> i32
     from C import getenv(cobj) -> cobj
     test_directory = os.environ.get("TYPHON_OS_TEST_TMPDIR", os.getcwd())
-    template = os._cstring(path.join(test_directory, "codon-os-test-XXXXXX"))
+    template = os._cstring(path.join(test_directory, "typhon-os-test-XXXXXX"))
     result = mkdtemp(template)
-    # stdlib_os_test_codon: @test assertions report and continue, so stop before
+    # stdlib_os_test_typhon: @test assertions report and continue, so stop before
     # decoding a null C pointer if the configured temp directory is unavailable
     if not result:
         raise OSError(os._errno(), "mkdtemp failed", test_directory)

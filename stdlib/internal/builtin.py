@@ -781,7 +781,7 @@ def _jit_display(x, s: Literal[str], bundle: Optional[Set[str]] = None):
         d = x._repr_mimebundle_(bundle)
         # TODO: pick appropriate mime
         mime = next(d.keys()) # just pick first
-        print(f"\x00\x00__codon/mime__\x00{mime}\x00{d[mime]}", end='')
+        print(f"\x00\x00__typhon/mime__\x00{mime}\x00{d[mime]}", end='')
     elif hasattr(x, "__repr__"):
         print(x.__repr__(), end='')
     elif hasattr(x, "__str__"):

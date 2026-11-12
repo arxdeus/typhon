@@ -1,6 +1,6 @@
 # Ported from braindecode 2.0.0 (BSD-3-Clause)
 #
-# PopulationTransformer (PopT). Codon notes: chs_info "loc" holds whitespace
+# PopulationTransformer (PopT). Typhon notes: chs_info "loc" holds whitespace
 # separated floats; activation must be nn.GELU or nn.ReLU (mapped onto the
 # TransformerEncoderLayer activation); forward(x) uses the stored electrode
 # coordinates, seq_id 0 and no channel mask; channel_strategy="native" only.
@@ -97,7 +97,7 @@ class PopulationTransformer(EEGModuleMixin, nn.Module):
                  shift_coords: bool = False, activation = nn.GELU, drop_prob: float = 0.1,
                  channel_strategy: str = "native"):
         if channel_strategy != "native":
-            raise NotImplementedError("PopulationTransformer: only channel_strategy='native' is supported in Codon")
+            raise NotImplementedError("PopulationTransformer: only channel_strategy='native' is supported in Typhon")
         EEGModuleMixin.__init__(self, n_outputs=n_outputs, n_chans=n_chans, chs_info=chs_info, n_times=n_times,
                                 input_window_seconds=input_window_seconds, sfreq=sfreq)
         nn.Module.__init__(self)
@@ -105,7 +105,7 @@ class PopulationTransformer(EEGModuleMixin, nn.Module):
             raise ValueError(f"coord_units must be 'm' or 'raw', got {coord_units!r}.")
         act = activation()._get_name()
         if act != "GELU" and act != "ReLU":
-            raise NotImplementedError("PopulationTransformer: activation must be nn.GELU or nn.ReLU in Codon")
+            raise NotImplementedError("PopulationTransformer: activation must be nn.GELU or nn.ReLU in Typhon")
         self.input_dim = self.n_times
         self.hidden_dim = hidden_dim
         self.max_len = max_len

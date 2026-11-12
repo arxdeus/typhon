@@ -763,7 +763,7 @@ def getppid() -> int:
         # DWORD size@0, usage@4, pid@8, padding@12, ULONG_PTR heap@16,
         # DWORD module@24, threads@28, parent@32, LONG priority@36,
         # DWORD flags@40, WCHAR exe[260]@44, tail padding@564. sizeof=568,
-        # alignment=8. Use aligned storage and byte offsets, not Codon tuples.
+        # alignment=8. Use aligned storage and byte offsets, not Typhon tuples.
         storage = Ptr[u64](71)
         entry = storage.as_byte()
         bytes.memset(entry, u8(0), 568)

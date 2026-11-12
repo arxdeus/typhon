@@ -1,6 +1,6 @@
 # Ported from joblib 1.6.0 (BSD-3-Clause)
 
-# Native Codon subset of joblib:
+# Native Typhon subset of joblib:
 #   Parallel(n_jobs, backend)(delayed(f)(*args) for ...)  -> list of results
 #   Memory(location).cache(f)                              -> memoizing wrapper
 #   hash(ndarray)                                          -> joblib.hash md5 hex
@@ -47,7 +47,7 @@ def _dtype_code(T: type) -> str:
         compile_error("joblib.hash: unsupported dtype")
 
 class _Buf:
-    # raw byte builder (Codon str escapes above 0x7f are not single bytes)
+    # raw byte builder (Typhon str escapes above 0x7f are not single bytes)
     b: List[int]
     memo: int
     def __init__(self):

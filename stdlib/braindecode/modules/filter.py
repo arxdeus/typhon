@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 class FilterBankLayer(nn.Module):
     """FIR filter bank (mne.filter.create_filter designs). Only method='fir'
-    with phase='zero' (the default) is supported in Codon."""
+    with phase='zero' (the default) is supported in Typhon."""
     band_filters: List[Tuple[float, float]]
     n_bands: int
     phase: str
@@ -35,9 +35,9 @@ class FilterBankLayer(nn.Module):
             for lo, hi in band_filters:
                 bands.append((float(lo), float(hi)))
         if method != "fir" or phase not in ("zero", "forward", "causal"):
-            raise NotImplementedError("FilterBankLayer: only method='fir' is supported in Codon")
+            raise NotImplementedError("FilterBankLayer: only method='fir' is supported in Typhon")
         if phase != "zero":
-            raise NotImplementedError("FilterBankLayer: only phase='zero' is supported in Codon")
+            raise NotImplementedError("FilterBankLayer: only phase='zero' is supported in Typhon")
         self.band_filters = bands
         self.n_bands = len(bands)
         self.phase = phase

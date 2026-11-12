@@ -98,7 +98,7 @@ class _Transformer(nn.Module):
 
 class MSVTNet(EEGModuleMixin, nn.Module):
     """MSVTNet from Liu et al (2024). return_features is not supported
-    (forward has a single Tensor return type in Codon)."""
+    (forward has a single Tensor return type in Typhon)."""
     ensure_dim: Rearrange
     mstsconv: nn.ModuleList
     branch_head: nn.ModuleList
@@ -117,7 +117,7 @@ class MSVTNet(EEGModuleMixin, nn.Module):
                                 input_window_seconds=input_window_seconds, sfreq=sfreq)
         nn.Module.__init__(self)
         if return_features:
-            raise NotImplementedError("MSVTNet(return_features=True) is not supported in Codon")
+            raise NotImplementedError("MSVTNet(return_features=True) is not supported in Typhon")
         nfl = [int(v) for v in n_filters_list]
         cks = [int(v) for v in conv1_kernels_size]
         assert len(nfl) == len(cks), "The length of n_filters_list and conv1_kernel_sizes should be equal."

@@ -24,7 +24,7 @@ def sleep(secs: float, /):
 
 class TimeInterval:
     """
-    Utility class for timing Codon code
+    Utility class for timing Typhon code
     """
 
     start: int

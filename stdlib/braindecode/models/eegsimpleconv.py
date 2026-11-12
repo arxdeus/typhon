@@ -24,7 +24,7 @@ class EEGSimpleConv(EEGModuleMixin, nn.Module):
         nn.Module.__init__(self)
         self.return_feature = return_feature
         if self.sfreq != float(resampling_freq):
-            raise NotImplementedError("EEGSimpleConv: resampling (sfreq != resampling_freq) is not supported in Codon")
+            raise NotImplementedError("EEGSimpleConv: resampling (sfreq != resampling_freq) is not supported in Typhon")
         self.resample = nn.Identity()
         self.add_module("resample", self.resample)
         self.conv = nn.Conv1d(self.n_chans, feature_maps, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)

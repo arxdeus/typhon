@@ -147,9 +147,9 @@ def compare(binary, operation, rows, expected, known_differences=None):
         if wanted == got:
             continue
         if known_differences and known_differences.get(row) == (wanted, got):
-            print(f"KNOWN DIFFERENCE ({operation}): {row!r}: CPython={wanted!r}, Codon={got!r}")
+            print(f"KNOWN DIFFERENCE ({operation}): {row!r}: CPython={wanted!r}, Typhon={got!r}")
         else:
-            failures.append(f"{row!r}: CPython={wanted!r}, Codon={got!r}")
+            failures.append(f"{row!r}: CPython={wanted!r}, Typhon={got!r}")
     if result.stderr or failures:
         raise AssertionError(result.stderr + "\n".join(failures[:20]) + f"\n{len(failures)} mismatches")
     return len(rows)
@@ -157,14 +157,14 @@ def compare(binary, operation, rows, expected, known_differences=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--codon", type=Path, default=Path("build/codon"))
+    parser.add_argument("--typhon", type=Path, default=Path("build/typhon"))
     parser.add_argument("--seed", type=int, default=1729)
     parser.add_argument("--lexical-only", action="store_true")
     parser.add_argument("--filesystem-only", action="store_true")
     args = parser.parse_args()
     if sys.version_info < (3, 14):
         parser.error("CPython 3.14+ is required for single-dot suffix and full_match semantics")
-    with tempfile.TemporaryDirectory(prefix="codon-pathlib-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="typhon-pathlib-") as temporary:
         root = Path(temporary)
         source, binary = root / "probe.py", root / "probe"
         source.write_text(PROBE)

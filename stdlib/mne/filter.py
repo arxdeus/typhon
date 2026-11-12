@@ -219,7 +219,7 @@ def _construct_fir_filter(sfreq: float, freq: List[float], gain: List[float], fi
         raise ValueError(f"freq must start at 0 and end an Nyquist ({sfreq / 2.0}), got {freq}")
     N = _check_zero_phase_length(filter_length, phase, gain[-1])
     if phase == "minimum" or phase == "minimum-half":
-        raise NotImplementedError("minimum-phase FIR filters are not supported in Codon mne")
+        raise NotImplementedError("minimum-phase FIR filters are not supported in Typhon mne")
     h = np.zeros(1)
     if fir_design == "firwin2":
         h = _sp_firwin2(N, nfreq, gain, window=fir_window)
@@ -239,7 +239,7 @@ def create_filter(data, sfreq: float, l_freq, h_freq, filter_length = "auto",
         raise ValueError("sfreq must be positive")
     _check_option("method", method, ("iir", "fir", "fft"))
     if method == "iir":
-        raise NotImplementedError("create_filter(method='iir') returns a dict in mne; use mne.filter.construct_iir_filter in Codon")
+        raise NotImplementedError("create_filter(method='iir') returns a dict in mne; use mne.filter.construct_iir_filter in Typhon")
     if not isinstance(iir_params, NoneType):
         raise ValueError('iir_params must be None if method != "iir"')
     hf: Optional[float] = None if h_freq is None else float(h_freq)
@@ -528,7 +528,7 @@ def notch_filter(x, Fs: float, freqs, filter_length = "auto", notch_widths = Non
                  fir_design: str = "firwin", pad: str = "reflect_limited", verbose = None):
     """FIR notch filter with a single notch frequency (mne.filter.notch_filter subset)."""
     if method != "fir" and method != "fft":
-        raise NotImplementedError("only method='fir' notch filtering is supported in Codon mne")
+        raise NotImplementedError("only method='fir' notch filtering is supported in Typhon mne")
     f = float(freqs)
     nw = f / 200.0 if notch_widths is None else float(notch_widths)
     lows = f - nw / 2.0 - trans_bandwidth / 2.0
@@ -608,7 +608,7 @@ class IIRParams:
 def _iir_params_from(iir_params) -> IIRParams:
     """Accept None, IIRParams, or a homogeneous dict.
 
-    Codon dicts hold one value type, so mne's mixed dict(order=4, ftype='butter')
+    Typhon dicts hold one value type, so mne's mixed dict(order=4, ftype='butter')
     is spelled IIRParams(order=4, ftype='butter') (or a str-valued dict for
     ftype/output and a number-valued dict for order/rp/rs/padlen).
     """
@@ -809,7 +809,7 @@ def _resample_fft_rows(x2, ratio: float, final_len: int, pad: str, window, npad)
     elif isinstance(window, NoneType):
         pass
     else:
-        compile_error("window must be a str or None in Codon mne.resample")
+        compile_error("window must be a str or None in Typhon mne.resample")
     np0 = 0
     np1 = 0
     if isinstance(npad, str):
@@ -858,11 +858,11 @@ def resample(x, up: float = 1.0, down: float = 1.0, *, axis: int = -1, window = 
     """Resample an array along the last axis (method='fft' only)."""
     if method != "fft":
         if method == "polyphase":
-            raise NotImplementedError("method='polyphase' is not supported in Codon mne")
+            raise NotImplementedError("method='polyphase' is not supported in Typhon mne")
         raise ValueError(f"Invalid value for the 'method' parameter. Allowed values are 'fft' and 'polyphase', but got '{method}' instead.")
     xa = np.asarray(x).astype(float)
     if axis != -1 and axis != xa.ndim - 1:
-        raise NotImplementedError("Codon mne.filter.resample only supports axis=-1")
+        raise NotImplementedError("Typhon mne.filter.resample only supports axis=-1")
     ratio = float(up) / down
     n = xa.shape[xa.ndim - 1]
     final_len = max(int(round(ratio * n)), 1)

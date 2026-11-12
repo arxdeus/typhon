@@ -359,7 +359,7 @@ def test_custom_and_files():
     except argparse.ArgumentError as error:
         assert str(error) == "argument --point: expected a coordinate"
     import os
-    path = "codon-argparse-" + str(os.getpid())
+    path = "typhon-argparse-" + str(os.getpid())
     with open(path, "w", newline="\n") as output: output.write("--twice\n4\n")
     try:
         fromfile = argparse.ArgumentParser(fromfile_prefix_chars="@")

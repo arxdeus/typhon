@@ -64,9 +64,9 @@ class MIRepNet(EEGModuleMixin, nn.Module):
                  attention_scale: Optional[float] = None, return_features: bool = False,
                  channel_strategy: str = "native"):
         if channel_strategy != "native":
-            raise NotImplementedError("MIRepNet: only channel_strategy='native' is supported in Codon")
+            raise NotImplementedError("MIRepNet: only channel_strategy='native' is supported in Typhon")
         if return_features:
-            raise NotImplementedError("MIRepNet: return_features=True is not supported in Codon")
+            raise NotImplementedError("MIRepNet: return_features=True is not supported in Typhon")
         EEGModuleMixin.__init__(self, n_outputs=n_outputs, n_chans=n_chans, chs_info=chs_info, n_times=n_times,
                                 input_window_seconds=input_window_seconds, sfreq=sfreq)
         nn.Module.__init__(self)

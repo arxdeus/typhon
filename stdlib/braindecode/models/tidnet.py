@@ -129,7 +129,7 @@ class _TemporalFilter(nn.Module):
         tl = temp_len + 1 - temp_len % 2
         self.residual_style = residual
         if residual.lower() != "netwise":
-            raise NotImplementedError("TIDNet _TemporalFilter: only residual='netwise' is supported in Codon")
+            raise NotImplementedError("TIDNet _TemporalFilter: only residual='netwise' is supported in Typhon")
         self.net = nn.Sequential()
         for i in range(depth):
             dil = depth - i

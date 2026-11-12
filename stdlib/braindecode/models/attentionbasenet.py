@@ -70,7 +70,7 @@ class _ChannelAttentionBlock(nn.Module):
         self.dropout = nn.Dropout(drop_prob)
         self.add_module("dropout", self.dropout)
         if attention_mode is not None:
-            raise NotImplementedError(f"AttentionBaseNet: attention_mode={attention_mode!r} is not ported to Codon yet")
+            raise NotImplementedError(f"AttentionBaseNet: attention_mode={attention_mode!r} is not ported to Typhon yet")
 
     def forward(self, x: Tensor) -> Tensor:
         return self.dropout(self.pool(self.conv(x)))
@@ -91,7 +91,7 @@ def _seq_lengths(n: int, ks: List[int], pls: List[int], pss: List[int]) -> List[
 
 class AttentionBaseNet(EEGModuleMixin, nn.Module):
     """AttentionBaseNet from Wimpff et al (2023). Only attention_mode=None
-    (the default) is supported in Codon."""
+    (the default) is supported in Typhon."""
     input_block: _FeatureExtractor
     channel_expansion: nn.Sequential
     channel_attention_block: _ChannelAttentionBlock

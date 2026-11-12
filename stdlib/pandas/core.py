@@ -11,7 +11,7 @@ from .scalar import Scalar, K_FLOAT, K_INT, K_BOOL, K_STR, K_NONE, NA_STR, _isna
 NAN = float("nan")
 
 # The reference pandas build (clang, -ffp-contract=on) fuses `a += b * c`
-# in its Cython kernels into a fused multiply-add. Codon does not contract,
+# in its Cython kernels into a fused multiply-add. Typhon does not contract,
 # so the kernels call fma() explicitly to reproduce pandas bit-for-bit.
 @pure
 @llvm

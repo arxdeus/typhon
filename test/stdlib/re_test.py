@@ -272,7 +272,7 @@ def test_re_findall():
     assert re.findall(":+", "abc") == []
     assert re.findall(":+", "a:b::c:::d") == [":", "::", ":::"]
     assert re.findall("(:+)", "a:b::c:::d") == [":", "::", ":::"]
-    # (!) Note: this is different in Codon, as we always return the full match even
+    # (!) Note: this is different in Typhon, as we always return the full match even
     #           if there are capturing groups.
     assert re.findall("(:)(:*)", "a:b::c:::d") == [":", "::", ":::"]
 
@@ -473,7 +473,7 @@ test_expand()
 @test
 def test_getattr():
     assert re.compile("(?i)(a)(b)").pattern == "(?i)(a)(b)"
-    # TODO: Codon does not support flags like this
+    # TODO: Typhon does not support flags like this
     # self.assertEqual(re.compile("(?i)(a)(b)").flags, re.I | re.U)
     assert re.compile("(?i)(a)(b)").groups == 2
     assert re.compile("(?i)(a)(b)").groupindex == {}

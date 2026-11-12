@@ -255,7 +255,7 @@ class Evoked:
     def resample(self, sfreq: float, *, npad = "auto", window = "auto", n_jobs = None,
                  pad: str = "edge", method: str = "fft", verbose = None):
         if method != "fft":
-            raise NotImplementedError("only method='fft' resampling is supported in Codon mne")
+            raise NotImplementedError("only method='fft' resampling is supported in Typhon mne")
         o = self.info.sfreq
         if _check_resamp_noop(float(sfreq), o):
             return self
@@ -371,7 +371,7 @@ class EpochsArray:
     def get_data(self, picks = None, item = None, units = None, tmin: Optional[float] = None,
                  tmax: Optional[float] = None, *, copy: bool = True, verbose = None):
         if not isinstance(item, NoneType):
-            compile_error("get_data(item=...) is not supported in Codon mne")
+            compile_error("get_data(item=...) is not supported in Typhon mne")
         pk = _picks_to_idx(self.info, picks, "all", ())
         if tmin is None and tmax is None and isinstance(picks, NoneType):
             return self._data.copy() if copy else self._data
@@ -466,7 +466,7 @@ class EpochsArray:
                  pad: str = "edge", method: str = "fft", verbose = None):
         """FFT resampling in place (mne.Epochs.resample)."""
         if method != "fft":
-            raise NotImplementedError("only method='fft' resampling is supported in Codon mne")
+            raise NotImplementedError("only method='fft' resampling is supported in Typhon mne")
         o = self.info.sfreq
         if _check_resamp_noop(float(sfreq), o):
             return self
@@ -630,7 +630,7 @@ class RawArray:
                           ch_type = "auto", forward = None, *, joint: bool = False, verbose = None):
         """Average or channel re-referencing of EEG channels (in place, returns self)."""
         if projection:
-            raise NotImplementedError("projection=True is not supported in Codon mne")
+            raise NotImplementedError("projection=True is not supported in Typhon mne")
         eeg = [i for i in range(self.info.nchan)
                if self.info.ch_types[i] == "eeg" and self.info.ch_names[i] not in self.info.bads]
         refs = List[int]()
@@ -741,9 +741,9 @@ class RawArray:
         """FFT resampling in place (mne.io.Raw.resample). Stim channels use
         mne's sample-picking rule. Passing events is not supported."""
         if not isinstance(events, NoneType):
-            compile_error("resample(events=...) is not supported in Codon mne")
+            compile_error("resample(events=...) is not supported in Typhon mne")
         if method != "fft":
-            raise NotImplementedError("only method='fft' resampling is supported in Codon mne")
+            raise NotImplementedError("only method='fft' resampling is supported in Typhon mne")
         o = self.info.sfreq
         if _check_resamp_noop(float(sfreq), o):
             return self

@@ -1,7 +1,7 @@
 # Ported from braindecode 2.0.0 (BSD-3-Clause)
 #
 # MetaNeuromotorHand (generic neuromotor interface, handwriting model).
-# Codon notes: the multivariate power-frequency featurizer (STFT, cross
+# Typhon notes: the multivariate power-frequency featurizer (STFT, cross
 # spectral density, band averaging, SPD matrix log) has no trainable
 # parameters and is computed in float64 without autograd, using the
 # featurizer buffers (window, freq_masks); torch computes it in complex64 /

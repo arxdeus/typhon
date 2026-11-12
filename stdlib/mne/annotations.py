@@ -18,7 +18,7 @@ class Annotations:
 
     def __init__(self, onset, duration, description, orig_time = None, ch_names = None):
         if not isinstance(orig_time, NoneType):
-            compile_error("Codon mne: only Annotations(orig_time=None) is supported")
+            compile_error("Typhon mne: only Annotations(orig_time=None) is supported")
         self.onset = [float(v) for v in onset]
         n = len(self.onset)
         if isinstance(duration, int) or isinstance(duration, float):
@@ -117,7 +117,7 @@ def events_from_annotations(raw, event_id = "auto", regexp = "default",
     event_id may be a Dict[str, int] or None/"auto" (descriptions numbered
     from 1 in sorted order). Returns (events, event_id_)."""
     if not isinstance(chunk_duration, NoneType):
-        compile_error("Codon mne: chunk_duration is not supported")
+        compile_error("Typhon mne: chunk_duration is not supported")
     ann = raw.annotations
     out_id = Dict[str, int]()
     if len(ann) == 0:

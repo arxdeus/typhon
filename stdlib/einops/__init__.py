@@ -2,7 +2,7 @@
 #
 # einops for torch Tensors. Patterns are parsed at runtime, so only tensor
 # types with a runtime shape (torch.Tensor) are supported: numpy ndarrays in
-# Codon carry ndim in their static type, which a runtime pattern cannot set.
+# Typhon carry ndim in their static type, which a runtime pattern cannot set.
 
 from ._recipe import EinopsError, make_plan, Plan
 from torch._tensor import Tensor
@@ -58,7 +58,7 @@ def _apply(x, pattern: str, op: str, axes_lengths: Dict[str, int]) -> Tensor:
         if isinstance(x, List[Tensor]):
             from torch import stack
             return _apply(stack(x, 0), pattern, op, axes_lengths)
-        compile_error("einops: only torch.Tensor inputs are supported in Codon")
+        compile_error("einops: only torch.Tensor inputs are supported in Typhon")
     plan = make_plan(pattern, op, axes_lengths, x._shape)
     return _apply_plan(x, plan, op)
 

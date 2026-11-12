@@ -7,7 +7,7 @@ from ._mne import create_from_mne_raw, create_from_mne_epochs
 
 def _no_download(name: str):
     raise NotImplementedError(f"{name} needs network access and file readers (EDF/GDF/FIF); "
-                              "it is not available in Codon braindecode. Build datasets with "
+                              "it is not available in Typhon braindecode. Build datasets with "
                               "create_from_X_y / create_from_mne_raw instead.")
 
 

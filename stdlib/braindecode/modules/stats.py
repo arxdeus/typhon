@@ -5,7 +5,7 @@ from torch import Tensor
 import torch.nn as nn
 
 class StatLayer(nn.Module):
-    # stat: "mean" | "max" | "var" | "std" | "power" (Codon replacement for
+    # stat: "mean" | "max" | "var" | "std" | "power" (Typhon replacement for
     # the stat_fn callable).
     stat: str
     dim: int

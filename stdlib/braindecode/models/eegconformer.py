@@ -65,7 +65,7 @@ class _FullyConnected(nn.Module):
 
 class EEGConformer(EEGModuleMixin, nn.Module):
     """EEG Conformer from Song et al (2022). activation_checkpointing is
-    accepted but has no effect (no recomputation in Codon)."""
+    accepted but has no effect (no recomputation in Typhon)."""
     return_features: bool
     activation_checkpointing: bool
     final_fc_length: int

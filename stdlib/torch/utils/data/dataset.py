@@ -1,6 +1,6 @@
 # Ported from torch 2.15.0 (BSD-3-Clause)
 #
-# Datasets. Codon is statically typed, so datasets are duck-typed: any class
+# Datasets. Typhon is statically typed, so datasets are duck-typed: any class
 # with __len__ and __getitem__(int) works with DataLoader / Subset /
 # random_split. `Dataset` is an optional base class.
 

@@ -45,7 +45,7 @@ def test_version():
     assert type(info[0]) is int and type(info[3]) is str
     assert sys.version == f"{info.major}.{info.minor}.{info.micro} (Typhon)"
     assert sys.hexversion == (info.major << 24) | (info.minor << 16) | (info.micro << 8) | 0xF0
-    assert sys.implementation.name == "codon"
+    assert sys.implementation.name == "typhon"
     assert sys.implementation.version == info
     assert sys.implementation.hexversion == sys.hexversion
     assert sys.implementation.cache_tag is None

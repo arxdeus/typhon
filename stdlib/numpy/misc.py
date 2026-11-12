@@ -577,10 +577,10 @@ def may_share_memory(a: ndarray, b: ndarray, max_work: Optional[int] = None):
     return _array_shaes_memory_impl(a, b, mw, False)
 
 def setbufsize(size: int):
-    pass  # Codon-NumPy does not use ufunc buffers
+    pass  # Typhon-NumPy does not use ufunc buffers
 
 def getbufsize():
-    return 0  # Codon-NumPy does not use ufunc buffers
+    return 0  # Typhon-NumPy does not use ufunc buffers
 
 def byte_bounds(a: ndarray):
     a_data = a.data

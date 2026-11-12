@@ -45,7 +45,7 @@ def _check3(X):
     return X
 
 def _warn():
-    # pyriemann emits a UserWarning here. Codon has no warnings module, so
+    # pyriemann emits a UserWarning here. Typhon has no warnings module, so
     # the message is printed to stderr instead.
     print("UserWarning: Convergence not reached", file=sys.stderr)
 

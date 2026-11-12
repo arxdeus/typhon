@@ -170,7 +170,7 @@ def psd_array_multitaper(x, sfreq: float, fmin: float = 0.0, fmax: float = np.in
                          max_iter: int = 150, verbose = None):
     """Compute power spectral density (PSD) using a multi-taper method."""
     if output != "power":
-        compile_error("only output='power' is supported in Codon mne")
+        compile_error("only output='power' is supported in Typhon mne")
     xf = np.asarray(x).astype(float)
     n_times = xf.shape[xf.ndim - 1]
     x2 = xf.reshape((-1, n_times))

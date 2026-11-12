@@ -481,7 +481,7 @@ def test_cmath_matches_math():
         for v in positive:
             z = cmath.log(v, base)
             s = math.log(v, base)
-            # added 'or z.real == s' since Codon version gives -0 vs. +0 in one test
+            # added 'or z.real == s' since Typhon version gives -0 vs. +0 in one test
             assert almost_equal(z.real, math.log(v, base)) or z.real == s
             assert z.imag == 0.0
 

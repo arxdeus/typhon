@@ -15,7 +15,7 @@ import torch.nn.functional as F
 import torch.nn.init as init
 
 class _RNNBase(Module):
-    """Codon note: `m(x)` (one argument) returns only the output sequence
+    """Typhon note: `m(x)` (one argument) returns only the output sequence
     (Module's single-tensor call protocol, so RNNs work inside Sequential).
     `m(x, None)` / `m(x, h0)` returns torch's tuple (output, h_n) or, for
     LSTM, (output, (h_n, c_n))."""

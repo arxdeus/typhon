@@ -233,7 +233,7 @@ def _regularized_covariance(data, reg_kind: str, shrink: float, info: Info,
             shr.append((ct, s, sp))
         cov = _shrunk_blocks(d, shr)
     else:
-        raise ValueError(f"Invalid reg ({reg_kind}). Supported in Codon mne: None, float, 'empirical', 'ledoit_wolf', 'oas'")
+        raise ValueError(f"Invalid reg ({reg_kind}). Supported in Typhon mne: None, float, 'empirical', 'ledoit_wolf', 'oas'")
     cov = np.dot(eigvec.T, np.dot(cov, eigvec))
     ns = d.shape[0]
     cov *= ns / max(ns - 1, 1)

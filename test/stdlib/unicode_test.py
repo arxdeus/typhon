@@ -2418,12 +2418,12 @@ def test_percent_format_ascii():
 
 @test
 def test_percent_format_mapping():
-    names = {unicode("name"): unicode("Codon")}
+    names = {unicode("name"): unicode("Typhon")}
     counts = {unicode("count"): 3}
 
-    assert unicode("%(name)s") % names == unicode("Codon")
+    assert unicode("%(name)s") % names == unicode("Typhon")
     assert unicode("%(count)04d") % counts == unicode("0003")
-    assert unicode("%(name)-8s") % names == unicode("Codon   ")
+    assert unicode("%(name)-8s") % names == unicode("Typhon   ")
 
 
 @test
@@ -2487,7 +2487,7 @@ def test_percent_format_general_precision_zero():
 
 @test
 def test_percent_format_mapping_errors():
-    names = {unicode("name"): unicode("Codon")}
+    names = {unicode("name"): unicode("Typhon")}
 
     try:
         unicode("%(name)*s") % names
@@ -2539,8 +2539,8 @@ def test_percent_format_errors():
 
 @test
 def test_percent_format_mapping_literal_percent():
-    names = {unicode("name"): unicode("Codon")}
-    assert unicode("%% %(name)s") % names == unicode("% Codon")
+    names = {unicode("name"): unicode("Typhon")}
+    assert unicode("%% %(name)s") % names == unicode("% Typhon")
 
 
 @test
@@ -3738,8 +3738,8 @@ test_fstring_format_errors_propagate()
 # new-style format
 @test
 def test_brace_format_automatic_fields():
-    assert unicode("hello, {}").format(unicode("Codon")) == unicode(
-        "hello, Codon"
+    assert unicode("hello, {}").format(unicode("Typhon")) == unicode(
+        "hello, Typhon"
     )
     assert unicode("{} + {} = {}").format(1, 2, 3) == unicode("1 + 2 = 3")
     assert unicode("{{{}}}").format(unicode("x")) == unicode("{x}")
@@ -3791,8 +3791,8 @@ def test_brace_format_basic_specs():
     assert unicode("{:05d}").format(-12) == unicode("-0012")
     assert unicode("{:.2f}").format(1.25) == unicode("1.25")
     assert unicode("{:08.2f}").format(1.25) == unicode("00001.25")
-    assert unicode("{:s}").format(unicode("Codon")) == unicode("Codon")
-    assert unicode("{:.3s}").format(unicode("Codon")) == unicode("Cod")
+    assert unicode("{:s}").format(unicode("Typhon")) == unicode("Typhon")
+    assert unicode("{:.3s}").format(unicode("Typhon")) == unicode("Cod")
     assert unicode("{:05}").format(unicode("x")) == unicode("x0000")
     assert unicode("{:0>5}").format(unicode("x")) == unicode("0000x")
     assert unicode("{!r:05}").format(unicode("x")) == unicode("'x'00")
@@ -3905,10 +3905,10 @@ def test_brace_format_spec_grammar():
 
 @test
 def test_brace_format_alignment():
-    assert unicode("{:<8}").format(unicode("Codon")) == unicode("Codon   ")
-    assert unicode("{:>8}").format(unicode("Codon")) == unicode("   Codon")
-    assert unicode("{:^8}").format(unicode("Codon")) == unicode(" Codon  ")
-    assert unicode("{:*^8}").format(unicode("Codon")) == unicode("*Codon**")
+    assert unicode("{:<8}").format(unicode("Typhon")) == unicode("Typhon   ")
+    assert unicode("{:>8}").format(unicode("Typhon")) == unicode("   Typhon")
+    assert unicode("{:^8}").format(unicode("Typhon")) == unicode(" Typhon  ")
+    assert unicode("{:*^8}").format(unicode("Typhon")) == unicode("*Typhon**")
 
     assert unicode("{:>5d}").format(12) == unicode("   12")
     assert unicode("{:<5d}").format(12) == unicode("12   ")
@@ -4351,16 +4351,16 @@ def test_brace_format_custom_protocol():
 @test
 def test_brace_format_map():
     values: Dict[unicode, unicode] = {
-        unicode("name"): unicode("Codon"),
+        unicode("name"): unicode("Typhon"),
         unicode("greeting"): unicode("hi"),
         unicode("width"): unicode(">8"),
     }
-    assert unicode("{name}").format_map(values) == unicode("Codon")
+    assert unicode("{name}").format_map(values) == unicode("Typhon")
     assert unicode("{greeting:>8}|{name:.3}").format_map(values) == unicode(
         "      hi|Cod"
     )
-    assert unicode("{name:{width}}").format_map(values) == unicode("   Codon")
-    assert unicode("{{{name}}}").format_map(values) == unicode("{Codon}")
+    assert unicode("{name:{width}}").format_map(values) == unicode("   Typhon")
+    assert unicode("{{{name}}}").format_map(values) == unicode("{Typhon}")
 
     class Names:
         values: Dict[unicode, unicode]
@@ -4372,7 +4372,7 @@ def test_brace_format_map():
             return self.values[key]
 
     assert unicode("{greeting}, {name}").format_map(Names()) == unicode(
-        "hi, Codon"
+        "hi, Typhon"
     )
 
     class Token:
@@ -4423,7 +4423,7 @@ def test_brace_format_map():
         pass
 
     try:
-        unicode("{name}").format(unicode("Codon"))
+        unicode("{name}").format(unicode("Typhon"))
         assert False
     except ValueError:
         pass

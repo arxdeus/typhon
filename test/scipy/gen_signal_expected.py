@@ -1,6 +1,6 @@
 # Generates test/scipy/test_signal.py and test/scipy/test_fft.py expected
 # values from the real scipy (run with the reference CPython venv):
-#   /Users/mind/orca/projects/codon-test/.venv/bin/python test/scipy/gen_signal_expected.py
+#   /Users/mind/orca/projects/typhon-test/.venv/bin/python test/scipy/gen_signal_expected.py
 import numpy as np
 import scipy.signal as ss
 import scipy.fft as sf

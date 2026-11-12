@@ -1,6 +1,6 @@
 # Ported from torch 2.15.0 (BSD-3-Clause)
 #
-# torch.nn.utils.parametrize for Codon.
+# torch.nn.utils.parametrize for Typhon.
 #
 # register_parametrization(module, "weight", p) moves the parameter to
 # `module.parametrizations.weight.original` (state_dict key
@@ -53,7 +53,7 @@ def is_parametrized(module: Module, tensor_name: Optional[str] = None) -> bool:
 def register_parametrization(module: Module, tensor_name: str, parametrization, unsafe: bool = False):
     pm: Module = parametrization
     if tensor_name in module._ptz_names:
-        raise NotImplementedError("chaining several parametrizations on the same tensor is not supported in Codon")
+        raise NotImplementedError("chaining several parametrizations on the same tensor is not supported in Typhon")
     idx = _find_param(module, tensor_name)
     if idx < 0:
         raise ValueError(f"Module '{module._get_name()}' has no parameter or buffer with name '{tensor_name}'")

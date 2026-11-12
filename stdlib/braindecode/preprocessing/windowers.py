@@ -210,9 +210,9 @@ def create_windows_from_events(concat_ds: BaseConcatDataset[RawDataset],
                                verbose = "error", *, on_last_window: Optional[str] = None):
     """Create windows based on events (annotations) of each recording."""
     if not isinstance(picks, NoneType) or not isinstance(reject, NoneType) or not isinstance(flat, NoneType):
-        compile_error("Codon braindecode: picks/reject/flat need mne.Epochs (use_mne_epochs) and are not supported")
+        compile_error("Typhon braindecode: picks/reject/flat need mne.Epochs (use_mne_epochs) and are not supported")
     if use_mne_epochs is not None and use_mne_epochs:
-        raise NotImplementedError("use_mne_epochs=True is not supported in Codon braindecode")
+        raise NotImplementedError("use_mne_epochs=True is not supported in Typhon braindecode")
     olw = _resolve_on_last_window(drop_last_window, on_last_window, "overlap")
     drop = olw.__val__() == "drop"
     if on_overlapping_events not in ("raise", "warn", "ignore"):
@@ -289,7 +289,7 @@ def create_fixed_length_windows(concat_ds: BaseConcatDataset[RawDataset], start_
                                 verbose = "error", *, on_last_window: Optional[str] = None):
     """Create sliding windows over each continuous recording."""
     if not isinstance(picks, NoneType) or not isinstance(reject, NoneType) or not isinstance(flat, NoneType):
-        compile_error("Codon braindecode: picks/reject/flat need mne.Epochs (use_mne_epochs) and are not supported")
+        compile_error("Typhon braindecode: picks/reject/flat need mne.Epochs (use_mne_epochs) and are not supported")
     olw = _resolve_on_last_window(drop_last_window, on_last_window, None)
     stride = window_stride_samples
     if window_size_samples is not None and stride is None:

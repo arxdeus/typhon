@@ -195,7 +195,7 @@ def test_windows_filesystem():
     # Atomic mkdir claims a private directory. Bound retries; never delete a
     # pre-existing fixture, and never change the actual process temp settings.
     for index in range(100):
-        candidate = path.join(original, "build", "codon-win-test-" + str(os.getpid()) + "-" + str(index))
+        candidate = path.join(original, "build", "typhon-win-test-" + str(os.getpid()) + "-" + str(index))
         try:
             os.mkdir(candidate)
             root = candidate

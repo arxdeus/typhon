@@ -140,7 +140,7 @@ class _CSP[TI: Literal[str]]:
             self.reg_repr = "None"
         elif isinstance(reg, str):
             if reg not in ("empirical", "ledoit_wolf", "oas"):
-                raise ValueError(f"reg={reg!r} is not supported in Codon mne (use None, float, 'empirical', 'ledoit_wolf' or 'oas')")
+                raise ValueError(f"reg={reg!r} is not supported in Typhon mne (use None, float, 'empirical', 'ledoit_wolf' or 'oas')")
             self.reg_kind = reg
             self.reg_value = 0.0
             self.reg_repr = reg
@@ -151,7 +151,7 @@ class _CSP[TI: Literal[str]]:
             if not (0 <= self.reg_value <= 1):
                 raise ValueError(f"shrinkage must be between 0 and 1, got {self.reg_value}")
         if not isinstance(cov_method_params, NoneType):
-            raise ValueError("cov_method_params is not supported in Codon mne")
+            raise ValueError("cov_method_params is not supported in Typhon mne")
         self.log = log
         self.cov_est = cov_est
         self.transform_into = transform_into
@@ -194,7 +194,7 @@ class _CSP[TI: Literal[str]]:
             raise ValueError(f"Invalid value for the 'component_order' parameter. Allowed values are 'mutual_info' and 'alternate', but got '{self.component_order}' instead.")
         if self.restr_type is not None:
             if self.restr_type.__val__() != "restricting":
-                raise ValueError("restr_type='whitening' is not supported in Codon mne (use 'restricting' or None)")
+                raise ValueError("restr_type='whitening' is not supported in Typhon mne (use 'restricting' or None)")
         if self.n_components <= 0:
             raise ValueError("Invalid value for the 'n_components' parameter. Allowed are positive integers or None, but got a non-positive integer instead.")
         self.classes_ = np.unique(y)

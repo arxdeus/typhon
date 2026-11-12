@@ -68,7 +68,7 @@ def reference(source, mode):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--codon", default="./build/codon")
+    parser.add_argument("--typhon", default="./build/typhon")
     parser.add_argument("--cases", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=1729)
     parser.add_argument("--debug", action="store_true")
@@ -94,7 +94,7 @@ def main():
             sources.append(source[:offset] + source[offset + 1:])
     requests = [(source, mode) for source in sources for mode in range(4)]
     expected = [reference(source, mode) for source, mode in requests]
-    with tempfile.TemporaryDirectory(prefix="codon-json-differential-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="typhon-json-differential-") as temporary:
         source_path = Path(temporary) / "probe.py"
         executable = Path(temporary) / "probe"
         source_path.write_text(PROBE)
@@ -112,7 +112,7 @@ def main():
         if wanted != got:
             failures.append((request, wanted, got))
     for request, wanted, got in failures[:12]:
-        print(f"source={request!r}\nCPython={wanted!r}\nCodon={got!r}")
+        print(f"source={request!r}\nCPython={wanted!r}\nTyphon={got!r}")
     print(f"{len(requests)} comparisons, {len(failures)} failures (seed {args.seed})")
     assert not failures
 

@@ -223,7 +223,7 @@ class FastICA:
             K = np.ascontiguousarray((u / d).T[:k])
             X1 = (K @ XT) * np.sqrt(float(ns))
         if self.random_state is None:
-            raise ValueError("FastICA needs an integer random_state in Codon")
+            raise ValueError("FastICA needs an integer random_state in Typhon")
         w_init = _LegacyGauss(self.random_state.__val__()).normal(k, k)
         W = np.empty((0, 0))
         if self.algorithm == "parallel":

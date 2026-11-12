@@ -178,7 +178,7 @@ class RobustScaler:
         return self.fit(X, y).transform(X)
 
 class FunctionTransformer[F, G]:
-    """func / inverse_func are Codon callables (functions or lambdas)."""
+    """func / inverse_func are Typhon callables (functions or lambdas)."""
     func: F
     inverse_func: G
     validate: bool

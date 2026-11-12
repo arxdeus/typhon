@@ -597,7 +597,7 @@ print(C.apple)
 
 
 #%% class_var_override,barebones
-# python_pybridge_codon: exception subclasses need independent _pytype slots;
+# python_pybridge_typhon: exception subclasses need independent _pytype slots;
 # inherited class variables must still share storage and follow the C3 MRO.
 class Root:
     tag: ClassVar[int] = 1

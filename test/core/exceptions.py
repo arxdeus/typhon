@@ -888,7 +888,7 @@ def test_abrupt_break_continue():
 # EXPECT: 5
 test_abrupt_break_continue()
 
-# core_exceptions_codon: copying through an exception base must accept an
+# core_exceptions_typhon: copying through an exception base must accept an
 # override returning its concrete subclass and preserve that dynamic type.
 class CopyBaseError(Exception):
     def __copy__(self) -> CopyBaseError:

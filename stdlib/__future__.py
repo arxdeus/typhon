@@ -1,4 +1,4 @@
-# Feature flags from CPython's __future__ module. In Codon these are no-ops:
+# Feature flags from CPython's __future__ module. In Typhon these are no-ops:
 # every listed feature is already the default behavior.
 
 class _Feature:

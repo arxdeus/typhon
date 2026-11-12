@@ -15,7 +15,7 @@ if not unc:
 if not unc.startswith('\\\\') or not os.path.isdir(unc):
     raise RuntimeError('The full Windows suite requires an accessible UNC directory; '
                        'set TYPHON_OS_TEST_UNC_DIR to one.')
-with tempfile.TemporaryDirectory(prefix='codon-symlink-fixture-') as directory:
+with tempfile.TemporaryDirectory(prefix='typhon-symlink-fixture-') as directory:
     root = Path(directory)
     (root / 'target').mkdir()
     os.symlink('target', root / 'link', target_is_directory=True)

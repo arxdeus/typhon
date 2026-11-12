@@ -1,4 +1,4 @@
-# Pure Codon implementation of a subset of CPython's hashlib:
+# Pure Typhon implementation of a subset of CPython's hashlib:
 # md5, sha1, sha224, sha256, sha384, sha512.
 
 algorithms_guaranteed = {"md5", "sha1", "sha224", "sha256", "sha384", "sha512"}

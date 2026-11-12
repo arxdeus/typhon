@@ -69,7 +69,7 @@ class FBMSNet(EEGModuleMixin, nn.Module):
                                 input_window_seconds=input_window_seconds, sfreq=sfreq)
         nn.Module.__init__(self)
         if return_features:
-            raise NotImplementedError("FBMSNet(return_features=True) is not supported in Codon")
+            raise NotImplementedError("FBMSNet(return_features=True) is not supported in Typhon")
         self.n_filters_spat = n_filters_spat
         self.n_dim = n_dim
         self.stride_factor = stride_factor

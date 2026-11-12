@@ -104,7 +104,7 @@ def psd_array_welch(x, sfreq: float, fmin: float = 0, fmax: float = np.inf, n_ff
     average=None (average=False is treated as None like mne).
     """
     if output != "power":
-        compile_error("only output='power' is supported in Codon mne")
+        compile_error("only output='power' is supported in Typhon mne")
     xa = np.asarray(x)
     xf = xa.astype(float)
     nps: Optional[int] = None if n_per_seg is None else int(n_per_seg)

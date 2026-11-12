@@ -1,9 +1,9 @@
 """Reference values for test/pandas/*.py, generated with CPython pandas.
 
 Run: /path/to/venv/bin/python test/pandas/gen_expected.py
-Prints Codon literal assignments that are pasted into the .py tests.
+Prints Typhon literal assignments that are pasted into the .py tests.
 Inputs are deterministic (integer LCG plus exact IEEE operations), so the
-same data is rebuilt bit-for-bit inside the Codon tests.
+same data is rebuilt bit-for-bit inside the Typhon tests.
 """
 import io
 import hashlib

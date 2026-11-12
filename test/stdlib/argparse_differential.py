@@ -462,7 +462,7 @@ def requests(seed, count):
 
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
-    cli.add_argument("--codon", default="./build/codon")
+    cli.add_argument("--typhon", default="./build/typhon")
     cli.add_argument("--mode", choices=("debug", "release"), default="release")
     cli.add_argument("--seed", type=int, default=42)
     cli.add_argument("--cases", type=int, default=20)
@@ -477,7 +477,7 @@ def main():
     exec(DEFINITIONS, scope)
     pending = list(requests(args.seed, args.cases))
     for request in pending: request["color"] = args.color
-    with tempfile.TemporaryDirectory(prefix="codon-argparse-") as directory:
+    with tempfile.TemporaryDirectory(prefix="typhon-argparse-") as directory:
         source, binary = Path(directory) / "probe.py", Path(directory) / "probe"
         source.write_text(DEFINITIONS + CLI_PROBE + PROBE)
         subprocess.run([args.py, "build", "-" + args.mode, "-o", str(binary), str(source)], check=True, env=environment)
@@ -502,7 +502,7 @@ def main():
             expected_result = expected.returncode, expected.stdout, expected.stderr
             actual_result = actual.returncode, actual.stdout, actual.stderr
             if actual_result != expected_result:
-                raise AssertionError(f"CLI {case} {argv!r}\nCPython: {expected_result!r}\nCodon: {actual_result!r}")
+                raise AssertionError(f"CLI {case} {argv!r}\nCPython: {expected_result!r}\nTyphon: {actual_result!r}")
         terminal_checks = 0
         if os.name == "posix":
             import fcntl
@@ -534,7 +534,7 @@ def main():
                            check=True, env=environment)
             native = subprocess.check_output([str(benchmark_binary)], text=True, env=environment, timeout=60)
             python = subprocess.check_output([sys.executable, "-c", BENCHMARK], text=True, env=environment, timeout=60)
-            print(f"200 options + 1000 positionals: Codon {float(native) * 1000:.3f} ms; CPython {float(python) * 1000:.3f} ms")
+            print(f"200 options + 1000 positionals: Typhon {float(native) * 1000:.3f} ms; CPython {float(python) * 1000:.3f} ms")
     output = process.stdout.splitlines()
     if len(output) != len(pending):
         raise AssertionError(f"Expected {len(pending)} responses, got {len(output)}: {process.stderr[-2000:]}")
@@ -546,7 +546,7 @@ def main():
             if failures <= 20:
                 print(json.dumps(request))
                 print("CPython:", expected)
-                print("Codon:  ", actual)
+                print("Typhon:  ", actual)
     print(f"{len(pending)} comparisons; {failures} mismatches; {len(cli_checks)} CLI and {terminal_checks} terminal checks passed ({args.mode}, width={args.width})")
     raise SystemExit(bool(failures))
 

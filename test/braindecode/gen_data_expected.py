@@ -25,7 +25,7 @@ from braindecode.preprocessing import (  # noqa: E402
 
 
 def make_X(n_ep=40, n_ch=8, n_t=256):
-    # mirrors make_X in the codon tests (deterministic, no RNG)
+    # mirrors make_X in the typhon tests (deterministic, no RNG)
     X = np.zeros((n_ep, n_ch, n_t))
     y = np.arange(n_ep) % 2
     for e in range(n_ep):

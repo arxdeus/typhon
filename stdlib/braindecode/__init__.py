@@ -1,6 +1,6 @@
 # Ported from braindecode 2.0.0 (BSD-3-Clause)
 #
-# Native Codon implementation of braindecode. See docs/libraries/braindecode.md.
+# Native Typhon implementation of braindecode. See docs/libraries/braindecode.md.
 
 __version__: Literal[str] = "2.0.0"
 

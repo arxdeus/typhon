@@ -585,7 +585,7 @@ def _file_translate_read_newlines_inplace(
     if not newline_flags & _FILE_NEWLINE_TRANSLATE:
         return value
 
-    # Universal-newline translation only changes CR. Codon's str.find uses the
+    # Universal-newline translation only changes CR. Typhon's str.find uses the
     # optimized Unicode fast-search path, so the overwhelmingly common LF-only
     # case avoids the slower codepoint-by-codepoint rewrite completely.
     if value.find("\r") < 0:
@@ -986,7 +986,7 @@ def _file_restore_text_replay_state(state: _FileState, encoding: int):
 
 # Number of additional raw bytes needed to avoid cutting a decode chunk in the
 # middle of a code unit / UTF-8 sequence. This is the small bit of incremental
-# decoder state we need for the encodings implemented by Codon.
+# decoder state we need for the encodings implemented by Typhon.
 def _file_text_chunk_extra(state: _FileState, buffer: Ptr[u8], length: int, offset: int) -> int:
     encoding = state._encoding_kind
     payload = length - offset
@@ -1406,7 +1406,7 @@ def _file_decode_buffer(
         return str()
 
     # UTF-8 is overwhelmingly ASCII in many text workloads. Avoid the generic
-    # decoder entirely when every byte is ASCII: Codon's ASCII string layout is
+    # decoder entirely when every byte is ASCII: Typhon's ASCII string layout is
     # byte-for-byte identical to the input payload.
     if state._encoding_kind == _ENCODING_UTF8:
         if _file_is_ascii(buffer + offset, payload):
@@ -1435,7 +1435,7 @@ def _file_decode_owned_buffer(
         buffer.clear()
         return str()
 
-    # For ASCII UTF-8 the raw bytes are already exactly Codon's in-memory
+    # For ASCII UTF-8 the raw bytes are already exactly Typhon's in-memory
     # Unicode representation. Transfer ownership of the read allocation to the
     # str instead of allocating and copying the payload a second time.
     if state._encoding_kind == _ENCODING_UTF8 and offset == 0:

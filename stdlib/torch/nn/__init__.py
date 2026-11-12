@@ -1,6 +1,6 @@
 # Ported from torch 2.15.0 (BSD-3-Clause)
 #
-# torch.nn for Codon.
+# torch.nn for Typhon.
 
 from .modules import *
 from .modules.module import Module

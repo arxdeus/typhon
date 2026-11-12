@@ -1,6 +1,6 @@
 # Ported from braindecode 2.0.0 (BSD-3-Clause)
 #
-# chs_info entries are Dict[str, str] in Codon: the 3-D electrode position is
+# chs_info entries are Dict[str, str] in Typhon: the 3-D electrode position is
 # read from "loc" given as whitespace separated floats (first 3 used, like
 # MNE's 12-element loc). Standard-montage lookup by channel name is not
 # available; channels without a usable "loc" raise ValueError.

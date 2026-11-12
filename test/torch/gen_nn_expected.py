@@ -12,7 +12,7 @@ def sec(name):
 
 # deterministic input
 def X(shape, seed=1, dtype=torch.float32):
-    # X = 2*sin(0.37*k + seed) (k = flat index), identical formula in the Codon tests
+    # X = 2*sin(0.37*k + seed) (k = flat index), identical formula in the Typhon tests
     n = math.prod(shape)
     return (torch.sin(torch.arange(n, dtype=torch.float64) * 0.37 + seed) * 2.0).reshape(shape).to(dtype)
 

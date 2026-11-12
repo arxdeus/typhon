@@ -10,8 +10,8 @@ import gen_models_expected as G
 import torch
 import braindecode.models as M
 
-G.CODON_HEADER = G.CODON_HEADER.replace("gen_models_expected.py", "gen_models_b_expected.py")
-_WEIGHTED_CODON = '''
+G.TYPHON_HEADER = G.TYPHON_HEADER.replace("gen_models_expected.py", "gen_models_b_expected.py")
+_WEIGHTED_TYPHON = '''
 import torch.nn as nn
 
 class _Weighted(nn.Module):
@@ -60,7 +60,7 @@ _OMNI_SMALL_C = ("emb_dim=16, n_neuro=4, window_length=64, n_filters=4, ratios=[
 class _Weighted(torch.nn.Module):
     # The standardized reconstruction makes (y*y + y).sum() constant (zero
     # gradient), so the test scales it by a fixed non-uniform weight. Same
-    # wrapper (child "m") on the Codon side, see CODON_HEADER below.
+    # wrapper (child "m") on the Typhon side, see TYPHON_HEADER below.
     def __init__(self, m):
         super().__init__()
         self.m = m
@@ -85,7 +85,7 @@ _DANCE_SMALL_C = ("n_queries=5, n_virtual_channels=8, fourier_emb_dim=32, embed_
                   "latent_dim_head=8, decoder_dim=16, decoder_depth=1")
 
 # Default-size configurations: structure only (param count + state_dict keys/shapes),
-# name -> (python ctor, codon ctor)
+# name -> (python ctor, typhon ctor)
 DEFAULT_CASES = {
     "DANCE": (lambda: M.DANCE(chs_info=_DANCE_CHS, n_outputs=3, n_times=500),
               "M.DANCE(n_chans=19, n_outputs=3, n_times=500, channel_positions=" + _DANCE_POS_C(19) + ")"),
@@ -116,7 +116,7 @@ test_{n}_default_structure()
     with open(path, "a") as f:
         f.write("\n".join(out))
 
-# name -> (python ctor, input shape, codon ctor)
+# name -> (python ctor, input shape, typhon ctor)
 CASES_B = {
     "BIOT": (lambda: M.BIOT(n_chans=4, n_outputs=3, n_times=400, sfreq=200, embed_dim=32, num_heads=4, num_layers=2),
              (2, 4, 400), "M.BIOT(n_chans=4, n_outputs=3, n_times=400, sfreq=200.0, embed_dim=32, num_heads=4, num_layers=2)"),
@@ -317,7 +317,7 @@ def _fix_inf(path):
 if __name__ == "__main__":
     if len(sys.argv) > 2 and sys.argv[1] == "--emit":
         if "NeuroRVQTokenizer" in sys.argv[3:]:
-            G.CODON_HEADER += _WEIGHTED_CODON
+            G.TYPHON_HEADER += _WEIGHTED_TYPHON
         G.emit(sys.argv[2], sys.argv[3:] or list(G.CASES))
         _fix_inf(sys.argv[2])
         dn = [n for n in sys.argv[3:] if n in DEFAULT_CASES]

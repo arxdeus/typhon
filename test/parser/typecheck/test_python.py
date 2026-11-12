@@ -67,9 +67,9 @@ def foofn() -> Dict[pyobj, pyobj]:
 foo = foofn()
 print(sorted(foo.items(), key=lambda x: str(x)), foo.__class__.__name__)
 #: [('int', 1), ('str', 'hai')] OrderedDict[pyobj,pyobj]
-foo["codon"] = 5.15
-print(sorted(foo.items(), key=lambda x: str(x)), foo["codon"].__class__.__name__, foo.__class__.__name__)
-#: [('codon', 5.15), ('int', 1), ('str', 'hai')] pyobj OrderedDict[pyobj,pyobj]
+foo["typhon"] = 5.15
+print(sorted(foo.items(), key=lambda x: str(x)), foo["typhon"].__class__.__name__, foo.__class__.__name__)
+#: [('typhon', 5.15), ('int', 1), ('str', 'hai')] pyobj OrderedDict[pyobj,pyobj]
 
 a = {1: "s", 2: "t"}
 a[3] = foo["str"]
@@ -135,7 +135,7 @@ except PyError as e:
     print 'PyError', e
 
 #%% python_directive
-## codon: auto_python=1
+## typhon: auto_python=1
 import _operator
 result = _operator.add(6, 7)
 print(result.__class__.__name__, result)  #: pyobj 13

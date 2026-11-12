@@ -1,6 +1,6 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
-# Estimator protocol. Codon is statically typed, so estimators are plain
+# Estimator protocol. Typhon is statically typed, so estimators are plain
 # classes used through generics (duck typing at compile time):
 #   fit(X, y) -> self, predict(X), transform(X), fit_transform(X, y), score(X, y)
 # clone() and set_params() work on ANY class through static field

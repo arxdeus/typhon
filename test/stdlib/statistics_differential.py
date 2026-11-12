@@ -305,18 +305,18 @@ def matches(expected, actual, probability=False, exact=False):
     )
 
 
-def build(codon, directory, name, source, debug=False):
+def build(typhon, directory, name, source, debug=False):
     source_path = directory / (name + ".py")
     executable = directory / name
     source_path.write_text(source)
-    subprocess.run([codon, "build", "-debug" if debug else "-release",
+    subprocess.run([typhon, "build", "-debug" if debug else "-release",
                     "-o", str(executable), str(source_path)], check=True)
     return executable
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--codon", default="./build/codon")
+    parser.add_argument("--typhon", default="./build/typhon")
     parser.add_argument("--cases", type=int, default=100)
     parser.add_argument("--seed", type=int, default=1729)
     parser.add_argument("--debug", action="store_true")
@@ -327,7 +327,7 @@ def main():
         parser.error("CPython 3.14 or newer is required")
     records = list(requests(args.seed, args.cases))
     expected = [reference(record) for record in records]
-    with tempfile.TemporaryDirectory(prefix="codon-statistics-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="typhon-statistics-") as temporary:
         directory = Path(temporary)
         executable = build(args.py, directory, "probe", PROBE, args.debug)
         try:
@@ -343,7 +343,7 @@ def main():
                     if not matches(wanted, got, record["op"] == "kde_cdf", uses_exact_reference(record))]
         for record, wanted, got in failures[:20]:
             oracle = "Exact" if uses_exact_reference(record) else "CPython"
-            print(f"{record}\n{oracle}={wanted}\nCodon={got}", flush=True)
+            print(f"{record}\n{oracle}={wanted}\nTyphon={got}", flush=True)
         exact_count = sum(uses_exact_reference(record) for record in records)
         print(f"{len(records)} comparisons ({exact_count} exact-reference), {len(failures)} failures "
               f"(seed {args.seed})", flush=True)
@@ -352,14 +352,14 @@ def main():
             source_path.write_text(BENCHMARK + NUMERICAL_BENCHMARK)
             print("CPython: name, size, seconds/call, checksum", flush=True)
             subprocess.run([sys.executable, str(source_path)], check=True)
-            print("Codon: name, size, seconds/call, checksum", flush=True)
+            print("Typhon: name, size, seconds/call, checksum", flush=True)
             executable = build(args.py, directory, "benchmark", BENCHMARK + NUMERICAL_BENCHMARK)
             subprocess.run([str(executable)], check=True)
             if args.baseline_ref:
                 source = subprocess.check_output(
                     ["git", "show", f"{args.baseline_ref}:stdlib/statistics.py"], text=True)
                 (directory / "previous.py").write_text(source)
-                print(f"Codon baseline ({args.baseline_ref})", flush=True)
+                print(f"Typhon baseline ({args.baseline_ref})", flush=True)
                 executable = build(args.py, directory, "baseline",
                                    BENCHMARK.replace("import statistics as s", "import previous as s"))
                 subprocess.run([str(executable)], check=True)

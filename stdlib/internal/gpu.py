@@ -136,7 +136,7 @@ def nvptx_load_module():
     from C import __typhon_ptx__() -> cobj
     module = CUmodule()
     # NOTE: 2nd argument to cuModuleLoadData() will
-    #       be replaced by Codon's GPU pass
+    #       be replaced by Typhon's GPU pass
     ptx = __typhon_ptx__()
     if ptx:
         cuda_check(cuModuleLoadData(__ptr__(module), ptx))

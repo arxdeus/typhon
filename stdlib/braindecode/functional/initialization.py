@@ -32,7 +32,7 @@ def _weight_leaf(module, init_parametrized_original: bool) -> Optional[Tensor]:
 
 def init_weights_trunc_normal_(module, linear_kinds: List[str], conv_kinds: List[str], std_linear: float,
                                std_conv: float, norm_kinds: List[str], init_parametrized_original: bool = False):
-    # Codon form of braindecode.functional.init_weights_ with trunc_normal_
+    # Typhon form of braindecode.functional.init_weights_ with trunc_normal_
     # rules, keyed by module class name (_get_name) instead of isinstance.
     n = module._get_name()
     std = -1.0

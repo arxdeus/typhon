@@ -11,11 +11,11 @@ uint64 = UInt[64]
 
 intp = int64
 uintp = uint64
-# float16 already present in Codon
-# float32 already present in Codon
+# float16 already present in Typhon
+# float32 already present in Typhon
 float64 = float
-# float128 already present in Codon
-# complex64 already present in Codon
+# float128 already present in Typhon
+# complex64 already present in Typhon
 complex128 = complex
 
 bool_ = bool

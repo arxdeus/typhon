@@ -1,7 +1,7 @@
 """Compare native path resolution and access modes with the host CPython.
 
 Legacy CPython stops resolving after a symlink loop, unlike modern CPython and
-Codon. Exclude those incomplete oracle results; os_test.py covers post-loop
+Typhon. Exclude those incomplete oracle results; os_test.py covers post-loop
 resolution independently, and modern CPython checks the entire generated corpus.
 """
 
@@ -113,7 +113,7 @@ def compare(binary, operation, values, expected, extra=()):
     if len(actual) != len(expected):
         raise AssertionError(f"{operation}: expected {len(expected)} rows, got {len(actual)}")
     failures = [
-        f"{value!r}: CPython={wanted!r}, Codon={got!r}"
+        f"{value!r}: CPython={wanted!r}, Typhon={got!r}"
         for value, wanted, got in zip(values, expected, actual)
         if wanted != got
     ]
@@ -124,13 +124,13 @@ def compare(binary, operation, values, expected, extra=()):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--codon", type=Path, default=Path("build/codon"))
+    parser.add_argument("--typhon", type=Path, default=Path("build/typhon"))
     parser.add_argument("--seed", type=int, default=1729)
     parser.add_argument("--graphs", type=int, default=12)
     args = parser.parse_args()
     # relpath cannot cross Windows drives (CI checks out on D: but TEMP is on C:).
     # Keep the corpus on the working-directory drive so all relative cases run.
-    with tempfile.TemporaryDirectory(prefix="codon-os-differential-", dir=Path.cwd()) as temporary:
+    with tempfile.TemporaryDirectory(prefix="typhon-os-differential-", dir=Path.cwd()) as temporary:
         root = Path(temporary)
         source = root / "probe.py"
         binary = root / ("probe.exe" if os.name == "nt" else "probe")

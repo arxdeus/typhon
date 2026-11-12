@@ -1,5 +1,5 @@
 # Generates the expected literals for test/sklearn/*.py (scikit-learn 1.9.1).
-#   /Users/mind/orca/projects/codon-test/.venv/bin/python test/sklearn/gen_expected.py
+#   /Users/mind/orca/projects/typhon-test/.venv/bin/python test/sklearn/gen_expected.py
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis

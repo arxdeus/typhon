@@ -1,6 +1,6 @@
 # Ported from braindecode 2.0.0 (BSD-3-Clause)
 #
-# RawDataset, EEGWindowsDataset and BaseConcatDataset. Codon is statically
+# RawDataset, EEGWindowsDataset and BaseConcatDataset. Typhon is statically
 # typed, so:
 # - a description is an ordered list of (key, pandas Scalar) pairs, exposed as
 #   a pandas Series (`ds.description`) like braindecode;
@@ -154,7 +154,7 @@ class EEGWindowsDataset:
         if targets_from not in ("metadata", "channels"):
             raise ValueError("Wrong value for parameter `targets_from`.")
         if targets_from == "channels":
-            raise NotImplementedError("targets_from='channels' is not supported in Codon braindecode")
+            raise NotImplementedError("targets_from='channels' is not supported in Typhon braindecode")
         self.targets_from = targets_from
         self.last_target_only = last_target_only
         self.crop_inds = metadata.loc[:, ["i_window_in_trial", "i_start_in_trial", "i_stop_in_trial"]].to_numpy(dtype=int)

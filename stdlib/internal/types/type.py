@@ -151,7 +151,7 @@ class __cast__:
 
     # Function[[T...], R]
         # ExternFunction[[T...], R]
-        # CodonFunction[[T...], R]
+        # TyphonFunction[[T...], R]
         # Partial[foo, [T...], R]
 
     # function into partial (if not Function) / fn(foo) -> fn(foo(...))

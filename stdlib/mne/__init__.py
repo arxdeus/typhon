@@ -1,6 +1,6 @@
 # Ported from mne 1.13.2 (BSD-3-Clause)
 #
-# Native Codon implementation of an MNE-Python subset: Info, EpochsArray,
+# Native Typhon implementation of an MNE-Python subset: Info, EpochsArray,
 # RawArray, Evoked, FIR filtering, Welch PSD and decoding.CSP.
 
 __version__: Literal[str] = "1.13.2"
@@ -16,7 +16,7 @@ import decoding
 
 
 def set_log_level(verbose = None, return_old_level: bool = False, add_frames = None):
-    """No-op in Codon (logging is not implemented)."""
+    """No-op in Typhon (logging is not implemented)."""
     return None
 
 

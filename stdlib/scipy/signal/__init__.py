@@ -1,6 +1,6 @@
 # Ported from scipy 1.18.1 (BSD-3-Clause)
 #
-# Native Codon implementation of a scipy.signal subset.
+# Native Typhon implementation of a scipy.signal subset.
 
 from windows import get_window
 import windows

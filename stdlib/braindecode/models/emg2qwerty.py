@@ -1,6 +1,6 @@
 # Ported from braindecode 2.0.0 (BSD-3-Clause)
 #
-# EMG2QwertyNet. Codon notes: the torchaudio log-spectrogram (periodic Hann,
+# EMG2QwertyNet. Typhon notes: the torchaudio log-spectrogram (periodic Hann,
 # center=False, normalized="window", power=2) is computed with an explicit
 # float64 DFT; spec_augment=True, return_feature=True and
 # forward(return_features=True) are not supported.
@@ -248,9 +248,9 @@ class EMG2QwertyNet(EEGModuleMixin, nn.Module):
                                 input_window_seconds=input_window_seconds, sfreq=sf)
         nn.Module.__init__(self)
         if spec_augment:
-            raise NotImplementedError("EMG2QwertyNet: spec_augment=True is not supported in Codon")
+            raise NotImplementedError("EMG2QwertyNet: spec_augment=True is not supported in Typhon")
         if return_feature:
-            raise NotImplementedError("EMG2QwertyNet: return_feature=True is not supported in Codon")
+            raise NotImplementedError("EMG2QwertyNet: return_feature=True is not supported in Typhon")
         if num_bands < 1 or electrodes_per_band < 1:
             raise ValueError("num_bands and electrodes_per_band must be >= 1.")
         if self.n_chans != num_bands * electrodes_per_band:

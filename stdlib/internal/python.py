@@ -416,7 +416,7 @@ def init_handles_dlopen(py_handle: cobj):
     PyEval_GetGlobals = dlsym(py_handle, "PyEval_GetGlobals")
     PyEval_GetBuiltins = dlsym(py_handle, "PyEval_GetBuiltins")
     PyOS_setsig = dlsym(py_handle, "PyOS_setsig")
-    # Codon int is 64 bits; C long is only 32 bits on Windows (LLP64).
+    # Typhon int is 64 bits; C long is only 32 bits on Windows (LLP64).
     PyLong_AsLong = dlsym(py_handle, "PyLong_AsLongLong")
     PyLong_FromLong = dlsym(py_handle, "PyLong_FromLongLong")
     PyFloat_AsDouble = dlsym(py_handle, "PyFloat_AsDouble")
