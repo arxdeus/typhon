@@ -13,7 +13,7 @@ from ._common import OptimizeResult, Bounds, INF, _approx_jac, _vec, \
     _opt_float, _opt_int, _has_opt
 from ._constraints import LinearConstraint, NonlinearConstraint
 from ._hessian_update_strategy import HessianUpdateStrategy, BFGS
-from ._differentiable import _ScalarFunctionH, _HESS_HUS, _HESS_CALLABLE, \
+from ._differentiable import _ScalarFunctionH, _HessPOp, _HESS_HUS, _HESS_CALLABLE, \
     _HESS_FD, _HESS_NONE
 from ._cons import _u1, _u2, _ustr, _is_seq_of_cons
 from ._callback import _cb_halt_r

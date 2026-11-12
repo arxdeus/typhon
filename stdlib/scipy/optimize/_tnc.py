@@ -6,7 +6,7 @@ import math
 import numpy as np
 from ._common import OptimizeResult, _opt_float, _opt_int, _has_opt, INF
 from ._common import _ScalarFunction
-from ._callback import _STOP_MSG
+from ._callback import _STOP_MSG, _cb_halt
 
 _DBL_EPSILON = 2.220446049250313e-16
 _HUGE = INF
@@ -845,9 +845,7 @@ class _TNC[F]:
                 for i in range(n):
                     temp[i] = x[i]
                 _unscalex(n, temp, xs, xo)
-                try:
-                    callback(temp.copy())
-                except StopIteration:
+                if _cb_halt(callback, temp, f / fscale):
                     stopped = True
                     rc = TNC_USERABORT
                     break
