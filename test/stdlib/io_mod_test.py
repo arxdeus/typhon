@@ -34,7 +34,7 @@ def test_stringio():
         u.read()
         assert False
     except ValueError as e:
-        assert str(e) == "I/O operation on closed file."
+        assert str(e) == "I/O operation on closed file"
 test_stringio()
 
 

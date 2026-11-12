@@ -20,7 +20,7 @@ class StringIO:
 
     def _check(self):
         if self._closed:
-            raise ValueError("I/O operation on closed file.")
+            raise ValueError("I/O operation on closed file")
 
     @property
     def closed(self) -> bool:
@@ -156,7 +156,7 @@ class BytesIO:
 
     def _check(self):
         if self._closed:
-            raise ValueError("I/O operation on closed file.")
+            raise ValueError("I/O operation on closed file")
 
     def _slice(self, a: int, b: int) -> bytes:
         n = b - a
