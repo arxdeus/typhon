@@ -23,6 +23,7 @@ from ._slsqp_core import _minimize_slsqp
 from ._tnc import _minimize_tnc
 from ._lsq_linear import lsq_linear, nnls
 from ._trustconstr import _minimize_trustregion_constr
+from ._cobyla import _minimize_cobyla
 from ._hessian_update_strategy import HessianUpdateStrategy, BFGS, SR1
 from ._trustregion import _minimize_trust_region, _minimize_newtoncg, \
                           _TR_NCG, _TR_DOGLEG, _TR_EXACT, _TR_KRYLOV
@@ -192,6 +193,8 @@ def minimize(fun, x0, args = (), method: Optional[str] = None, jac = None,
     elif meth == 'trust-constr':
         return _minimize_trustregion_constr(fun, x, args, jac, hess, hessp, bnds,
                                             constraints, callback, opts)
+    elif meth == 'cobyla':
+        return _minimize_cobyla(fun, x, args, constraints, bnds, callback, opts)
     elif meth == 'tnc':
         return _minimize_tnc(fun, x, args, jac, bnds, callback, opts)
     elif meth == 'slsqp':
