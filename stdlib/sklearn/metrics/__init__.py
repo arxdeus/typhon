@@ -128,3 +128,9 @@ def roc_auc_score(y_true, y_score, *, average: str = "macro", sample_weight = No
             tot += w * _binary_auc(yi, np.ascontiguousarray(sc[:, i]))
             wsum += w
         return tot / wsum
+
+from .cluster import (contingency_matrix, pair_confusion_matrix, rand_score, adjusted_rand_score,
+                      mutual_info_score, adjusted_mutual_info_score, normalized_mutual_info_score,
+                      homogeneity_completeness_v_measure, homogeneity_score, completeness_score,
+                      v_measure_score, fowlkes_mallows_score, silhouette_samples, silhouette_score,
+                      calinski_harabasz_score, davies_bouldin_score)
