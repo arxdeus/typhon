@@ -139,10 +139,6 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
                 let v = take(val);
                 o.disabled.push(v)
             }
-            "plugin" => {
-                let v = take(val);
-                o.plugins.push(v)
-            }
             "log" => o.log = take(val),
             "numerics" => match take(val).as_str() {
                 "c" => o.pynum = false,
@@ -191,7 +187,7 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
                 std::process::exit(0);
             }
             "version" => {
-                println!("{}", typhon_common::config::CODON_VERSION);
+                println!("{}", typhon_common::config::VERSION);
                 std::process::exit(0);
             }
             _ => usage_error(&format!("Unknown command line argument '{arg}'.  Try: 'typhon --help'")),
@@ -221,7 +217,7 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
 pub fn print_help(build: bool) {
     println!("USAGE: typhon {} [options] <input file>{}", if build { "build" } else { "run" }, if build { "" } else { " <program arguments>..." });
     println!(
-        "\nOPTIONS:\n  -debug / -release        optimization mode (default: debug)\n  -numerics=c|py           numerical semantics (default: py)\n  -D<name>=<value>         static definitions\n  -disable-opt=<pass>      disable an IR pass\n  -plugin=<dir>            load a plugin\n  -log=<streams>           enable log streams\n  -fast-math, -disable-exceptions, -disable-native, -unordered-dict, -auto-python\n  -march/-mcpu/-mattr      target selection\n  -libdevice/-gpu-name/-gpu-features/-ptx  GPU options\n  -l<lib>                  load/link library"
+        "\nOPTIONS:\n  -debug / -release        optimization mode (default: debug)\n  -numerics=c|py           numerical semantics (default: py)\n  -D<name>=<value>         static definitions\n  -disable-opt=<pass>      disable an IR pass\n  -log=<streams>           enable log streams\n  -fast-math, -disable-exceptions, -disable-native, -unordered-dict, -auto-python\n  -march/-mcpu/-mattr      target selection\n  -libdevice/-gpu-name/-gpu-features/-ptx  GPU options\n  -l<lib>                  load/link library"
     );
     if build {
         println!("  -llvm|-bc|-obj|-asm|-exe|-lib|-pyext|-cir   output kind\n  -o <file>                output file\n  -linker-flags=<flags>    pass flags to the linker\n  -pie                     position-independent executable\n  -module=<name>           Python extension module name");

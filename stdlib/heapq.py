@@ -1,0 +1,369 @@
+
+from internal.ops import _is_primitive_comparison
+
+def _siftdown(heap: List[T], startpos: int, pos: int, T: type,
+              maxheap: Literal[bool] = False):
+    size = len(heap)
+    if startpos < 0 or pos < startpos or pos >= size:
+        raise IndexError("index out of range")
+    data = heap._ptr
+    while pos > startpos:
+        parentpos = (pos - 1) >> 1
+        newitem = data[pos]
+        parent = data[parentpos]
+        if maxheap:
+            less = bool(parent < newitem)
+        else:
+            less = bool(newitem < parent)
+        if not _is_primitive_comparison(T):
+            if len(heap) != size:
+                raise RuntimeError("list changed size during iteration")
+            data = heap._ptr
+        if not less:
+            break
+        data[pos], data[parentpos] = data[parentpos], data[pos]
+        pos = parentpos
+
+def _siftup(heap: List[T], pos: int, T: type, maxheap: Literal[bool] = False):
+    endpos = len(heap)
+    if pos < 0 or pos >= endpos:
+        raise IndexError("index out of range")
+    startpos = pos
+    data = heap._ptr
+    while pos < endpos >> 1:
+        childpos = 2 * pos + 1
+        rightpos = childpos + 1
+        if rightpos < endpos:
+            if maxheap:
+                less = bool(data[rightpos] < data[childpos])
+            else:
+                less = bool(data[childpos] < data[rightpos])
+            if not _is_primitive_comparison(T):
+                if len(heap) != endpos:
+                    raise RuntimeError("list changed size during iteration")
+                data = heap._ptr
+            if not less:
+                childpos = rightpos
+        data[pos], data[childpos] = data[childpos], data[pos]
+        pos = childpos
+    _siftdown(heap, startpos, pos, maxheap=maxheap)
+
+def _siftdown_max(heap: List[T], startpos: int, pos: int, T: type):
+    _siftdown(heap, startpos, pos, maxheap=True)
+
+def _siftup_max(heap: List[T], pos: int, T: type):
+    _siftup(heap, pos, maxheap=True)
+
+def heappush(heap: List[T], item: T, /, T: type):
+    heap.append(item)
+    _siftdown(heap, 0, len(heap) - 1)
+
+def heappop(heap: List[T], /, T: type) -> T:
+    if not heap:
+        raise IndexError("index out of range")
+    lastelt = heap.pop()
+    if heap:
+        returnitem = heap._get(0)
+        heap._set(0, lastelt)
+        _siftup(heap, 0)
+        return returnitem
+    return lastelt
+
+def heapreplace(heap: List[T], item: T, /, T: type) -> T:
+    if not heap:
+        raise IndexError("index out of range")
+    returnitem = heap._get(0)
+    heap._set(0, item)
+    _siftup(heap, 0)
+    return returnitem
+
+def heappushpop(heap: List[T], item: T, /, T: type) -> T:
+    if heap and heap._get(0) < item:
+        if not _is_primitive_comparison(T) and not heap:
+            raise IndexError("index out of range")
+        item, heap._ptr[0] = heap._get(0), item
+        _siftup(heap, 0)
+    return item
+
+def heapify(heap: List[T], /, T: type):
+    n = len(heap)
+    # Transform bottom-up.  The largest index there's any point to looking at
+    # is the largest with a child index in-range, so must have 2*i + 1 < n,
+    # or i < (n-1)/2.  If n is even = 2*j, this is (2*j-1)/2 = j-1/2 so
+    # j-1 is the largest, which is n//2 - 1.  If n is odd = 2*j+1, this is
+    # (2*j+1-1)/2 = j so j-1 is the largest, and that's again n//2-1.
+    for pos in reversed(range(n.cdiv(2))):
+        _siftup(heap, pos)
+
+def heappush_max(heap: List[T], item: T, /, T: type):
+    heap.append(item)
+    _siftdown_max(heap, 0, len(heap) - 1)
+
+def heappop_max(heap: List[T], /, T: type) -> T:
+    if not heap:
+        raise IndexError("index out of range")
+    lastelt = heap.pop()
+    if heap:
+        returnitem = heap._get(0)
+        heap._set(0, lastelt)
+        _siftup_max(heap, 0)
+        return returnitem
+    return lastelt
+
+def heapreplace_max(heap: List[T], item: T, /, T: type) -> T:
+    if not heap:
+        raise IndexError("index out of range")
+    returnitem = heap._get(0)
+    heap._set(0, item)
+    _siftup_max(heap, 0)
+    return returnitem
+
+def heapify_max(heap: List[T], /, T: type):
+    for pos in reversed(range(len(heap).cdiv(2))):
+        _siftup_max(heap, pos)
+
+def heappushpop_max(heap: List[T], item: T, /, T: type) -> T:
+    if heap and item < heap._get(0):
+        if not _is_primitive_comparison(T) and not heap:
+            raise IndexError("index out of range")
+        item, heap._ptr[0] = heap._get(0), item
+        _siftup_max(heap, 0)
+    return item
+
+def _heappop_max(heap: List[T], T: type) -> T:
+    return heappop_max(heap)
+
+def _heapreplace_max(heap: List[T], item: T, T: type) -> T:
+    return heapreplace_max(heap, item)
+
+def _heapify_max(x: List[T], T: type):
+    heapify_max(x)
+
+_heappush_max = heappush_max
+_heappushpop_max = heappushpop_max
+
+def nsmallest(n: int, iterable, key=None):
+    if n <= 0:
+        return []
+    if n == 1:
+        it = iter(iterable)
+        if not it._advance():
+            it._destroy()
+            return []
+        best = it._get()
+        if key is None:
+            for elem in it:
+                if elem < best:
+                    best = elem
+        else:
+            best_key = key(best)
+            for elem in it:
+                candidate_key = key(elem)
+                if candidate_key < best_key:
+                    best, best_key = elem, candidate_key
+        return [best]
+
+    if hasattr(iterable, '__len__'):
+        if n >= len(iterable):
+            return sorted(iterable, key=key)
+
+    # When key is none, use simpler decoration
+    if key is None:
+        it = iter(iterable)
+        # put the range(n) first so that zip() doesn't
+        # consume one too many elements from the iterator
+        result = List(n)
+        done = False
+        for i in range(n):
+            if not it._advance():
+                done = True
+                break
+            result.append((it._get(), i))
+        if not result:
+            it._destroy()
+            return []
+        _heapify_max(result)
+        top = result[0][0]
+        order = n
+        if not done:
+            for elem in it:
+                if elem < top:
+                    _heapreplace_max(result, (elem, order))
+                    top, _order = result[0]
+                    order += 1
+        else:
+            it._destroy()
+        result.sort()
+        return [elem for elem, order in result]
+    else:
+        # General case, slowest method
+        it = iter(iterable)
+        result = List(n)
+        done = False
+        for i in range(n):
+            if not it._advance():
+                done = True
+                break
+            elem = it._get()
+            result.append((key(elem), i, elem))
+        if not result:
+            it._destroy()
+            return []
+        _heapify_max(result)
+        top = result[0][0]
+        order = n
+        if not done:
+            for elem in it:
+                k = key(elem)
+                if k < top:
+                    _heapreplace_max(result, (k, order, elem))
+                    top, _order, _elem = result[0]
+                    order += 1
+        else:
+            it._destroy()
+        result.sort()
+        return [elem for k, order, elem in result]
+
+def nlargest(n: int, iterable, key=None):
+    if n <= 0:
+        return []
+    if n == 1:
+        it = iter(iterable)
+        if not it._advance():
+            it._destroy()
+            return []
+        best = it._get()
+        if key is None:
+            for elem in it:
+                if elem > best:
+                    best = elem
+        else:
+            best_key = key(best)
+            for elem in it:
+                candidate_key = key(elem)
+                if candidate_key > best_key:
+                    best, best_key = elem, candidate_key
+        return [best]
+
+    if hasattr(iterable, '__len__'):
+        if n >= len(iterable):
+            return sorted(iterable, key=key, reverse=True)
+
+    # When key is none, use simpler decoration
+    if key is None:
+        it = iter(iterable)
+        result = List(n)
+        done = False
+        for i in range(0, -n, -1):
+            if not it._advance():
+                done = True
+                break
+            result.append((it._get(), i))
+        if not result:
+            it._destroy()
+            return []
+        heapify(result)
+        top = result[0][0]
+        order = -n
+        if not done:
+            for elem in it:
+                if top < elem:
+                    heapreplace(result, (elem, order))
+                    top, _order = result[0]
+                    order -= 1
+        else:
+            it._destroy()
+        result.sort()
+        return [elem for elem, order in reversed(result)]
+    else:
+        # General case, slowest method
+        it = iter(iterable)
+        result = List(n)
+        done = False
+        for i in range(0, -n, -1):
+            if not it._advance():
+                done = True
+                break
+            elem = it._get()
+            result.append((key(elem), i, elem))
+        if not result:
+            it._destroy()
+            return []
+        heapify(result)
+        top = result[0][0]
+        order = -n
+        if not done:
+            for elem in it:
+                k = key(elem)
+                if top < k:
+                    heapreplace(result, (k, order, elem))
+                    top, _order, _elem = result[0]
+                    order -= 1
+        else:
+            it._destroy()
+        result.sort()
+        return [elem for k, order, elem in reversed(result)]
+
+@tuple
+class _MergeItem:
+    value: T
+    order: int
+    gen: Generator[T]
+    key: S
+    T: type
+    S: type
+
+    def __lt__(self, other):
+        return (self.key, self.order) < (other.key, other.order)
+
+def merge(*iterables, key=None, reverse: bool = False):
+    if static.len(iterables) == 0:
+        yield from List[int]()
+    else:
+        generators = tuple(iter(iterable) for iterable in iterables)
+        yield from _merge(generators, key, reverse, type(generators[0]).T)
+
+def _merge(generators, key, reverse: bool, T: type) -> Generator[T]:
+    heap = []
+    direction = -1 if reverse else 1
+    for index in static.range(static.len(generators)):
+        generator = generators[index]
+        if generator._advance():
+            value = generator._get()
+            if key is None:
+                heap.append(_MergeItem(value, index * direction, generator, value))
+            else:
+                heap.append(_MergeItem(value, index * direction, generator, key(value)))
+        else:
+            generator._destroy()
+    if reverse:
+        heapify_max(heap)
+    else:
+        heapify(heap)
+
+    while len(heap) > 1:
+        head = heap._ptr[0]
+        yield head.value
+        generator = head.gen
+        if not generator._advance():
+            generator._destroy()
+            if reverse:
+                heappop_max(heap)
+            else:
+                heappop(heap)
+            continue
+
+        value = generator._get()
+        if key is None:
+            heap._ptr[0] = _MergeItem(value, head.order, generator, value)
+        else:
+            heap._ptr[0] = _MergeItem(value, head.order, generator, key(value))
+        if reverse:
+            _siftup_max(heap, 0)
+        else:
+            _siftup(heap, 0)
+
+    if heap:
+        head = heap._ptr[0]
+        yield head.value
+        yield from head.gen

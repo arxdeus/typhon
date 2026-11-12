@@ -1,0 +1,1805 @@
+import numpy as np
+import gzip
+import bz2
+import os
+
+def private_test_directory():
+    # Debug/release cases run concurrently. Shared writable/mapped files can
+    # expose truncated data or prevent another worker from replacing a file.
+    for attempt in range(100):
+        candidate = f"build/numpy-io-{os.getpid()}-{attempt}"
+        try:
+            os.mkdir(candidate)
+            return candidate
+        except OSError:
+            pass
+    raise OSError("could not create private NumPy I/O test directory")
+
+test_dir = private_test_directory()
+
+# TestSaveLoad
+
+@test
+def test_array():
+    a = np.array([1.25], dtype=float)
+    f = test_dir + "/bin_0.npy"
+    np.save(f, a)
+    l = np.load(f, dtype=float)
+    assert np.array_equal(a, l)
+
+test_array()
+
+@test
+def test_save_load_int_1D():
+    a = np.array([1, 2, 3, 4], dtype=int)
+    f = test_dir + "/bin_1.npy"
+    np.save(f, a)
+    l = np.load(f, dtype=int)
+    assert np.array_equal(a, l)
+
+test_save_load_int_1D()
+
+@test
+def test_save_load_float_1D():
+    a = np.array([1.0, 2.0, 3.0, 4.0], dtype=float)
+    f = test_dir + "/bin_2.npy"
+    np.save(f, a)
+    l = np.load(f, dtype=float)
+    assert np.array_equal(a, l)
+
+test_save_load_float_1D()
+
+@test
+def test_save_load_complex_1D():
+    a = np.array([1 + 2j, 2 + 7j, 3 - 6j, 4 + 12j], dtype=complex)
+    f = test_dir + "/bin_3.npy"
+    np.save(f, a)
+    l = np.load(f, dtype=complex)
+    assert np.array_equal(a, l)
+
+test_save_load_complex_1D()
+
+@test
+def test_save_load_int_2D():
+    a = np.array([[1, 2], [3, 4]], dtype=int)
+    f = test_dir + "/bin_4.npy"
+    np.save(f, a)
+    l = np.load(f, dtype=int, ndim=2)
+    assert np.array_equal(a, l)
+
+test_save_load_int_2D()
+
+@test
+def test_save_load_float_2D():
+    a = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=float)
+    f = test_dir + "/bin_5.npy"
+    np.save(f, a)
+    l = np.load(f, dtype=float, ndim=2)
+    assert np.array_equal(a, l)
+
+test_save_load_float_2D()
+
+@test
+def test_save_load_complex_2D():
+    a = np.array([[1 + 2j, 2 + 7j], [3 - 6j, 4 + 12j]], complex)
+    f = test_dir + "/bin_6.npy"
+    np.save(f, a)
+    l = np.load(f, dtype=complex, ndim=2)
+    assert np.array_equal(a, l)
+
+test_save_load_complex_2D()
+
+@test
+def test_save_load_int_3D():
+    a = np.array([[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]],
+                 dtype=int)
+    f = test_dir + "/bin_7.npy"
+    np.save(f, a)
+    l = np.load(f, dtype=int, ndim=3)
+    assert np.array_equal(a, l)
+
+test_save_load_int_3D()
+
+@test
+def test_save_load_float_3D():
+    a = np.array([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+                  [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]],
+                 dtype=float)
+    f = test_dir + "/bin_8.npy"
+    np.save(f, a)
+    l = np.load(f, dtype=float, ndim=3)
+    assert np.array_equal(a, l)
+
+test_save_load_float_3D()
+
+@test
+def test_save_load_complex_3D():
+    a = np.array([[[1 + 2j, 2 + 7j, 3 + 4j], [4 - 5j, 5 + 6j, 6 - 7j]],
+                  [[7 + 8j, 8 - 9j, 9 + 10j], [10 - 11j, 11 + 12j, 12 - 13j]]],
+                 dtype=complex)
+    f = test_dir + "/bin_9.npy"
+    np.save(f, a)
+    l = np.load(f, dtype=complex, ndim=3)
+    assert np.array_equal(a, l)
+
+test_save_load_complex_3D()
+
+# savetxt / loadtxt / genfromtxt
+
+# def test_0D_3D(): TODO
+
+@test
+def test_txt_int_1D():
+    a = np.array([1, 2, 3, 4], int)
+    f = test_dir + "/text_1.txt"
+    np.savetxt(f, a)
+    l = np.loadtxt(f, dtype=int)
+    g = np.genfromtxt(f, dtype=int)
+    assert np.array_equal(l.reshape(-1), a)
+    assert np.array_equal(g.reshape(-1), a)
+
+test_txt_int_1D()
+
+@test
+def test_txt_float_1D():
+    a = np.array([1, 2, 3, 4], float)
+    f = test_dir + "/text_2.txt"
+    np.savetxt(f, a)
+    l = np.loadtxt(f, dtype=float)
+    g = np.genfromtxt(f, dtype=float)
+    assert np.array_equal(l.reshape(-1), a)
+    assert np.array_equal(g.reshape(-1), a)
+
+test_txt_float_1D()
+
+@test
+def test_txt_int_2D():
+    a = np.array([[1, 2], [3, 4]], dtype=int)
+    f = test_dir + "/text_3.txt"
+    np.savetxt(f, a)
+    l = np.loadtxt(f, dtype=int)
+    g = np.genfromtxt(f, dtype=int)
+    assert np.array_equal(l, a)
+    assert np.array_equal(g, a)
+
+test_txt_int_2D()
+
+@test
+def test_txt_float_2D():
+    a = np.array([[1, 2], [3, 4]], dtype=float)
+    f = test_dir + "/text_4.txt"
+    np.savetxt(f, a)
+    l = np.loadtxt(f, dtype=float)
+    g = np.genfromtxt(f, dtype=float)
+    assert np.array_equal(l, a)
+    assert np.array_equal(g, a)
+
+test_txt_float_2D()
+
+# def test_structured(): TODO
+# def test_structured_padded(): TODO
+# def test_multifield_view(): TODO
+
+@test
+def test_txt_delimiter_1D():
+    a = np.array([1., 2., 3., 4.])
+    f = test_dir + "/text_8.txt"
+    np.savetxt(f, a, delimiter=',')
+    l = np.loadtxt(f, delimiter=',')
+    g = np.genfromtxt(f, delimiter=',')
+    assert np.array_equal(l.reshape(-1), a)
+    assert np.array_equal(g.reshape(-1), a)
+
+test_txt_delimiter_1D()
+
+@test
+def test_txt_delimiter_2D():
+    a = np.array([[1., 2.], [3., 4.]])
+    f = test_dir + "/text_9.txt"
+    np.savetxt(f, a, delimiter=',')
+    l = np.loadtxt(f, delimiter=',')
+    g = np.genfromtxt(f, delimiter=',')
+    assert np.array_equal(l, a)
+    assert np.array_equal(g, a)
+
+test_txt_delimiter_2D()
+
+# def test_format(): Not yet implemented
+
+@test
+def test_header_footer():
+    # Test the functionality of the header and footer keyword argument.
+    f = test_dir + "/text_11.txt"
+    a = np.array([(1, 2), (3, 4)], dtype=int)
+    test_header_footer = 'Test header / footer'
+    np.savetxt(f, a, header=test_header_footer)
+    with open(f, 'r') as fh:
+        content = fh.read()
+        assert content.startswith('# ' + test_header_footer)
+
+    # Test the footer keyword argument
+    f = test_dir + "/text_12.txt"
+    np.savetxt(f, a, footer=test_header_footer)
+    with open(f, 'r') as fh:
+        content = fh.read()
+        assert content.endswith('# ' + test_header_footer + '\n')
+
+    # Test the commentstr keyword argument used on the header
+    f = test_dir + "/text_13.txt"
+    commentstr = '% '
+    np.savetxt(f, a, header=test_header_footer, comments=commentstr)
+    with open(f, 'r') as fh:
+        content = fh.read()
+        assert content.startswith(commentstr + test_header_footer)
+
+    # Test the commentstr keyword argument used on the footer
+    f = test_dir + "/text_14.txt"
+    commentstr = '% '
+    np.savetxt(f, a, footer=test_header_footer, comments=commentstr)
+    with open(f, 'r') as fh:
+        content = fh.read()
+        assert content.endswith(commentstr + test_header_footer + '\n')
+
+test_header_footer()
+
+@test
+def test_file_roundtrip():
+    a = np.array([(1, 2), (3, 4)])
+    f = test_dir + "/text_15.txt"
+    np.savetxt(f, a)
+    b = np.loadtxt(f)
+    assert np.array_equal(a, b)
+
+test_file_roundtrip()
+
+@test
+def test_complex_arrays():
+    ncols = 2
+    nrows = 2
+    a = np.zeros((ncols, nrows), dtype=np.complex128)
+    re = np.pi
+    im = np.e
+    a[:] = re + 1.0j * im
+
+    f = test_dir + "/text_16.txt"
+    np.savetxt(f, a)
+    l = np.loadtxt(f, dtype=np.complex128)
+    assert l.all() == a.all()
+
+test_complex_arrays()
+
+@test
+def test_complex_negative_exponent():
+    ncols = 2
+    nrows = 2
+    a = np.zeros((ncols, nrows), dtype=np.complex128)
+    re = np.pi
+    im = np.e
+    a[:] = re - 1.0j * im
+    f = test_dir + "/text_17.txt"
+    np.savetxt(f, a)
+    l = np.loadtxt(f, dtype=np.complex128)
+    assert l.all() == a.all()
+
+test_complex_negative_exponent()
+
+# TestLoadtxt
+
+@test
+def test_loadtxt_array():
+    data = test_dir + "/data_1.txt"
+    TextIO = '1 2\n3 4'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int)
+    a = np.array([[1, 2], [3, 4]], int)
+    assert np.array_equal(x, a)
+
+    x = np.loadtxt(data, dtype=float)
+    a = np.array([[1, 2], [3, 4]], float)
+    assert np.array_equal(x, a)
+
+test_loadtxt_array()
+
+@test
+def test_loadtxt_1D():
+    data = test_dir + "/data_2.txt"
+    TextIO = '1\n2\n3\n4\n'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int)
+    a = np.array([1, 2, 3, 4], int)
+    assert np.array_equal(x.reshape(-1), a)
+
+    data = test_dir + "/data_3.txt"
+    TextIO = '1,2,3,4\n'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int, delimiter=',')
+    a = np.array([1, 2, 3, 4], int)
+    assert np.array_equal(x.reshape(-1), a)
+
+test_loadtxt_1D()
+
+@test
+def test_loadtxt_missing():
+    data = test_dir + "/data_4.txt"
+    TextIO = '1,2,3,,5\n'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data,
+                   dtype=int,
+                   delimiter=',',
+                   converters={3: lambda s: int(s) if s else -999})
+    a = np.array([1, 2, 3, -999, 5], int)
+    assert np.array_equal(x.reshape(-1), a)
+
+test_loadtxt_missing()
+
+@test
+def test_loadtxt_converters_with_usecols():
+    data = test_dir + "/data_5.txt"
+    TextIO = '1,2,3,,5\n6,7,8,9,10\n'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data,
+                   dtype=int,
+                   delimiter=',',
+                   converters={3: lambda s: int(s) if s else -999},
+                   usecols=(
+                       1,
+                       3,
+                   ))
+    a = np.array([[2, -999], [7, 9]], int)
+    assert np.array_equal(x, a)
+
+test_loadtxt_converters_with_usecols()
+
+@test
+def test_loadtxt_comments_unicode():
+    data = test_dir + "/data_6.txt"
+    TextIO = '# comment\n1,2,3,5\n'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int, delimiter=',', comments='#')
+    a = np.array([1, 2, 3, 5], int)
+    assert np.array_equal(x.reshape(-1), a)
+
+test_loadtxt_comments_unicode()
+
+@test
+def test_loadtxt_comments_byte():
+    data = test_dir + "/data_7.txt"
+    TextIO = '# comment\n1,2,3,5\n'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int, delimiter=b',', comments=b'#')
+    a = np.array([1, 2, 3, 5], int)
+    assert np.array_equal(x.reshape(-1), a)
+
+test_loadtxt_comments_byte()
+
+@test
+def test_loadtxt_comments_multi_chars():
+    data = test_dir + "/data_9.txt"
+    TextIO = '/* comment\n1,2,3,5\n'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int, delimiter=',', comments='/*')
+    a = np.array([1, 2, 3, 5], int)
+    assert np.array_equal(x.reshape(-1), a)
+
+test_loadtxt_comments_multi_chars()
+
+@test
+def test_loadtxt_skiprows():
+    data = test_dir + "/data_10.txt"
+    TextIO = 'comment\n1,2,3,5\n'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int, delimiter=',', skiprows=1)
+    a = np.array([1, 2, 3, 5], int)
+    assert np.array_equal(x.reshape(-1), a)
+
+    data = test_dir + "/data_11.txt"
+    TextIO = '# comment\n1,2,3,5\n'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int, delimiter=',', skiprows=1)
+    a = np.array([1, 2, 3, 5], int)
+    assert np.array_equal(x.reshape(-1), a)
+
+test_loadtxt_skiprows()
+
+@test
+def test_loadtxt_usecols():
+    a = np.array([[1, 2], [3, 4]], float)
+    data = test_dir + "/data_12.txt"
+    np.savetxt(data, a)
+    x = np.loadtxt(data, dtype=float, usecols=(1, ))
+    assert np.array_equal(x, a[:, 1])
+
+    a = np.array([[1, 2, 3], [3, 4, 5]], float)
+    data = test_dir + "/data_13.txt"
+    np.savetxt(data, a)
+    x = np.loadtxt(data, dtype=float, usecols=(1, 2))
+    assert np.array_equal(x, a[:, 1:])
+
+test_loadtxt_usecols()
+
+# def test_bad_usecols(): TODO
+# def test_fancy_dtype(self): TODO
+# def test_shaped_dtype(self): TODO
+# def test_3d_shaped_dtype(self): TODO
+# def test_str_dtype(): TODO
+# def test_empty_file(): TODO
+# def test_unused_converter(self): TODO
+# def test_dtype_with_object(self): Not yet implemented
+# def test_uint64_type(self): TODO
+# def test_int64_type(self): TODO
+# def test_from_float_hex(self): TODO
+# def test_default_float_converter_no_default_hex_conversion(self): TODO
+# def test_default_float_converter_exception(self): TODO
+# def test_from_complex(self): TODO
+# def test_complex_misformatted(self): TODO
+# def test_universal_newline(self): TODO
+# def test_empty_field_after_tab(self): TODO
+# def test_unpack_structured(self): TODO
+# def test_ndmin_keyword(self): TODO
+# def test_generator_source(self): TODO
+# def test_bad_line(self): TODO
+# def test_none_as_string(self): TODO
+# def test_binary_load(self): TODO
+
+@test
+def test_loadtxt_max_rows():
+    data = test_dir + "/data_36.txt"
+    TextIO = '1,2,3,5\n4,5,7,8\n2,1,4,5'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int, delimiter=',', max_rows=1)
+    a = np.array([1, 2, 3, 5], int)
+    assert np.array_equal(x.reshape(-1), a)
+
+test_loadtxt_max_rows()
+
+@test
+def test_loadtxt_max_rows_with_skiprows():
+    data = test_dir + "/data_37.txt"
+    TextIO = 'comments\n1,2,3,5\n4,5,7,8\n2,1,4,5'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int, delimiter=',', skiprows=1, max_rows=1)
+    a = np.array([1, 2, 3, 5], int)
+    assert np.array_equal(x.reshape(-1), a)
+
+    data = test_dir + "/data_38.txt"
+    TextIO = 'comment\n1,2,3,5\n4,5,7,8\n2,1,4,5'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int, delimiter=',', skiprows=1, max_rows=2)
+    a = np.array([[1, 2, 3, 5], [4, 5, 7, 8]], int)
+    assert np.array_equal(x, a)
+
+test_loadtxt_max_rows_with_skiprows()
+
+# def test_max_rows_with_read_continuation(self): TODO
+
+@test
+def test_loadtxt_max_rows_larger():
+    #test max_rows > num rows
+    data = test_dir + "/data_40.txt"
+    TextIO = 'comment\n1,2,3,5\n4,5,7,8\n2,1,4,5'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+    x = np.loadtxt(data, dtype=int, delimiter=',', skiprows=1, max_rows=6)
+    a = np.array([[1, 2, 3, 5], [4, 5, 7, 8], [2, 1, 4, 5]], int)
+    assert np.array_equal(x, a)
+
+test_loadtxt_max_rows_larger()
+
+# TestGenFromTxt, TestSaveTxt, TestLoadTxt
+
+@test
+def test_gft_array():
+    # Test outputting a standard ndarray
+    filename = test_dir + '/data_41.txt'
+    control = np.array([[1, 2], [3, 4]], dtype=int)
+    np.savetxt(filename, control)
+    test = np.genfromtxt(filename, dtype=int, delimiter=' ')
+    assert np.array_equal(test, control)
+
+    control = np.array([[1, 2], [3, 4]], dtype=float)
+    np.savetxt(filename, control)
+    test = np.loadtxt(filename, dtype=float, delimiter=' ')
+    assert np.array_equal(test, control)
+
+test_gft_array()
+
+@test
+def test_gft_1D():
+    # Test squeezing to 1D
+    filename = test_dir + '/data_42.txt'
+    control = np.array([1, 2, 3, 4], dtype=int)
+    np.savetxt(filename, control, delimiter='\n')
+    test = np.genfromtxt(filename, dtype=int)
+    assert np.array_equal(test.reshape(-1), control)
+
+    np.savetxt(filename, control, delimiter=',')
+    test = np.genfromtxt(filename, dtype=int, delimiter=',')
+    assert np.array_equal(test.reshape(-1), control)
+
+test_gft_1D()
+
+@test
+def test_gft_comments():
+    # Test the stripping of comments
+    filename = test_dir + '/data_43.txt'
+    control = np.array([1, 2, 3, 5], dtype=int)
+    content = "# comment\n1,2,3,5\n"
+    with open(filename, "w") as f:
+        f.write(content)
+    test = np.genfromtxt(filename, dtype=int, delimiter=',', comments='#')
+    assert np.array_equal(test.reshape(-1), control)
+    # Comment at the end of a line
+    content = "1,2,3,5# comment\n"
+    with open(filename, "w") as f:
+        f.write(content)
+    test = np.genfromtxt(filename, dtype=int, delimiter=',', comments='#')
+    assert np.array_equal(test.reshape(-1), control)
+
+test_gft_comments()
+
+@test
+def test_gft_skiprows():
+    # Test row skipping
+    filename = test_dir + '/data_44.txt'
+    control = np.array([1, 2, 3, 5], dtype=int)
+    content = 'comment\n1,2,3,5\n'
+    with open(filename, "w") as f:
+        f.write(content)
+    test = np.genfromtxt(filename, dtype=int, delimiter=',', skip_header=1)
+    assert np.array_equal(test.reshape(-1), control)
+
+    filename = test_dir + '/data_45.txt'
+    content = '# comment\n1,2,3,5\n'
+    with open(filename, "w") as f:
+        f.write(content)
+    test = np.loadtxt(filename,
+                      dtype=int,
+                      delimiter=',',
+                      skiprows=1,
+                      comments='#')
+    assert np.array_equal(test.reshape(-1), control)
+
+test_gft_skiprows()
+
+@test
+def test_gft_skip_footer():
+    filename = test_dir + '/data_46.txt'
+    control = np.array([1, 2, 3, 5], dtype=int)
+    content = '1,2,3,5\n comment\n'
+    with open(filename, "w") as f:
+        f.write(content)
+    test = np.genfromtxt(filename, dtype=int, delimiter=',', skip_footer=1)
+    assert np.array_equal(test.reshape(-1), control)
+
+test_gft_skip_footer()
+
+# def test_skip_footer_with_invalid(self): TODO
+# def test_header(self): TODO
+# def test_auto_dtype(self): TODO
+
+# TODO: Enable when genfromtxt supports dtype=None.
+def test_auto_dtype_uniform():
+    # Tests whether the output dtype can be uniformized
+    data = test_dir + '/data_50.txt'
+    TextIO = '1 2 3 4\n5 6 7 8\n'
+    with open(data, "w") as f:
+        f.write(TextIO)
+    test = np.genfromtxt(data, dtype=None)
+    control = np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=None)
+    assert np.array_equal(test, control)
+
+# def test_fancy_dtype(self): TODO
+# def test_names_overwrite(self): TODO
+# def test_bad_fname(self): TODO
+# def test_commented_header(self): TODO
+# def test_names_and_comments_none(self): TODO
+# def test_file_is_closed_on_error(self): TODO
+# def test_autonames_and_usecols(self): TODO
+
+@test
+def test_converters_with_usecols():
+    # Test the combination user-defined converters and usecol
+    data = test_dir + '/data_58.txt'
+    TextIO = '1,2,3,,5\n6,7,8,9,10\n'
+    with open(data, "w") as f:
+        f.write(TextIO)
+    test = np.genfromtxt(data,
+                         dtype=int,
+                         delimiter=',',
+                         converters={3: lambda s: int(s) if s else -999},
+                         usecols=(
+                             1,
+                             3,
+                         ))
+    control = np.array([[2, -999], [7, 9]], dtype=int)
+    assert np.array_equal(test, control)
+
+test_converters_with_usecols()
+
+# def test_converters_with_usecols_and_names(self): TODO
+# def test_converters_cornercases(self): TODO
+# def test_converters_cornercases2(self): TODO
+
+@test
+def test_unused_converter():
+    TextIO = "1 21\n3 42\n"
+    data = test_dir + '/data_62.txt'
+    with open(data, "w") as fh:
+        fh.write(TextIO)
+
+    test = np.genfromtxt(data,
+                         dtype=int,
+                         usecols=(1, ),
+                         converters={0: lambda s: int(s) if s else 16})
+    assert np.array_equal(test, [21, 42])
+
+test_unused_converter()
+
+# def test_invalid_converter(self): TODO
+# def test_tricky_converter_bug1666(self): TODO
+# def test_dtype_with_converters(self): TODO
+# def test_dtype_with_converters_and_usecols(self): TODO
+# def test_dtype_with_object(self): TODO
+# def test_dtype_with_object_no_converter(self): TODO
+# def test_userconverters_with_explicit_dtype(self): TODO
+# def test_utf8_userconverters_with_explicit_dtype(self): TODO
+
+@test
+def test_spacedelimiter():
+    # Test space delimiter
+    TextIO = "1  2  3  4   5\n6  7  8  9  10"
+    data = test_dir + '/data_71.txt'
+    with open(data, "w") as file:
+        file.write(TextIO)
+    test = np.genfromtxt(data)
+    control = np.array([[1., 2., 3., 4., 5.], [6., 7., 8., 9., 10.]])
+    assert np.array_equal(test, control)
+
+test_spacedelimiter()
+
+@test
+def test_integer_delimiter():
+    # Test using an integer for delimiter
+    TextIO = "  1  2  3\n  4  5 67\n890123  4"
+    data = test_dir + '/data_72.txt'
+    with open(data, "w") as file:
+        file.write(TextIO)
+    test = np.genfromtxt(data, delimiter=3)
+    control = np.array([[1, 2, 3], [4, 5, 67], [890, 123, 4]])
+    assert np.array_equal(test, control)
+
+test_integer_delimiter()
+
+@test
+def test_gft_missing():
+    TextIO = '1,2,3,,5\n'
+    data = test_dir + '/data_73.txt'
+    with open(data, "w") as file:
+        file.write(TextIO)
+    test = np.genfromtxt(data,
+                         dtype=int,
+                         delimiter=',',
+                         converters={3: lambda s: int(s) if s else -999})
+    control = np.array([1, 2, 3, -999, 5], int)
+    assert np.array_equal(test.reshape(-1), control)
+
+test_gft_missing()
+
+# def test_missing_with_tabs(self): TODO
+
+@test
+def test_gft_usecols():
+    # Test the selection of columns
+    # Select 1 column
+    control = np.array([[1, 2], [3, 4]], float)
+    data = test_dir + '/data_75.txt'
+    np.savetxt(data, control)
+    test = np.genfromtxt(data, dtype=float, usecols=(1, ))
+    assert np.array_equal(test, control[:, 1])
+    #
+    control = np.array([[1, 2, 3], [3, 4, 5]], float)
+    data = test_dir + '/data_76.txt'
+    np.savetxt(data, control)
+    test = np.genfromtxt(data, dtype=float, usecols=(1, 2))
+    assert np.array_equal(test, control[:, 1:])
+
+test_gft_usecols()
+
+# def test_usecols_as_css(self): TODO
+# def test_usecols_with_structured_dtype(self): TODO
+
+@test
+def test_usecols_with_integer():
+    # Test usecols with an integer
+    TextIO = "1 2 3\n4 5 6"
+    data = test_dir + '/data_79.txt'
+    with open(data, "w") as f:
+        f.write(TextIO)
+    test = np.genfromtxt(data, usecols=0)
+    assert np.array_equal(test, np.array([1., 4.]))
+
+test_usecols_with_integer()
+
+# def test_usecols_with_named_columns(self): TODO
+# def test_empty_file(self): TODO
+# def test_fancy_dtype_alt(self): TODO
+# def test_shaped_dtype(self): TODO
+# def test_withmissing(self): TODO
+# def test_user_missing_values(self): TODO
+# def test_user_filling_values(self): TODO
+# def test_withmissing_float(self): TODO
+# def test_with_masked_column_uniform(self): TODO
+# def test_with_masked_column_various(self): TODO
+# def test_invalid_raise(self): TODO
+# def test_invalid_raise_with_usecols(self): TODO
+# def test_inconsistent_dtype(self): TODO
+# def test_default_field_format(self): TODO
+# def test_single_dtype_wo_names(self): TODO
+# def test_single_dtype_w_explicit_names(self): TODO
+# def test_single_dtype_w_implicit_names(self): TODO
+# def test_easy_structured_dtype(self): TODO
+# def test_autostrip(self): TODO
+# def test_replace_space(self): TODO
+# def test_replace_space_known_dtype(self): TODO
+# def test_incomplete_names(self): TODO
+# def test_names_auto_completion(self): TODO
+# def test_names_with_usecols_bug1636(self): TODO
+# def test_fixed_width_names(self): TODO
+# def test_filling_values(self): TODO
+# def test_comments_is_none(self): TODO
+# def test_latin1(self): TODO
+# def test_binary_decode_autodtype(self): TODO
+# def test_utf8_byte_encoding(self): TODO
+# def test_utf8_file(self): TODO
+# def test_utf8_file_nodtype_unicode(self): TODO
+
+# def test_names_auto_completion(): TODO
+
+# def test_names_with_usecols_bug1636(): TODO
+
+@test
+def test_filling_values():
+    # Test missing values
+    TextIO = "1, 2, 3\n1, , 5\n0, 6, \n"
+    data = test_dir + '/data_113.txt'
+    with open(data, "w") as f:
+        f.write(TextIO)
+    ctrl = np.array([[1, 2, 3], [1, -999, 5], [0, 6, -999]], dtype=int)
+    test = np.genfromtxt(data, delimiter=",", dtype=int, filling_values=-999)
+    assert np.array_equal(test, ctrl)
+
+test_filling_values()
+
+@test
+def test_gft_max_rows():
+    # Test the `max_rows` keyword argument.
+    TextIO = '1 2\n3 4\n5 6\n7 8\n9 10\n'
+    data = test_dir + '/data_114.txt'
+    with open(data, "w") as f:
+        f.write(TextIO)
+    a1 = np.genfromtxt(data, max_rows=3)
+    a2 = np.genfromtxt(data)
+    assert np.array_equal(a1, [[1, 2], [3, 4], [5, 6]])
+    assert np.array_equal(a2, [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]])
+
+    # max_rows must be at least 1.
+    try:
+        a3 = np.genfromtxt(data, max_rows=0)
+        assert False
+    except ValueError:
+        pass
+
+    # An input with several invalid rows.
+    data = test_dir + '/data_115.txt'
+    TextIO = '1 1\n2 2\n0 \n3 3\n4 4\n5  \n6  \n7  \n'
+    with open(data, "w") as f:
+        f.write(TextIO)
+    test = np.genfromtxt(data, max_rows=2)
+    control = np.array([[1., 1.], [2., 2.]])
+    assert np.array_equal(test, control)
+
+    # Test keywords conflict
+    try:
+        a4 = np.genfromtxt(data, skip_footer=1, max_rows=4)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        a5 = np.genfromtxt(data, max_rows=4)
+        assert False
+    except IOError:
+        pass
+
+test_gft_max_rows()
+
+@test
+def test_gft_using_filename():
+    # Test that we can load data from a filename as well as a file
+    # object
+    tgt = np.arange(6).reshape((2, 3))
+    linesep = ('\n', '\r\n', '\r')
+    i = 116
+    for sep in linesep:
+        f = f"{test_dir}/data_{i}.txt"
+        data = '0 1 2' + sep + '3 4 5'
+        with open(f, 'w') as g:
+            g.write(data)
+        i += 1
+        res = np.genfromtxt(f)
+        assert np.array_equal(res, tgt)
+
+test_gft_using_filename()
+
+@test
+def test_gft_from_gzip():
+    # Test that we can load data from a gzipped file
+    wanted = np.arange(6).reshape((2, 3))
+    linesep = ('\n', '\r\n', '\r\n')
+    i = 120
+    for sep in linesep:
+        f = f"{test_dir}/data_{i}.gz"
+        data = '0 1 2' + sep + '3 4 5'
+        with gzip.open(f, mode='wt') as g:
+            g.write(data)
+        i += 1
+
+        l = np.genfromtxt(f, int)
+        assert np.array_equal(l, wanted)
+
+test_gft_from_gzip()
+
+# def test_auto_dtype_largeint(self):
+
+@test
+def test_unpack_float_data():
+    TextIO = ("1,2,3\n4,5,6\n7,8,9\n0.0,1.0,2.0")
+    data = test_dir + '/data_124.txt'
+    with open(data, "w") as f:
+        f.write(TextIO)
+    a, b, c = np.loadtxt(data, delimiter=",", unpack=True)
+    assert np.array_equal(a, np.array([1.0, 4.0, 7.0, 0.0]))
+    assert np.array_equal(b, np.array([2.0, 5.0, 8.0, 1.0]))
+    assert np.array_equal(c, np.array([3.0, 6.0, 9.0, 2.0]))
+
+test_unpack_float_data()
+
+# def test_unpack_structured(): TODO
+# def test_unpack_auto_dtype(): TODO
+# def test_unpack_single_name(): TODO
+# def test_squeeze_scalar(): TODO
+@test
+def test_ndmin_keyword(ndim: Literal[int]):
+    """Test ndmin keyword consistency between genfromtxt and loadtxt."""
+    txt = "42"
+    data = test_dir + '/temp.txt'
+    with open(data, "w") as f:
+        f.write(txt)
+
+    a = np.loadtxt(data, ndmin=ndim)
+    b = np.genfromtxt(data, ndmin=ndim)
+    assert np.array_equal(a, b)
+
+test_ndmin_keyword(0)
+test_ndmin_keyword(1)
+test_ndmin_keyword(2)
+
+## XXX
+
+# TestPathUsage
+
+@test
+def test_loadtxt():
+    path = test_dir + '/data_125.txt'
+    a = np.array([[1.1, 2.1], [3.1, 4.1]], dtype=float)
+    np.savetxt(path, a)
+    x = np.loadtxt(path)
+    assert np.array_equal(x, a)
+
+test_loadtxt()
+
+@test
+def test_save_load():
+    path = test_dir + '/data_126.npy'
+    a = np.array([[1, 2], [3, 4]], int)
+    np.save(path, a)
+    data = np.load(path, dtype=int, ndim=2)
+    assert np.array_equal(data, a)
+
+test_save_load()
+
+@test
+def test_save_load_memmap():
+    path = test_dir + '/data_127.npy'
+    a = np.array([[1, 2], [3, 4]], int)
+    np.save(path, a)
+    data = np.load(path, dtype=int, mmap_mode='r', ndim=2)
+    assert np.array_equal(data, a)
+
+test_save_load_memmap()
+
+@test
+def test_save_load_memmap_readwrite():
+    path = test_dir + '/data_128.npy'
+    a = np.array([[1, 2], [3, 4]], int)
+    np.save(path, a)
+    b = np.load(path, dtype=int, ndim=2, mmap_mode='r+')
+    a[0][0] = 5
+    b[0][0] = 5
+    data = np.load(path, dtype=int, ndim=2)
+    assert np.array_equal(data, a)
+
+test_save_load_memmap_readwrite()
+
+# def test_savez_load(): Not yet implemented
+
+# def test_savez_compressed_load(): Not yet implemented
+
+@test
+def test_genfromtxt():
+    path = test_dir + '/data_129.txt'
+    a = np.array([(1, 2), (3, 4)])
+    np.savetxt(path, a)
+    data = np.genfromtxt(path)
+    assert np.array_equal(a, data)
+
+test_genfromtxt()
+
+def check(txt: str, expected, **kwargs):
+    gen = txt.splitlines()
+
+    out = np.genfromtxt(gen, **kwargs)
+    if not np.array_equal(out, expected):
+        return False
+
+    out = np.genfromtxt(gen, delimiter=None, **kwargs)
+    if not np.array_equal(out, expected):
+        return False
+
+    gen_n = [a + '\n' for a in gen]
+
+    out = np.genfromtxt(gen_n, **kwargs)
+    if not np.array_equal(out, expected):
+        return False
+
+    out = np.genfromtxt(gen_n, delimiter=None, **kwargs)
+    if not np.array_equal(out, expected):
+        return False
+
+    gen_rn = [a + '\r\n' for a in gen]
+
+    out = np.genfromtxt(gen_rn, **kwargs)
+    if not np.array_equal(out, expected):
+        return False
+
+    out = np.genfromtxt(gen_rn, delimiter=None, **kwargs)
+    if not np.array_equal(out, expected):
+        return False
+
+    filename = test_dir + '/data_empty_delim.txt'
+    with open(filename, 'w') as f:
+        f.write(txt)
+
+    out = np.genfromtxt(filename, **kwargs)
+    if not np.array_equal(out, expected):
+        return False
+
+    out = np.loadtxt(filename, **kwargs)
+    if not np.array_equal(out, expected):
+        return False
+
+    out = np.genfromtxt(filename, delimiter=None, **kwargs)
+    if not np.array_equal(out, expected):
+        return False
+
+    out = np.loadtxt(filename, delimiter=None, **kwargs)
+    if not np.array_equal(out, expected):
+        return False
+
+    return True
+
+@test
+def test_empty_delimiter():
+    # Basic
+    txt = (
+        "\n"
+        "\n"
+        " 1\t2   3\n"
+        "\t  4   5\t6   \n"
+        "\n"
+        "7   8   9   \t\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp)
+
+    txt = (
+        "\n"
+        "\n"
+        " 1\t2   3   \n"
+        "\t  4   5\t6\n"
+        "\n"
+        "7   8   9   \t\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp)
+
+    txt = (
+        "\n"
+        "  # AA\n"
+        " 1\t2   3  # X \n"
+        "\t  4   5\t6\n"
+        "#\n"
+        "7   8   9   \t\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp)
+
+    txt = (
+        " 1\t2   3  # X \n"
+        "\t  4   5\t6\n"
+        "#\n"
+        "7   8   9   \t\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp)
+
+    txt = (
+        " 1\t2   3  # X \n"
+        "\t  4   5\t6\n"
+        "#\n"
+        " # # \n"
+        "   \n"
+        "#\n"
+        "7   8   9   \t\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp)
+
+    # Heavy leading indentation; trailing tabs/spaces on each line
+    txt = (
+        "            1   2   3   \t \n"
+        "\t\t\t4 5 6   \t\n"
+        "    7\t8\t9     \n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp)
+
+    # Tabs-only separators and mixed tabs/spaces; stray trailing tab after last token
+    txt = (
+        "\t\t10\t  11\t12\t\n"
+        "13\t14  \t15\n"
+        "16   \t17\t18\t\n"
+    )
+    exp = np.array([[10,11,12],[13,14,15],[16,17,18]], float)
+    assert check(txt, exp)
+
+    # Glued inline comments (no space), spaced comments, and comments after tab
+    txt = (
+        "1 2 3#nospace\n"
+        "4 5 6    # spaced\n"
+        "7 8 9\t#\twithtab\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp, comments="#")
+
+    # Whitespace-only lines and comment-only lines sprinkled throughout
+    txt = (
+        "   \t   # top\n"
+        "1  2  3\n"
+        "  \t   \n"
+        "4\t5 6 # mid\n"
+        "   \n"
+        "7 8 9\n"
+        "   # end\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp, comments="#")
+
+    # Scientific notation, signs, and mixed spacing
+    txt = (
+        " -1e0   +2E+1   3.5e-1\n"
+        "\t-4.0 5E0  -6.25e+00\n"
+        "7.0e+00\t  -8E-1   +9.00\n"
+    )
+    exp = np.array([[-1.0, 20.0, 0.35],
+                    [-4.0, 5.0, -6.25],
+                    [7.0, -0.8, 9.0]], float)
+    assert check(txt, exp)
+
+    # Single-column data with leading/trailing blanks
+    txt = (
+        "\n"
+        "   10\n"
+        "  20   \n"
+        "\t30\t\n"
+        "   \n"
+    )
+    exp = np.array([[10.0], [20.0], [30.0]], float)
+    assert check(txt, exp)
+
+    # Irregular spacing, extra spaces between tokens
+    txt = (
+        "1    2           3\n"
+        "   4    5      6\n"
+        "7 8 9\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp)
+
+    # Inline comments preceded by many spaces; comment-only lines with tabs
+    txt = (
+        "1 2 3            # c1\n"
+        "\t\t# only comment\n"
+        "4   5   6    # c2\n"
+        "7 8 9\n"
+        "\t  # end\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp, comments="#")
+
+    # usecols on rectangular data (column reorder check)
+    txt = (
+        "1 2 3\n"
+        "4 5 6\n"
+        "7 8 9\n"
+    )
+    exp = np.array([[3,1],[6,4],[9,7]], float)  # columns (2,0)
+    assert check(txt, exp, usecols=(2,0))
+
+    # Mixed tabs/spaces around signs and decimals
+    txt = (
+        "  -0.0\t+0.0  1.0\n"
+        "\t-2.5  \t  3.75  5.0\n"
+        " 4.125  -5.5  \t6.0\n"
+    )
+    exp = np.array([[-0.0, 0.0, 1.0],
+                    [-2.5, 3.75, 5.0],
+                    [4.125, -5.5, 6.0]], float)
+    assert check(txt, exp)
+
+    # Trailing whitespace-only lines after data
+    txt = (
+        "1 2 3\n"
+        "4 5 6\n"
+        "7 8 9\n"
+        "   \n"
+        "\t   \n"
+        "\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp)
+
+    # Many blank lines between data rows
+    txt = (
+        "1 2 3\n"
+        "\n"
+        "\n"
+        "4 5 6\n"
+        "\n"
+        "7 8 9\n"
+        "\n"
+        "\n"
+        "\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp)
+
+    # Single row, many spaces and tabs (ensures 2D vs 1D behavior aligns)
+    txt = " \t  1   2 \t 3   \n"
+    exp = np.array([[1.0, 2.0, 3.0]], float)
+    assert check(txt, exp)
+
+    # Large integers with leading pluses/minuses and mixed whitespace
+    txt = (
+        "+100   -200   300\n"
+        "   -400 +500\t -600\n"
+        "\t700 800   -900\n"
+    )
+    exp = np.array([[ 100, -200,  300],
+                    [-400,  500, -600],
+                    [ 700,  800, -900]], float)
+    assert check(txt, exp)
+
+    # Inline comments glued to last token without whitespace; ensure parsing stops correctly
+    txt = (
+        "1 2 3#c\n"
+        "4 5 6#d\n"
+        "7 8 9#e\n"
+    )
+    exp = np.array([[1,2,3],[4,5,6],[7,8,9]], float)
+    assert check(txt, exp, comments="#")
+
+test_empty_delimiter()
+
+# Unicode and native bytes
+
+@test
+def test_save_load_binary():
+    path = test_dir + "/unicode_npio.npy"
+    expected = np.array([1, 2, 3, 4], dtype=i32)
+    np.save(path, expected)
+    result = np.load(path, dtype=i32)
+    assert np.array_equal(result, expected)
+
+test_save_load_binary()
+
+@test
+def test_raw_binary_io():
+    path = test_dir + "/unicode_npio.bin"
+    expected = np.array([0x1020304, -7, 42], dtype=i32)
+    expected.tofile(path)
+    result = np.fromfile(path, dtype=i32)
+    assert np.array_equal(result, expected)
+
+    raw = bytes(expected.data.as_byte(), expected.nbytes)
+    result = np.fromstring(raw, dtype=i32)
+    assert np.array_equal(result, expected)
+
+    result = np.fromstring(
+        bytes(expected.data.as_byte(), expected.nbytes), dtype=i32
+    )
+    assert np.array_equal(result, expected)
+
+    handle_path = test_dir + "/unicode_npio_handle.bin"
+    with open(handle_path, "wb") as output:
+        expected.tofile(output)
+    with open(handle_path, "rb") as input:
+        result = np.fromfile(input, dtype=i32)
+    assert np.array_equal(result, expected)
+
+    text_path = test_dir + "/unicode_npio_handle.txt"
+    with open(text_path, "w") as output:
+        expected.tofile(output, sep="§")
+    with open(text_path, "r") as input:
+        result = np.fromfile(input, dtype=i32, sep="§")
+    assert np.array_equal(result, expected)
+
+test_raw_binary_io()
+
+@test
+def test_writable_memmap():
+    path = test_dir + "/unicode_npio_memmap.bin"
+    mapped = np.memmap(path, dtype=i32, mode="w+", shape=(3,))
+    mapped[:] = np.array([7, 8, 9], dtype=i32)
+    result = np.fromfile(path, dtype=i32)
+    assert np.array_equal(result, np.array([7, 8, 9], dtype=i32))
+
+test_writable_memmap()
+
+@test
+def test_memmap_offset_and_copy():
+    filename = test_dir + "/offset_memmap.bin"
+    source = np.memmap(filename, dtype=i32, mode="w+", shape=(20000,))
+    source[:] = np.zeros(20000, dtype=i32)
+    offset = 65536 + 12
+    index = offset // 4
+    source[index] = 7
+    readonly = np.memmap(filename, dtype=i32, mode="r", offset=offset, shape=(2,))
+    private = np.memmap(filename, dtype=i32, mode="c", offset=offset, shape=(2,))
+    private[0] = 99
+    assert readonly[0] == i32(7) and source[index] == i32(7)
+    shared = np.memmap(filename, dtype=i32, mode="r+", offset=offset, shape=(2,))
+    shared[1] = 17
+    assert readonly[1] == i32(17) and source[index + 1] == i32(17)
+
+test_memmap_offset_and_copy()
+
+@test
+def test_text_fromfile_unicode_separator():
+    path = test_dir + "/unicode_npio_fromfile.txt"
+    with open(path, "w") as output:
+        output.write("1§2§3")
+
+    result = np.fromfile(path, dtype=int, sep="§")
+    assert np.array_equal(result, np.array([1, 2, 3], dtype=int))
+
+test_text_fromfile_unicode_separator()
+
+def codepoint_length(value: str) -> int:
+    return len(value)
+
+@test
+def test_loadtxt_utf8_fields():
+    path = test_dir + "/unicode_npio_loadtxt.txt"
+    with open(path, "w") as output:
+        output.write("café,Ω\n")
+
+    result = np.loadtxt(
+        path,
+        dtype=int,
+        delimiter=",",
+        converters=codepoint_length,
+    )
+    assert np.array_equal(result.reshape(-1), np.array([4, 1], dtype=int))
+
+test_loadtxt_utf8_fields()
+
+@test
+def test_loadtxt_utf8_whitespace_fields():
+    path = test_dir + "/unicode_npio_loadtxt_whitespace.txt"
+    with open(path, "w") as output:
+        output.write("càfé 9\n")
+
+    result = np.loadtxt(
+        path,
+        dtype=int,
+        converters=codepoint_length,
+    )
+    assert np.array_equal(result.reshape(-1), np.array([4, 1], dtype=int))
+
+test_loadtxt_utf8_whitespace_fields()
+
+@test
+def test_genfromtxt_wide_string_lines():
+    result = np.genfromtxt(
+        ["café§Ωλignored\n"],
+        dtype=int,
+        delimiter="§",
+        comments="λ",
+        converters=codepoint_length,
+    )
+    assert np.array_equal(result.reshape(-1), np.array([4, 1], dtype=int))
+
+test_genfromtxt_wide_string_lines()
+
+@test
+def test_genfromtxt_empty_first_field():
+    result = np.genfromtxt(
+        [",2\n"],
+        dtype=int,
+        delimiter=",",
+        filling_values=1,
+    )
+    assert np.array_equal(result.reshape(-1), np.array([1, 2], dtype=int))
+
+test_genfromtxt_empty_first_field()
+
+@test
+def test_gzip_load():
+    values = np.array([1, 2, 3, 4, 5])
+    a = np.array(values, dtype=float)
+
+    s = test_dir + '/data_130.gz'
+    f = gzip.open(s, mode="wb")
+
+    np.save(f, a)
+    f.close()
+    f = gzip.open(s, mode="rb")
+    g = np.load(f, dtype=float, ndim=1)
+    f.close()
+    assert np.array_equal(g, a)
+
+test_gzip_load()
+
+# def test_gzip_loadtxt(): Not yet implemented
+# def test_gzip_loadtxt_from_string(): Not yet implemented
+# def test_npzfile_dict(): Not yet implemented
+# def test_load_refcount(): Not yet implemented
+# def test_load_multiple_arrays_until_eof()
+
+# Additional tests
+
+# Testcases related to bz2 files
+
+@test
+def test_gft_from_bz2():
+    # Test that we can load data from a bz2 compressed file
+    wanted = np.arange(6).reshape((2, 3))
+    linesep = ('\n', '\r\n', '\r\n')
+    i = 136
+    for sep in linesep:
+        f = f"{test_dir}/data_{i}.bz2"
+        data = '0 1 2' + sep + '3 4 5'
+        with bz2.open(f, mode='wt') as b:
+            b.write(data)
+        i += 1
+
+        l = np.genfromtxt(f, int)
+        assert np.array_equal(l, wanted)
+
+test_gft_from_bz2()
+
+@test
+def test_bz2_load():
+    values = np.array([1, 2, 3, 4, 5])
+    a = np.array(values, dtype=float)
+
+    s = test_dir + '/data_140.bz2'
+    f = bz2.open(s, mode="wb")
+    np.save(f, a)
+    f.close()
+    f = bz2.open(s, mode="rb")
+    g = np.load(f, dtype=float)
+    f.close()
+    assert np.array_equal(g, a)
+
+test_bz2_load()
+
+@test
+def test_save_load_int32_1d_v1():
+    array = np.array([1, 2, 3], dtype=np.int32)
+    filename = test_dir + "/binary_int32_1d_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.int32)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_int32_1d_v1()
+
+@test
+def test_save_load_int64_1d_v1():
+    array = np.array([1, 2, 3], dtype=np.int64)
+    filename = test_dir + "/binary_int64_1d_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.int64)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_int64_1d_v1()
+
+@test
+def test_save_load_float32_1d_v1():
+    array = np.array([1.0, 2.5, 3.7], dtype=np.float32)
+    filename = test_dir + "/binary_float32_1d_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.float32)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_float32_1d_v1()
+
+@test
+def test_save_load_float64_1d_v1():
+    array = np.array([1.0, 2.5, 3.7], dtype=np.float64)
+    filename = test_dir + "/binary_float64_1d_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.float64)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_float64_1d_v1()
+
+@test
+def test_save_load_complex64_1d_v1():
+    array = np.array([1.0 + 2.0j, 3.5 - 1.2j], dtype=np.complex64)
+    filename = test_dir + "/binary_complex64_1d_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.complex64)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_complex64_1d_v1()
+
+@test
+def test_save_load_complex128_1d_v1():
+    array = np.array([1.0 + 2.0j, 3.5 - 1.2j], dtype=np.complex128)
+    filename = test_dir + "/binary_complex128_1d_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.complex128)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_complex128_1d_v1()
+
+@test
+def test_save_load_bool_1d_v1():
+    array = np.array([True, False, True], dtype=bool)
+    filename = test_dir + "/binary_bool_1d_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=bool)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_bool_1d_v1()
+
+@test
+def test_save_load_int32_2d_3x3_v1():
+    array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.int32)
+    filename = test_dir + "/binary_int32_2d_3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.int32, ndim=2)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_int32_2d_3x3_v1()
+
+@test
+def test_save_load_int64_2d_3x3_v1():
+    array = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.int64)
+    filename = test_dir + "/binary_int64_2d_3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.int64, ndim=2)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_int64_2d_3x3_v1()
+
+@test
+def test_save_load_float32_2d_3x3_v1():
+    array = np.array([[1.0, 2.5, 3.7], [4.2, 5.3, 6.1], [7.0, 8.2, 9.5]],
+                     dtype=np.float32)
+    filename = test_dir + "/binary_float32_2d_3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.float32, ndim=2)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_float32_2d_3x3_v1()
+
+@test
+def test_save_load_float64_2d_3x3_v1():
+    array = np.array([[1.0, 2.5, 3.7], [4.2, 5.3, 6.1], [7.0, 8.2, 9.5]],
+                     dtype=np.float64)
+    filename = test_dir + "/binary_float64_2d_3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.float64, ndim=2)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_float64_2d_3x3_v1()
+
+@test
+def test_save_load_complex64_2d_3x3_v1():
+    array = np.array([[1.0 + 2.0j, 3.5 - 1.2j, 4.0 + 0.5j],
+                      [5.0 - 2.1j, 6.7 + 1.2j, 7.3 - 0.8j],
+                      [8.0 + 1.5j, 9.2 - 0.7j, 10.0 + 2.0j]],
+                     dtype=np.complex64)
+    filename = test_dir + "/binary_complex64_2d_3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.complex64, ndim=2)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_complex64_2d_3x3_v1()
+
+@test
+def test_save_load_complex128_2d_3x3_v1():
+    array = np.array([[1.0 + 2.0j, 3.5 - 1.2j, 4.0 + 0.5j],
+                      [5.0 - 2.1j, 6.7 + 1.2j, 7.3 - 0.8j],
+                      [8.0 + 1.5j, 9.2 - 0.7j, 10.0 + 2.0j]],
+                     dtype=np.complex128)
+    filename = test_dir + "/binary_complex128_2d_3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.complex128, ndim=2)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_complex128_2d_3x3_v1()
+
+@test
+def test_save_load_bool_2d_3x3_v1():
+    array = np.array(
+        [[True, False, True], [False, True, False], [True, True, False]],
+        dtype=bool)
+    filename = test_dir + "/binary_bool_2d_3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=bool, ndim=2)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_bool_2d_3x3_v1()
+
+@test
+def test_save_load_int32_3d_3x3x3_v1():
+    array = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+                      [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
+                      [[19, 20, 21], [22, 23, 24], [25, 26, 27]]],
+                     dtype=np.int32)
+    filename = test_dir + "/binary_int32_3d_3x3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.int32, ndim=3)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_int32_3d_3x3x3_v1()
+
+@test
+def test_save_load_int64_3d_3x3x3_v1():
+    array = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+                      [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
+                      [[19, 20, 21], [22, 23, 24], [25, 26, 27]]],
+                     dtype=np.int64)
+    filename = test_dir + "/binary_int64_3d_3x3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.int64, ndim=3)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_int64_3d_3x3x3_v1()
+
+@test
+def test_save_load_float32_3d_3x3x3_v1():
+    array = np.array(
+        [[[1.0, 2.5, 3.7], [4.2, 5.3, 6.1], [7.0, 8.2, 9.5]],
+         [[10.1, 11.5, 12.7], [13.2, 14.8, 15.4], [16.0, 17.3, 18.9]],
+         [[19.5, 20.2, 21.8], [22.0, 23.7, 24.1], [25.3, 26.9, 27.4]]],
+        dtype=np.float32)
+    filename = test_dir + "/binary_float32_3d_3x3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.float32, ndim=3)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_float32_3d_3x3x3_v1()
+
+@test
+def test_save_load_float64_3d_3x3x3_v1():
+    array = np.array(
+        [[[1.0, 2.5, 3.7], [4.2, 5.3, 6.1], [7.0, 8.2, 9.5]],
+         [[10.1, 11.5, 12.7], [13.2, 14.8, 15.4], [16.0, 17.3, 18.9]],
+         [[19.5, 20.2, 21.8], [22.0, 23.7, 24.1], [25.3, 26.9, 27.4]]],
+        dtype=np.float64)
+    filename = test_dir + "/binary_float64_3d_3x3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.float64, ndim=3)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_float64_3d_3x3x3_v1()
+
+@test
+def test_save_load_complex64_3d_3x3x3_v1():
+    array = np.array([[[1.0 + 2.0j, 3.5 - 1.2j, 4.0 + 0.5j],
+                       [5.0 - 2.1j, 6.7 + 1.2j, 7.3 - 0.8j],
+                       [8.0 + 1.5j, 9.2 - 0.7j, 10.0 + 2.0j]],
+                      [[11.0 - 1.0j, 12.5 + 2.3j, 13.7 - 0.9j],
+                       [14.2 + 1.2j, 15.3 - 2.5j, 16.1 + 0.8j],
+                       [17.0 - 1.5j, 18.2 + 0.7j, 19.5 - 2.0j]],
+                      [[20.0 + 3.0j, 21.5 - 2.3j, 22.7 + 1.9j],
+                       [23.2 - 1.2j, 24.8 + 2.5j, 25.4 - 0.8j],
+                       [26.0 + 1.5j, 27.3 - 0.7j, 28.9 + 2.0j]]],
+                     dtype=np.complex64)
+    filename = test_dir + "/binary_complex64_3d_3x3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.complex64, ndim=3)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_complex64_3d_3x3x3_v1()
+
+@test
+def test_save_load_complex128_3d_3x3x3_v1():
+    array = np.array([[[1.0 + 2.0j, 3.5 - 1.2j, 4.0 + 0.5j],
+                       [5.0 - 2.1j, 6.7 + 1.2j, 7.3 - 0.8j],
+                       [8.0 + 1.5j, 9.2 - 0.7j, 10.0 + 2.0j]],
+                      [[11.0 - 1.0j, 12.5 + 2.3j, 13.7 - 0.9j],
+                       [14.2 + 1.2j, 15.3 - 2.5j, 16.1 + 0.8j],
+                       [17.0 - 1.5j, 18.2 + 0.7j, 19.5 - 2.0j]],
+                      [[20.0 + 3.0j, 21.5 - 2.3j, 22.7 + 1.9j],
+                       [23.2 - 1.2j, 24.8 + 2.5j, 25.4 - 0.8j],
+                       [26.0 + 1.5j, 27.3 - 0.7j, 28.9 + 2.0j]]],
+                     dtype=np.complex128)
+    filename = test_dir + "/binary_complex128_3d_3x3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=np.complex128, ndim=3)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_complex128_3d_3x3x3_v1()
+
+@test
+def test_save_load_bool_3d_3x3x3_v1():
+    array = np.array(
+        [[[True, False, True], [False, True, False], [True, True, False]],
+         [[False, False, True], [True, False, True], [False, True, False]],
+         [[True, False, False], [False, True, True], [True, True, False]]],
+        dtype=bool)
+    filename = test_dir + "/binary_bool_3d_3x3x3_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=bool, ndim=3)
+    assert np.array_equal(array, loaded_array)
+
+test_save_load_bool_3d_3x3x3_v1()
+
+# Negative Testcases
+
+@test
+def test_load_invalid_path_v1():
+    filename = test_dir + "/binary_invalid_path_v1.npy"
+    try:
+        loaded_array = np.load(filename, dtype=int)
+        assert False
+    except IOError:
+        pass
+
+test_load_invalid_path_v1()
+
+@test
+def test_load_corrupted_file_v1():
+    filename = test_dir + "/binary_corrupted_file_v1.npy"
+    try:
+        with open(filename, 'wb') as f:
+            f.write(b'corrupted_data')
+        np.load(filename)
+        assert False
+    except ValueError:
+        pass
+
+test_load_corrupted_file_v1()
+
+@test
+def test_load_version_mismatch_v1():
+    array = np.array([1, 2, 3])
+    filename = test_dir + "/binary_version_mismatch_v1.npy"
+    np.save(filename, array)
+    try:
+        with open(filename, 'rb+') as f:
+            f.seek(6, 0)
+            f.write(b'\x00\x00')  # Change the version to 0
+        np.load(filename)
+        assert False
+    except ValueError:
+        pass
+
+test_load_version_mismatch_v1()
+
+@test
+def test_load_mismatched_dtype_v1():
+    # Save with dtype int and load with other dtype
+    array = np.array([1, 2, 3], dtype=int)
+    filename = test_dir + "/binary_mismatched_dtype_v1.npy"
+    np.save(filename, array)
+    np.load(filename, dtype=int)
+
+test_load_mismatched_dtype_v1()
+
+@test
+def test_load_empty_array_v1():
+    # Save an empty array and load
+    array = np.empty((0, ), dtype=int)
+    filename = test_dir + "/binary_empty_array_v1.npy"
+    np.save(filename, array)
+    loaded_array = np.load(filename, dtype=int)
+    assert loaded_array.shape == (0, )
+    assert np.array_equal(array, loaded_array)
+
+test_load_empty_array_v1()
+
+@test
+def test_load_incorrect_filename_v1():
+    # Save using filename contains special character or too long
+    array = np.array([1, 2, 3])
+    filename = test_dir + "/binary_incorrect_filename-@!$%^&()_+=~`{}[].np_v1.npy"
+    np.save(filename, array)
+    assert np.array_equal(np.load(filename, dtype=int), array)
+    # Most of these are reserved Windows characters. A colon also names an
+    # NTFS alternate data stream, so it is a valid roundtrip in this position.
+    for character in '<>:"|?*':
+        filename = test_dir + "/reserved-" + character + ".npy"
+        if __windows__ and character != ':':
+            try:
+                np.save(filename, array)
+                assert False, "reserved Windows filename was accepted"
+            except OSError:
+                pass
+        else:
+            np.save(filename, array)
+            assert np.array_equal(np.load(filename, dtype=int), array)
+
+test_load_incorrect_filename_v1()
+
+@test
+def test_load_incorrect_save_v1():
+    # Interrupt the saving process to create incomplete .npy file
+    array = np.array([1, 2, 3])
+    filename = test_dir + "/binary_incorrect_save_v1.npy"
+    # Save a partial array
+    with open(filename, 'wb') as f:
+        f.write(b"\x93NUMPY")
+        f.write(b"\x01\x00\x00\x00")
+        f.write(b"\x00\x00\x00\x00")
+        f.write(b"\x00\x00\x00\x00\x00\x00\x00\x00")
+        f.write(b"\x00")
+        f.write(b"\x00")
+    try:
+        np.load(filename)
+        assert False
+    except ValueError:
+        pass
+
+test_load_incorrect_save_v1()
+
+@test
+def test_incorrect_extension_v1():
+    filename = test_dir + "/binary_incorrect_extension.npa"
+    np.save(filename, np.array([1, 2, 3]))
+    try:
+        np.load(filename, dtype=int)
+        assert False
+    except IOError:
+        pass
+
+test_incorrect_extension_v1()

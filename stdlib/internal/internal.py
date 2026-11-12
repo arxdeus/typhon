@@ -1,0 +1,234 @@
+
+import internal.static as static
+
+@extend
+class __internal__:
+    def _print(a):
+        from C import seq_print(str)
+        if hasattr(a, "__repr__"):
+            seq_print(a.__repr__())
+        else:
+            seq_print(a.__str__())
+
+    def seq_assert(file: str, line: int, msg: str) -> AssertionError:
+        s = f": {msg}" if msg else ""
+        s = f"Assert failed{s} ({file}:{line.__repr__()})"
+        return AssertionError(s)
+
+    def seq_assert_test(file: str, line: int, msg: str):
+        from C import seq_print(str)
+        s = f": {msg}" if msg else ""
+        s = f"\033[1;31mTEST FAILED:\033[0m {file} (line {line}){s}\n"
+        seq_print(s)
+
+    def undef(v, s):
+        if not v:
+            raise NameError(f"name '{s}' is not defined")
+
+
+@extend
+class __magic__:
+    # always present
+    def tuplesize(T: type) -> int:
+        return (t() for t in static.vars_types(T)).__elemsize__
+
+    # @dataclass parameter: init=True for tuples;
+    # always present for reference types only
+    def new(T: type) -> T:
+        """Create a new reference (class) type"""
+        return type._ref_new(T)
+
+    # init is compiler-generated when init=True for reference types
+    # def init(self, a1, ..., aN): ...
+
+    # always present for reference types only
+    def raw(obj) -> Ptr[u8]:
+        return type._ref_raw(obj)
+
+    # always present for reference types only
+    def dict(slf) -> List[str]:
+        d = List[str](static.len(slf))
+        for k, _ in static.vars(slf):
+            d.append(k)
+        return d
+
+    # always present for tuple types only
+    def len(slf) -> int:
+        return static.len(slf)
+
+    # always present for tuple types only
+    def add(slf, obj):
+        if not isinstance(obj, Tuple):
+            compile_error("can only concatenate tuple to tuple")
+        return (*slf, *obj)
+
+    # always present for tuple types only
+    def mul(slf, i: Literal[int]):
+        if i < 1:
+            return ()
+        elif i == 1:
+            return slf
+        else:
+            return (*(__magic__.mul(slf, i - 1)), *slf)
+
+    # always present for tuples
+    def contains(slf, what) -> bool:
+        for _, v in static.vars(slf):
+            if isinstance(what, type(v)):
+                if what == v:
+                    return True
+        return False
+
+    # @dataclass parameter: container=True
+    def getitem(slf, index: int):
+        if static.len(slf) == 0:
+            Tuple._fix_index(index, 0)  # raise exception
+        else:
+            return Tuple._getitem(slf, index, type(slf), static.tuple_type(slf, 0))
+
+    # @dataclass parameter: container=True
+    def iter(slf):
+        if static.len(slf) == 0:
+            if int(0): yield 0  # set generator type without yielding anything
+        for _, v in static.vars(slf):
+            yield v
+
+    # @dataclass parameter: order=True or eq=True
+    def eq(slf, obj) -> bool:
+        for k, v in static.vars(slf):
+            if not (v == getattr(obj, k)):
+                return False
+        return True
+
+    # @dataclass parameter: order=True or eq=True
+    def ne(slf, obj) -> bool:
+        return not (slf == obj)
+
+    # @dataclass parameter: order=True
+    def lt(slf, obj) -> bool:
+        for k, v in static.vars(slf):
+            z = getattr(obj, k)
+            if v < z:
+                return True
+            if not (v == z):
+                return False
+        return False
+
+    # @dataclass parameter: order=True
+    def le(slf, obj) -> bool:
+        for k, v in static.vars(slf):
+            z = getattr(obj, k)
+            if v < z:
+                return True
+            if not (v == z):
+                return False
+        return True
+
+    # @dataclass parameter: order=True
+    def gt(slf, obj) -> bool:
+        for k, v in static.vars(slf):
+            z = getattr(obj, k)
+            if z < v:
+                return True
+            if not (v == z):
+                return False
+        return False
+
+    # @dataclass parameter: order=True
+    def ge(slf, obj) -> bool:
+        for k, v in static.vars(slf):
+            z = getattr(obj, k)
+            if z < v:
+                return True
+            if not (v == z):
+                return False
+        return True
+
+    # @dataclass parameter: hash=True
+    def hash(slf) -> int:
+        seed = 0
+        for _, v in static.vars(slf):
+            seed = seed ^ ((v.__hash__() + 2_654_435_769) + ((seed << 6) + (seed >> 2)))
+        return seed
+
+    # @dataclass parameter: pickle=True
+    def pickle(slf, dest: Ptr[u8]) -> None:
+        for _, v in static.vars(slf):
+            v.__pickle__(dest)
+
+    # @dataclass parameter: pickle=True
+    def unpickle(src: Ptr[u8], T: type) -> T:
+        if isinstance(T, ByVal):
+            return type._force_value_cast(tuple(t.__unpickle__(src) for t in static.vars_types(T)), T)
+        else:
+            obj = T.__new__()
+            for k, v in static.vars(obj):
+                setattr(obj, k, type(v).__unpickle__(src))
+            return obj
+
+    # @dataclass parameter: python=True
+    def to_py(slf) -> Ptr[u8]:
+        o = pyobj._tuple_new(static.len(tuple(slf)))
+        for i, _, v in static.vars(slf, with_index=True):
+            pyobj._tuple_set(o, i, v.__to_py__())
+        return o
+
+    # @dataclass parameter: python=True
+    def from_py(src: Ptr[u8], T: type) -> T:
+        if isinstance(T, ByVal):
+            return type._force_value_cast(tuple(
+                t.__from_py__(pyobj._tuple_get(src, i))
+                for i, t in static.vars_types(T, with_index=True)
+            ), T)
+        else:
+            obj = T.__new__()
+            for i, k, v in static.vars(obj, with_index=True):
+                setattr(obj, k, type(v).__from_py__(pyobj._tuple_get(src, i)))
+            return obj
+
+    # @dataclass parameter: gpu=True
+    def to_gpu(slf, cache):
+        return type._to_gpu(slf, cache)
+
+    # @dataclass parameter: gpu=True
+    def from_gpu(slf: T, other: T, T: type):
+        type._from_gpu(slf, other)
+
+    # @dataclass parameter: gpu=True
+    def from_gpu_new(other: T, T: type) -> T:
+        return type._from_gpu_new(other)
+
+    # @dataclass parameter: repr=True
+    def repr(slf) -> str:
+        l: Literal[int] = static.len(tuple(slf))
+        if l == 0:
+            return "()"
+        a = __array__[str](l)
+        n = __array__[str](l)
+        for i, k, v in static.vars(slf, with_index=True):
+            a[i] = v.__repr__()
+            if isinstance(slf, Tuple):
+                n[i] = ""
+            else:
+                n[i] = k
+        return Tuple._str(a, n, l)
+
+    # @dataclass parameter: repr=False
+    def repr_default(slf) -> str:
+        return f'<{type(slf).__name__} object at {slf.__raw__()}>'
+
+    # @dataclass parameter: repr=True
+    def str(slf) -> str:
+        if not hasattr(slf, "__repr__") and hasattr(slf, "__repr_default__"):
+            return slf.__repr_default__()
+        return slf.__repr__()
+
+@tuple
+class PyObject:
+    refcnt: int
+    pytype: Ptr[u8]
+
+@tuple
+class PyWrapper[T]:
+    head: PyObject
+    data: T

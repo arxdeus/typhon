@@ -24,14 +24,14 @@ fn main() {
 }
 
 /// Environment-only skips. Python-interop cases (`from python import`, pybridge) are in
-/// scope and run whenever a libpython is available (`CODON_PYTHON` or auto-discovered via
+/// scope and run whenever a libpython is available (`TYPHON_PYTHON` or auto-discovered via
 /// `python3`); they are skipped only if none is found. GPU cases need CUDA libdevice.
 fn env_skip_reason(cfg: &Config, case: &typhon_testsuite::suites::Case) -> Option<&'static str> {
-    let needs_python = case.file.ends_with("pybridge.codon")
-        || case.file.ends_with("stdlib/random_test.codon")
-        || case.file.ends_with("test_python.codon");
+    let needs_python = case.file.ends_with("pybridge.py")
+        || case.file.ends_with("stdlib/random_test.py")
+        || case.file.ends_with("test_python.py");
     if needs_python && cfg.python.is_none() {
-        return Some("needs libpython (none found; set CODON_PYTHON)");
+        return Some("needs libpython (none found; set TYPHON_PYTHON)");
     }
     if case.suite == "gpu" && !std::path::Path::new("/usr/local/cuda/nvvm/libdevice").exists() {
         return Some("needs CUDA libdevice");

@@ -1,0 +1,438 @@
+
+@tuple
+@__internal__
+@__noextend__
+class type[T]:
+    #  __new__ / __init__: always done internally
+    pass
+
+@tuple
+@__internal__
+@__noextend__
+class unrealized_type[T]:
+    pass
+
+@tuple
+@__internal__
+class TypeWrap[T]:
+    pass
+
+@__internal__
+class __internal__:
+    pass
+
+@__internal__
+class __magic__:
+    pass
+
+@tuple
+@__internal__
+@__notuple__
+class bool:
+    pass
+
+@tuple
+@__internal__
+@__notuple__
+class Int[N: Literal[int]]:
+    pass
+
+@tuple
+@__internal__
+@__notuple__
+class UInt[N: Literal[int]]:
+    pass
+
+int  = Int[64]
+i1   = Int[1]
+i8   = Int[8]
+i16  = Int[16]
+i32  = Int[32]
+i64  = Int[64]
+i128 = Int[128]
+u1   = UInt[1]
+u8   = UInt[8]
+u16  = UInt[16]
+u32  = UInt[32]
+u64  = UInt[64]
+u128 = UInt[128]
+byte = UInt[8]
+
+@tuple
+@__internal__
+@__notuple__
+class float:
+    pass
+
+@tuple
+@__internal__
+@__notuple__
+class float32:
+    pass
+
+@tuple
+@__internal__
+@__notuple__
+class float16:
+    pass
+
+@tuple
+@__internal__
+@__notuple__
+class bfloat16:
+    pass
+
+@tuple
+@__internal__
+@__notuple__
+class float128:
+    pass
+
+@tuple
+@__internal__
+@__notuple__
+class Function[T, TR]:
+    pass
+
+@tuple
+@__internal__
+class CallableTrait[T, TR]:
+    pass
+
+@tuple
+@__internal__
+class NoneType:
+    pass
+
+@tuple
+@__internal__
+@__notuple__
+class Ptr[T]:
+    pass
+cobj = Ptr[u8]
+
+@tuple
+@__internal__
+@__notuple__
+class Capsule[T]:
+    val: Ptr[T]
+
+@tuple
+@__internal__
+@__notuple__
+class Generator[T]:
+    pass
+
+@tuple
+@__internal__
+@__notuple__
+class Optional:
+    T: type = NoneType
+
+@__internal__
+class pyobj:
+    p: Ptr[u8]
+
+@tuple
+@__internal__
+class str:
+    _ptr: Ptr[u8]
+    _meta: int
+
+@tuple
+@__internal__
+class bytes:
+    _ptr: Ptr[u8]
+    _len: int
+
+@tuple
+@__internal__
+@__noextend__
+class Tuple:
+    @llvm
+    def __new__() -> Tuple:
+        ret {} {}
+    def __add__(self: Self, obj, /):
+        return __magic__.add(self, obj)
+    def __mul__(self: Self, n: Literal[int], /):
+        return __magic__.mul(self, n)
+    def __contains__(self: Self, obj, /) -> bool:
+        return __magic__.contains(self, obj)
+    def __getitem__(self: Self, idx: int, /):
+        return __magic__.getitem(self, idx)
+    def __iter__(self: Self, /):
+        yield from __magic__.iter(self)
+    def __hash__(self: Self, /) -> int:
+        return __magic__.hash(self)
+    def __repr__(self: Self, /) -> str:
+        return __magic__.repr(self)
+    def __len__(self: Self, /) -> int:
+        return __magic__.len(self)
+    def __eq__(self: Self, obj: Self, /) -> bool:
+        return __magic__.eq(self, obj)
+    def __ne__(self: Self, obj: Self, /) -> bool:
+        return __magic__.ne(self, obj)
+    def __gt__(self: Self, obj: Self, /) -> bool:
+        return __magic__.gt(self, obj)
+    def __ge__(self: Self, obj: Self, /) -> bool:
+        return __magic__.ge(self, obj)
+    def __lt__(self: Self, obj: Self, /) -> bool:
+        return __magic__.lt(self, obj)
+    def __le__(self: Self, obj: Self, /) -> bool:
+        return __magic__.le(self, obj)
+    def __pickle__(self: Self, dest: Ptr[u8]):
+        return __magic__.pickle(self, dest)
+    def __unpickle__(src: Ptr[u8], Self: type) -> Self:
+        return __magic__.unpickle(src)
+    def __to_py__(self: Self) -> Ptr[u8]:
+        return __magic__.to_py(self)
+    def __from_py__(src: Ptr[u8], Self: type) -> Self:
+        return __magic__.from_py(src)
+    def __to_gpu__(self: Self, cache) -> Self:
+        return __magic__.to_gpu(self, cache)
+    def __from_gpu__(self: Self, other: Self):
+        return __magic__.from_gpu(self, other)
+    def __from_gpu_new__(other: Self, Self: type) -> Self:
+        return __magic__.from_gpu_new(other)
+    def __tuplesize__(self: Self) -> int:
+        return __magic__.tuplesize(self)
+    def __bool__(self: Self) -> bool:
+        return self.__len__() > 0
+tuple = Tuple
+
+@tuple
+@__internal__
+class __NTuple__[N: Literal[int], T]:
+    pass
+
+@__attribute__
+def pure():
+    pass
+
+@__attribute__
+def derives():
+    pass
+
+@__attribute__
+def __generated__():
+    pass
+
+@extend
+class NoneType:
+    @pure
+    @derives
+    @llvm
+    def __new__() -> NoneType:
+        ret {} {}
+NoneType.__new__()  # always have this realization around
+
+@extend
+class type:
+    @__generated__
+    def __new__(obj):
+        pass
+function = Function
+
+@tuple
+@__internal__
+@__notuple__
+class Union[TU]:
+    @__generated__
+    def __new__(val):
+        TU
+
+@extend
+class Function:
+    @pure
+    @derives
+    @llvm
+    def __new__() -> Function[T, TR]:
+        ret ptr null
+
+# dummy
+@__internal__
+class TypeTrait[T]:
+    pass
+
+@__internal__
+class ByVal:
+    pass
+
+@__internal__
+class ByRef:
+    pass
+
+@__internal__
+class ClassVar[T]:
+    pass
+
+@__internal__
+class RTTIType:
+    data: Ptr[u8]  # pointer to the data
+    typeinfo: Ptr[u8]  # TypeInfo type information
+
+
+@__internal__
+@tuple
+class ellipsis:
+    @pure
+    @derives
+    @llvm
+    def __new__() -> ellipsis:
+        ret {} {}
+Ellipsis = ellipsis()
+
+@tuple
+@__internal__
+class __array__:
+    T: type
+    def __new__(sz: Literal[int]) -> Ptr[T]:
+        pass
+
+@tuple
+@__internal__
+class Import:
+    loaded: bool
+    file: Literal[str]
+    name: Literal[str]
+
+    @pure
+    @derives
+    @llvm
+    def __new__(loaded: bool, file: Literal[str], name: Literal[str]) -> Import[file, name]:
+        %0 = insertvalue { {=bool} } undef, {=bool} %loaded, 0
+        ret { {=bool} } %0
+
+
+@__generated__
+def __ptr__(var):
+    pass
+
+@__generated__
+def compile_error(msg: Literal[str]):
+    pass
+
+@__generated__
+def isinstance(obj, what):
+    # isinstance(obj, type) -> Literal[bool]: true if obj is type[T]
+    # isinstance(obj, Tuple) -> Literal[bool]: true if obj is Tuple
+    # isinstance(obj, ByVal) -> Literal[bool]: true if obj is @tuple
+    # isinstance(obj, ByRef) -> Literal[bool]: true if obj is ref. type (class)
+    # isinstance(obj, Union) -> Literal[bool]: true if obj is union
+    # isinstance(union, T) -> bool: true if union's current content is T (runtime)
+    # isinstance(pyobj, pyobj_T) -> bool: true if pyobj's type is pyobj_T (runtime)
+    # isinstance(non_pyobj, pyobj) -> Literal[bool]: always false
+    # isinstance(obj, T) -> Literal[bool]: true if T is base type (static or RTTI) of type(obj)
+    # isinstance(obj, T) -> bool: true if type(obj) is base type (static or RTTI) of T and RTTI info matches
+    # otherwise: Literal[False]
+    pass
+
+@__attribute__
+def overload():
+    pass
+
+@__generated__
+def hasattr(obj, attr: Literal[str], *args, **kwargs):
+    pass
+
+@__generated__
+def hasattr_dynamic(obj, attr: Literal[str], *args, **kwargs):
+    pass
+
+@__generated__
+def _getattr(obj, attr: Literal[str], attr_type: type=NoneType):
+    pass
+
+@__generated__
+def setattr(obj, attr: Literal[str], what):
+    pass
+
+class object:
+    def __init__(self, *args, **kwargs):
+        pass
+
+@tuple
+@__internal__
+class Super:
+    _obj: T
+    _idx: int
+    T: type
+
+
+@__generated__
+def super():
+    pass
+
+@__generated__
+def superf(*args):
+    """Special handling"""
+    pass
+
+#(init=False, repr=False, eq=False, order=False, hash=False, pickle=False, python=False, gpu=False, container=False)
+@__internal__
+@tuple
+class NamedTuple:
+    args: T
+    N: Literal[int]  # name cache ID
+    T: type
+
+    @pure
+    @derives
+    @llvm
+    def __new__(args: T = (), N: Literal[int] = 0, T: type) -> NamedTuple[N, T]:
+        %0 = insertvalue { {=T} } undef, {=T} %args, 0
+        ret { {=T} } %0
+
+
+@__internal__
+@tuple
+class Partial:
+    args: T  # format: (arg1, arg2, ..., (star_args...))
+    kwargs: K
+
+    M: Literal[str] # mask
+    T: type # Tuple
+    K: type # NamedTuple
+    F: type # must be unrealized_type
+
+    @pure
+    @derives
+    @__internal__
+    def __new__(args: T, kwargs: K, M: Literal[str], F: type, T: type, K: type) -> Partial[M, T, K, F]:
+        pass
+
+
+@__internal__
+@tuple
+class Callable:
+    fn: Function[[Ptr[u8], T], TR]
+    data: Ptr[u8]
+    T: type
+    TR: type
+
+
+@tuple
+@__internal__
+class Coroutine[T]:
+    @pure
+    @derives
+    @llvm
+    def __raw__(self) -> Ptr[u8]:
+        ret ptr %self
+
+    @pure
+    @derives
+    @llvm
+    def __await__(self) -> Generator[T]:
+        ret ptr %self
+
+@tuple
+@__internal__
+class AsyncGenerator[T]:
+    @pure
+    @derives
+    @llvm
+    def __raw__(self) -> Ptr[u8]:
+        ret ptr %self
+
+__typhon__: Literal[bool] = True

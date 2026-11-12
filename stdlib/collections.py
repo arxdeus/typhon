@@ -1,0 +1,660 @@
+
+from internal.types.optional import unwrap
+
+_DEFAULT_DEQUE_CAPACITY: Literal[int] = 16
+
+@dataclass(init=False)
+class deque:
+    _arr: Ptr[T]
+    _cap: int
+    _head: int
+    _tail: int
+    _maxlen: int
+    T: type
+
+    def __init__(self, /):
+        self._arr = Ptr[T](_DEFAULT_DEQUE_CAPACITY)
+        self._cap = _DEFAULT_DEQUE_CAPACITY
+        self._head = 0
+        self._tail = 0
+        self._maxlen = -1
+
+    def __init__(self, /, maxlen: int):
+        cap = 1
+        while cap < maxlen:
+            cap *= 2
+        self._arr = Ptr[T](cap)
+        self._cap = cap
+        self._head = 0
+        self._tail = 0
+        self._maxlen = maxlen
+
+    def __init__(self, /, it: Generator[T]):
+        self.__init__()
+        for i in it:
+            self.append(i)
+
+    def __init__(self, /, other: deque[T]):
+        self._arr = Ptr[T](other._cap)
+        self._cap = other._cap
+        self._head = other._head
+        self._tail = other._tail
+        self._maxlen = other._maxlen
+        str.memcpy(self._arr.as_byte(), other._arr.as_byte(),
+                   self._cap * T.__elemsize__)
+
+    @property
+    def maxlen(self) -> int:
+        return self._maxlen
+
+    def _double_cap(self):
+        p = self._head
+        n = self._cap
+        r = n - p
+        new_cap = n * 2
+        new_arr = Ptr[T](new_cap)
+        for i in range(r):
+            new_arr[i] = self._arr[p + i]
+        for i in range(p):
+            new_arr[i + r] = self._arr[i]
+        self._arr = new_arr
+        self._cap = new_cap
+        self._head = 0
+        self._tail = n
+
+    def _check_not_empty(self):
+        if not self:
+            raise IndexError("pop from an empty deque")
+
+    def __bool__(self) -> bool:
+        return self._head != self._tail
+
+    def __len__(self, /) -> int:
+        return (self._tail - self._head) & (self._cap - 1)
+
+    def appendleft(self, x: T, /):
+        self._head = (self._head - 1) & (self._cap - 1)
+        self._arr[self._head] = x
+        if self._maxlen >= 0 and len(self) > self._maxlen:
+            self.pop()
+        if self._head == self._tail:
+            self._double_cap()
+
+    def append(self, x: T, /):
+        self._arr[self._tail] = x
+        self._tail = (self._tail + 1) & (self._cap - 1)
+        if self._maxlen >= 0 and len(self) > self._maxlen:
+            self.popleft()
+        if self._head == self._tail:
+            self._double_cap()
+
+    def popleft(self, /) -> T:
+        self._check_not_empty()
+        res = self._arr[self._head]
+        if not T.__atomic__:
+            str.memset((self._arr + self._head).as_byte(), u8(0), T.__elemsize__)
+        self._head = (self._head + 1) & (self._cap - 1)
+        return res
+
+    def pop(self, /) -> T:
+        self._check_not_empty()
+        self._tail = (self._tail - 1) & (self._cap - 1)
+        res = self._arr[self._tail]
+        if not T.__atomic__:
+            str.memset((self._arr + self._tail).as_byte(), u8(0), T.__elemsize__)
+        return res
+
+    def clear(self, /):
+        self._head = 0
+        self._tail = 0
+        if not T.__atomic__:
+            str.memset(self._arr.as_byte(), u8(0), self._cap * T.__elemsize__)
+
+    def __iter__(self, /) -> Generator[T]:
+        i = self._head
+        while i != self._tail:
+            yield self._arr[i]
+            i = (i + 1) & (self._cap - 1)
+
+    def __contains__(self, x: T, /) -> bool:
+        for i in self:
+            if i == x:
+                return True
+        return False
+
+    def __deepcopy__(self) -> deque[T]:
+        return deque(i.__deepcopy__() for i in self)
+
+    def __copy__(self, /) -> deque[T]:
+        return deque[T](self)
+
+    def copy(self, /) -> deque[T]:
+        return self.__copy__()
+
+    def __repr__(self, /) -> str:
+        return f"deque({List[T](iter(self))!r})"
+
+    def _idx_check(self, idx: int, msg: str):
+        if self._head == self._tail or idx >= len(self) or idx < 0:
+            raise IndexError(msg)
+
+    @property
+    def left(self) -> T:
+        self._idx_check(0, "list index out of range")
+        return self._arr[self._head]
+
+    def __getitem__(self, idx: int, /) -> T:
+        if idx < 0:
+            idx += len(self)
+        self._idx_check(idx, "list index out of range")
+        if self._head <= self._tail:
+            return self._arr[self._head + idx]
+        elif self._head + idx < self._cap:
+            return self._arr[self._head + idx]
+        else:
+            idx -= self._cap - self._head
+            assert 0 <= idx < self._tail
+            return self._arr[idx]
+
+@tuple
+class _CounterItem:
+    element: T
+    count: int
+    T: type
+
+    def __eq__(self, other: _CounterItem[T]) -> bool:
+        return self.count == other.count
+
+    def __ne__(self, other: _CounterItem[T]) -> bool:
+        return self.count != other.count
+
+    def __lt__(self, other: _CounterItem[T]) -> bool:
+        return self.count < other.count
+
+    def __gt__(self, other: _CounterItem[T]) -> bool:
+        return self.count > other.count
+
+    def __le__(self, other: _CounterItem[T]) -> bool:
+        return self.count <= other.count
+
+    def __ge__(self, other: _CounterItem[T]) -> bool:
+        return self.count >= other.count
+
+@tuple(container=False)
+class Counter:
+    _dict: OrderedDict[T, int]
+    T: type
+
+    def __new__(capacity: int = 8) -> Counter[T]:
+        return Counter[T](_dict=OrderedDict[T, int](capacity))
+
+    def __new__(elements: Generator[T], /) -> Counter[T]:
+        result = Counter[T]()
+        result.update(elements)
+        return result
+
+    def __new__(other: Counter[T], /) -> Counter[T]:
+        return Counter[T](_dict=other._dict.copy())
+
+    def __new__(other: Dict[T, int], /) -> Counter[T]:
+        return Counter[T](_dict=other.copy())
+
+    def __len__(self, /):
+        return len(self._dict)
+
+    def __bool__(self):
+        return bool(self._dict)
+
+    def __iter__(self, /):
+        return iter(self._dict)
+
+    def __reversed__(self, /):
+        return reversed(self._dict)
+
+    def __contains__(self, key: T, /):
+        return key in self._dict
+
+    def __setitem__(self, key: T, value: int, /):
+        self._dict[key] = value
+
+    def keys(self, /):
+        return self._dict.keys()
+
+    def values(self, /):
+        return self._dict.values()
+
+    def items(self, /):
+        return self._dict.items()
+
+    def get(self, key: T, /):
+        return self._dict.get(key)
+
+    def get(self, key: T, default: int, /):
+        return self._dict.get(key, default)
+
+    def setdefault(self, key: T, value: int, /):
+        return self._dict.setdefault(key, value)
+
+    def pop(self, key: T, /):
+        return self._dict.pop(key)
+
+    def pop(self, key: T, missing, /):
+        return self._dict.pop(key, missing)
+
+    def popitem(self, /):
+        return self._dict.popitem()
+
+    def clear(self, /):
+        self._dict.clear()
+
+    def resize(self, minused: int):
+        self._dict.resize(minused)
+
+    def increment(self, key: T, by: Z = 1, Z: type):
+        self._dict.increment(key, by)
+
+    def copy(self):
+        return self.__copy__()
+
+    def __deepcopy__(self):
+        return Counter[T](self._dict.__deepcopy__())
+
+    def fromkeys(ks: Generator[K], v: V, K: type, V: type):
+        return OrderedDict.fromkeys(ks, v)
+
+    def elements(self) -> Generator[T]:
+        for k, v in self.items():
+            for i in range(v):
+                yield k
+
+    def most_common(self, n: Optional[int] = None) -> List[Tuple[T, int]]:
+        if len(self) == 0:
+            return []
+
+        if n is None:
+            v = List(capacity=len(self))
+            for t in self.items():
+                v.append(t)
+            v.sort(reverse=True, key=lambda i: i[1])
+            return v
+        else:
+            from heapq import heapify, heapreplace
+
+            n: int = n
+
+            if n == 1:
+                top: Optional[Tuple[T, int]] = None
+                for t in self.items():
+                    if top is None or t[1] > top[1]:
+                        top = t
+                return [unwrap(top)]
+
+            if n <= 0:
+                return []
+
+            result = List[_CounterItem](capacity=n)
+            for t in self.items():
+                ct = _CounterItem(*t)
+                if len(result) < n:
+                    result.append(ct)
+                    if len(result) == n:
+                        heapify(result)
+                else:
+                    if result[0] < ct:
+                        heapreplace(result, ct)
+
+            result.sort(reverse=True)
+            return [tuple(i) for i in result]
+
+    def subtract(self, elements: Generator[T], /):
+        for a in elements:
+            self.increment(a, -1)
+
+    def subtract(self, other: Counter[T], /):
+        for k, v in other.items():
+            self.increment(k, -v)
+
+    def subtract(self, other: Dict[T, int], /):
+        for k, v in other.items():
+            self.increment(k, -v)
+
+    def update(self, elements: Generator[T], /):
+        for a in elements:
+            self.increment(a)
+
+    def update(self, other: Counter[T], /):
+        for k, v in other.items():
+            self.increment(k, by=v)
+
+    def update(self, other: Dict[T, int], /):
+        for k, v in other.items():
+            self.increment(k, by=v)
+
+    def update(self, /):
+        pass
+
+    def total(self) -> int:
+        m = 0
+        for v in self.values():
+            m += v
+        return m
+
+    def __getitem__(self, key: T, /) -> int:
+        return self.get(key, 0)
+
+    def __delitem__(self, key: T):
+        self._dict._delete(key)
+
+    def __eq__(self, other: Counter[T]) -> bool:
+        if self.__len__() != other.__len__():
+            return False
+        for k, v in self.items():
+            if k not in other or other[k] != v:
+                return False
+        return True
+
+    def __ne__(self, other: Counter[T]) -> bool:
+        return not (self == other)
+
+    def __eq__(self, other: Dict[T, int]) -> bool:
+        return self._dict == other
+
+    def __ne__(self, other: Dict[T, int]) -> bool:
+        return not (self == other)
+
+    def __copy__(self) -> Counter[T]:
+        return Counter[T](self)
+
+    def __or__(self, other):
+        result = self.copy()
+        result._dict.update(other)
+        return result
+
+    def __ior__(self, other):
+        self._dict.update(other)
+        return self
+
+    def __iadd__(self, other: Counter[T]) -> Counter[T]:
+        for k, v in other.items():
+            self.increment(k, by=v)
+        self._del_non_positives()
+        return self
+
+    def __isub__(self, other: Counter[T]) -> Counter[T]:
+        for k, v in other.items():
+            self.increment(k, by=-v)
+        self._del_non_positives()
+        return self
+
+    def __iand__(self, other: Counter[T]) -> Counter[T]:
+        for k, v in other.items():
+            self[k] = min(self.get(k, 0), v)
+        self._del_non_positives()
+        return self
+
+    def __ior__(self, other: Counter[T]) -> Counter[T]:
+        self._del_non_positives()
+        for k, v in other.items():
+            self[k] = max(self.get(k, 0), v)
+        self._del_non_positives()
+        return self
+
+    def __pos__(self) -> Counter[T]:
+        result = Counter[T]()
+        for k, v in self.items():
+            if v > 0:
+                result[k] = v
+        return result
+
+    def __neg__(self) -> Counter[T]:
+        result = Counter[T]()
+        for k, v in self.items():
+            if v < 0:
+                result[k] = -v
+        return result
+
+    def __add__(self, other: Counter[T]) -> Counter[T]:
+        result = self.__copy__()
+        result += other
+        return result
+
+    def __sub__(self, other: Counter[T]) -> Counter[T]:
+        result = self.__copy__()
+        result -= other
+        return result
+
+    def __and__(self, other: Counter[T]) -> Counter[T]:
+        result = self.__copy__()
+        result &= other
+        return result
+
+    def __or__(self, other: Counter[T]) -> Counter[T]:
+        result = self.__copy__()
+        result |= other
+        return result
+
+    def __repr__(self):
+        return f"Counter({self._dict!r})"
+
+    def __dict_do_op__(self, key: T, other: Z, default: int, op: F, F: type, Z: type):
+        self._dict.__dict_do_op__(key, other, default, op)
+
+    def __dict_do_op_throws__(self, key: T, other: Z, op: F, F: type, Z: type):
+        self.__dict_do_op__(key, other, 0, op)
+
+    def _del_non_positives(self):
+        for k, v in self.items():
+            if v <= 0:
+                del self[k]
+
+@extend
+class Dict:
+    def __init__(self: Dict[K, int], other: Counter[K]):
+        self._init_from(other._dict)
+
+    def update(self: Dict[K, int], other: Counter[K]):
+        self.update(other._dict)
+
+    def __eq__(self: Dict[K, int], other: Counter[K]):
+        return self == other._dict
+
+    def __ne__(self: Dict[K, int], other: Counter[K]):
+        return not (self == other)
+
+@tuple(container=False)
+class defaultdict:
+    _dict: Dict[K, V]
+    default_factory: S
+    K: type
+    V: type
+    S: TypeTrait[CallableTrait[[], V]]
+
+    def __new__(VV: TypeTrait[V], /) -> defaultdict[K, VV, Function[[], V]]:
+        return defaultdict[K, VV, Function[[], V]](
+            _dict=Dict[K, V](), default_factory=lambda: VV())
+
+    def __new__(f: S, /) -> defaultdict[K, V, S]:
+        return defaultdict[K, V, S](_dict=Dict[K, V](), default_factory=f)
+
+    def __new__(VV: TypeTrait[V], other: Dict[K, V], /) -> defaultdict[K, VV, Function[[], V]]:
+        return defaultdict[K, VV, Function[[], V]](
+            _dict=other.copy(), default_factory=lambda: VV())
+
+    def __new__(f: S, other: Dict[K, V], /) -> defaultdict[K, V, S]:
+        return defaultdict[K, V, S](_dict=other.copy(), default_factory=f)
+
+    def __new__(VV: TypeTrait[V], other: defaultdict[K, V, F], /,
+                F: type) -> defaultdict[K, VV, Function[[], V]]:
+        return defaultdict[K, VV, Function[[], V]](VV, other._dict)
+
+    def __new__(f: S, other: defaultdict[K, V, F], /, F: type) -> defaultdict[K, V, S]:
+        return defaultdict[K, V, S](f, other._dict)
+
+    def __new__(VV: TypeTrait[V], other: Counter[K], /) -> defaultdict[K, VV, Function[[], V]]:
+        return defaultdict[K, VV, Function[[], V]](VV, other._dict)
+
+    def __new__(f: S, other: Counter[K], /) -> defaultdict[K, V, S]:
+        return defaultdict[K, V, S](f, other._dict)
+
+    def __len__(self, /):
+        return len(self._dict)
+
+    def __bool__(self):
+        return bool(self._dict)
+
+    def __iter__(self, /):
+        return iter(self._dict)
+
+    def __reversed__(self, /):
+        return reversed(self._dict)
+
+    def __contains__(self, key: K, /):
+        return key in self._dict
+
+    def __setitem__(self, key: K, value: V, /):
+        self._dict[key] = value
+
+    def __delitem__(self, key: K, /):
+        del self._dict[key]
+
+    def keys(self, /):
+        return self._dict.keys()
+
+    def values(self, /):
+        return self._dict.values()
+
+    def items(self, /):
+        return self._dict.items()
+
+    def get(self, key: K, /):
+        return self._dict.get(key)
+
+    def get(self, key: K, default: V, /):
+        return self._dict.get(key, default)
+
+    def setdefault(self, key: K, value: V, /):
+        return self._dict.setdefault(key, value)
+
+    def pop(self, key: K, /):
+        return self._dict.pop(key)
+
+    def pop(self, key: K, missing, /):
+        return self._dict.pop(key, missing)
+
+    def popitem(self, /):
+        return self._dict.popitem()
+
+    def clear(self, /):
+        self._dict.clear()
+
+    def resize(self, minused: int):
+        self._dict.resize(minused)
+
+    def increment(self, key: K, by: Z = 1, Z: type):
+        self._dict.increment(key, by)
+
+    def update(self, other, /):
+        self._dict.update(other)
+
+    def __or__(self, other, /):
+        result = self.copy()
+        result.update(other)
+        return result
+
+    def __ior__(self, other, /):
+        self.update(other)
+        return self
+
+    def fromkeys(ks: Generator[K], v: V, /, K: type, V: type):
+        return Dict.fromkeys(ks, v)
+
+    def __missing__(self, key: K, /):
+        default_value = self.default_factory()
+        self.__setitem__(key, default_value)
+        return default_value
+
+    def __getitem__(self, key: K, /) -> V:
+        if key not in self._dict:
+            return self.__missing__(key)
+        return self._dict[key]
+
+    def __dict_do_op_throws__(self, key: K, other: Z, op: F, F: type, Z: type):
+        if key not in self._dict:
+            self.__missing__(key)
+        self._dict.__dict_do_op_throws__(key, other, op)
+
+    def __dict_do_op__(self, key: K, other: Z, default: V, op: F, F: type, Z: type):
+        self._dict.__dict_do_op__(key, other, default, op)
+
+    def copy(self, /):
+        return defaultdict[K, V, S](self.default_factory, self._dict)
+
+    def __copy__(self, /):
+        return self.copy()
+
+    def __deepcopy__(self):
+        d = defaultdict[K,V,S](self.default_factory)
+        for k,v in self.items():
+            d[k.__deepcopy__()] = v.__deepcopy__()
+        return d
+
+    def __eq__(self, other: defaultdict[K, V, F], /, F: type) -> bool:
+        if self.__len__() != other.__len__():
+            return False
+        for k, v in self.items():
+            if k not in other or other[k] != v:
+                return False
+        return True
+
+    def __ne__(self, other: defaultdict[K, V, F], /, F: type) -> bool:
+        return not (self == other)
+
+    def __eq__(self, other: Dict[K, V], /) -> bool:
+        return self._dict == other
+
+    def __ne__(self, other: Dict[K, V], /) -> bool:
+        return not (self == other)
+
+    def __eq__(self, other: Counter[K], /) -> bool:
+        return self._dict == other._dict
+
+    def __ne__(self, other: Counter[K], /) -> bool:
+        return not (self == other)
+
+    def __repr__(self, /):
+        return f"defaultdict(<default factory of '{V.__name__}'>, {self._dict!r})"
+
+@extend
+class Dict:
+    def __init__(self: Dict[K, V], other: defaultdict[K, V, S], S: type):
+        self._init_from(other._dict)
+
+    def update(self: Dict[K, V], other: defaultdict[K, V, S], S: type):
+        self.update(other._dict)
+
+    def __eq__(self: Dict[K, V], other: defaultdict[K, V, S], S: type):
+        return self == other._dict
+
+    def __ne__(self: Dict[K, V], other: defaultdict[K, V, S], S: type):
+        return not (self == other)
+
+@extend
+class Counter:
+    def __new__(other: defaultdict[T, int, S], /, S: type) -> Counter[T]:
+        return Counter[T](_dict=other._dict.copy())
+
+    def update(self, other: defaultdict[T, int, S], /, S: type):
+        self.update(other._dict)
+
+    def subtract(self, other: defaultdict[T, int, S], /, S: type):
+        self.subtract(other._dict)
+
+    def __eq__(self, other: defaultdict[T, int, S], S: type):
+        return self._dict == other._dict
+
+    def __ne__(self, other: defaultdict[T, int, S], S: type):
+        return not (self == other)
+
+@__generated__
+def namedtuple(name: Literal[str], args):  # internal
+    pass

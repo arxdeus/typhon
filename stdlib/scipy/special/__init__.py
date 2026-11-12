@@ -1,0 +1,284 @@
+# Ported from scipy 1.18.1 (BSD-3-Clause)
+
+# scipy.special: elementwise special functions. Scalars in -> float out;
+# any ndarray / list argument -> float64 ndarray broadcast over all inputs.
+
+import numpy as np
+import internal.static as static
+from . import _kernels as K
+
+def _is_arr(x) -> Literal[bool]:
+    return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
+
+def _bshape(*xs):
+    return np.broadcast_shapes(*tuple(np.asarray(x).shape for x in xs))
+
+def _map1(f, x):
+    if _is_arr(x):
+        a = np.asarray(x)
+        out = np.empty(a.shape, dtype=float)
+        for idx in np.ndindex(a.shape):
+            out[idx] = f(float(a[idx]))
+        return out
+    else:
+        return f(float(x))
+
+def _map2(f, x, y):
+    if _is_arr(x) or _is_arr(y):
+        shp = _bshape(x, y)
+        a = np.broadcast_to(np.asarray(x), shp)
+        b = np.broadcast_to(np.asarray(y), shp)
+        out = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            out[idx] = f(float(a[idx]), float(b[idx]))
+        return out
+    else:
+        return f(float(x), float(y))
+
+def _map3(f, x, y, z):
+    if _is_arr(x) or _is_arr(y) or _is_arr(z):
+        shp = _bshape(x, y, z)
+        a = np.broadcast_to(np.asarray(x), shp)
+        b = np.broadcast_to(np.asarray(y), shp)
+        c = np.broadcast_to(np.asarray(z), shp)
+        out = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            out[idx] = f(float(a[idx]), float(b[idx]), float(c[idx]))
+        return out
+    else:
+        return f(float(x), float(y), float(z))
+
+# gamma family
+def gamma(x): return _map1(K.gamma, x)
+def gammaln(x): return _map1(K.gammaln, x)
+def loggamma(x):
+    # real input only: log(gamma(x)) for x >= 0, nan for x < 0 (scipy real loggamma)
+    return _map1(_loggamma_real, x)
+def _loggamma_real(x: float) -> float:
+    if x < 0:
+        return K.NAN
+    return K.gammaln(x)
+def gammasgn(x): return _map1(K.gammasgn, x)
+def digamma(x): return _map1(K.digamma, x)
+psi = digamma
+def beta(a, b): return _map2(K.beta, a, b)
+def betaln(a, b): return _map2(K.betaln, a, b)
+def betainc(a, b, x): return _map3(K.betainc, a, b, x)
+def betaincc(a, b, x): return _map3(K.betaincc, a, b, x)
+def betaincinv(a, b, y): return _map3(K.betaincinv, a, b, y)
+def gammainc(a, x): return _map2(K.gammainc, a, x)
+def gammaincc(a, x): return _map2(K.gammaincc, a, x)
+def gammaincinv(a, y): return _map2(K.gammaincinv, a, y)
+def gammainccinv(a, y): return _map2(K.gammainccinv, a, y)
+
+# error functions / normal
+def erf(x): return _map1(K.erf, x)
+def erfc(x): return _map1(K.erfc, x)
+def erfcx(x): return _map1(K.erfcx, x)
+def erfinv(y): return _map1(K.erfinv, y)
+def erfcinv(y): return _map1(K.erfcinv, y)
+def ndtr(x): return _map1(K.ndtr, x)
+def ndtri(y): return _map1(K.ndtri, y)
+def log_ndtr(x): return _map1(K.log_ndtr, x)
+
+# distribution functions
+def stdtr(df, t): return _map2(K.stdtr, df, t)
+def stdtrit(df, p): return _map2(K.stdtrit, df, p)
+def fdtr(dfn, dfd, x): return _map3(K.fdtr, dfn, dfd, x)
+def fdtrc(dfn, dfd, x): return _map3(K.fdtrc, dfn, dfd, x)
+def fdtri(dfn, dfd, p): return _map3(K.fdtri, dfn, dfd, p)
+def chdtr(v, x): return _map2(K.chdtr, v, x)
+def chdtrc(v, x): return _map2(K.chdtrc, v, x)
+def chdtri(v, p): return _map2(K.chdtri, v, p)
+def bdtr(k, n, p): return _map3(K.bdtr, k, n, p)
+
+# elementary
+def xlogy(x, y): return _map2(K.xlogy, x, y)
+def xlog1py(x, y): return _map2(K.xlog1py, x, y)
+def entr(x): return _map1(K.entr, x)
+def rel_entr(x, y): return _map2(K.rel_entr, x, y)
+def kl_div(x, y): return _map2(K.kl_div, x, y)
+def expit(x): return _map1(K.expit, x)
+def logit(x): return _map1(K.logit, x)
+def log_expit(x): return _map1(K.log_expit, x)
+def boxcox(x, lmbda): return _map2(K.boxcox, x, lmbda)
+def log1p(x): return _map1(K.log1p, x)
+def expm1(x): return _map1(K.expm1, x)
+
+# Bessel
+def i0(x): return _map1(K.i0, x)
+def i0e(x): return _map1(K.i0e, x)
+def i1(x): return _map1(K.i1, x)
+def i1e(x): return _map1(K.i1e, x)
+
+# combinatorics
+def _comb_exact(N: int, k: int) -> int:
+    if k > N or N < 0 or k < 0:
+        return 0
+    k = min(k, N - k)
+    r = 1
+    for i in range(1, k + 1):
+        r = r * (N - k + i) // i
+    return r
+
+def _comb_f(N: float, k: float) -> float:
+    if N < 0 or k < 0 or k > N:
+        return 0.0
+    if k == 0:
+        return 1.0
+    # binom via beta (xsf binom for non-negative arguments)
+    if k > 1e8 * N or N < 0:
+        return 0.0
+    kx = K.floor(k)
+    if k == kx and (N > 1e10 or k < 20):
+        nx = K.floor(N)
+        if N == nx:
+            # product formula
+            kk = kx
+            if nx - kx < kx:
+                kk = nx - kx
+            if kk >= 0 and kk < 20:
+                num = 1.0
+                den = 1.0
+                for i in range(1, int(kk) + 1):
+                    num *= i + N - kk
+                    den *= i
+                    if K.fabs(num) > 1e50:
+                        num /= den
+                        den = 1.0
+                return num / den
+    if N >= 1e10 * k and k > 0:
+        return K.exp(-K.betaln(1 + N - k, 1 + k) - K.log(N + 1))
+    if k > 1e8 * K.fabs(N):
+        num = K.gamma(1 + N) / K.fabs(k) + K.gamma(1 + N) * N / (2 * k * k)
+        num /= K.pi * K.fabs(k) ** N
+        return num
+    return 1.0 / (N + 1) / K.beta(1 + N - k, 1 + k)
+
+def comb(N, k, *, exact: Literal[bool] = False, repetition: bool = False):
+    if exact:
+        n = int(N)
+        kk = int(k)
+        if repetition:
+            return _comb_exact(n + kk - 1, kk)
+        return _comb_exact(n, kk)
+    else:
+        if repetition:
+            return _map2(lambda a, b: _comb_f(a + b - 1.0, b), N, k)
+        return _map2(_comb_f, N, k)
+
+def perm(N, k, exact: Literal[bool] = False):
+    if exact:
+        n = int(N)
+        kk = int(k)
+        if kk > n or n < 0 or kk < 0:
+            return 0
+        r = 1
+        for i in range(n - kk + 1, n + 1):
+            r *= i
+        return r
+    else:
+        return _map2(_perm_f, N, k)
+
+def _perm_f(N: float, k: float) -> float:
+    if k > N or N < 0 or k < 0:
+        return 0.0
+    return K.exp(K.gammaln(N + 1) - K.gammaln(N - k + 1)) if N > 170 else K.gamma(N + 1) / K.gamma(N - k + 1)
+
+def factorial(n, exact: Literal[bool] = False):
+    if exact:
+        m = int(n)
+        if m < 0:
+            return 0
+        r = 1
+        for i in range(2, m + 1):
+            r *= i
+        return r
+    else:
+        return _map1(_fact_f, n)
+
+def _fact_f(n: float) -> float:
+    if n < 0 or not (n == n):
+        return 0.0 if n < 0 else K.NAN
+    return K.gamma(n + 1.0)
+
+# reductions over arrays
+def _amax_axis(a, axis):
+    return np.max(a, axis=axis, keepdims=True)
+
+def logsumexp(a, axis = None, b = None, keepdims: Literal[bool] = False,
+              return_sign: Literal[bool] = False):
+    """log(sum(b * exp(a))) computed stably. ``b`` weights supported; with
+    ``return_sign`` returns ``(res, sign)``."""
+    x = np.asarray(a).astype(float)
+    if axis is None:
+        mx = -K.INF
+        for v in x.flat:
+            if v > mx:
+                mx = v
+        if not (mx > -K.INF and mx < K.INF):
+            mx = 0.0 if not (mx == mx) or mx == -K.INF else mx
+        s = 0.0
+        if b is None:
+            for v in x.flat:
+                s += K.exp(v - mx)
+        else:
+            bb = np.broadcast_to(np.asarray(b).astype(float), x.shape)
+            for idx in np.ndindex(x.shape):
+                s += bb[idx] * K.exp(x[idx] - mx)
+        sgn = 1.0 if s >= 0 else -1.0
+        r = K.log(K.fabs(s)) + mx
+        if return_sign:
+            if keepdims:
+                return (np.full((1,) * x.ndim, r), np.full((1,) * x.ndim, sgn))
+            return (r, sgn)
+        else:
+            if keepdims:
+                return np.full((1,) * x.ndim, r)
+            return r
+    else:
+        mx = np.max(x, axis=axis, keepdims=True)
+        mx2 = np.where(np.isfinite(mx), mx, 0.0)
+        if b is None:
+            e = np.exp(x - mx2)
+        else:
+            e = np.asarray(b).astype(float) * np.exp(x - mx2)
+        s = np.sum(e, axis=axis, keepdims=True)
+        sgn = np.sign(s)
+        r = np.log(np.abs(s)) + mx2
+        if keepdims:
+            if return_sign:
+                return (r, sgn)
+            else:
+                return r
+        else:
+            r2 = np.squeeze(r, axis=axis)
+            sgn2 = np.squeeze(sgn, axis=axis)
+            if return_sign:
+                return (r2, sgn2)
+            else:
+                return r2
+
+def softmax(x, axis = None):
+    a = np.asarray(x).astype(float)
+    if axis is None:
+        mx = np.max(a)
+        e = np.exp(a - mx)
+        return e / np.sum(e)
+    else:
+        mx = np.max(a, axis=axis, keepdims=True)
+        e = np.exp(a - mx)
+        return e / np.sum(e, axis=axis, keepdims=True)
+
+def log_softmax(x, axis = None):
+    a = np.asarray(x).astype(float)
+    if axis is None:
+        mx = np.max(a)
+        mx = mx if (mx == mx and mx > -K.INF and mx < K.INF) else 0.0
+        tmp = a - mx
+        return tmp - np.log(np.sum(np.exp(tmp)))
+    else:
+        mx = np.max(a, axis=axis, keepdims=True)
+        mx = np.where(np.isfinite(mx), mx, 0.0)
+        tmp = a - mx
+        return tmp - np.log(np.sum(np.exp(tmp), axis=axis, keepdims=True))

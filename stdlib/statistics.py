@@ -1,0 +1,996 @@
+
+"""Descriptive statistics and distributions for native numeric data.
+
+The API follows CPython 3.14, including weighted means, ranked correlation,
+regression, and kernel density estimation. Numeric aggregates return `float`;
+`median_low`, `median_high`, and modes preserve the input element type.
+Compensated floating-point arithmetic and widened integer intermediates avoid
+common cancellation and overflow errors, but do not provide Decimal/Fraction
+arithmetic. Random sampling accepts integer seeds. Remove NaNs before computing
+order statistics; native floats do not retain Python object identity for NaNs.
+Finite product overflow uses a fixed-point recovery accumulator. Supplied-center
+dispersion is scaled, and integer relational statistics use shifted origins;
+these can retain finite results and precision lost by CPython's float paths.
+"""
+
+import bisect
+import random
+from collections import Counter
+from math import (
+    erfc as _erfc,
+    exp as _exp,
+    fabs as _fabs,
+    fsum as _fsum,
+    log as _log,
+    sqrt as _sqrt,
+    tau as _tau,
+    hypot as _hypot,
+    isfinite as _isfinite,
+    isnan as _isnan,
+    inf as _inf,
+    nan as _nan,
+    atan as _atan,
+    asin as _asin,
+    cos as _cos,
+    sin as _sin,
+    tan as _tan,
+    log1p as _log1p,
+)
+
+class StatisticsError(ValueError):
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+
+def median(data) -> float:
+    data = sorted(data)
+    n = len(data)
+    if n == 0:
+        raise StatisticsError("no median for empty data")
+    if n.cmod(2) == 1:
+        return float(data[n.cdiv(2)])
+    else:
+        i = n.cdiv(2)
+        if isinstance(data[i], int):
+            return float(Int[128](data[i - 1]) + Int[128](data[i])).cdiv(2.)
+        return float(data[i - 1] + data[i]).cdiv(2.)
+
+def median_low(data):
+    data = sorted(data)
+    n = len(data)
+    if n == 0:
+        raise StatisticsError("no median for empty data")
+    if n.cmod(2) == 1:
+        return data[n.cdiv(2)]
+    else:
+        return data[n.cdiv(2) - 1]
+
+def median_high(data):
+    data = sorted(data)
+    n = len(data)
+    if n == 0:
+        raise StatisticsError("no median for empty data")
+    return data[n.cdiv(2)]
+
+def median_grouped(data, interval=1.0) -> float:
+    data = sorted(data)
+    n = len(data)
+    if n == 0:
+        raise StatisticsError("no median for empty data")
+    midpoint = data[n.cdiv(2)]
+    first = bisect.bisect_left(data, midpoint)
+    last = bisect.bisect_right(data, midpoint, lo=first)
+    def as_float(value) -> float:
+        if isinstance(value, str):
+            from internal.builtin import _parse_float_prefix
+            text = value.strip()
+            result, consumed = _parse_float_prefix(text, 0)
+            if not text or consumed != len(text):
+                raise TypeError("Value cannot be converted to a float")
+            return result
+        else:
+            return float(value)
+    width = as_float(interval)
+    center = as_float(midpoint)
+    lower = center - width.cdiv(2.0)
+    return lower + (width * (float(n).cdiv(2.0) - first)).cdiv(last - first)
+
+def _counts(data: Generator[T], T: type):
+    if T is float or T is float32:
+        positions = Dict[T, int]()
+        pairs = List[Tuple[T, int]]()
+        for value in data:
+            if _isnan(float(value)):
+                pairs.append((value, 1))
+            elif value in positions:
+                index = positions[value]
+                pairs[index] = (pairs[index][0], pairs[index][1] + 1)
+            else:
+                positions[value] = len(pairs)
+                pairs.append((value, 1))
+        return pairs
+    else:
+        return list(Counter(data).items())
+
+def mode(data):
+    counts = _counts(iter(data))
+    if not counts:
+        raise StatisticsError("no mode for empty data")
+    return max(counts, key=lambda pair: pair[1])[0]
+
+def multimode(data):
+    counts = _counts(iter(data))
+    maximum = max((pair[1] for pair in counts), default=0)
+    return [value for value, count in counts if count == maximum]
+
+def quantiles(data, *, n: int = 4, method: str = "exclusive") -> List[float]:
+    if n < 1:
+        raise StatisticsError("n must be at least 1")
+    data = sorted(data)
+    ld = len(data)
+    if ld == 0:
+        raise StatisticsError("must have at least one data point")
+    if ld == 1:
+        return [float(data[0])] * (n - 1)
+
+    if method == "inclusive":
+        m = ld - 1
+        result = Ptr[float](n - 1)
+        for i in range(1, n):
+            scaled = i * m
+            j = scaled.cdiv(n)
+            delta = scaled.cmod(n)
+            if isinstance(data[j], int):
+                interpolated = float(Int[128](data[j]) * (n - delta) + Int[128](data[j + 1]) * delta).cdiv(n)
+            else:
+                interpolated = float(data[j] * (n - delta) + data[j + 1] * delta).cdiv(n)
+            result[i - 1] = interpolated
+        return List(result, n - 1)
+    if method == "exclusive":
+        m = ld + 1
+        result = Ptr[float](n - 1)
+        for i in range(1, n):
+            j = (i * m).cdiv(n)  # rescale i to m/n
+            j = 1 if j < 1 else ld - 1 if j > ld - 1 else j  # clamp to 1 .. ld-1
+            delta = (i * m) - (j * n)  # exact integer math
+            if isinstance(data[j], int):
+                interpolated = float(Int[128](data[j - 1]) * (n - delta) + Int[128](data[j]) * delta).cdiv(n)
+            else:
+                interpolated = float(data[j - 1] * (n - delta) + data[j] * delta).cdiv(n)
+            result[i - 1] = interpolated
+        return List(result, n - 1)
+    raise ValueError(f"Unknown method: {method!r}")
+
+def _as_sequence(data):
+    if hasattr(data, "__len__") and hasattr(data, "__getitem__") and not hasattr(data, "keys"):
+        return data
+    else:
+        return list(data)
+
+def _compensated_add(total: float, correction: float, value: float):
+    combined = total + value
+    if abs(total) >= abs(value):
+        correction += (total - combined) + value
+    else:
+        correction += (value - combined) + total
+    return combined, correction
+
+def _sum_finite(data) -> float:
+    total, correction = 0.0, 0.0
+    for value in data:
+        total, correction = _compensated_add(total, correction, float(value))
+    return total + correction
+
+def _sum(data: Generator[T], overflow: Ptr[bool] = Ptr[bool](), T: type) -> float:
+    if T is int or T is bool:
+        total = Int[128](0)
+        for value in data:
+            total += Int[128](value)
+        return float(total)
+    elif T is str:
+        compile_error("expected a real number")
+    else:
+        total, correction, special = 0.0, 0.0, 0.0
+        for value in data:
+            numeric = float(value)
+            if _isfinite(numeric):
+                total, correction = _compensated_add(total, correction, numeric)
+            else:
+                special += numeric
+        if special != 0.0:
+            return special
+        if not _isfinite(total):
+            if overflow:
+                overflow[0] = True
+                return 0.0
+            raise OverflowError("intermediate overflow in sum")
+        return total + correction
+
+def mean(data) -> float:
+    values = _as_sequence(data)
+    n = len(values)
+    if n < 1:
+        raise StatisticsError("mean requires at least one data point")
+    if isinstance(values[0], float):
+        total = _sum_finite(values)
+        if _isfinite(total):
+            return total.cdiv(n)
+    overflow = False
+    total = _sum(iter(values), __ptr__(overflow))
+    if overflow:
+        def scaled_values(values, count: int):
+            for value in values:
+                yield float(value).cdiv(count)
+        return _sum(scaled_values(values, n))
+    return total.cdiv(n)
+
+def _product_fixed(first: float, second: float) -> Int[4352]:
+    """Encode a finite binary64 product in units of 2**-2148.
+
+    Products need at most 4196 bits; 4352 also accommodates an int64-sized
+    stream. The 53-bit significands multiply exactly in Int[128].
+    """
+    from math import frexp
+    first_mantissa, first_exponent = frexp(first)
+    second_mantissa, second_exponent = frexp(second)
+    significand = (Int[128](int(first_mantissa * 9007199254740992.0))
+                   * Int[128](int(second_mantissa * 9007199254740992.0)))
+    shift = first_exponent + second_exponent + 2042
+    if shift < 0:
+        return Int[4352](significand >> Int[128](-shift))
+    return Int[4352](significand) << Int[4352](shift)
+
+def _fixed_float(total: Int[4352], divisor: float) -> float:
+    """Normalize before narrowing, retaining a sticky bit for discarded digits."""
+    from math import frexp
+    from C import ldexp(float, Int[32]) -> float
+    if not _isfinite(divisor):
+        return 0.0.cdiv(divisor)
+    magnitude = abs(total)
+    shift = max(0, magnitude.bit_length() - 120)
+    leading = magnitude >> Int[4352](shift)
+    if magnitude != leading << Int[4352](shift):
+        leading |= Int[4352](1)
+    mantissa, exponent = frexp(divisor)
+    result = ldexp(float(Int[128](leading)).cdiv(mantissa), Int[32](shift - 2148 - exponent))
+    return -result if total < 0 else result
+
+def _sumprod_recover(pairs, first: float, second: float, total: float,
+                     correction: float, divisor: float) -> float:
+    """Promote the finite prefix and consume the remaining products once."""
+    extended = _product_fixed(total, 1.0) + _product_fixed(correction, 1.0) + _product_fixed(first, second)
+    special = 0.0
+    for left_value, right_value in pairs:
+        first, second = float(left_value), float(right_value)
+        if not _isfinite(first) or not _isfinite(second):
+            special += first * second
+        elif special == 0.0:
+            extended += _product_fixed(first, second)
+    if special != 0.0:
+        return special.cdiv(divisor)
+    return _fixed_float(extended, divisor)
+
+def _sumprod(left: Generator[T], right: Generator[U], divisor: float = 1.0,
+             T: type, U: type) -> float:
+    if (T is int or T is bool) and (U is int or U is bool):
+        total = Int[256](0)
+        for left_value, right_value in zip(left, right):
+            total += Int[256](left_value) * Int[256](right_value)
+        magnitude = abs(total)
+        shift = max(0, magnitude.bit_length() - 120)
+        leading = magnitude >> Int[256](shift)
+        if magnitude != leading << Int[256](shift):
+            leading |= Int[256](1)
+        from math import ldexp
+        result = ldexp(float(Int[128](leading)), shift)
+        return (-result if total < 0 else result).cdiv(divisor)
+    else:
+        from C import fma(float, float, float) -> float
+        total, correction, special = 0.0, 0.0, 0.0
+        pairs = zip(left, right)
+        for left_value, right_value in pairs:
+            first = float(left_value)
+            second = float(right_value)
+            product = first * second
+            if not _isfinite(product):
+                if _isfinite(first) and _isfinite(second):
+                    if special == 0.0:
+                        return _sumprod_recover(pairs, first, second, total, correction, divisor)
+                else:
+                    special += product
+            elif special == 0.0:
+                combined, compensation = _compensated_add(total, correction, product)
+                combined, compensation = _compensated_add(combined, compensation, fma(first, second, -product))
+                if not _isfinite(combined) or not _isfinite(compensation):
+                    return _sumprod_recover(pairs, first, second, total, correction, divisor)
+                total, correction = combined, compensation
+        if special != 0.0:
+            return special.cdiv(divisor)
+        result = total + correction
+        if not _isfinite(result):
+            return _sumprod_recover(pairs, 0.0, 0.0, total, correction, divisor)
+        return result.cdiv(divisor)
+
+def fmean(data, weights=None) -> float:
+    if weights is None:
+        if hasattr(data, "__len__"):
+            count = len(data)
+            total = _fsum(data)
+        else:
+            count = 0
+            def counted(data, count: Ptr[int]):
+                for value in data:
+                    count[0] += 1
+                    yield value
+            total = _fsum(counted(data, __ptr__(count)))
+        if not count:
+            raise StatisticsError("fmean requires at least one data point")
+        return total.cdiv(count)
+    else:
+        values = _as_sequence(data)
+        weights = _as_sequence(weights)
+        if len(values) != len(weights):
+            raise StatisticsError("data and weights must be the same length")
+        denominator = _fsum(weights)
+        if not denominator:
+            raise StatisticsError("sum of weights must be non-zero")
+        return _sumprod(iter(values), iter(weights), denominator)
+
+def geometric_mean(data) -> float:
+    count = 0
+    found_zero = False
+    def logarithms(values, count: Ptr[int], found_zero: Ptr[bool]):
+        for value in values:
+            count[0] += 1
+            if value > 0.0 or _isnan(float(value)):
+                yield _log(float(value))
+            elif value == 0.0:
+                found_zero[0] = True
+            else:
+                raise StatisticsError("No negative inputs allowed")
+    total = _fsum(logarithms(data, __ptr__(count), __ptr__(found_zero)))
+    if not count:
+        raise StatisticsError("Must have a non-empty dataset")
+    if _isnan(total):
+        return _nan
+    if found_zero:
+        return _nan if total == _inf else 0.0
+    return _exp(total.cdiv(count))
+
+def _fail_neg(values, errmsg: str):
+    for value in values:
+        if value < 0:
+            raise StatisticsError(errmsg)
+        yield value
+
+def harmonic_mean(data, weights=None) -> float:
+    values = _as_sequence(data)
+    errmsg = "harmonic mean does not support negative values"
+    n = len(values)
+    if n < 1:
+        raise StatisticsError("harmonic_mean requires at least one data point")
+    found_zero = False
+    overflow = False
+    def reciprocals(values, weights, errmsg: str, found_zero: Ptr[bool]):
+        if weights is None:
+            for value in _fail_neg(values, errmsg):
+                numeric = float(value)
+                if numeric == 0.0:
+                    found_zero[0] = True
+                    return
+                yield 1.0.cdiv(numeric)
+        else:
+            for weight, value in zip(weights, _fail_neg(values, errmsg)):
+                if not weight:
+                    yield 0.0
+                else:
+                    numeric = float(value)
+                    if numeric == 0.0:
+                        found_zero[0] = True
+                        return
+                    yield float(weight).cdiv(numeric)
+    if weights is None:
+        if n == 1:
+            value = float(values[0])
+            if value < 0:
+                raise StatisticsError(errmsg)
+            return value
+        total_weight = float(n)
+        total = _sum(reciprocals(values, None, errmsg, __ptr__(found_zero)), __ptr__(overflow))
+    else:
+        weight_values = _as_sequence(weights)
+        if len(weight_values) != n:
+            raise StatisticsError("Number of weights does not match data size")
+        total_weight = _sum(_fail_neg(weight_values, errmsg))
+        total = _sum(reciprocals(values, weight_values, errmsg, __ptr__(found_zero)), __ptr__(overflow))
+    if found_zero:
+        return 0.0
+    if overflow:
+        raise OverflowError("intermediate overflow in sum")
+    if total <= 0:
+        raise StatisticsError("Weighted sum must be positive")
+    return total_weight.cdiv(total)
+
+def _difference(value, center) -> float:
+    if isinstance(value, int) and isinstance(center, int):
+        return float(Int[128](value) - Int[128](center))
+    return float(value) - float(center)
+
+def _scaled_difference(value, center, scale: float) -> float:
+    difference = _difference(value, center)
+    if not _isfinite(difference):
+        return float(value).cdiv(scale) - float(center).cdiv(scale)
+    return difference.cdiv(scale)
+
+def _spread(data, center, correction: int, root: bool, recenter: Literal[bool] = True) -> float:
+    count = len(data)
+    maximum = 0.0
+    magnitude = abs(float(center))
+    special = 0.0
+    for value in data:
+        numeric = float(value)
+        difference = _difference(value, center)
+        if recenter:
+            if not _isfinite(numeric):
+                special += numeric
+        else:
+            if not _isfinite(numeric) or not _isfinite(float(center)):
+                special += difference * difference
+        magnitude = max(magnitude, abs(numeric))
+        maximum = max(maximum, abs(difference))
+    if special != 0.0:
+        if root:
+            raise ValueError("inf or nan encountered in data")
+        return special
+    if maximum == 0.0:
+        return 0.0
+    scale = 1.0
+    if not _isfinite(maximum):
+        scale = magnitude
+    elif maximum > 1e140 or maximum < 1e-140:
+        scale = maximum
+    offset = 0.0
+    if recenter:
+        offset = _sum_finite(map(_scaled_difference(center=center, scale=scale, ...), data)).cdiv(count)
+    total, compensation = 0.0, 0.0
+    residual, residual_compensation = 0.0, 0.0
+    for value in data:
+        difference = _scaled_difference(value, center, scale) - offset
+        total, compensation = _compensated_add(total, compensation, difference * difference)
+        if recenter:
+            residual, residual_compensation = _compensated_add(residual, residual_compensation, difference)
+    total += compensation
+    if recenter:
+        residual += residual_compensation
+        total = max(0.0, total - residual * residual.cdiv(count))
+    normalized = total.cdiv(count - correction)
+    if root:
+        return _sqrt(normalized) * scale
+    result = (normalized * scale) * scale
+    if recenter and not _isfinite(result):
+        raise OverflowError("integer division result too large for a float")
+    return result
+
+def _dispersion(data, center, correction: int, root: bool, name: str) -> float:
+    values = _as_sequence(data)
+    if len(values) <= correction:
+        requirement = "two data points" if correction else "one data point"
+        raise StatisticsError(f"{name} requires at least {requirement}")
+    if center is None:
+        return _spread(values, values[0], correction, root)
+    else:
+        return _spread(values, center, correction, root, recenter=False)
+
+def pvariance(data, mu=None) -> float:
+    return _dispersion(data, mu, 0, False, "pvariance")
+
+def pstdev(data, mu=None) -> float:
+    return _dispersion(data, mu, 0, True, "pstdev")
+
+def variance(data, xbar=None) -> float:
+    return _dispersion(data, xbar, 1, False, "variance")
+
+def stdev(data, xbar=None) -> float:
+    return _dispersion(data, xbar, 1, True, "stdev")
+
+def _paired(xdata, ydata, name: str):
+    left = _as_sequence(xdata)
+    right = _as_sequence(ydata)
+    if len(left) != len(right):
+        raise StatisticsError(f"{name} requires that both inputs have same number of data points")
+    if len(left) < 2:
+        raise StatisticsError(f"{name} requires at least two data points")
+    return left, right
+
+def _origin_mean(data, proportional: bool = False):
+    if isinstance(data[0], int) or isinstance(data[0], bool):
+        origin = 0 if proportional else int(data[0])
+        total = Int[128](0)
+        if not proportional:
+            for value in data:
+                total += Int[128](value) - Int[128](origin)
+        return origin, float(total).cdiv(len(data))
+    else:
+        return 0.0, 0.0 if proportional else fmean(data)
+
+def _centered(data, origin, center: float, count: int):
+    for index in range(count):
+        yield _difference(data[index], origin) - center
+
+def _relational_scale(data, origin, center: float, count: int) -> float:
+    scale = abs(center)
+    for index in range(count):
+        difference = _difference(data[index], origin)
+        if not _isfinite(difference):
+            return 0.0
+        scale = max(scale, abs(difference))
+    return scale if scale else 1.0
+
+def _scaled_centered(data, origin, center: float, count: int, scale: float):
+    for index in range(count):
+        yield _scaled_difference(data[index], origin, scale) - center.cdiv(scale)
+
+def covariance(xdata, ydata, /) -> float:
+    left, right = _paired(xdata, ydata, "covariance")
+    left_origin, left_mean = _origin_mean(left)
+    right_origin, right_mean = _origin_mean(right)
+    count = len(left)
+    return _sumprod(_centered(left, left_origin, left_mean, count),
+                    _centered(right, right_origin, right_mean, count), float(count - 1))
+
+def _rank(data):
+    count = len(data)
+    def rank_key(data, index: int):
+        return data[index]
+    order = sorted(range(count), key=rank_key(data, ...))
+    ranks = Ptr[float](count)
+    start = 0
+    while start < count:
+        stop = start + 1
+        while stop < count and data[order[stop]] == data[order[start]]:
+            stop += 1
+        rank = float(start + stop - count).cdiv(2.0)
+        for index in range(start, stop):
+            ranks[order[index]] = rank
+        start = stop
+    return ranks
+
+def _correlation(left, right, left_origin, right_origin, left_mean: float,
+                  right_mean: float, count: int) -> float:
+    product = _sumprod(_centered(left, left_origin, left_mean, count),
+                       _centered(right, right_origin, right_mean, count), float(count))
+    left_square = _sumprod(_centered(left, left_origin, left_mean, count),
+                           _centered(left, left_origin, left_mean, count), float(count))
+    right_square = _sumprod(_centered(right, right_origin, right_mean, count),
+                            _centered(right, right_origin, right_mean, count), float(count))
+    if (not _isfinite(product) or not _isfinite(left_square) or not _isfinite(right_square)
+            or left_square == 0.0 or right_square == 0.0):
+        left_scale = _relational_scale(left, left_origin, left_mean, count)
+        right_scale = _relational_scale(right, right_origin, right_mean, count)
+        if left_scale and right_scale:
+            product = _sumprod(_scaled_centered(left, left_origin, left_mean, count, left_scale),
+                               _scaled_centered(right, right_origin, right_mean, count, right_scale))
+            left_square = _sumprod(_scaled_centered(left, left_origin, left_mean, count, left_scale),
+                                   _scaled_centered(left, left_origin, left_mean, count, left_scale))
+            right_square = _sumprod(_scaled_centered(right, right_origin, right_mean, count, right_scale),
+                                    _scaled_centered(right, right_origin, right_mean, count, right_scale))
+    squares = left_square * right_square
+    if squares > 0.0 and _isfinite(squares):
+        denominator = _sqrt(squares)
+    else:
+        denominator = _sqrt(left_square) * _sqrt(right_square)
+    if denominator == 0.0:
+        raise StatisticsError("at least one of the inputs is constant")
+    return product.cdiv(denominator)
+
+def correlation(xdata, ydata, /, *, method: str = "linear") -> float:
+    left, right = _paired(xdata, ydata, "correlation")
+    if method == "ranked":
+        return _correlation(_rank(left), _rank(right), 0.0, 0.0, 0.0, 0.0, len(left))
+    if method != "linear":
+        raise ValueError(f"Unknown method: {method!r}")
+    left_origin, left_mean = _origin_mean(left)
+    right_origin, right_mean = _origin_mean(right)
+    return _correlation(left, right, left_origin, right_origin, left_mean, right_mean, len(left))
+
+@tuple
+class LinearRegression:
+    slope: float
+    intercept: float
+
+def _origin_parts(value):
+    if isinstance(value, int):
+        return float(value >> 32) * 4294967296.0, float(value & 0xffffffff)
+    else:
+        return float(value), 0.0
+
+def linear_regression(xdata, ydata, /, *, proportional: bool = False):
+    left, right = _paired(xdata, ydata, "linear regression")
+    left_origin, left_mean = _origin_mean(left, proportional)
+    right_origin, right_mean = _origin_mean(right, proportional)
+    count = len(left)
+    product = _sumprod(_centered(left, left_origin, left_mean, count),
+                       _centered(right, right_origin, right_mean, count), float(count))
+    square = _sumprod(_centered(left, left_origin, left_mean, count),
+                      _centered(left, left_origin, left_mean, count), float(count))
+    left_scale, right_scale = 1.0, 1.0
+    rescaled = False
+    if not _isfinite(product) or not _isfinite(square) or square == 0.0:
+        left_scale = _relational_scale(left, left_origin, left_mean, count)
+        right_scale = _relational_scale(right, right_origin, right_mean, count)
+        if left_scale and right_scale:
+            product = _sumprod(_scaled_centered(left, left_origin, left_mean, count, left_scale),
+                               _scaled_centered(right, right_origin, right_mean, count, right_scale))
+            square = _sumprod(_scaled_centered(left, left_origin, left_mean, count, left_scale),
+                              _scaled_centered(left, left_origin, left_mean, count, left_scale))
+            rescaled = True
+    if square == 0.0:
+        raise StatisticsError("x is constant")
+    slope = product.cdiv(square)
+    if rescaled:
+        slope = _fixed_float(_product_fixed(slope, right_scale), left_scale)
+    intercept = 0.0
+    if not proportional:
+        if isinstance(left_origin, int) or isinstance(right_origin, int):
+            left_high, left_low = _origin_parts(left_origin)
+            right_high, right_low = _origin_parts(right_origin)
+            intercept = _sumprod(iter((right_high, right_low, right_mean, left_high, left_low, left_mean)),
+                                 iter((1.0, 1.0, 1.0, -slope, -slope, -slope)))
+        else:
+            intercept = right_mean - slope * left_mean
+    return LinearRegression(slope, intercept)
+
+def _kernel_id(data, bandwidth, kernel: str) -> int:
+    if not len(data):
+        raise StatisticsError("Empty data sequence")
+    if not isinstance(data[0], int) and not isinstance(data[0], float):
+        compile_error("Data sequence must contain ints or floats")
+    if bandwidth <= 0.0:
+        raise StatisticsError(f"Bandwidth h must be positive, not h={bandwidth!r}")
+    if kernel == "normal" or kernel == "gauss":
+        return 0
+    if kernel == "logistic":
+        return 1
+    if kernel == "sigmoid":
+        return 2
+    if kernel == "rectangular" or kernel == "uniform":
+        return 3
+    if kernel == "triangular":
+        return 4
+    if kernel == "parabolic" or kernel == "epanechnikov":
+        return 5
+    if kernel == "quartic" or kernel == "biweight":
+        return 6
+    if kernel == "triweight":
+        return 7
+    if kernel == "cosine":
+        return 8
+    raise StatisticsError(f"Unknown kernel name: {kernel!r}")
+
+def _kernel_value(value: float, kind: int, cumulative: bool) -> float:
+    if kind == 0:
+        if cumulative:
+            return 0.5 * _erfc((-value).cdiv(_sqrt(2.0)))
+        return _exp(-0.5 * value * value).cdiv(_sqrt(_tau))
+    if kind == 1:
+        tail = _exp(-abs(value))
+        if cumulative:
+            return tail.cdiv(1.0 + tail) if value < 0 else 1.0.cdiv(1.0 + tail)
+        return tail.cdiv((1.0 + tail) * (1.0 + tail))
+    if kind == 2:
+        tail = _exp(-abs(value))
+        if cumulative:
+            probability = 4.0.cdiv(_tau) * _atan(tail)
+            return probability if value < 0 else 1.0 - probability
+        return (4.0.cdiv(_tau) * tail).cdiv(1.0 + tail * tail)
+    if cumulative:
+        if value <= -1.0:
+            return 0.0
+        if value >= 1.0:
+            return 1.0
+    elif abs(value) > 1.0:
+        return 0.0
+    if kind == 3:
+        return 0.5 * value + 0.5 if cumulative else 0.5
+    if kind == 4:
+        if cumulative:
+            return 0.5 * (1.0 + value) ** 2 if value < 0 else 1.0 - 0.5 * (1.0 - value) ** 2
+        return 1.0 - abs(value)
+    square = value * value
+    if kind == 5:
+        if cumulative:
+            return 0.5 + value * (0.75 - 0.25 * square)
+        return 0.75 * (1.0 - square)
+    if kind == 6:
+        if cumulative:
+            return 0.5 + value * (0.9375 + square * (-0.625 + 0.1875 * square))
+        return 0.9375 * (1.0 - square) ** 2
+    if kind == 7:
+        if cumulative:
+            return 0.5 + value * (1.09375 + square * (-1.09375 + square * (0.65625 - 0.15625 * square)))
+        return 1.09375 * (1.0 - square) ** 3
+    if cumulative:
+        return 0.5 * _sin(value * _tau.cdiv(4.0)) + 0.5
+    return _tau.cdiv(8.0) * _cos(value * _tau.cdiv(4.0))
+
+def _kernel_values(data, first: int, last: int, point: float, bandwidth: float,
+                   kind: int, cumulative: bool):
+    for index in range(first, last):
+        yield _kernel_value((point - data[index]).cdiv(bandwidth), kind, cumulative)
+
+def kde(data, h, kernel: str = "normal", *, cumulative: bool = False):
+    """Return a kernel density or cumulative distribution estimator."""
+    kind = _kernel_id(data, h, kernel)
+    bandwidth = float(h)
+    samples = sorted(data) if kind >= 3 else []
+    def estimate(data, bandwidth: float, kind: int, cumulative: bool, samples,
+                 point: float) -> float:
+        count = len(data)
+        if not count:
+            samples.clear()
+            raise ZeroDivisionError("division by zero")
+        if kind < 3:
+            total = _fsum(_kernel_values(data, 0, count, point, bandwidth, kind, cumulative))
+        else:
+            if len(samples) != count:
+                samples.clear()
+                samples.extend(data)
+                samples.sort()
+            first = bisect.bisect_left(samples, point - bandwidth)
+            last = bisect.bisect_right(samples, point + bandwidth)
+            total = _fsum(_kernel_values(samples, first, last, point, bandwidth, kind, cumulative))
+            if cumulative:
+                total += first
+        return total.cdiv(count if cumulative else count * bandwidth)
+    return estimate(data, bandwidth, kind, cumulative, samples, ...)
+
+def _kernel_inverse(probability: float, kind: int, normal) -> float:
+    if kind == 0:
+        return normal._normal_dist_inv_cdf(probability, 0.0, 1.0)
+    if kind == 1:
+        return _log(probability) - _log1p(-probability)
+    if kind == 2:
+        return _log(_tan(probability * _tau.cdiv(4.0)))
+    if kind == 3:
+        return 2.0 * probability - 1.0
+    if kind == 4:
+        return _sqrt(2.0 * probability) - 1.0 if probability < 0.5 else 1.0 - _sqrt(2.0 - 2.0 * probability)
+    if kind == 8:
+        return 4.0.cdiv(_tau) * _asin(2.0 * probability - 1.0)
+    if probability <= 0.0:
+        return -1.0
+    if probability >= 1.0:
+        return 1.0
+    lower, upper = -1.0, 1.0
+    value = 2.0 * probability - 1.0
+    for iteration in range(60):
+        error = _kernel_value(value, kind, True) - probability
+        if abs(error) < 1e-14:
+            break
+        if error < 0.0:
+            lower = value
+        else:
+            upper = value
+        density = _kernel_value(value, kind, False)
+        candidate = value - error.cdiv(density) if density else upper
+        value = candidate if lower < candidate < upper else (lower + upper) * 0.5
+    return value
+
+def kde_random(data, h, kernel: str = "normal", *, seed: Optional[int] = None):
+    """Return a sampler with a private random generator and optional integer seed."""
+    kind = _kernel_id(data, h, kernel)
+    generator = random.Random(seed)
+    normal = NormalDist()
+    def sample(data, bandwidth: float, kind: int, generator, normal) -> float:
+        value = generator.choice(data)
+        probability = generator.random()
+        return value + bandwidth * _kernel_inverse(probability, kind, normal)
+    return sample(data, float(h), kind, generator, normal, ...)
+
+class NormalDist:
+    _mu: float
+    _sigma: float
+
+    def __init__(self, mu=0.0, sigma=1.0):
+        if sigma < 0.0:
+            raise StatisticsError("sigma must be non-negative")
+        self._mu = float(mu)
+        self._sigma = float(sigma)
+
+    @property
+    def mean(self):
+        return self._mu
+
+    @property
+    def median(self):
+        return self._mu
+
+    @property
+    def mode(self):
+        return self._mu
+
+    @property
+    def stdev(self):
+        return self._sigma
+
+    @property
+    def variance(self):
+        return self._sigma * self._sigma
+
+    def pdf(self, x):
+        variance = self._sigma * self._sigma
+        if not variance:
+            raise StatisticsError("pdf() not defined when sigma is zero")
+        difference = x - self._mu
+        return _exp((difference * difference).cdiv(-2.0 * variance)).cdiv(_sqrt(_tau * variance))
+
+    def cdf(self, x):
+        if not self._sigma:
+            raise StatisticsError("cdf() not defined when sigma is zero")
+        return 0.5 * _erfc((self._mu - x).cdiv(self._sigma * _sqrt(2.0)))
+
+    def zscore(self, x):
+        if not self._sigma:
+            raise StatisticsError("zscore() not defined when sigma is zero")
+        return (x - self._mu).cdiv(self._sigma)
+
+    def _normal_dist_inv_cdf(self, p: float, mu: float, sigma: float):
+        q = p - 0.5
+        num = 0.0
+        den = 0.0
+        if _fabs(q) <= 0.425:
+            r = 0.180625 - q * q
+            # Hash sum: 55.88319_28806_14901_4439
+            num = (((((((2.5090809287301226727e+3 * r +
+                    3.3430575583588128105e+4) * r +
+                    6.7265770927008700853e+4) * r +
+                    4.5921953931549871457e+4) * r +
+                    1.3731693765509461125e+4) * r +
+                    1.9715909503065514427e+3) * r +
+                    1.3314166789178437745e+2) * r +
+                    3.3871328727963666080e+0) * q
+            den = (((((((5.2264952788528545610e+3 * r +
+                    2.8729085735721942674e+4) * r +
+                    3.9307895800092710610e+4) * r +
+                    2.1213794301586595867e+4) * r +
+                    5.3941960214247511077e+3) * r +
+                    6.8718700749205790830e+2) * r +
+                    4.2313330701600911252e+1) * r +
+                    1.0)
+            x = num.cdiv(den)
+            return mu + (x * sigma)
+        r = p if q <= 0.0 else 1.0 - p
+        r = _sqrt(-_log(r))
+        if r <= 5.0:
+            r = r - 1.6
+            # Hash sum: 49.33206_50330_16102_89036
+            num = (((((((7.74545014278341407640e-4 * r +
+                    2.27238449892691845833e-2) * r +
+                    2.41780725177450611770e-1) * r +
+                    1.27045825245236838258e+0) * r +
+                    3.64784832476320460504e+0) * r +
+                    5.76949722146069140550e+0) * r +
+                    4.63033784615654529590e+0) * r +
+                    1.42343711074968357734e+0)
+            den = (((((((1.05075007164441684324e-9 * r +
+                    5.47593808499534494600e-4) * r +
+                    1.51986665636164571966e-2) * r +
+                    1.48103976427480074590e-1) * r +
+                    6.89767334985100004550e-1) * r +
+                    1.67638483018380384940e+0) * r +
+                    2.05319162663775882187e+0) * r +
+                    1.0)
+        else:
+            r = r - 5.0
+            # Hash sum: 47.52583_31754_92896_71629
+            num = (((((((2.01033439929228813265e-7 * r +
+                    2.71155556874348757815e-5) * r +
+                    1.24266094738807843860e-3) * r +
+                    2.65321895265761230930e-2) * r +
+                    2.96560571828504891230e-1) * r +
+                    1.78482653991729133580e+0) * r +
+                    5.46378491116411436990e+0) * r +
+                    6.65790464350110377720e+0)
+            den = (((((((2.04426310338993978564e-15 * r +
+                    1.42151175831644588870e-7) * r +
+                    1.84631831751005468180e-5) * r +
+                    7.86869131145613259100e-4) * r +
+                    1.48753612908506148525e-2) * r +
+                    1.36929880922735805310e-1) * r +
+                    5.99832206555887937690e-1) * r +
+                    1.0)
+        x = num.cdiv(den)
+        if q < 0.0:
+            x = -x
+        return mu + (x * sigma)
+
+    def inv_cdf(self, p: float):
+        if p <= 0.0 or p >= 1.0:
+            raise StatisticsError("p must be in the range 0.0 < p < 1.0")
+        return self._normal_dist_inv_cdf(p, self._mu, self._sigma)
+
+    def quantiles(self, n: int = 4):
+        return [self.inv_cdf(float(i).cdiv(float(n))) for i in range(1, n)]
+
+    def overlap(self, other: NormalDist) -> float:
+        X, Y = self, other
+
+        if (Y._sigma, Y._mu) < (X._sigma, X._mu):  # sort to assure commutativity
+            X, Y = Y, X
+
+        X_var, Y_var = X.variance, Y.variance
+
+        if not X_var or not Y_var:
+            raise StatisticsError("overlap() not defined when sigma is zero")
+
+        dv = Y_var - X_var
+        dm = _fabs(Y._mu - X._mu)
+
+        if not dv:
+            return _erfc(dm.cdiv(2.0 * X._sigma * _sqrt(2.0)))
+
+        a = X._mu * Y_var - Y._mu * X_var
+        b = X._sigma * Y._sigma * _sqrt(dm ** 2.0 + dv * _log(Y_var.cdiv(X_var)))
+        x1 = (a + b).cdiv(dv)
+        x2 = (a - b).cdiv(dv)
+
+        return 1.0 - (_fabs(Y.cdf(x1) - X.cdf(x1)) + _fabs(Y.cdf(x2) - X.cdf(x2)))
+
+    def samples(self, n: int, *, seed: Optional[int] = None):
+        if seed is None:
+            return [self._normal_dist_inv_cdf(random.random(), self._mu, self._sigma) for index in range(n)]
+        else:
+            generator = random.Random(seed)
+            return [self._normal_dist_inv_cdf(generator.random(), self._mu, self._sigma) for index in range(n)]
+
+    def from_samples(data):
+        values = _as_sequence(data)
+        if len(values) < 2:
+            raise StatisticsError("stdev requires at least two data points")
+        return NormalDist(mean(values), stdev(values))
+
+    def __add__(x1: NormalDist, x2: NormalDist):
+        return NormalDist(x1._mu + x2._mu, _hypot(x1._sigma, x2._sigma))
+
+    def __add__(x1: NormalDist, x2: float):
+        return NormalDist(x1._mu + x2, x1._sigma)
+
+    def __sub__(x1: NormalDist, x2: NormalDist):
+        return NormalDist(x1._mu - x2._mu, _hypot(x1._sigma, x2._sigma))
+
+    def __sub__(x1: NormalDist, x2: float):
+        return NormalDist(x1._mu - x2, x1._sigma)
+
+    def __mul__(x1: NormalDist, x2: float):
+        return NormalDist(x1._mu * x2, x1._sigma * _fabs(x2))
+
+    def __truediv__(x1: NormalDist, x2: float):
+        if x2 == 0.0:
+            raise ZeroDivisionError("division by zero")
+        return NormalDist(x1._mu.cdiv(x2), x1._sigma.cdiv(_fabs(x2)))
+
+    def __pos__(x1: NormalDist):
+        return NormalDist(x1._mu, x1._sigma)
+
+    def __neg__(x1: NormalDist):
+        return NormalDist(-x1._mu, x1._sigma)
+
+    def __radd__(x1: NormalDist, x2: float):
+        return x1 + x2
+
+    def __rsub__(x1: NormalDist, x2: float):
+        return -(x1 - x2)
+
+    def __rmul__(x1: NormalDist, x2: float):
+        return x1 * x2
+
+    def __eq__(x1: NormalDist, x2: NormalDist):
+        return x1._mu == x2._mu and x1._sigma == x2._sigma
+
+    def __ne__(self, other: NormalDist, /):
+        return not self == other
+
+    def __hash__(self):
+        return hash((self._mu, self._sigma))
+
+    def __repr__(self):
+        return f"NormalDist(mu={self._mu}, sigma={self._sigma})"

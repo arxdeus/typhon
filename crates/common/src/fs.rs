@@ -54,7 +54,7 @@ pub trait FileSystem: Send + Sync {
         if !is_stdlib && !m0.is_empty() && s.starts_with(&m0) {
             root = m0.clone();
         }
-        let ext = if s.ends_with(".codon") { ".codon" } else { ".py" };
+        let ext = ".py";
         let start = if root.is_empty() { 0 } else { root.len() + 1 };
         let module = s[start..s.len() - ext.len()].replace('/', ".");
         ImportFile {
@@ -99,12 +99,12 @@ pub struct DiskFileSystem {
 impl DiskFileSystem {
     pub fn new(argv0: &str, module0: &str) -> Self {
         let mut fs = Self { argv0: argv0.to_string(), module0: PathBuf::from(module0), search: vec![] };
-        if let Ok(p) = std::env::var("TYPHON_PATH").or_else(|_| std::env::var("CODON_PATH")) {
+        if let Ok(p) = std::env::var("TYPHON_PATH") {
             fs.add_search_path(&p);
         }
         if let Ok(exe) = std::env::current_exe() {
             if let Some(root) = exe.parent() {
-                for loci in ["../lib/codon/stdlib", "../stdlib", "stdlib", "../lib/codon/plugins", "../plugins"] {
+                for loci in ["../lib/typhon/stdlib", "../stdlib", "stdlib", "../lib/typhon/plugins", "../plugins"] {
                     fs.add_search_path(&root.join(loci).to_string_lossy());
                 }
             }

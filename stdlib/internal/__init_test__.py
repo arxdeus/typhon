@@ -1,0 +1,57 @@
+
+# Core library
+
+from internal.attributes import *
+from internal.static import print as __print__
+
+from internal.ops import *
+from internal.types.int import *
+from internal.types.ptr import *
+from internal.types.bool import *
+from internal.types.error import *
+from internal.types.float import *
+
+from internal.types.slice import *
+from internal.types.collections.list import *
+from internal.types.bytes import *
+from internal.types.collections.bytearray import *
+
+from internal.types.type import *
+from internal.types.tuple import *
+from internal.types.rtti import *
+from internal.types.function import *
+from internal.types.union import *
+from internal.types.any import *
+from internal.types.ellipsis import *
+from internal.types.import_ import *
+from internal.types.generator import *
+from internal.types.optional import *
+from internal.internal import *
+from internal.types.slice import *
+from internal.types.range import *
+from internal.types.complex import *
+from internal.types.strbuf import strbuf as _strbuf
+from internal.types.collections.list import *
+from internal.types.collections.set import *
+from internal.types.collections.dict import *
+import internal.c_stubs as _C
+from internal.format import *
+
+def next(g: Generator[T], default: Optional[T] = None, T: type) -> T:
+    if not g._advance():
+        if default is not None:
+            return default.__val__()
+        else:
+            raise StopIteration()
+    return g._get()
+
+from C import seq_print_full(str, cobj)
+set = Set
+dict = Dict
+
+from internal.builtin import *
+from internal.types.str import *
+from internal.format import *
+
+# from openmp import Ident as __OMPIdent, for_par
+from internal.dlopen import dlsym as _dlsym, dlsym_c as _dlsym_c

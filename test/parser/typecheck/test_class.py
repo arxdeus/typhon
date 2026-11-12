@@ -1,0 +1,1202 @@
+#%% class_err_1,barebones
+@extend
+@foo
+class Foo:
+    pass
+#! cannot combine '@extend' with other attributes or decorators
+
+#%% class_extend_typedef,barebones
+size_t = i32
+@extend
+class size_t:
+    def foo(self):
+        return f'Int{N}.foo.{self}'
+
+print size_t(1).foo()  #: Int32.foo.1
+print Int[64](2).foo()  #: Int64.foo.2
+
+#%% class_err_2,barebones
+def foo():
+    @extend
+    class Foo:
+        pass
+foo()
+#! class extension must be a top-level statement
+#! during the realization of foo()
+
+#%% class_nested,barebones
+class Foo:
+    foo: int
+    class Bar:
+        bar: int
+        b: Optional[Foo.Bar]  # TODO: allow this ONLY in type annotations
+        c: Optional[int]
+        class Moo:
+            # TODO: allow nested class reference to the upclass
+            # x: Foo.Bar
+            x: int
+y = Foo(1)
+z = Foo.Bar(2, None, 4)
+m = Foo.Bar.Moo(5)
+print y.foo #: 1
+print z.bar, z.b.__bool__(), z.c, m.x  #: 2 False 4 5
+
+#%% class_nested_2,barebones
+@tuple
+class Foo:
+    @tuple
+    class Bar:
+        x: int
+    x: int
+    b: Bar
+    c: Foo.Bar
+f = Foo(5, Foo.Bar(6), Foo.Bar(7))
+print(f) #: (x: 5, b: (x: 6), c: (x: 7))
+
+#%% class_nested_err,barebones
+class Foo:
+    class Bar:
+        b: Ptr[Bar]
+#! name 'Bar' is not defined
+
+#%% class_err_4,barebones
+@extend
+class Foo:
+    pass
+#! class name 'Foo' is not defined
+
+#%% class_err_5,barebones
+class Foo[T, U]:
+    pass
+@extend
+class Foo[T]:
+    pass
+#! class extensions cannot define data attributes and generics or inherit other classes
+
+#%% class_err_7,barebones
+class Foo:
+    a: int
+    a: int
+#! duplicate data attribute 'a' in class definition
+
+#%% class_err_tuple_no_recursive,barebones
+@tuple
+class Foo:
+    a: Foo
+#! name 'Foo' is not defined
+
+#%% class_err_8,barebones
+class Foo:
+    while 0: pass
+#! unexpected expression in class definition
+
+#%% class_err_9,barebones
+class F[T: Literal[float]]:
+    pass
+#! expected 'int', 'bool' or 'str'
+
+#%% class_err_11,barebones
+def foo(x):
+    class A:
+        def bar():
+            print(x)
+    a = A()
+    return a
+a = foo(1)
+type(a).bar()
+#! name 'x' is not defined
+# TODO: store captures in class functions somehow or make them globally accessible!...
+
+#%% class_capture_outside,barebones
+def foo(x):
+    T = type(x)
+    class A:
+        def bar():
+            print T()
+    A.bar()
+foo(1)  #: 0
+# TODO: see above
+
+#%% recursive_class,barebones
+class Node[T]:
+    data: T
+    children: List[Node[T]]
+    def __init__(self, data: T):
+        self.data = data
+        self.children = []
+print Node(2).data #: 2
+
+class Node2:
+    data: int
+    children: List[Node2]
+    def __init__(self, data: int):
+        self.data = data
+        self.children = []
+print Node2(3).data #: 3
+
+#%% class_auto_init,barebones
+class X[T]:
+    c: T
+    a: int = 4
+    b: int = 0
+    d: str = 'oops'
+    def __str__(self):
+        return f'X({self.a},{self.b},{self.c},{self.d})'
+x = X[float](c=0)
+print x #: X(4,0,0.0,oops)
+y = X(c='darius',a=5)
+print y #: X(5,0,darius,oops)
+
+#%% magic,barebones
+@tuple
+class Foo:
+    x: int
+    y: int
+a, b = Foo(1, 2), Foo(1, 3)
+print a, b #: (x: 1, y: 2) (x: 1, y: 3)
+print a.__len__() #: 2
+print a.__hash__(), b.__hash__() #: 175247769363 175247769360
+print a == a, a == b #: True False
+print a != a, a != b #: False True
+print a < a, a < b, b < a #: False True False
+print a <= a, a <= b, b <= a #: True True False
+print a > a, a > b, b > a #: False False True
+print a >= a, a >= b, b >= a #: True False True
+print a.__getitem__(1)  #: 2
+print list(a.__iter__()) #: [1, 2]
+
+#%% magic_class,barebones
+@dataclass(eq=True, order=True)
+class Foo:
+    x: int
+    y: int
+    def __str__(self): return f'{self.x}_{self.y}'
+a, b = Foo(1, 2), Foo(1, 3)
+print a, b #: 1_2 1_3
+print a == a, a == b #: True False
+print a != a, a != b #: False True
+print a < a, a < b, b < a #: False True False
+print a <= a, a <= b, b <= a #: True True False
+print a > a, a > b, b > a #: False False True
+print a >= a, a >= b, b >= a #: True False True
+
+# Right magic test
+class X:
+    x: int
+x = X(1)
+print(str(x)[:15])  #: <X object at 0x
+
+class Y:
+    y: int
+    def __eq__(self, o: X): return self.y == o.x
+    def __ne__(self, o: X): return self.y != o.x
+    def __le__(self, o: X): return self.y <= o.x
+    def __lt__(self, o: X): return self.y <  o.x
+    def __ge__(self, o: X): return self.y >= o.x
+    def __gt__(self, o: X): return self.y >  o.x
+    def __add__(self, o: X):  return self.y + o.x + 1
+    def __radd__(self, o: X): return self.y + o.x + 2
+print Y(1) == X(1), Y(1) != X(1)  #: True False
+print X(1) == Y(1), X(1) != Y(1)  #: True False
+print Y(1) <= X(2), Y(1) < X(2)  #: True True
+print X(1) <= Y(2), X(1) < Y(2)  #: True True
+print Y(1) >= X(2), Y(1) > X(2)  #: False False
+print X(1) >= Y(2), X(1) > Y(2)  #: False False
+print X(1) + Y(2)  #: 5
+print Y(1) + X(2)  #: 4
+
+
+class A:
+    def __radd__(self, n: int):
+        return 0
+def f():
+    print('f')
+    return 1
+def g():
+    print('g')
+    return A()
+f() + g()
+#: f
+#: g
+
+#%% magic_2,barebones
+@tuple
+class Foo:
+    pass
+a, b = Foo(), Foo()
+print a, b #: () ()
+print a.__len__() #: 0
+print a.__hash__(), b.__hash__() #: 0 0
+print a == a, a == b #: True True
+print a != a, a != b #: False False
+print a < a, a < b, b < a #: False False False
+print a <= a, a <= b, b <= a #: True True True
+print a > a, a > b, b > a #: False False False
+print a >= a, a >= b, b >= a #: True True True
+
+# TODO: pickle / to_py / from_py
+
+#%% magic_contains,barebones
+sponge = (1, 'z', 1.55, 'q', 48556)
+print 1.1 in sponge #: False
+print 'q' in sponge #: True
+print True in sponge #: False
+
+bob = (1, 2, 3)
+print 1.1 in sponge #: False
+print 1 in sponge #: True
+print 0 in sponge #: False
+
+#%% magic_err_2,barebones
+@tuple
+class Foo:
+    pass
+try:
+    print Foo().__getitem__(1)
+except IndexError:
+    print 'error'  #: error
+
+#%% magic_empty_tuple,barebones
+@tuple
+class Foo:
+    pass
+print list(Foo().__iter__())  #: []
+
+#%% magic_err_4,barebones
+@tuple(eq=False)
+class Foo:
+    x: int
+Foo(1).__eq__(Foo(1)) #! 'Foo' object has no attribute '__eq__'
+
+#%% magic_err_5,barebones
+@tuple(pickle=False)
+class Foo:
+    x: int
+p = Ptr[u8]()
+Foo(1).__pickle__(p) #! 'Foo' object has no attribute '__pickle__'
+
+#%% magic_err_6,barebones
+@tuple(container=False)
+class Foo:
+    x: int
+Foo(1).__getitem__(0) #! 'Foo' object has no attribute '__getitem__'
+
+#%% magic_err_7,barebones
+@tuple(python=False)
+class Foo:
+    x: int
+p = Ptr[u8]()
+Foo(1).__to_py__(p) #! 'Foo' object has no attribute '__to_py__'
+
+#%% inherit_class_4,barebones
+class defdict[K,V](Dict[K,V]):
+    fx: Function[[],V]
+    def __init__(self, d: Dict[K,V], fx: Function[[], V]):
+        super().__init__()
+        for k,v in d.items(): self[k] = v
+        self.fx = fx
+    def __getitem__(self, key: K) -> V:
+        if key not in self:
+            self[key] = self.fx()
+        return super().__getitem__(key)
+z = defdict({'ha':1}, lambda: -1)
+print z
+print z['he']
+print z
+#: {'ha': 1}
+#: -1
+#: {'ha': 1, 'he': -1}
+
+class Foo:
+    x: int = 0
+    def foo(self):
+        return f'foo {self.x}'
+class Bar[T]:
+    y: Optional[T] = None
+    def bar(self):
+        return f'bar {self.y}/{self.y.__class__.__name__}'
+class FooBarBaz[T](Foo, Bar[T]):
+    def __init__(self):
+        Foo.__init__(self)
+        Bar[T].__init__(self)
+    def baz(self):
+        return f'baz! {self.foo()} {self.bar()}'
+# warning: cannot realize superclass Bar[T] of Foo; ignoring its super
+print FooBarBaz[str]().foo() #: foo 0
+print FooBarBaz[float]().bar() #: bar None/Optional[float]
+print FooBarBaz[str]().baz() #: baz! foo 0 bar None/Optional[str]
+
+#%% inherit_class_err_5,barebones
+class defdict(Dict[str,float]):
+    def __init__(self, d: Dict[str, float]):
+        pass
+z = defdict()
+z[1.1] #! 'float' does not match expected type 'str'
+
+#%% inherit_class_err_1,barebones
+class defdict(DictEntry[int, int]):
+    pass #! reference classes cannot inherit tuple classes
+
+#%% inherit_class_err_2,barebones
+class defdict(TypeInfo):
+    pass #! internal classes cannot inherit other classes
+
+#%% inherit_class_err_3,barebones
+class defdict(OrderedDict[int, float, float]):
+    pass #! OrderedDict takes 2 generics (3 given)
+
+#%% inherit_class_err_4,barebones
+class Foo:
+    x: int
+class Bar:
+    x: float
+class FooBar(Foo, Bar):
+    pass
+#! field 'x' already defined
+
+
+#%% class_deduce,barebones
+class Foo:
+    def __init__(self, x):
+        self.x = [x]
+        self.y = 1, x
+
+    def foo(self, x, a=[]):
+        a.append(x)
+        print(a)
+        return a
+
+    def nloc(self, x):
+        a = x
+        def bar():
+            nonlocal a
+            a += 1
+            return a
+        a += 1
+        return bar
+
+f = Foo(1)
+print(f.x, f.y, f.__class__.__name__) #: [1] (1, 1) Foo[List[int],Tuple[int,int]]
+
+f: Foo = Foo('s')
+print(f.x, f.y, f.__class__.__name__) #: ['s'] (1, 's') Foo[List[str],Tuple[int,str]]
+
+f.foo(1.1)
+#: [1.1]
+l = f.foo(2)
+#: [1.1, 2.0]
+assert l == [1.1, 2]
+
+b = f.nloc(5)
+print(b())  #: 7
+print(b())  #: 8
+print(b())  #: 9
+
+class Fox:
+    def __init__(self):
+        self.x: List[int] = []
+
+f = Fox()
+print(f.__class__.__name__)
+#: Fox[List[int]]
+
+class Fox:
+    def __init__(self):
+        self.x = 5
+        self.y = []
+f = Fox()
+print(f.__class__.__name__, f.x, f.y)
+#: Fox[int,List[NoneType]] 5 []
+
+class Bar:
+    def __init__(self, y: float):
+        self.x = NoneType()
+        self.y = Foo(y)
+    def __init__(self, y: str):
+        self.x = Foo(y)
+        self.y = NoneType()
+
+b = Bar(3.1)
+print(b.x.__class__.__name__, b.y.__class__.__name__, b.y.x, b.__class__.__name__)
+#: NoneType Foo[List[float],Tuple[int,float]] [3.1] Bar[NoneType,Foo[List[float],Tuple[int,float]]]
+b = Bar('3.1')
+print(b.x.__class__.__name__, b.y.__class__.__name__, b.x.x, b.__class__.__name__)
+#: Foo[List[str],Tuple[int,str]] NoneType ['3.1'] Bar[Foo[List[str],Tuple[int,str]],NoneType]
+
+#%% class_var,barebones
+class Foo:
+    cx = 15
+    x: int = 10
+    cy: ClassVar[str] = "ho"
+    class Bar:
+        bx = 1.1
+print(Foo.cx)  #: 15
+f = Foo()
+print(Foo.cy, f.cy)  #: ho ho
+print(Foo.Bar.bx)  #: 1.1
+
+Foo.cx = 10
+print(Foo.cx)  #: 10
+
+def x():
+    class Foo:
+        i = 0
+        f = None
+        def __init__(self):
+            Foo.i += 1
+        def __repr__(self):
+            return 'heh-cls'
+    Foo.f = Foo()
+    Foo(), Foo(), Foo()
+    print Foo.f, Foo.i  #: heh-cls 4
+    return Foo()
+f = x()
+print f.f, f.i  #: heh-cls 5
+
+@tuple
+class Fot:
+    f = None
+    def __repr__(self):
+        return 'heh-tup'
+Fot.f = Fot()
+print Fot.f  #: heh-tup
+
+#%% extend,barebones
+@extend
+class int:
+    def run_lola_run(self):
+        while self > 0:
+            yield self
+            self -= 1
+print list((5).run_lola_run())  #: [5, 4, 3, 2, 1]
+
+#%% staticmethod,barebones
+class Foo:
+    def __repr__(self):
+        return 'Foo'
+    def m(self):
+        print 'm', self
+    @staticmethod
+    def sm(i):
+        print 'sm', i
+Foo.sm(1)  #: sm 1
+Foo().sm(2)  #: sm 2
+Foo().m()  #: m Foo
+
+#%% class_setter,barebones
+class Foo:
+    _x: int
+
+    @property
+    def x(self):
+        print('getter')
+        return self._x
+
+    @x.setter
+    def x(self, v):
+        print('setter')
+        self._x = v
+
+f = Foo(1)
+print(f.x)
+#: getter
+#: 1
+
+f.x = 99
+print(f.x)
+print(f._x)
+#: setter
+#: getter
+#: 99
+#: 99
+
+#%% inherit_surrounding,barebones
+# Fix 354
+class A:
+    pass
+class B:
+    class C(B): pass
+#! nested classes cannot inherit surrounding classes
+
+#%% inherit_no_member_middle,barebones
+# Fix #532
+class A:
+    _map: Dict[str, str]
+    def __init__(self):
+        self._map = Dict[str, str]()
+class B(A):
+     def __init__(self):
+        super().__init__()
+class C(B):
+    placeholder: str
+    def __init__(self):
+        super().__init__()
+        self.placeholder = ''
+test = C()
+
+#%% inherit_optional,barebones
+# Fix 554
+class A:
+    pass
+class B(A):
+    pass
+def foo(val: Optional[A]):
+    if val:
+        print("A")
+    else:
+        print("None[A]")
+foo(A())   #: A
+foo(None)  #: None[A]
+
+
+#%% no_extend,barebones
+@extend
+class Tuple:
+    @inline
+    def inc_ref(self):
+        pass
+
+    @inline
+    def dec_ref(self):
+        pass
+("abc",).inc_ref()  # #683
+#! 'Tuple' cannot be extended
+
+
+#%% class_var_poly,barebones
+class A:
+    apple = {"a": 1, "b": 2, "c": 3}
+    pear = 3
+class B(A):
+    pass
+class C(B):
+    pass
+
+print(A.apple)
+#: {'a': 1, 'b': 2, 'c': 3}
+print(A.pear)
+#: 3
+print(B.apple)
+#: {'a': 1, 'b': 2, 'c': 3}
+print(B.pear)
+#: 3
+print(C.apple)
+#: {'a': 1, 'b': 2, 'c': 3}
+print(C.pear)
+#: 3
+A.pear += 1
+print(A.pear)
+#: 4
+print(B.pear)
+#: 4
+print(C.pear)
+#: 4
+B.apple["d"] = 4
+print(C.apple)
+#: {'a': 1, 'b': 2, 'c': 3, 'd': 4}
+
+
+#%% class_var_override,barebones
+# python_pybridge_codon: exception subclasses need independent _pytype slots;
+# inherited class variables must still share storage and follow the C3 MRO.
+class Root:
+    tag: ClassVar[int] = 1
+class Left(Root):
+    pass
+class Right(Root):
+    tag: ClassVar[int] = 2
+class Diamond(Left, Right):
+    pass
+class Own(Diamond):
+    tag: ClassVar[int] = 3
+
+assert Root.tag == 1 and Left.tag == 1
+assert Right.tag == 2 and Diamond.tag == 2 and Own.tag == 3
+Right.tag = 20
+assert Diamond.tag == 20 and Root.tag == 1 and Own.tag == 3
+Root.tag = 10
+assert Left.tag == 10 and Right.tag == 20
+print("class variable overrides ok")  #: class variable overrides ok
+
+#%% enum_extend_err
+from enum import Enum
+class Color(Enum):
+    RED = 1
+class More(Color):
+    BLUE = 2
+#! cannot extend an enumeration with members
+
+#%% enum_reassign_err
+from enum import Enum
+class Color(Enum):
+    RED = 1
+Color.RED = Color.RED
+#! cannot reassign enumeration member 'RED'
+
+#%% enum_base_construct_err
+from enum import Enum
+Enum("invalid")
+#! cannot instantiate Enum directly
+#! during the realization of __new__(value: str, Self: Enum)
+
+#%% enum_mixed_values_err
+from enum import Enum
+class Mixed(Enum):
+    INTEGER = 1
+    STRING = "one"
+#! enumeration values must have the same type
+
+#%% enum_noninteger_auto_err
+from enum import Enum, auto
+class NonIntegerAuto(Enum):
+    FIRST = "one"
+    SECOND = auto()
+#! auto() requires integer enum values
+#! during the realization of _next_value(maximum: int, first_value: str)
+
+#%% enum_custom_constructor_err
+from enum import Enum
+class Custom(Enum):
+    MEMBER = 1
+    def __init__(self, value):
+        pass
+#! custom enumeration constructors are not supported
+
+#%% class_custom_new
+# enum_test uses this general constructor path: __new__ receives the same
+# evaluated arguments as __init__, including forwarded *args and **kwargs.
+events = List[str]()
+class Factory:
+    value: int
+    @staticmethod
+    def __new__(value: int, offset: int = 0):
+        events.append("new")
+        obj = type._ref_new(Factory)
+        obj.value = value + offset
+        return obj
+    def __init__(self, value: int, offset: int = 0):
+        events.append("init")
+        assert self.value == value + offset
+        self.value = value + offset
+def argument():
+    events.append("arg")
+    return 10
+obj = Factory(argument(), offset=2)
+assert obj.value == 12
+assert events == ["arg", "new", "init"]
+def forward(*args, **kwargs):
+    return Factory(*args, **kwargs)
+events.clear()
+assert forward(argument(), offset=3).value == 13
+assert events == ["arg", "new", "init"]
+
+# Returning an unrelated type skips __init__, as for ordinary Python factories.
+class OtherResult:
+    @staticmethod
+    def __new__(value: int):
+        return value * 2
+    def __init__(self, value: int):
+        compile_error("must not initialize an unrelated result")
+assert OtherResult(4) == 8
+
+# A lookup-only factory can initialize in __new__ without defining __init__.
+@dataclass(init=False)
+class OnlyNew:
+    value: int
+    @staticmethod
+    def __new__(value: int):
+        events.append("new only")
+        obj = type._ref_new(OnlyNew)
+        obj.value = value
+        return obj
+events.clear()
+assert OnlyNew(argument()).value == 10
+assert events == ["arg", "new only"]
+
+print("custom new ok")  #: custom new ok
+
+#%% class_static_protocols
+# Enum subscription and Generator conversion must also work for ordinary
+# classes with static methods, without an Enum-specific dispatch branch.
+class Values:
+    tag: ClassVar[int] = 10
+    @staticmethod
+    def __iter__():
+        yield 1
+        yield 2
+    @staticmethod
+    def __getitem__(name: str):
+        return name.upper()
+assert list(Values) == [1, 2]
+assert set(Values) == {1, 2}
+assert Values["key"] == "KEY"
+assert hasattr(Values, "tag")
+assert hasattr(Values(), "tag")
+print("static protocols ok")  #: static protocols ok
+
+#%% class_custom_new_err
+# A missing argument must fail in the custom allocator rather than selecting
+# an automatically generated zero-argument __new__ overload.
+class Factory:
+    @staticmethod
+    def __new__(value: int):
+        return type._ref_new(Factory)
+Factory()
+#! __new__() missing 1 required positional argument: 'value'
+
+#%% class_empty_init_args_err
+# Empty user initializers retain their signature checks even with custom __new__.
+@dataclass(init=False)
+class Factory:
+    @staticmethod
+    def __new__(value: int):
+        return type._ref_new(Factory)
+    def __init__(self, value: str):
+        pass
+Factory(1)
+#! 'int' does not match expected type 'str'
+
+#%% class_inherited_self
+# Self specializes inherited methods on the static receiver, including calls
+# through an intermediate base. Upcasting must not recover a runtime Self.
+class Base:
+    @staticmethod
+    def owner(Self: type = Base):
+        return Self.__name__
+    def label(self: Self, Self: type) -> str:
+        if hasattr(Self, "value"):
+            return "value=" + str(self.value)
+        return "base"
+class First(Base):
+    value: int
+def describe(obj: Base):
+    return obj.label()
+assert Base.owner() == "Base"
+assert First.owner() == "First"
+assert First(3).label() == "value=3"
+assert describe(First(3)) == "base"
+class Middle(Base):
+    pass
+class Late(Middle):
+    value: str
+def describe_middle(obj: Middle):
+    return obj.label()
+assert Late("late").label() == "value=late"
+assert describe(Late("late")) == "base"
+assert describe_middle(Late("middle")) == "base"
+assert Late.owner() == "Late"
+print("inherited self ok")  #: inherited self ok
+
+#%% class_self_context
+# Implicit Self preserves the inferred __enter__ result; no WithStmt-specific
+# typing or return annotation is needed to access Writer's methods.
+class Context:
+    def __enter__(self):
+        return self
+    def __exit__(self):
+        pass
+class Writer(Context):
+    def write(self):
+        print("writer works")
+with Writer() as writer:
+    writer.write()  #: writer works
+
+#%% class_self_annotations
+class Base[T]:
+    value: T
+    def inferred(self):
+        return self
+    def annotated(self) -> Self:
+        return self
+    def explicit(self: Base[T]):
+        return self
+    def receiver(self):
+        return Self.__name__
+    def pair(self, value: U, U: type):
+        return self, value
+    def empty(self):
+        pass
+class Child(Base[int]):
+    def child(self):
+        return self.value + 1
+c = Child(41)
+assert c.inferred().child() == 42
+assert c.annotated().child() == 42
+assert c.receiver() == "Child"
+assert c.pair("text")[0].child() == 42
+assert c.pair("text")[1] == "text"
+assert c.empty() is None
+assert type(c.explicit()) is Base[int]
+def as_base(value: Base[int]):
+    assert type(value.inferred()) is Base[int]
+    assert type(value.annotated()) is Base[int]
+    return value.receiver()
+assert as_base(c) == "Base[int]"
+print("self annotations ok")  #: self annotations ok
+
+#%% class_self_tuple
+# Self retains record specialization without requiring RTTI.
+@tuple
+class Record[T]:
+    value: T
+    def identity(self) -> Self:
+        return self
+assert Record(3).identity().value == 3
+assert Record("text").identity().value == "text"
+assert (1, "text")[1] == "text"
+assert (1, 2) + (3,) == (1, 2, 3)
+assert tuple(x for x in (1, "text")) == (1, "text")
+assert not TypeInfo.cache(Record[int]).rtti
+print("self tuple ok")  #: self tuple ok
+
+#%% class_self_static_virtual
+# An override elsewhere makes identify virtual, but an inherited implementation
+# must keep the caller's static Self instead of specializing for each RTTI type.
+receivers = List[str]()
+class Base:
+    def identify(self):
+        return Self.__name__
+    def identity(self):
+        return self
+class Inherited(Base):
+    pass
+class Override(Base):
+    def identify(self):
+        return "override:" + Self.__name__
+    def identity(self) -> Self:
+        receivers.append(Self.__name__)
+        return self
+class OverrideChild(Override):
+    pass
+def identify(value: Base):
+    return value.identify()
+assert Inherited().identify() == "Inherited"
+assert identify(Inherited()) == "Base"
+assert identify(Override()) == "override:Override"
+assert identify(OverrideChild()) == "override:Override"
+assert OverrideChild().identify() == "override:OverrideChild"
+child = OverrideChild()
+base: Base = child
+assert base.identity() is child
+assert receivers == ["Override"]
+receivers.clear()
+assert child.identity() is child
+assert receivers == ["OverrideChild"]
+print("static virtual self ok")  #: static virtual self ok
+
+#%% class_self_inherited_super
+# Specializing self must not move the lexical anchor used by super().
+class Root:
+    def label(self):
+        return "root"
+class Middle(Root):
+    def label(self):
+        return super().label() + ":middle"
+class Leaf(Middle):
+    pass
+assert Leaf().label() == "root:middle"
+print("inherited self super ok")  #: inherited self super ok
+
+#%% class_self_function
+# Function.__raw__ is an LLVM method: Self must retain its runtime pointer
+# argument even when the receiver names a compile-time function realization.
+def increment(value: int) -> int:
+    return value + 1
+raw = increment.__raw__()
+assert raw != Ptr[byte]()
+fn = Function[[int], int](raw)
+assert fn(41) == 42
+print("function self ok")  #: function self ok
+
+#%% class_self_operator_generics,barebones
+# Operator lowering calls the canonical method without member lookup. Inferring
+# Self does not by itself bind the separate T in the defining class Box[T].
+class Box[T]:
+    value: T
+    def __add__(self, other):
+        return T.__name__
+box = Box(40)
+assert box.__add__(0) == "int"
+assert box + 0 == "int"
+class IntBox(Box[int]):
+    pass
+assert IntBox(40) + 0 == "int"
+def shift(value: int):
+    return 1 << value
+assert shift(3) == 8
+print("operator class generics ok")  #: operator class generics ok
+
+#%% unrealized_class_templates
+# Shared UnrealizedType payloads also cover classes. Each .T access must get its
+# own generics, while concrete arguments and enclosing class bindings survive.
+ListTemplate = unrealized_type[list]
+assert ListTemplate.T[int]([1, 2]) == [1, 2]
+assert ListTemplate.T[str](['a']) == ['a']
+
+def make_template(T: type):
+    return unrealized_type[list[T]]
+
+assert make_template(int).T([1, 2]) == [1, 2]
+assert make_template(str).T(['a']) == ['a']
+
+def construct(T: type):
+    return unrealized_type[T].T()
+
+assert construct(int) == 0
+assert construct(str) == ''
+
+class Factory[T]:
+    def make(self):
+        return unrealized_type[list[T]].T()
+
+assert type(Factory[int]().make()) is list[int]
+assert type(Factory[str]().make()) is list[str]
+print('class templates ok')  #: class templates ok
+
+#%% method_dispatch
+# All declarations remain candidates. The newest compatible overload wins, and
+# dispatcher binding must preserve static methods and property access.
+class Methods:
+    def value(self, old: int = 1) -> int:
+        return -old
+    def value(self, new: int = 2) -> str:
+        return str(new)
+
+    @staticmethod
+    def static(old: int = 1):
+        return -old
+    @staticmethod
+    def static(new: int = 2):
+        return new
+
+    @property
+    def label(self):
+        return 1
+    @property
+    def label(self):
+        return 2
+
+    def typed(self, value: list[int]):
+        return 'old'
+    def typed(self, value: list[int]):
+        return 'ints'
+    def typed(self, value: list[str]):
+        return 'strings'
+
+    def kinds(self, value: int, /):
+        return 'positional'
+    def kinds(self, *, value: int):
+        return 'keyword'
+
+obj = Methods()
+assert obj.value() == '2'
+assert type(obj.value()) is str
+assert obj.value(new=3) == '3'
+assert obj.static() == 2
+assert obj.label == 2
+assert obj.typed([1]) == 'ints'
+assert obj.typed(['a']) == 'strings'
+bound = obj.typed
+assert bound([1]) == 'ints'
+assert bound(['a']) == 'strings'
+assert obj.kinds(1) == 'positional'
+assert obj.kinds(value=1) == 'keyword'
+print('method dispatch ok')  #: method dispatch ok
+
+#%% method_dispatch_keyword_names,barebones
+# Parameter names participate in call matching, without signature-based masking.
+class Renamed:
+    @staticmethod
+    def method(old: int):
+        return old
+    @staticmethod
+    def method(new: int):
+        return new + 1
+assert Renamed.method(old=1) == 1
+assert Renamed.method(new=1) == 2
+obj = Renamed()
+assert obj.method(old=1) == 1
+assert obj.method(new=1) == 2
+callback = obj.method
+assert callback(old=1) == 1
+assert callback(new=1) == 2
+print('method keywords ok')  #: method keywords ok
+
+#%% method_dispatch_static
+# A generated dispatcher has no staticmethod decorator. Binding must still work
+# through classes, instances, inherited methods, and saved callable values.
+class StaticOverloads:
+    @staticmethod
+    def select(value: int):
+        return value + 1
+    @staticmethod
+    def select(value: str):
+        return value + '!'
+    @staticmethod
+    def select(value: int, other: int):
+        return value + other
+    @staticmethod
+    def select(value: int, *, scale: int):
+        return value * scale
+
+obj = StaticOverloads()
+assert StaticOverloads.select(1) == 2
+assert StaticOverloads.select('a') == 'a!'
+assert obj.select(1) == 2
+assert obj.select('a') == 'a!'
+assert obj.select(2, 3) == 5
+assert obj.select(2, scale=3) == 6
+from_class = StaticOverloads.select
+from_instance = obj.select
+assert from_class(1) == 2
+assert from_class('a') == 'a!'
+assert from_instance(1) == 2
+assert from_instance('a') == 'a!'
+assert from_instance(2, 3) == 5
+assert from_instance(2, scale=3) == 6
+
+class Child(StaticOverloads):
+    pass
+assert Child.select(1) == 2
+assert Child().select('a') == 'a!'
+inherited = Child().select
+assert inherited(2, 3) == 5
+
+class Generic[T]:
+    @staticmethod
+    def select(value: T):
+        return value + value
+    @staticmethod
+    def select(value: str):
+        return value + '!'
+assert Generic[int].select(3) == 6
+assert Generic[int]().select('a') == 'a!'
+generic = Generic[int]().select
+assert generic(3) == 6
+assert generic('a') == 'a!'
+print('static dispatch ok')  #: static dispatch ok
+
+#%% method_dispatch_evaluation_order
+# Static lookup through an instance evaluates the receiver once before arguments,
+# including when the overload dispatcher is saved for a later call.
+events = List[str]()
+class StaticOverloads:
+    @staticmethod
+    def select(value: int):
+        return value + 1
+    @staticmethod
+    def select(value: str):
+        return value + '!'
+def receiver():
+    events.append('receiver')
+    return StaticOverloads()
+def argument():
+    events.append('argument')
+    return 3
+assert receiver().select(argument()) == 4
+assert events == ['receiver', 'argument']
+events.clear()
+callback = receiver().select
+assert events == ['receiver']
+assert callback(argument()) == 4
+assert events == ['receiver', 'argument']
+print('static evaluation order ok')  #: static evaluation order ok
+
+
+#%% class_object_type,barebones
+# Class values report their metaclass; instance introspection keeps its class.
+class A: pass
+class B(A): pass
+assert type(A) is type
+assert A.__class__ is type
+assert type(A()) is A
+assert A().__class__ is A
+assert type(B) is type
+assert type(B()) is B
+assert type(type) is type
+assert type.__class__ is type
+assert type(A).__name__ == 'type'
+assert A.__class__.__name__ == 'type'
+assert type.__name__ == 'type'
+assert A.__name__ == 'A'
+assert type(int) is type
+assert int.__class__ is type
+assert type(list) is type
+assert list.__class__ is type
+Alias = A
+assert type(Alias) is type
+Meta = type(A)
+assert Meta is type
+assert Meta.__name__ == 'type'
+assert type(Meta) is type
+assert Meta(A()) is A
+
+def describe(T: type):
+    assert type(T) is type
+    assert T.__class__ is type
+    return T.__name__
+assert describe(A) == 'A'
+
+def describe_value(value):
+    assert type(value) is type
+    assert value.__class__ is type
+    return value.__name__
+assert describe_value(A) == 'A'
+assert describe(type) == 'type'
+assert describe_value(type) == 'type'
+
+def factory() -> type: return A
+assert factory() is A
+assert type(factory()) is type
+
+assert isinstance(A, type)
+assert isinstance(Alias, Meta)
+assert isinstance(type, type)
+assert not isinstance(A(), type)
+
+def is_class(value):
+    return isinstance(value, type)
+assert is_class(A)
+assert is_class(type)
+assert not is_class(A())
+
+@tuple
+class Record[T]:
+    value: T
+assert type(Record) is type
+assert type(Record[int]) is type
+assert Record[int].__class__ is type
+assert type(Record(1)) is Record[int]
+assert Record(1).__class__ is Record[int]
+assert describe(Record[int]) == 'Record[int]'
+assert describe_value(Record[int]) == 'Record[int]'
+
+#%% class_object_type_shadow,barebones
+metaclass = type
+def factory():
+    type = str
+    value: type = 'text'
+    assert metaclass(int) is metaclass
+    assert int.__class__ is metaclass
+    assert (1).__class__ is int
+    return value
+assert factory() == 'text'
+
+def describe[T]():
+    return T.__name__, type(T).__name__
+assert describe(type) == ('type', 'type')
+assert describe(int) == ('int', 'type')
+
+#%% method_shadow_different_arity
+class A:
+    def __call__(self, x: int) -> int:
+        return x
+class B(A):
+    def __init__(self): pass
+    def __call__(self, x: int, h: Optional[int] = None) -> Tuple[int, int]:
+        return (x, 0)
+print(B()(3))  #: (3, 0)
+a: A = B()
+print(a(5))  #: 5
+l: List[A] = [A(), B()]
+print([v(7) for v in l])  #: [7, 7]

@@ -1,0 +1,220 @@
+
+import os
+
+
+class GetoptError(Exception):
+    opt = ""
+    msg = ""
+
+    def __init__(self, msg: str, opt: str = ""):
+        self.msg = msg
+        self.opt = opt
+        super().__init__(msg)
+
+    @property
+    def args(self) -> Tuple[str, str]:
+        return (self.msg, self.opt)
+
+    def __str__(self) -> str:
+        return self.msg
+
+
+error = GetoptError
+
+
+def _long_has_args(opt: str, longopts: List[str]) -> Tuple[bool, str]:
+    possibilities = [o for o in longopts if o.startswith(opt)]
+
+    if not possibilities:
+        raise GetoptError(f"option --{opt} not recognized", opt)
+
+    # Exact matches take precedence over prefix matches.
+    if opt in possibilities:
+        return False, opt
+
+    if opt + "=" in possibilities:
+        return True, opt
+
+    # Otherwise, the abbreviation must resolve uniquely.
+    if len(possibilities) > 1:
+        raise GetoptError(
+            f"option --{opt} not a unique prefix",
+            opt,
+        )
+
+    unique_match = possibilities[0]
+    has_arg = unique_match.endswith("=")
+
+    if has_arg:
+        unique_match = unique_match[:-1]
+
+    return has_arg, unique_match
+
+
+def _do_longs(
+    opts: List[Tuple[str, str]],
+    opt: str,
+    longopts: List[str],
+    args: List[str],
+) -> Tuple[List[Tuple[str, str]], List[str]]:
+    # Keep this separate from optarg so that "--foo" and "--foo="
+    # remain distinguishable.
+    has_optarg = "=" in opt
+
+    if has_optarg:
+        i = opt.index("=")
+        opt, optarg = opt[:i], opt[i + 1:]
+    else:
+        optarg = ""
+
+    has_arg, opt = _long_has_args(opt, longopts)
+
+    if has_arg:
+        if not has_optarg:
+            if not args:
+                raise GetoptError(
+                    f"option --{opt} requires argument",
+                    opt,
+                )
+
+            optarg, args = args[0], args[1:]
+    elif has_optarg:
+        raise GetoptError(
+            f"option --{opt} must not have an argument",
+            opt,
+        )
+
+    opts.append(("--" + opt, optarg))
+    return opts, args
+
+
+def _short_has_arg(opt: str, shortopts: str) -> bool:
+    for i in range(len(shortopts)):
+        if opt == shortopts[i] != ":":
+            return shortopts.startswith(":", i + 1)
+
+    raise GetoptError(
+        f"option -{opt} not recognized",
+        opt,
+    )
+
+
+def _do_shorts(
+    opts: List[Tuple[str, str]],
+    optstring: str,
+    shortopts: str,
+    args: List[str],
+) -> Tuple[List[Tuple[str, str]], List[str]]:
+    while optstring != "":
+        opt, optstring = optstring[0], optstring[1:]
+        optarg = ""
+
+        if _short_has_arg(opt, shortopts):
+            if optstring == "":
+                if not args:
+                    raise GetoptError(
+                        f"option -{opt} requires argument",
+                        opt,
+                    )
+
+                optstring, args = args[0], args[1:]
+
+            optarg, optstring = optstring, ""
+
+        opts.append(("-" + opt, optarg))
+
+    return opts, args
+
+
+def getopt(
+    args: List[str],
+    shortopts: str,
+    longopts: List[str] = List[str](),
+) -> Tuple[List[Tuple[str, str]], List[str]]:
+    opts: List[Tuple[str, str]] = []
+
+    while args and args[0].startswith("-") and args[0] != "-":
+        if args[0] == "--":
+            args = args[1:]
+            break
+
+        if args[0].startswith("--"):
+            opts, args = _do_longs(
+                opts,
+                args[0][2:],
+                longopts,
+                args[1:],
+            )
+        else:
+            opts, args = _do_shorts(
+                opts,
+                args[0][1:],
+                shortopts,
+                args[1:],
+            )
+
+    return opts, args
+
+
+@overload
+def getopt(
+    args: List[str],
+    shortopts: str,
+    longopts: str,
+) -> Tuple[List[Tuple[str, str]], List[str]]:
+    return getopt(args, shortopts, [longopts])
+
+
+def gnu_getopt(
+    args: List[str],
+    shortopts: str,
+    longopts: List[str] = List[str](),
+) -> Tuple[List[Tuple[str, str]], List[str]]:
+    opts: List[Tuple[str, str]] = []
+    prog_args: List[str] = []
+
+    all_options_first = False
+
+    if shortopts.startswith("+"):
+        shortopts = shortopts[1:]
+        all_options_first = True
+    elif os.environ.get("POSIXLY_CORRECT"):
+        all_options_first = True
+
+    while args:
+        if args[0] == "--":
+            prog_args += args[1:]
+            break
+
+        if args[0].startswith("--"):
+            opts, args = _do_longs(
+                opts,
+                args[0][2:],
+                longopts,
+                args[1:],
+            )
+        elif args[0].startswith("-") and args[0] != "-":
+            opts, args = _do_shorts(
+                opts,
+                args[0][1:],
+                shortopts,
+                args[1:],
+            )
+        else:
+            if all_options_first:
+                prog_args += args
+                break
+
+            prog_args.append(args[0])
+            args = args[1:]
+
+    return opts, prog_args
+
+
+@overload
+def gnu_getopt(
+    args: List[str],
+    shortopts: str,
+    longopts: str,
+) -> Tuple[List[Tuple[str, str]], List[str]]:
+    return gnu_getopt(args, shortopts, [longopts])

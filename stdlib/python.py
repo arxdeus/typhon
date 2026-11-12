@@ -1,0 +1,4 @@
+
+from internal.python import ensure_initialized
+
+ensure_initialized()

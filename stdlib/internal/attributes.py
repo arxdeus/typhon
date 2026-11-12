@@ -1,0 +1,80 @@
+
+@__attribute__
+def test():
+    pass
+
+@__attribute__
+def export():
+    pass
+
+@__attribute__
+def inline():
+    pass
+
+@__attribute__
+def noinline():
+    pass
+
+@__attribute__
+def nonpure():
+    pass
+
+@__attribute__
+def no_side_effect():
+    pass
+
+@__attribute__
+def llvm_memory_none():
+    pass
+
+@__attribute__
+def llvm_nocapture():
+    pass
+
+@__attribute__
+def llvm_nofree():
+    pass
+
+@__attribute__
+def llvm_c_call():
+    pass
+
+@__attribute__
+def nocapture():
+    pass
+
+@__attribute__
+def pycapture():
+    pass
+
+@__attribute__
+def self_captures():
+    pass
+
+@__attribute__
+def commutative():
+    pass
+
+@__attribute__
+def associative():
+    pass
+
+@__attribute__
+def distributive():
+    pass
+
+@__attribute__
+def realize_without_self():
+    pass
+
+@__attribute__
+def virtual():
+    pass
+
+@__attribute__
+def no_argument_wrap():
+    pass
+
+@__attribute__
+def no_arg_reorder():
+    pass

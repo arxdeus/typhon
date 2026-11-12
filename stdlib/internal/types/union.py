@@ -1,0 +1,146 @@
+
+import internal.static as static
+
+
+@extend
+class Union:
+    @__generated__
+    def _tag(u, tag: Literal[int]):  # compiler-generated
+        pass
+
+    @llvm
+    def _set_tag(tag: u8, U: type) -> U:
+        %0 = insertvalue {=U} undef, i8 %tag, 0
+        ret {=U} %0
+
+    @llvm
+    def _get_data_ptr(ptr: Ptr[U], U: type, T: type) -> Ptr[T]:
+        %0 = getelementptr inbounds {=U}, ptr %ptr, i64 0, i32 1
+        ret ptr %0
+
+    @llvm
+    def _get_tag(u: U, U: type) -> u8:
+        %0 = extractvalue {=U} %u, 0
+        ret i8 %0
+
+    def _get_data(u, T: type) -> T:
+        return Union._get_data_ptr(__ptr__(u), T=T)[0]
+
+    def _make(tag: int, value, U: type) -> U:
+        u = Union._set_tag(u8(tag), U)
+        Union._get_data_ptr(__ptr__(u), T=type(value))[0] = value
+        return u
+
+    def _new(value, U: type) -> U:
+        for tag, T in static.vars_types(U, with_index=True):
+            if isinstance(value, T):
+                return Union._make(tag, value, U)
+            if T is Optional and value is None:
+                return Union._make(tag, T(), U)
+            if T is Optional and isinstance(value, T.T):
+                return Union._make(tag, T(value), U)
+            # Union[T] of one member may collapse to T: only unwrap real unions
+            # (otherwise vars_types would walk the fields of a plain class).
+            if isinstance(value, Union) and isinstance(value, Union[T]):
+                return Union._make(tag, Union._get(value, T), U)
+        # TODO: make this static!
+        raise TypeError("invalid union " + U.__name__ +
+                        " constructor for " + value.__class__.__name__)
+
+    def _get(union, T: type) -> T:
+        for tag, TU in static.vars_types(union, with_index=True):
+            if isinstance(TU, T):
+                if Union._get_tag(union) == tag:
+                    return Union._get_data(union, TU)
+            elif TU is Optional:
+                if Union._get_tag(union) == tag:
+                    member = Union._get_data(union, TU)
+                    if T is NoneType:
+                        if member is None:
+                            return NoneType()
+                    elif isinstance(TU.T, T):
+                        if member is not None:
+                            return member.__val__()
+        raise TypeError(f"invalid union getter for type '{T.__name__}'")
+
+    def _isinstance(union, T: type) -> bool:
+        for tag, TU in static.vars_types(union, with_index=True):
+            if Union._get_tag(union) == tag:
+                member = Union._get_data(union, TU)
+                if TU is Optional and T is not Optional:
+                    if T is NoneType:
+                        return member is None
+                    if member is None:
+                        return False
+                    return isinstance(member.__val__(), T)
+                return isinstance(member, T)
+        return False
+
+    def _member_helper(union, member: Literal[str]):
+        for tag, T in static.vars_types(union, with_index=True):
+            if hasattr(T, member):
+                if Union._get_tag(union) == tag:
+                    return _getattr(Union._get_data(union, T), member)
+        raise TypeError(f"invalid union call '{member}'")
+
+    @__generated__
+    def _dispatch(union, member: Literal[str], args, kwargs):
+        if member != "":
+            raise TypeError("cannot access " + union.__class__.__name__ + "." + member)
+        else:
+            raise TypeError("cannot call " + union.__class__.__name__ +
+                            " with " + str((args.__class__.__name__, kwargs.__class__.__name__)))
+
+    def __getattr__(self, member: Literal[str]):
+        return Union._dispatch(self, member, NoneType(), NoneType())
+
+    def __call__(self, *args, **kwargs):
+        return Union._dispatch(self, "", args, kwargs)
+
+    @__generated__
+    def __iter__(union):
+        """Acquire the active iterator before lazily adapting its elements.
+
+        The concrete __iter__ runs at iter(union), not at the first next(), preserving
+        acquisition side effects and exceptions. A non-iterable alternative raises
+        only when its tag is active; it does not invalidate other alternatives.
+        Yield the shared element type, or a union of element types when they differ,
+        so heterogeneous iterable alternatives remain usable in ordinary loops.
+        """
+        raise TypeError("union alternative is not iterable")
+
+    def _iter_union(iterator, T: type):
+        """Lazily box values from an iterator already acquired by union __iter__."""
+        for element in iterator:
+            yield Union._new(element, T)
+
+    @__generated__
+    def _binary(left, right, operation: Literal[str]):
+        """Apply a binary operator through compiler-generated active-type dispatch.
+
+        Preserve native results, including elementwise arrays.
+        Unsupported active pairs reach this fallback and raise TypeError.
+        """
+        raise TypeError("invalid union operation")
+
+    def _str(union):
+        for tag, T in static.vars_types(union, with_index=True):
+            if hasattr(T, '__str__'):
+                if Union._get_tag(union) == tag:
+                    return Union._get_data(union, T).__str__()
+            elif hasattr(T, '__repr__'):
+                if Union._get_tag(union) == tag:
+                    return Union._get_data(union, T).__repr__()
+        return ''
+
+    def __repr_default__(self) -> str:
+        for tag, T in static.vars_types(self, with_index=True):
+            if Union._get_tag(self) == tag:
+                return repr(Union._get_data(self, T))
+        return ''
+
+    def __format__(self, format_spec: str) -> str:
+        for tag, T in static.vars_types(self, with_index=True):
+            if Union._get_tag(self) == tag:
+                return Union._get_data(self, T).__format__(format_spec)
+        return ''

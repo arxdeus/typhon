@@ -1,0 +1,90 @@
+
+from .ndarray import ndarray
+from .routines import *
+from .const import pi
+import util
+
+def bartlett(M: int):
+    if M < 1:
+        return empty(0, float)
+    if M == 1:
+        return ones(1, float)
+
+    ans = empty(M, float)
+    p = ans.data
+    i = 0
+
+    for n in range(1 - M, M, 2):
+        if n <= 0:
+            p[i] = 1 + float(n).cdiv(float(M-1))
+        else:
+            p[i] = 1 - float(n).cdiv(float(M-1))
+        i += 1
+
+    return ans
+
+def blackman(M: int):
+    if M < 1:
+        return empty(0, float)
+    if M == 1:
+        return ones(1, float)
+
+    ans = empty(M, float)
+    p = ans.data
+    i = 0
+
+    for n in range(1 - M, M, 2):
+        p[i] = 0.42 + 0.5*util.cos((pi*n).cdiv(float(M-1))) + 0.08*util.cos((2.0*pi*n).cdiv(float(M-1)))
+        i += 1
+
+    return ans
+
+def hamming(M: int):
+    if M < 1:
+        return empty(0, float)
+    if M == 1:
+        return ones(1, float)
+
+    ans = empty(M, float)
+    p = ans.data
+    i = 0
+
+    for n in range(1 - M, M, 2):
+        p[i] = 0.54 + 0.46*util.cos((pi*n).cdiv(float(M-1)))
+        i += 1
+
+    return ans
+
+def hanning(M: int):
+    if M < 1:
+        return empty(0, float)
+    if M == 1:
+        return ones(1, float)
+
+    ans = empty(M, float)
+    p = ans.data
+    i = 0
+
+    for n in range(1 - M, M, 2):
+        p[i] = 0.5 + 0.5*util.cos((pi*n).cdiv(float(M-1)))
+        i += 1
+
+    return ans
+
+def kaiser(M: int, beta: float):
+    if M < 1:
+        return empty(0, float)
+    if M == 1:
+        return ones(1, float)
+
+    alpha = float(M - 1).cdiv(2.0)
+    denom = util.i0(beta)
+    ans = empty(M, float)
+    p = ans.data
+    i = 0
+
+    for n in range(0, M):
+        p[i] = util.i0(beta * util.sqrt(1-((n-alpha).cdiv(alpha))**2.0)).cdiv(denom)
+        i += 1
+
+    return ans

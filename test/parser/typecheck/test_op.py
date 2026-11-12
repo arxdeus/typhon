@@ -1,0 +1,806 @@
+
+#%% unary,barebones
+a, b = False, 1
+print not a, not b, ~b, +b, -b, -(+(-b)) #: True False -2 1 -1 1
+
+#%% binary_simple,barebones
+x, y = 1, 0
+c = [1, 2, 3]
+
+print x and y, x or y #: 0 1
+print x in c, x not in c #: True False
+print c is c, c is not c #: True False
+
+z: Optional[int] = None
+print z is None, None is z, None is not z, None is None #: True True False True
+
+#%% union_equality
+# Dispatch both active dtype alternatives and preserve elementwise array results.
+import numpy as np
+
+Array = Union[np.ndarray[int, 1], np.ndarray[complex, 1],
+              np.ndarray[np.int8, 1], np.ndarray[np.int32, 1]]
+Key = Union[int, complex, np.int8, np.int32]
+
+def compare_array(array):
+    values: Array = array
+    for key in (2, complex(2), np.int8(2), np.int32(2)):
+        value: Key = key
+        equal = values == value
+        assert type(equal) is np.ndarray[bool, 1]
+        assert equal.tolist() == [False, True, False, False]
+        assert (values != value).tolist() == [True, False, True, True]
+        assert (value == values).tolist() == [False, True, False, False]
+        assert (values == key).tolist() == [False, True, False, False]
+        assert (key == values).tolist() == [False, True, False, False]
+
+compare_array(np.array([1, 2, 3, 4]))
+compare_array(np.array([1, 2, 3, 4], dtype=complex))
+compare_array(np.array([1, 2, 3, 4], dtype=np.int8))
+compare_array(np.array([1, 2, 3, 4], dtype=np.int32))
+
+# Dispatch must evaluate the left and right operands once, in source order.
+events = []
+def operand(value: int):
+    events.append(value)
+    result: Union[int, float] = value
+    return result
+
+assert operand(1) != operand(2)
+assert events == [1, 2]
+assert operand(2) == 2.0 and 2 == operand(2)
+
+#%% union_numpy_operations
+import numpy as np
+
+Array = Union[np.ndarray[int, 1], np.ndarray[complex, 1],
+              np.ndarray[np.int8, 1], np.ndarray[np.int32, 1]]
+Key = Union[int, complex, np.int8, np.int32]
+
+def check_array(array):
+    values: Array = array
+    for key in (2, complex(2), np.int8(2), np.int32(2)):
+        value: Key = key
+        assert ((values + value) == (array + key)).all()
+        assert ((values * value) == (array * key)).all()
+        assert ((value + values) == (key + array)).all()
+        assert ((value * values) == (key * array)).all()
+        assert ((values + key) == (array + key)).all()
+        assert ((key + values) == (key + array)).all()
+        assert (values.dot(value) == array.dot(key)).all()
+        assert (values.__add__(value) == (array + key)).all()
+
+check_array(np.array([1, 2, 3, 4]))
+check_array(np.array([1, 2, 3, 4], dtype=complex))
+check_array(np.array([1, 2, 3, 4], dtype=np.int8))
+check_array(np.array([1, 2, 3, 4], dtype=np.int32))
+
+#%% union_binary_operations
+left: Union[int, str] = 3
+right: Union[int, float] = 2.5
+assert left + right == 5.5
+assert left * right == 7.5
+left: Union[int, str] = 'ab'
+right: Union[int, float] = 2
+assert left * right == 'abab'
+try:
+    left + right
+    assert False
+except TypeError:
+    pass
+
+events: list[int] = []
+def operand(value: int):
+    events.append(value)
+    result: Union[int, float] = value
+    return result
+
+assert operand(7) - operand(2) == 5
+assert events == [7, 2]
+assert operand(2) ** operand(3) == 8
+assert events == [7, 2, 2, 3]
+assert operand(4) < operand(5)
+
+@tuple
+class Reflected:
+    value: int
+    def __rsub__(self, other: int):
+        return other - self.value
+
+reflected: Union[Reflected, str] = Reflected(3)
+number: Union[int, str] = 10
+assert number - reflected == 7
+assert 10 - reflected == 7
+
+#%% union_nullable_arithmetic
+value: Union[int, str, NoneType] = 2
+assert value + 1 == 3
+assert 1 + value == 3
+assert value * 3 == 6
+value: Union[int, str, NoneType] = 'ab'
+assert value * 2 == 'abab'
+try:
+    value + 1
+    assert False
+except TypeError:
+    pass
+value: Union[int, str, NoneType] = None
+try:
+    value + 1
+    assert False
+except ValueError:
+    pass
+
+#%% union_method_arguments
+@tuple
+class Number:
+    value: int
+    def combine(self, other: int):
+        return self.value + other
+    def echo(self, value):
+        return value
+    def argument_types(self, first, second=1):
+        return type(first).__name__ + ':' + type(second).__name__
+    def choose(self, value: int):
+        return 'int'
+    @overload
+    def choose(self, value: str):
+        return 'str'
+
+@tuple
+class Text:
+    value: str
+    def combine(self, other: str):
+        return self.value + other
+    def echo(self, value):
+        return value
+    def argument_types(self, first, second=1):
+        return type(first).__name__ + ':' + type(second).__name__
+    def choose(self, value: int):
+        return 'int'
+    @overload
+    def choose(self, value: str):
+        return 'str'
+
+receiver: Union[Number, Text] = Number(10)
+argument: Union[int, str] = 2
+assert receiver.combine(argument) == 12
+argument: Union[int, str] = 'b'
+try:
+    receiver.combine(argument)
+    assert False
+except TypeError:
+    pass
+receiver: Union[Number, Text] = Text('a')
+assert receiver.combine(argument) == 'ab'
+echoed = receiver.echo(argument)
+assert type(echoed) is Union[int, str]
+assert echoed == 'b'
+assert receiver.argument_types(argument, second=argument) == 'str:str'
+assert receiver.argument_types(argument) == 'str:int'
+assert receiver.argument_types(second=argument, first=argument) == 'str:str'
+bound = receiver.argument_types
+assert bound(argument, second=argument) == 'str:str'
+assert receiver.choose(argument) == 'str'
+argument: Union[int, str] = 2
+assert receiver.choose(argument) == 'int'
+
+events: list[int] = []
+def get_receiver():
+    events.append(1)
+    result: Union[Number, Text] = Text('a')
+    return result
+
+def get_argument(index: int):
+    events.append(index)
+    result: Union[int, str] = 'b'
+    return result
+
+assert get_receiver().argument_types(get_argument(2), second=get_argument(3)) == 'str:str'
+assert events == [1, 2, 3]
+
+#%% union_declared_arguments
+Choice = Union[int, str]
+
+@tuple
+class FirstFormatter:
+    offset: int
+    def width(self, first: Choice, second: Choice, third: Choice, fourth: Choice,
+              fifth: Choice, sixth: Choice, seventh: Choice, eighth: Choice,
+              marker=0):
+        return (self.offset + sum(len(str(value)) for value in
+                (first, second, third, fourth, fifth, sixth, seventh, eighth)),
+                type(marker).__name__)
+
+@tuple
+class SecondFormatter:
+    offset: int
+    def width(self, first: Choice, second: Choice, third: Choice, fourth: Choice,
+              fifth: Choice, sixth: Choice, seventh: Choice, eighth: Choice,
+              marker=0):
+        return (self.offset + sum(len(str(value)) for value in
+                (first, second, third, fourth, fifth, sixth, seventh, eighth)),
+                type(marker).__name__)
+
+formatter: Union[FirstFormatter, SecondFormatter] = FirstFormatter(1)
+field: Choice = 42
+assert formatter.width(field, field, field, field, field, field, field, field,
+                       marker=field) == (17, 'int')
+formatter: Union[FirstFormatter, SecondFormatter] = SecondFormatter(2)
+field: Choice = 'abc'
+bound = formatter.width
+assert bound(eighth=field, first=field, second=field, third=field,
+             fourth=field, fifth=field, sixth=field, seventh=field,
+             marker=field) == (26, 'str')
+
+events: list[int] = []
+def get_bound():
+    events.append(0)
+    return FirstFormatter(0).width
+
+def get_field(index: int) -> Choice:
+    events.append(index)
+    return 'a'
+
+assert get_bound()(eighth=get_field(8), seventh=get_field(7), sixth=get_field(6),
+                   fifth=get_field(5), fourth=get_field(4), third=get_field(3),
+                   second=get_field(2), first=get_field(1)) == (8, 'int')
+assert events == [0, 8, 7, 6, 5, 4, 3, 2, 1]
+
+#%% binary_and_or,barebones
+s = 'hehe'
+a = 'hehe' or 5.2
+print(a, a.__class__.__name__)  #: hehe str
+a = 'hehe' and 5.2
+print(a, a.__class__.__name__)  #: 5.2 float
+a = s and 5.2
+print(a, a.__class__.__name__)  #: 5.2 Union[float|str]
+
+e = ''
+a = '' or 5.1
+print(a, a.__class__.__name__)  #: 5.1 float
+a = e or 5.1
+print(a, a.__class__.__name__)  #: 5.1 Union[float|str]
+a = '' and 5.1
+print(a, a.__class__.__name__)  #:  str
+
+s = 'hehe'
+a = s or 'aaa'
+print(a, a.__class__.__name__)  #: hehe str
+a = s and 'aaa'
+print(a, a.__class__.__name__)  #: aaa str
+
+s = ''
+a = s or 'bbb'
+print(a, a.__class__.__name__)  #: bbb str
+a = s and 'bbb'
+print(a, a.__class__.__name__)  #:  str
+
+s = 'hehe'
+a = s or 1
+print(a, a.__class__.__name__)  #: hehe Union[int|str]
+a = s and 1
+print(a, a.__class__.__name__)  #: 1 Union[int|str]
+
+s = ''
+a = s or 1
+print(a, a.__class__.__name__)  #: 1 Union[int|str]
+a = s and 1
+print(a, a.__class__.__name__)  #:  Union[int|str]
+
+def foo():
+    print('foo')
+    return True
+
+def bar():
+    print('bar')
+    return False
+
+print(foo() or bar())
+#: foo
+#: True
+print(bar() or foo())
+#: bar
+#: foo
+#: True
+print(foo() and bar())
+#: foo
+#: bar
+#: False
+print(bar() and foo())
+#: bar
+#: False
+
+v: Optional[str] = None
+result = v or "default"
+print(result)  #: default
+v: Optional[str] = "hoo"
+result = v or "default"
+print(result)  #: hoo
+
+x: Optional[List[int]] = None
+z = x if x else []
+print(z, z.__class__.__name__)  #: [] Optional[List[int]]
+z = x if x is not None else []
+print(z, z.__class__.__name__)  #: [] Optional[List[int]]
+z = x or []
+print(z, z.__class__.__name__)  #: [] Optional[List[int]]
+
+# Make sure that T|Optional[T] == T, not Union[Optional[T]]
+x = (1, 2)
+y: Optional[Tuple[int,int]] = None
+z = y or x
+print(z, z.__class__.__name__)
+#: (1, 2) Optional[Tuple[int,int]]
+
+
+#%% chain_binary,barebones
+def foo():
+    print 'foo'
+    return 15
+a = b = c = foo() #: foo
+print a, b, c #: 15 15 15
+
+x = y = []
+x.append(1)
+print x, y #: [1] [1]
+
+print 1 <= foo() <= 10 #: foo
+#: False
+print 15 >= foo()+1 < 30 > 20 > foo()
+#: foo
+#: False
+print 15 >= foo()-1 < 30 > 20 > foo()
+#: foo
+#: foo
+#: True
+
+print True == (b == 15) #: True
+
+#%% static_comparison_chain
+# middle operands retain static types without duplicating runtime calls.
+def check_lengths(first, second, third):
+    import internal.static as static
+    if not (static.len(first) == static.len(second) == static.len(third)):
+        compile_error('equal lengths rejected')
+    if static.len(first) == static.len(second) == 2:
+        compile_error('unequal lengths accepted')
+    if not (0 < static.len(first) < 3 <= static.len(third) + 2):
+        compile_error('ordered lengths rejected')
+check_lengths((1,), (2,), (3,))
+
+def record(events, value):
+    events.append(value)
+    return value
+events: list[int] = []
+assert 0 < record(events, 1) < record(events, 2)
+assert events == [1, 2]
+events.clear()
+assert not (3 < record(events, 2) < record(events, 4))
+assert events == [2]
+print('comparison chains ok')  #: comparison chains ok
+
+#%% pipe_error,barebones
+def b(a, b, c, d):
+    pass
+1 |> b(1, ..., 2, ...)  #! multiple ellipsis expressions
+
+#%% index_normal,barebones
+t: tuple[int, int] = (1, 2)
+print t #: (1, 2)
+
+tt: Tuple[int] = (1, )
+print tt #: (1,)
+
+def foo(i: int) -> int:
+    return i + 1
+f: CallableTrait[[int], int] = foo
+print f(1) #: 2
+fx: function[[int], int] = foo
+print fx(2) #: 3
+fxx: Function[[int], int] = foo
+print fxx(3) #: 4
+
+#%% index_union_annotation_revisit,barebones
+class IndexUnionA:
+    pass
+
+class IndexUnionB:
+    pass
+
+class IndexUnionTemplate[T]:
+    pass
+
+def index_union_arg(t: Union[IndexUnionTemplate[IndexUnionA], IndexUnionTemplate[IndexUnionB]]):
+    print("ok")
+
+index_union_arg(IndexUnionTemplate[IndexUnionA]())  #: ok
+
+#%% index_special,barebones
+class Foo:
+    def __getitem__(self, foo):
+        print foo
+f = Foo()
+f[0,0] #: (0, 0)
+f[0,:] #: (0, slice(None, None, None))
+f[:,:] #: (slice(None, None, None), slice(None, None, None))
+f[:,0] #: (slice(None, None, None), 0)
+
+#%% index_error,barebones
+Ptr[9.99] #! expected type expression
+
+#%% index_error_b,barebones
+Ptr['s'] #! expected type expression
+
+#%% index_error_static,barebones
+Ptr[1] #! expected type expression
+
+#%% index_error_2,barebones
+Ptr[int, 's'] #! Ptr takes 1 generics (2 given)
+
+#%% index_error_3,barebones
+Ptr[1, 's'] #! Ptr takes 1 generics (2 given)
+
+#%% callable_error,barebones
+def foo(x: CallableTrait[[]]): pass  #! CallableTrait takes 2 generics (1 given)
+
+#%% binary,barebones
+@extend
+class float:
+    def __add__(self, i: int):
+        print 'add'; return 0
+    def __sub__(self, i: int):
+        print 'sub'; return 0
+    def __mul__(self, i: int):
+        print 'mul'; return 0
+    def __pow__(self, i: int):
+        print 'pow'; return 0
+    def __truediv__(self, i: int):
+        print 'truediv'; return 0
+    def __floordiv__(self, i: int):
+        print 'div'; return 0
+    def __matmul__(self, i: int):
+        print 'matmul'; return 0
+    def __mod__(self, i: int):
+        print 'mod'; return 0
+    def __lt__(self, i: int):
+        print 'lt'; return 0
+    def __le__(self, i: int):
+        print 'le'; return 0
+    def __gt__(self, i: int):
+        print 'gt'; return 0
+    def __ge__(self, i: int):
+        print 'ge'; return 0
+    def __eq__(self, i: int):
+        print 'eq'; return 0
+    def __ne__(self, i: int):
+        print 'ne'; return 0
+    def __lshift__(self, i: int):
+        print 'lshift'; return 0
+    def __rshift__(self, i: int):
+        print 'rshift'; return 0
+    def __and__(self, i: int):
+        print 'and'; return 0
+    def __or__(self, i: int):
+        print 'or'; return 0
+    def __xor__(self, i: int):
+        print 'xor'; return 0
+# double assignment to disable propagation
+def f(x): return x
+a = f(1.0)
+a = f(5.0)
+a + f(1) #: add
+# wrap in function to disable canonicalization
+a - f(1) #: sub
+a * f(2) #: mul
+a ** f(2) #: pow
+a // f(2) #: div
+a / f(2) #: truediv
+a @ f(1) #: matmul
+a % f(1) #: mod
+a < f(1) #: lt
+a <= f(1) #: le
+a > f(1) #: gt
+a >= f(1) #: ge
+a == f(1) #: eq
+a != f(1) #: ne
+a << f(1) #: lshift
+a >> f(1) #: rshift
+a & f(1) #: and
+a | f(1) #: or
+a ^ f(1) #: xor
+
+#%% binary_rmagic,barebones
+class Foo[T]:
+    def __add__(self, other: T):
+        print 'add'
+        return self
+    def __radd__(self, other: T):
+        print 'radd'
+        return self
+foo = Foo[int]()
+foo + 1 #: add
+1 + foo #: radd
+
+#%% binary_short_circuit,barebones
+def moo():
+    print 'moo'
+    return True
+print True or moo() #: True
+print moo() or True #: moo
+#: True
+print False and moo() #: False
+print moo() and False #: moo
+#: False
+
+#%% binary_is,barebones
+print 5 is None #: False
+print None is None #: True
+print (None if bool(True) else 1) is None #: True
+print (None if bool(False) else 1) is None #: False
+
+print 5 is 5.0 #: False
+print 5 is 6 #: False
+print 5 is 5 #: True
+print 5 is 1.12 #: False
+class Foo:
+    a: int
+x = Foo(1)
+y = Foo(1)
+z = x
+print x is x, x is y, x is z, z is x, z is y #: True False True True False
+
+a, b, c, d = Optional(5), Optional[int](), Optional(5), Optional(4)
+print a is a, a is b, b is b, a is c, a is d #: True False True True False
+aa, bb, cc, dd = Optional(Foo(1)), Optional[Foo](), Optional(Foo(1)), Optional(Foo(2))
+print aa is aa, aa is bb, bb is bb, aa is cc, aa is dd #: True False True False False
+
+
+#%% pipe,barebones
+def foo(a, b):
+    return a+b
+bar = lambda c, d: c+d
+def hai(e):
+    while e > 0:
+        yield e
+        e -= 2
+def echo(s):
+    print s
+foo(1,2) |> bar(4) |> echo  #: 7
+foo(1,2) |> bar(4) |> hai |> echo
+#: 7
+#: 5
+#: 3
+#: 1
+
+#%% pipe_prepend,barebones
+def foo(a: Optional[int]):
+    print a
+    return 1
+5 |> foo #: 5
+None |> foo #: None
+print (None |> foo).__class__.__name__ #: int
+
+def foo2(a: int):
+    print a
+    return 1
+Optional(5) |> foo2 #: 5
+try:
+    Optional[int]() |> foo2
+except ValueError as e:
+    print e.message #: optional unpack failed: expected int, got None
+
+#%% pipe_prepend_error,barebones
+def foo2(a: int):
+    print a
+    return 1
+try:
+    None |> foo2
+except ValueError:
+    print 'exception'
+#! 'int' does not match expected type 'NoneType'
+#! during the realization
+
+#%% instantiate_err,barebones
+def foo[N]():
+    return N()
+foo(int, float)  #! foo() takes 1 arguments (2 given)
+
+#%% instantiate_err_2,barebones
+def foo[N, T]():
+    return N()
+foo(int)  #! generic 'T' not provided
+
+#%% instantiate_err_3,barebones
+Ptr[int, float]()  #! Ptr takes 1 generics (2 given)
+
+#%% slice,barebones
+z = [1, 2, 3, 4, 5]
+y = (1, 'foo', True)
+print z[2], y[1]  #: 3 foo
+print z[:1], z[1:], z[1:3], z[:4:2], z[::-1]  #: [1] [2, 3, 4, 5] [2, 3] [1, 3] [5, 4, 3, 2, 1]
+
+#%% static_index,barebones
+a = (1, '2s', 3.3)
+print a[1] #: 2s
+print a[0:2], a[:2], a[1:] #: (1, '2s') (1, '2s') ('2s', 3.3)
+print a[0:3:2], a[-1:] #: (1, 3.3) (3.3,)
+
+#%% static_index_side,barebones
+def foo(a):
+    print(a)
+    return a
+
+print (foo(2), foo(1))[::-1]
+#: 2
+#: 1
+#: (1, 2)
+print (foo(1), foo(2), foo(3), foo(4))[2]
+#: 1
+#: 2
+#: 3
+#: 4
+#: 3
+
+#%% static_index_lenient,barebones
+a = (1, 2)
+print a[3:5] #: ()
+
+#%% static_index_err,barebones
+a = (1, 2)
+a[5] #! tuple index out of range (expected 0..1, got instead 5)
+
+#%% static_index_err_2,barebones
+a = (1, 2)
+a[-3] #! tuple index out of range (expected 0..1, got instead -1)
+
+#%% index_func_instantiate,barebones
+class X:
+    def foo[T](self, x: T):
+        print x.__class__.__name__, x
+x = X()
+x.foo(5, int) #: int 5
+
+#%% index,barebones
+l = [1, 2, 3]
+print l[2] #: 3
+
+#%% index_two_rounds,barebones
+l = []
+print l[::-1] #: []
+l.append(('str', 1, True, 5.15))
+print l, l.__class__.__name__ #: [('str', 1, True, 5.15)] List[Tuple[str,int,bool,float]]
+
+#%% nested_generic,barebones
+f = Optional[Optional[Optional[int]]](Optional[Optional[int]](Optional[int](5)))
+print f  #: 5
+
+#%% static,barebones
+class Num[N_: Literal[int]]:
+    def __str__(self):
+        return f'[{N_}]'
+    def __init__(self):
+        pass
+def foo[N: Literal[int]]():
+    print Num[N*2]()
+foo(3) #: [6]
+
+class XX[N_: Literal[int]]:
+    a: Num[N_*2]
+    def __init__(self):
+        self.a = Num()
+y = XX[5]()
+print y.a, y.__class__.__name__, y.a.__class__.__name__ #: [10] XX[5] Num[10]
+
+@tuple
+class FooBar[N: Literal[int]]:
+    x: Int[N]
+z = FooBar(i32(5))
+print z, z.__class__.__name__, z.x.__class__.__name__ #: (x: Int[32](5)) FooBar[32] Int[32]
+
+@tuple
+class Foo[N: Literal[int]]:
+    x: Int[2*N]
+    def ctr(x: Int[2*N]) -> Foo[N]:
+        return Foo[N](x)
+foo = Foo[10].ctr(Int[20](0))
+print foo.__class__.__name__, foo.x.__class__.__name__ #: Foo[10] Int[20]
+
+#%% static_2,barebones
+class Num[N: Literal[int]]:
+    def __str__(self):
+        return f'~{N}'
+    def __init__(self):
+        pass
+class Foo[T, A: Literal[int], B: Literal[int]]:
+    a: Num[A+B]
+    b: Num[A-B]
+    c: Num[A if A > 3 else B]
+    t: T
+    def __init__(self):
+        self.a = Num()
+        self.b = Num()
+        self.c = Num()
+        self.t = T()
+    def __str__(self):
+        return f'<{self.a} {self.b} {self.c} :: {self.t}>'
+print Foo[int, 3, 4](), Foo[int, 5, 4]()
+#: <~7 ~-1 ~4 :: 0> <~9 ~1 ~5 :: 0>
+
+#%% static_int,barebones
+def foo(n: Literal[int]):
+    print n
+@overload
+def foo(n: Literal[bool]):
+    print n
+
+a: Literal[int] = 5
+foo(a < 1)   #: False
+foo(a <= 1)  #: False
+foo(a > 1)   #: True
+foo(a >= 1)  #: True
+foo(a == 1)  #: False
+foo(a != 1)  #: True
+foo(a and 1) #: 1
+foo(a or 1)  #: 5
+foo(a + 1)   #: 6
+foo(a - 1)   #: 4
+foo(a * 1)   #: 5
+foo(a // 2)  #: 2
+foo(a % 2)   #: 1
+foo(a & 2)   #: 0
+foo(a | 2)   #: 7
+foo(a ^ 1)   #: 4
+
+#%% static_str,barebones
+class X:
+    s: Literal[str]
+    i: Int[1 + (s == "abc")]
+    def __init__(self: X[s], s: Literal[str]):
+        i = Int[1+(s=="abc")]()
+        print s, self.s, self.i.__class__.__name__
+def foo(x: Literal[str], y: Literal[str]):
+    print x+y
+z: Literal[str] = "woo"
+foo("he", z)  #: hewoo
+X(s='lolo') #: lolo lolo Int[1]
+X('abc') #: abc abc Int[2]
+
+def foo2(x: Literal[str]):
+    print(x, x.__is_static__)
+s: Literal[str] = "abcdefghijkl"
+foo2(s)  #: abcdefghijkl True
+foo2(s[1])  #: b True
+foo2(s[1:5])  #: bcde True
+foo2(s[10:50])  #: kl True
+foo2(s[1:30:3])  #: behk True
+foo2(s[::-1])  #: lkjihgfedcba True
+
+#%% static_short_circuit,barebones
+x = 3.14
+if isinstance(x, List) and x.T is float:
+    print('is list')
+else:
+    print('not list')  #: not list
+
+#%% partial_star_pipe_args,barebones
+iter(['A', 'C']) |> print
+#: A
+#: C
+iter(range(4)) |> print('x', ..., 1)
+#: x 0 1
+#: x 1 1
+#: x 2 1
+#: x 3 1
+
+#%% partial_static_keep,barebones
+def foo(x: Literal[int]):
+    return lambda: str(x)
+f = foo(5)
+print foo(5)() #: 5
+print foo(8)() #: 8
+
+def itemgetter(item: Literal[int]):
+    return lambda o: o[item]
+print itemgetter(1)([1, 2, 3])  #: 2
+print itemgetter(2)("abc")  #: c

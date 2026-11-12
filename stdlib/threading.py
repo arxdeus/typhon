@@ -1,0 +1,60 @@
+
+# Thread-local variable indicator. Used internally by the compiler to mark ThreadLocal variables.
+# Semantically identical to T.
+@tuple
+class ThreadLocal[T]:
+    def __new__(T: type) -> ThreadLocal[T]:
+        compile_error("this type cannot be instantiated")
+
+@tuple
+class Lock:
+    p: cobj
+
+    def __new__() -> Lock:
+        return Lock(_C.seq_lock_new(),)
+
+    def acquire(self, /, block: bool = True, timeout: float = -1.0) -> bool:
+        if timeout >= 0.0 and not block:
+            raise ValueError("can't specify a timeout for a non-blocking call")
+        return _C.seq_lock_acquire(self.p, block, timeout)
+
+    def release(self, /):
+        _C.seq_lock_release(self.p)
+
+    def __enter__(self, /):
+        return self.acquire()
+
+    def __exit__(self, /):
+        self.release()
+
+@tuple
+class RLock:
+    p: cobj
+
+    def __new__() -> RLock:
+        return RLock(_C.seq_rlock_new(),)
+
+    def acquire(self, /, block: bool = True, timeout: float = -1.0) -> bool:
+        if timeout >= 0.0 and not block:
+            raise ValueError("can't specify a timeout for a non-blocking call")
+        return _C.seq_rlock_acquire(self.p, block, timeout)
+
+    def release(self, /):
+        _C.seq_rlock_release(self.p)
+
+    def __enter__(self, /):
+        return self.acquire()
+
+    def __exit__(self, /):
+        self.release()
+
+def active_count() -> int:
+    from openmp import get_num_threads
+    return get_num_threads()
+
+def get_native_id() -> int:
+    from openmp import get_thread_num
+    return get_thread_num()
+
+def get_ident() -> int:
+    return get_native_id() + 1

@@ -1,0 +1,835 @@
+
+import internal.static as static
+from internal.unicode.generated.properties import unicode_is_space
+
+def getattr(obj, attr: Literal[str], default, /, typ: type=NoneType):
+    try:
+        return _getattr(obj, attr, type(default) if typ is NoneType else typ)
+    except AttributeError:
+        if default is None:
+            return None
+        else:
+            return default
+
+@overload
+def getattr(obj, attr: Literal[str], /, type: type=NoneType):
+    return _getattr(obj, attr, type)
+
+def id(x, /) -> int:
+    if isinstance(x, ByRef):
+        return int(x.__raw__())
+    else:
+        return 0
+
+def print(*args, sep: str = " ", end: str = "\n", file=None, flush: bool = False):
+    if file is None:
+        print(*args, sep=sep, end=end, file=_C.seq_stdout(), flush=flush)
+        return
+
+    fp = cobj()
+    if isinstance(file, cobj):
+        fp = file
+    else:
+        fp = file._state._fp
+
+    i = 0
+    for a in args:
+        if i and sep:
+            _C.seq_print_full(sep, fp)
+        _C.seq_print_full(str(a), fp)
+        i += 1
+    _C.seq_print_full(end, fp)
+    if flush:
+        _C.fflush(fp)
+
+def input(prompt: str = "", /) -> str:
+    stdout = _C.seq_stdout()
+    stderr = _C.seq_stderr()
+    stdin = _C.seq_stdin()
+    _C.fflush(stderr)
+    _C.fflush(stdout)
+    print(prompt, end="", flush=True)
+    buf = cobj()
+    n = 0
+    s = _C.getline(__ptr__(buf), __ptr__(n), stdin)
+    if s > 0:
+        if buf[s - 1] == u8(10):
+            s -= 1  # skip trailing '\n'
+        if s != 0 and buf[s - 1] == u8(13):
+            s -= 1  # skip trailing '\r'
+        data = Ptr[u8](s)
+        bytes.memcpy(data, Ptr[u8](buf), s)
+        _C.free(buf)
+        return bytes(data, s).decode()
+    else:
+        _C.free(buf)
+        raise EOFError("EOF when reading a line")
+
+@extend
+class __internal__:
+    def print(*args):
+        print(*args, flush=True, file=_C.seq_stdout())
+
+def min(*args, key=None, default=None):
+    if static.len(args) == 0:
+        compile_error("min() expected at least 1 argument, got 0")
+    elif static.len(args) > 1 and default is not None:
+        compile_error("min() 'default' argument only allowed for iterables")
+    elif static.len(args) == 1:
+        x = args[0].__iter__()
+        if x._advance():
+            s = x._get()
+            while x._advance():
+                i = x._get()
+                if key is None:
+                    if i < s:
+                        s = i
+                else:
+                    if key(i) < key(s):
+                        s = i
+            x._destroy()
+            return s
+        else:
+            x._destroy()
+        if default is None:
+            raise ValueError("min() arg is an empty sequence")
+        else:
+            return default
+    elif static.len(args) == 2:
+        a, b = args
+        if key is None:
+            return a if a <= b else b
+        else:
+            return a if key(a) <= key(b) else b
+    else:
+        m = args[0]
+        for i in args[1:]:
+            if key is None:
+                if i < m:
+                    m = i
+            else:
+                if key(i) < key(m):
+                    m = i
+        return m
+
+def max(*args, key=None, default=None):
+    if static.len(args) == 0:
+        compile_error("max() expected at least 1 argument, got 0")
+    elif static.len(args) > 1 and default is not None:
+        compile_error("max() 'default' argument only allowed for iterables")
+    elif static.len(args) == 1:
+        x = args[0].__iter__()
+        if x._advance():
+            s = x._get()
+            while x._advance():
+                i = x._get()
+                if key is None:
+                    if i > s:
+                        s = i
+                else:
+                    if key(i) > key(s):
+                        s = i
+            x._destroy()
+            return s
+        else:
+            x._destroy()
+        if default is None:
+            raise ValueError("max() arg is an empty sequence")
+        else:
+            return default
+    elif static.len(args) == 2:
+        a, b = args
+        if key is None:
+            return a if a >= b else b
+        else:
+            return a if key(a) >= key(b) else b
+    else:
+        m = args[0]
+        for i in args[1:]:
+            if key is None:
+                if i > m:
+                    m = i
+            else:
+                if key(i) > key(m):
+                    m = i
+        return m
+
+def len(x, /) -> int:
+    return x.__len__()
+
+def iter(x, /):
+    return x.__iter__()
+
+def abs(x, /):
+    return x.__abs__()
+
+def hash(x, /) -> int:
+    return x.__hash__()
+
+def ord(character: str, /) -> int:
+    n = len(character)
+    if n != 1:
+        raise TypeError(
+            f"ord() expected a character, but string of length {n} found"
+        )
+    return character._load_codepoint(0)
+
+def divmod(a, b, /):
+    if hasattr(a, "__divmod__"):
+        return a.__divmod__(b)
+    else:
+        return (a // b, a % b)
+
+def chr(codepoint: int, /) -> str:
+    if codepoint < 0 or codepoint > 0x10FFFF:
+        raise ValueError("chr() arg not in range(0x110000)")
+
+    if codepoint <= 0x7F:
+        kind, width = 0, 1
+    elif codepoint <= 0xFF:
+        kind, width = 1, 1
+    elif codepoint <= 0xFFFF:
+        kind, width = 2, 2
+    else:
+        kind, width = 3, 4
+
+    data = Ptr[u8](width)
+    for offset in range(width):
+        data[offset] = u8(codepoint >> (8 * offset))
+    return str(data, 1 | (kind << 56))
+
+def next(g: Generator[T], default: Optional[T] = None, /, T: type) -> T:
+    if not g._advance():
+        if default is not None:
+            return default.__val__()
+        else:
+            raise StopIteration()
+    return g._get()
+
+def any(x: Generator[T], /, T: type) -> bool:
+    for a in x:
+        if a:
+            return True
+    return False
+
+def all(x: Generator[T], /, T: type) -> bool:
+    for a in x:
+        if not a:
+            return False
+    return True
+
+def zip(*args):
+    if static.len(args) == 0:
+        yield from List[int]()
+    else:
+        iters = tuple(iter(i) for i in args)
+
+        @pure
+        @llvm
+        def empty_result(R: type) -> R:
+            ret {=R} zeroinitializer
+
+        @pure
+        @derives
+        @llvm
+        def set_result(result: R, value: V, index: Literal[int], R: type, V: type) -> R:
+            %updated = insertvalue {=R} %result, {=V} %value, {=index}
+            ret {=R} %updated
+
+        Result = type(tuple(iterator._get() for iterator in iters))
+        while True:
+            result = empty_result(Result)
+            for index in static.range(static.len(iters)):
+                iterator = iters[index]
+                if not iterator._advance():
+                    return
+                result = set_result(result, iterator._get(), index)
+            yield result
+
+def filter(f: CallableTrait[[T], bool], x: Generator[T], /, T: type) -> Generator[T]:
+    for a in x:
+        if f(a):
+            yield a
+
+def map(f, /, *args):
+    if static.len(args) == 0:
+        compile_error("map() expects at least one iterator")
+    elif static.len(args) == 1:
+        for a in args[0]:
+            yield f(a)
+    else:
+        for a in zip(*args):
+            yield f(*a)
+
+def enumerate(x, start: int = 0):
+    i = start
+    for a in x:
+        yield (i, a)
+        i += 1
+
+def echo(x):
+    print x
+    return x
+
+def reversed(x, /):
+    if hasattr(x, "__reversed__"):
+        return x.__reversed__()
+
+
+    def _rev(x):
+        i = x.__len__() - 1
+        while i >= 0:
+            yield x[i]
+            i -= 1
+
+    return _rev(x)
+
+def round(x, ndigits=None):
+    if not hasattr(x, "__round__"):
+        compile_error("type " + type(x).__name__ + " doesn't define __round__ method")
+
+    if ndigits is None:
+        return x.__round__()
+    else:
+        if not isinstance(ndigits, int):
+            compile_error("'ndigits' argument must be an int or None")
+        return x.__round__(ndigits)
+
+def sum(x, /, start=0):
+    if ((isinstance(x, List[int]) and isinstance(start, int)) or
+        (isinstance(x, List[int]) and isinstance(start, float)) or
+        (isinstance(x, List[float]) and isinstance(start, float))):
+        p = x._ptr
+        s = start
+        for i in range(len(x)):
+            s += p[i]
+        return s
+    elif isinstance(x, List[float]) and isinstance(start, int):
+        p = x._ptr
+        s = float(start)
+        for i in range(len(x)):
+            s += p[i]
+        return s
+    elif isinstance(x, List[bool]) and isinstance(start, int):
+        p = x._ptr
+        s = start
+        for i in range(len(x)):
+            s += 1 if p[i] else 0
+        return s
+    if ((isinstance(x, Generator[int]) and isinstance(start, int)) or
+        (isinstance(x, Generator[int]) and isinstance(start, float)) or
+        (isinstance(x, Generator[float]) and isinstance(start, float))):
+        s = start
+        for a in x:
+            s += a
+        return s
+    elif isinstance(x, Generator[float]) and isinstance(start, int):
+        s = float(start)
+        for a in x:
+            s += a
+        return s
+    elif isinstance(x, Generator[bool]) and isinstance(start, int):
+        s = start
+        for a in x:
+            s += 1 if a else 0
+        return s
+    else:
+        itr = x.__iter__()
+        S = type(start + itr.__promise__()[0])
+        if isinstance(start, S):
+            s = start
+        else:
+            s = S(start)
+
+        for a in x:
+            s = s + a
+
+        return s
+
+def repr(x, /):
+    if isinstance(x, type):
+        return __type_repr__(x)
+    if type(x) is Super:
+        return f'<super: {x.T}>'
+    if not hasattr(x, "__repr__") and hasattr(x, "__repr_default__"):
+        return x.__repr_default__()
+    return x.__repr__()
+
+def _int_format(a: int, base: Literal[int], prefix: str = ""):
+    if not (base == 2 or base == 8 or base == 10 or base == 16):
+        compile_error("invalid base for int_format()")
+
+    chars = "0123456789abcdef-"
+
+    b = a
+    digits = 0
+    while b != 0:
+        digits += 1
+        b = b.cdiv(base)
+
+    sz = digits + (1 if a <= 0 else 0) + len(prefix)
+    p = Ptr[u8](sz)
+    q = p
+
+    if a < 0:
+        q[0] = chars[-1]._ptr[0]
+        q += 1
+
+    if prefix:
+        str.memcpy(q, prefix._ptr, len(prefix))
+        q += len(prefix)
+
+    if digits != 0:
+        b = a
+        q += digits - 1
+        i = 1
+        while b != 0:
+            i += 1
+            q[0] = chars._ptr[abs(b.cmod(base))]
+            q += -1
+            b = b.cdiv(base)
+    else:
+        q[0] = chars._ptr[0]
+
+    return str(p, sz)
+
+def bin(n, /):
+    return _int_format(n.__index__(), 2, "0b")
+
+def oct(n, /):
+    return _int_format(n.__index__(), 8, "0o")
+
+def hex(n, /):
+    return _int_format(n.__index__(), 16, "0x")
+
+def format(value, format_spec: str = "", /):
+    if hasattr(value, "__format__"):
+        return value.__format__(format_spec)
+    else:
+        return format_spec.format(value)
+
+def pow(base: float, exp: float):
+    return base ** exp
+
+@overload
+def pow(base: int, exp: int, mod: Optional[int] = None):
+    if exp < 0:
+        raise ValueError("pow() negative int exponent not supported")
+
+    if mod is not None:
+        if mod == 0:
+            raise ValueError("pow() 3rd argument cannot be 0")
+        base = base.cmod(mod)
+
+    result = 1
+    while exp > 0:
+        if exp & 1:
+            x = result * base
+            result = x.cmod(mod) if mod is not None else x
+        y = base * base
+        base = y.cmod(mod) if mod is not None else y
+        exp >>= 1
+    return result.cmod(mod) if mod is not None else result
+
+_CHAR_0: Literal[int] = 48
+_CHAR_9: Literal[int] = 57
+_CHAR_A: Literal[int] = 65
+_CHAR_a: Literal[int] = 97
+_CHAR_Z: Literal[int] = 90
+_CHAR_z: Literal[int] = 122
+_CHAR_X: Literal[int] = 88
+_CHAR_x: Literal[int] = 120
+_CHAR_B: Literal[int] = 66
+_CHAR_b: Literal[int] = 98
+_CHAR_O: Literal[int] = 79
+_CHAR_o: Literal[int] = 111
+
+_CHAR_UNDERSCORE: Literal[int] = 95
+_CHAR_POS: Literal[int] = 43
+_CHAR_NEG: Literal[int] = 45
+
+def _parse_int(s: str, base: int = 10, T: type = int):
+    if s._width() == 1:
+        return _parse_int_typed(s, s._ptr, base, T)
+    if s._width() == 2:
+        return _parse_int_typed(s, Ptr[u16](s._ptr), base, T)
+    return _parse_int_typed(s, Ptr[u32](s._ptr), base, T)
+
+def _parse_int_typed(s: str, data: Ptr[Char], base: int, T: type, Char: type):
+
+    def _digit_value(c: int):
+        if _CHAR_0 <= c and c <= _CHAR_9:
+            return c - _CHAR_0
+        if _CHAR_A <= c and c <= _CHAR_Z:
+            return c - _CHAR_A + 10
+        if _CHAR_a <= c and c <= _CHAR_z:
+            return c - _CHAR_a + 10
+        return -1
+
+    def _isspace(c: int):
+        return unicode_is_space(c)
+
+    def _limit(neg: bool, T: type):
+        if T is int:
+            if neg:
+                return UInt[64](0x8000000000000000)
+            else:
+                return UInt[64](0x7FFFFFFFFFFFFFFF)
+        elif isinstance(T, Int):
+            U = UInt[T.N]
+            n = U(1) << (U(T.N) - U(1))
+            return n if neg else n - U(1)
+        elif isinstance(T, UInt):
+            return ~T(0)
+        else:
+            compile_error("invalid integer type: " + T.__name__)
+
+    def _signed(T: type) -> Literal[bool]:
+        return T is int or isinstance(T, Int)
+
+    def _width(T: type) -> Literal[int]:
+        if T is int:
+            return 64
+        elif isinstance(T, Int) or isinstance(T, UInt):
+            return T.N
+        else:
+            compile_error("invalid integer type: " + T.__name__)
+
+    # argument check
+    if base != 0 and (base < 2 or base > 36):
+        raise ValueError("int() base must be >= 2 and <= 36, or 0")
+
+    p = 0
+    end = len(s)
+
+    # skip leading whitespace
+    while p < end and _isspace(int(data[p])):
+        p += 1
+
+    # sign
+    neg = False
+    if p < end and (
+        int(data[p]) == _CHAR_POS or int(data[p]) == _CHAR_NEG
+    ):
+        neg = int(data[p]) == _CHAR_NEG
+        p += 1
+
+    if not _signed(T):
+        if neg:
+            raise OverflowError("type " + T.__name__ + " does not support negative values")
+
+    # base detection / prefix handling
+    base0_leading_zero = False
+    if base == 0:
+        base = 10
+        if (end - p) >= 2 and int(data[p]) == _CHAR_0:
+            if int(data[p + 1]) == _CHAR_x or int(data[p + 1]) == _CHAR_X:
+                base = 16
+                p += 2
+                if p < end and int(data[p]) == _CHAR_UNDERSCORE:
+                    p += 1
+            elif int(data[p + 1]) == _CHAR_b or int(data[p + 1]) == _CHAR_B:
+                base = 2
+                p += 2
+                if p < end and int(data[p]) == _CHAR_UNDERSCORE:
+                    p += 1
+            elif int(data[p + 1]) == _CHAR_o or int(data[p + 1]) == _CHAR_O:
+                base = 8
+                p += 2
+                if p < end and int(data[p]) == _CHAR_UNDERSCORE:
+                    p += 1
+            else:
+                base0_leading_zero = True
+    elif (end - p) >= 2 and int(data[p]) == _CHAR_0:
+        prefix = int(data[p + 1])
+        if ((base == 16 and (prefix == _CHAR_x or prefix == _CHAR_X)) or
+            (base == 8 and (prefix == _CHAR_o or prefix == _CHAR_O)) or
+            (base == 2 and (prefix == _CHAR_b or prefix == _CHAR_B))):
+            p += 2
+            if p < end and int(data[p]) == _CHAR_UNDERSCORE:
+                p += 1
+
+    limit = _limit(neg, T)
+    U = type(limit)
+
+    cutoff = U()
+    cutlim = U()
+    have_cutoff = False
+
+    if _width(T) > 5 or int(base) <= int(limit):
+        cutoff = limit.cdiv(U(base))
+        cutlim = limit.cmod(U(base))
+        have_cutoff = True
+
+    acc = U()
+    saw_digit = False
+    prev_underscore = False
+    overflow = False
+
+    def invalid(s: str, base: int):
+        raise ValueError(f"invalid literal for int() with base {base}: {s.__repr__()}")
+
+    while p < end:
+        c = int(data[p])
+
+        if c == _CHAR_UNDERSCORE:
+            if (not saw_digit) or prev_underscore:
+                invalid(s, base)
+            prev_underscore = True
+            p += 1
+            continue
+
+        d = _digit_value(c)
+        if d < 0 or d >= base:
+            break
+
+        if base0_leading_zero and d != 0:
+            invalid(s, base)
+
+        if _width(T) <= 5 and d > int(limit):
+            overflow = True
+
+        if have_cutoff:
+            if ((acc > cutoff) or
+                (acc == cutoff and d > int(cutlim))):
+                overflow = True
+        else:
+            if acc:
+                overflow = True
+
+        acc = acc * U(base) + U(d)
+        saw_digit = True
+        prev_underscore = False
+        p += 1
+
+    if (not saw_digit) or prev_underscore:
+        invalid(s, base)
+
+    # skip trailing whitespace
+    while p < end and _isspace(int(data[p])):
+        p += 1
+
+    if p != end:
+        invalid(s, base)
+
+    if overflow:
+        raise OverflowError(f"value does not fit into type {T.__name__}: {s.__repr__()}")
+
+    if _signed(T):
+        if neg:
+            abs_min = limit + U(1)
+            if acc == abs_min:
+                return T(_limit(True, T))
+            else:
+                return -T(acc)
+        else:
+            return T(acc)
+    else:
+        return acc
+
+@extend
+class Int:
+    def _from_str(s: str, base: int):
+        return _parse_int(s, base, Int[N])
+
+@extend
+class UInt:
+    def _from_str(s: str, base: int):
+        return _parse_int(s, base, UInt[N])
+
+def _parse_float_prefix(value: str, start: int):
+    if start == len(value):
+        return 0.0, 0
+    if value._is_ascii():
+        data = value._ptr + start
+        end = cobj()
+        result = _C.seq_float_from_str(str(data, len(value) - start), __ptr__(end))
+        return result, end - data
+
+    length = 0
+    data = Ptr[u8](len(value) - start)
+
+    while start + length < len(value):
+        codepoint = value._load_codepoint(start + length)
+        if codepoint > 0x7F:
+            break
+        data[length] = u8(codepoint)
+        length += 1
+
+    if length == 0:
+        return 0.0, 0
+
+    ascii_value = str(data, length)
+    end = cobj()
+    result = _C.seq_float_from_str(ascii_value, __ptr__(end))
+    return result, end - data
+
+@extend
+class float:
+    def _from_str(s: str) -> float:
+        s0 = s
+        s = s.strip()
+        result, consumed = _parse_float_prefix(s, 0)
+
+        if len(s) == 0 or consumed != len(s):
+            raise ValueError(f"could not convert string to float: {s0.__repr__()}")
+
+        return result
+
+@extend
+class complex:
+    def _from_str(v: str) -> complex:
+        def parse_error():
+            raise ValueError("complex() arg is a malformed string")
+
+        n = len(v)
+        x = 0.0
+        y = 0.0
+        z = 0.0
+        got_bracket = False
+        i = 0
+
+        while i < n and unicode_is_space(v._load_codepoint(i)):
+            i += 1
+
+        if i < n and v._load_codepoint(i) == 40:  # '('
+            got_bracket = True
+            i += 1
+            while i < n and unicode_is_space(v._load_codepoint(i)):
+                i += 1
+
+        z, consumed = _parse_float_prefix(v, i)
+
+        if consumed:
+            i += consumed
+
+            if i < n and (v._load_codepoint(i) == 43 or
+                          v._load_codepoint(i) == 45):  # '+' '-'
+                x = z
+                y, consumed = _parse_float_prefix(v, i)
+
+                if consumed:
+                    i += consumed
+                else:
+                    y = 1.0 if v._load_codepoint(i) == 43 else -1.0
+                    i += 1
+
+                if not (i < n and (v._load_codepoint(i) == 106 or
+                                   v._load_codepoint(i) == 74)):  # 'j' 'J'
+                    parse_error()
+
+                i += 1
+            elif i < n and (v._load_codepoint(i) == 106 or
+                            v._load_codepoint(i) == 74):  # 'j' 'J'
+                i += 1
+                y = z
+            else:
+                x = z
+        else:
+            if i < n and (v._load_codepoint(i) == 43 or
+                          v._load_codepoint(i) == 45):  # '+' '-'
+                y = 1.0 if v._load_codepoint(i) == 43 else -1.0
+                i += 1
+            else:
+                y = 1.0
+
+            if not (i < n and (v._load_codepoint(i) == 106 or
+                               v._load_codepoint(i) == 74)):  # 'j' 'J'
+                parse_error()
+
+            i += 1
+
+        while i < n and unicode_is_space(v._load_codepoint(i)):
+            i += 1
+
+        if got_bracket:
+            if i < n and v._load_codepoint(i) != 41:  # ')'
+                parse_error()
+            i += 1
+            while i < n and unicode_is_space(v._load_codepoint(i)):
+                i += 1
+
+        if i != n:
+            parse_error()
+
+        return complex(x, y)
+
+@extend
+class float32:
+    def _from_str(s: str) -> float32:
+        return float32(float._from_str(s))
+
+@extend
+class float16:
+    def _from_str(s: str) -> float16:
+        return float16(float._from_str(s))
+
+@extend
+class bfloat16:
+    def _from_str(s: str) -> bfloat16:
+        return bfloat16(float._from_str(s))
+
+@extend
+class complex64:
+    def _from_str(s: str) -> complex64:
+        return complex64(complex._from_str(s))
+
+def _jit_display(x, s: Literal[str], bundle: Optional[Set[str]] = None):
+    if isinstance(x, None):
+        return
+    if hasattr(x, "_repr_mimebundle_") and s == "jupyter":
+        d = x._repr_mimebundle_(bundle)
+        # TODO: pick appropriate mime
+        mime = next(d.keys()) # just pick first
+        print(f"\x00\x00__codon/mime__\x00{mime}\x00{d[mime]}", end='')
+    elif hasattr(x, "__repr__"):
+        print(x.__repr__(), end='')
+    elif hasattr(x, "__str__"):
+        print(x.__str__(), end='')
+
+
+@inline
+def cast(U: type, obj) -> U:
+    T = type(obj)
+
+    if T is Any:
+        return obj.__cast__(U)
+    elif U is Any:
+        return Any(obj)
+
+    if T is int and U is float:
+        return float(obj)
+    if U is bool:
+        return obj.__bool__() if hasattr(obj, "__bool__") else bool(obj)
+
+    if T is Optional[U]:
+        return unwrap(obj)
+    elif U is Optional[T]:
+        return U(obj)
+
+    if U is pyobj:
+        return obj.__to_py__()
+    elif T is pyobj:
+        return U.__from_py__(obj.p)
+
+    def _cast(obj, UU: type) -> UU:
+        if static.has_rtti(type(obj)):
+            return RTTIType._cast(obj, UU)
+        elif type(obj) is List and UU is List:
+            return [cast(UU.T, i) for i in obj]
+        else:
+            o: UU = obj
+            return o
+
+    # Optional[X] to Optional[Y] while preserving RTTI
+    if T is Optional and U is not Optional:  # Optional[T] -> U
+        if obj is None:
+            raise TypeError(f"cannot cast a None to non-optional {U}")
+        return _cast(unwrap(obj), U)
+    elif T is Optional and U is Optional:  # Optional[T] -> Optional[U]
+        return None if obj is None else U(_cast(unwrap(obj), U.T))
+    elif U is Optional: # T -> Optional[U]
+        return Optional(_cast(obj, U.T))
+    else: # T -> U
+        return _cast(obj, U)
+

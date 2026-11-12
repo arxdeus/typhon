@@ -1,0 +1,2751 @@
+# Ported from pandas 3.1.1 (BSD-3-Clause)
+
+# Series and DataFrame. Values live in runtime-typed Columns (float64,
+# int64, bool, str), so a DataFrame can hold columns of different dtypes
+# while staying a single static Codon type.
+
+import numpy as np
+from numpy import ndarray
+import internal.static as static
+from .scalar import Scalar, K_FLOAT, K_INT, K_BOOL, K_STR, K_NONE, NA_STR, _isnan
+from .core import *
+from .core import _dtype_name, _kind_of_dtype, _fixed_bounds, _lerp_quantile, _sorted_valid
+from .index import Index
+from .fmt import frame_repr, series_repr, format_column, adjoin
+
+def _as_label(x) -> Scalar:
+    return Scalar.of(x)
+
+def _opt_name(x) -> Optional[str]:
+    if x is None:
+        return None
+    elif isinstance(x, str):
+        return x
+    elif isinstance(x, Optional[str]):
+        return x
+    else:
+        return str(x)
+
+def _label_name(s: Scalar) -> Optional[str]:
+    if s.kind == K_NONE:
+        return None
+    return str(s)
+
+def _make_index(index, n: int) -> Index:
+    if index is None:
+        return Index.range(n)
+    elif isinstance(index, Index):
+        if len(index) != n:
+            raise ValueError(f"Length of values ({n}) does not match length of index ({len(index)})")
+        return index.copy()
+    else:
+        idx = Index(index)
+        if len(idx) != n:
+            raise ValueError(f"Length of values ({n}) does not match length of index ({len(idx)})")
+        return idx
+
+def _norm_pos(k: int, n: int) -> int:
+    if k < 0:
+        k += n
+    if k < 0 or k >= n:
+        raise IndexError("single positional indexer is out-of-bounds")
+    return k
+
+def _mask_positions(mask) -> List[int]:
+    res = List[int]()
+    if isinstance(mask, Series):
+        for k in range(len(mask)):
+            if mask._col.isna_at(k):
+                continue
+            if mask._col.get(k).__bool__():
+                res.append(k)
+    else:
+        k = 0
+        for b in mask:
+            if b:
+                res.append(k)
+            k += 1
+    return res
+
+
+def _csv_quote(s: str, sep: str) -> str:
+    if sep in s or '"' in s or "\n" in s or "\r" in s:
+        return '"' + s.replace('"', '""') + '"'
+    return s
+
+# ---------------------------------------------------------------------------
+# Series
+
+class Series:
+    _col: Column
+    index: Index
+    name: Optional[str]
+
+    def __init__(self, data = None, index = None, dtype = None, name = None, copy: bool = False):
+        if data is None:
+            self._col = Column.floats(List[float]())
+            self.index = _make_index(index, 0)
+        elif isinstance(data, Series):
+            self._col = data._col.copy()
+            self.index = data.index.copy() if index is None else _make_index(index, len(data._col))
+        elif isinstance(data, Dict):
+            keys = list(data.keys())
+            self._col = Column.of(list(data.values()))
+            self.index = Index(keys) if index is None else _make_index(index, len(keys))
+        elif isinstance(data, ndarray) or isinstance(data, List) or isinstance(data, Column):
+            self._col = Column.of(data)
+            self.index = _make_index(index, len(self._col))
+        elif hasattr(data, "__iter__"):
+            self._col = Column.of(list(data))
+            self.index = _make_index(index, len(self._col))
+        else:
+            # scalar broadcast
+            n = len(index) if index is not None else 1
+            sc = Scalar.of(data)
+            self._col = Column.full(sc.kind, n, sc)
+            self.index = _make_index(index, n)
+        if dtype is not None:
+            self._col = self._col.astype(_kind_of_dtype(dtype))
+        self.name = _opt_name(name)
+
+    @staticmethod
+    def _new(col: Column, index: Index, name: Optional[str]) -> Series:
+        s = Series.__new__()
+        s._col = col
+        s.index = index
+        s.name = name
+        return s
+
+    def _with(self, col: Column) -> Series:
+        return Series._new(col, self.index, self.name)
+
+    # -- attributes
+    def __len__(self) -> int:
+        return len(self._col)
+
+    @property
+    def size(self) -> int:
+        return len(self._col)
+
+    @property
+    def shape(self) -> Tuple[int]:
+        return (len(self._col),)
+
+    @property
+    def ndim(self) -> int:
+        return 1
+
+    @property
+    def dtype(self) -> str:
+        return self._col.dtype
+
+    @property
+    def empty(self) -> bool:
+        return len(self._col) == 0
+
+    @property
+    def values(self) -> ndarray[float, 1]:
+        return self.to_numpy()
+
+    def to_numpy(self, dtype: type = float) -> ndarray[dtype, 1]:
+        n = len(self._col)
+        a = np.empty(n, dtype=dtype)
+        for k in range(n):
+            if dtype is float:
+                a[k] = self._col.getf(k)
+            elif dtype is str:
+                a[k] = str(self._col.get(k))
+            elif dtype is bool:
+                a[k] = self._col.get(k).__bool__()
+            else:
+                a[k] = dtype(int(self._col.get(k)))
+        return a
+
+    def tolist(self) -> List[Scalar]:
+        return self._col.scalars()
+
+    def to_list(self) -> List[Scalar]:
+        return self.tolist()
+
+    def to_dict(self) -> Dict[Scalar, Scalar]:
+        d = Dict[Scalar, Scalar]()
+        for k in range(len(self)):
+            d[self.index[k]] = self._col.get(k)
+        return d
+
+    def copy(self, deep: bool = True) -> Series:
+        return Series._new(self._col.copy(), self.index.copy(), self.name)
+
+    def __iter__(self):
+        for k in range(len(self._col)):
+            yield self._col.get(k)
+
+    def items(self):
+        for k in range(len(self._col)):
+            yield (self.index[k], self._col.get(k))
+
+    def keys(self) -> Index:
+        return self.index
+
+    def __contains__(self, key) -> bool:
+        return key in self.index
+
+    # -- indexing
+    def __getitem__(self, key):
+        if isinstance(key, Slice):
+            start, stop, step, _ = key.adjust_indices(len(self))
+            return self._take(list(range(start, stop, step)))
+        elif isinstance(key, Series) or (isinstance(key, ndarray[bool, 1]) or isinstance(key, List[bool])):
+            return self._take(_mask_positions(key))
+        elif isinstance(key, List):
+            return self._take([self.index.get_loc(x) for x in key])
+        elif isinstance(key, int) and not self._int_labels():
+            return self._col.get(_norm_pos(key, len(self)))
+        else:
+            return self._col.get(self.index.get_loc(key))
+
+    def _int_labels(self) -> bool:
+        return self.index._col.kind == K_INT
+
+    def __setitem__(self, key, value):
+        if isinstance(key, Series) or (isinstance(key, ndarray[bool, 1]) or isinstance(key, List[bool])):
+            v = Scalar.of(value)
+            for k in _mask_positions(key):
+                self._col.set(k, v)
+        elif isinstance(key, Slice):
+            start, stop, step, _ = key.adjust_indices(len(self))
+            for k in range(start, stop, step):
+                self._col.set(k, Scalar.of(value))
+        else:
+            k = self.index.get_loc_opt(Scalar.of(key))
+            if k < 0:
+                if isinstance(key, int) and not self._int_labels():
+                    k = _norm_pos(key, len(self))
+                else:
+                    raise KeyError(str(key))
+            self._col.set(k, Scalar.of(value))
+
+    def _take(self, pos: List[int]) -> Series:
+        return Series._new(self._col.take(pos), self.index.take(pos), self.name)
+
+    @property
+    def loc(self):
+        return _SeriesLoc(self)
+
+    @property
+    def iloc(self):
+        return _SeriesILoc(self)
+
+    @property
+    def at(self):
+        return _SeriesLoc(self)
+
+    @property
+    def iat(self):
+        return _SeriesILoc(self)
+
+    def head(self, n: int = 5) -> Series:
+        m = len(self)
+        if n < 0:
+            n = max(m + n, 0)
+        return self._take(list(range(min(n, m))))
+
+    def tail(self, n: int = 5) -> Series:
+        m = len(self)
+        if n < 0:
+            n = max(m + n, 0)
+        return self._take(list(range(max(m - n, 0), m)))
+
+    def get(self, key, default = None):
+        k = self.index.get_loc_opt(Scalar.of(key))
+        if k < 0:
+            return Scalar.of(default)
+        return self._col.get(k)
+
+    # -- conversion
+    def astype(self, dtype) -> Series:
+        return self._with(self._col.astype(_kind_of_dtype(dtype)))
+
+    def rename(self, name) -> Series:
+        return Series._new(self._col.copy(), self.index.copy(), _opt_name(name))
+
+    def to_frame(self, name = None):
+        nm = _opt_name(name)
+        if nm is None and self.name is None:
+            return DataFrame._new([self._col.copy()], Index([0]), self.index.copy())
+        label = nm.__val__() if nm is not None else self.name.__val__()
+        return DataFrame._new([self._col.copy()], Index.strs([label]), self.index.copy())
+
+    def reset_index(self, drop: bool = False):
+        f = self.to_frame()
+        return f.reset_index(drop=drop)
+
+    # -- reductions
+    def sum(self, skipna: bool = True, min_count: int = 0) -> Scalar:
+        if self._col.kind == K_INT or self._col.kind == K_BOOL:
+            t = 0
+            for x in self._col.i:
+                t += x
+            return Scalar(K_INT, 0.0, t, "")
+        if self._col.kind == K_STR:
+            return Scalar(K_STR, 0.0, 0, "".join(self._col.s))
+        return Scalar(K_FLOAT, nansum(self._col, skipna, min_count), 0, "")
+
+    def prod(self, skipna: bool = True) -> Scalar:
+        if self._col.kind == K_INT or self._col.kind == K_BOOL:
+            t = 1
+            for x in self._col.i:
+                t *= x
+            return Scalar(K_INT, 0.0, t, "")
+        return Scalar(K_FLOAT, nanprod(self._col, skipna), 0, "")
+
+    def product(self, skipna: bool = True) -> Scalar:
+        return self.prod(skipna)
+
+    def mean(self, skipna: bool = True) -> float:
+        return nanmean(self._col, skipna)
+
+    def var(self, ddof: int = 1, skipna: bool = True) -> float:
+        return nanvar(self._col, skipna, ddof)
+
+    def std(self, ddof: int = 1, skipna: bool = True) -> float:
+        return nanstd(self._col, skipna, ddof)
+
+    def sem(self, ddof: int = 1, skipna: bool = True) -> float:
+        from math import sqrt
+        return nanstd(self._col, skipna, ddof) / sqrt(float(nancount(self._col)))
+
+    def min(self, skipna: bool = True) -> Scalar:
+        return nanminmax(self._col, skipna, False)
+
+    def max(self, skipna: bool = True) -> Scalar:
+        return nanminmax(self._col, skipna, True)
+
+    def idxmin(self, skipna: bool = True) -> Scalar:
+        return self._argext(False)
+
+    def idxmax(self, skipna: bool = True) -> Scalar:
+        return self._argext(True)
+
+    def argmin(self) -> int:
+        return self.index.get_loc(self._argext(False))
+
+    def argmax(self) -> int:
+        return self.index.get_loc(self._argext(True))
+
+    def _argext(self, is_max: bool) -> Scalar:
+        best = -1
+        for k in range(len(self)):
+            if self._col.isna_at(k):
+                continue
+            if best < 0:
+                best = k
+            else:
+                v = self._col.get(k)
+                b = self._col.get(best)
+                if (is_max and v > b) or (not is_max and v < b):
+                    best = k
+        if best < 0:
+            raise ValueError("attempt to get argmax of an empty sequence")
+        return self.index[best]
+
+    def median(self, skipna: bool = True) -> float:
+        return nanmedian(self._col, skipna)
+
+    def quantile(self, q: float = 0.5) -> float:
+        return nanquantile(self._col, q)
+
+    def quantile(self, q: List[float]) -> Series:
+        return Series._new(Column.floats([nanquantile(self._col, x) for x in q]), Index(q), self.name)
+
+    def count(self) -> int:
+        return nancount(self._col)
+
+    def nunique(self, dropna: bool = True) -> int:
+        seen = Set[Scalar]()
+        hasna = False
+        for k in range(len(self)):
+            if self._col.isna_at(k):
+                hasna = True
+            else:
+                seen.add(self._col.get(k))
+        return len(seen) + (1 if hasna and not dropna else 0)
+
+    def unique(self) -> List[Scalar]:
+        seen = Set[Scalar]()
+        out = List[Scalar]()
+        nan_seen = False
+        for k in range(len(self)):
+            v = self._col.get(k)
+            if self._col.isna_at(k):
+                if not nan_seen:
+                    nan_seen = True
+                    out.append(v)
+            elif v not in seen:
+                seen.add(v)
+                out.append(v)
+        return out
+
+    def value_counts(self, normalize: bool = False, sort: bool = True, ascending: bool = False, dropna: bool = True) -> Series:
+        order = List[Scalar]()
+        counts = Dict[Scalar, int]()
+        for k in range(len(self)):
+            if self._col.isna_at(k):
+                continue
+            v = self._col.get(k)
+            if v not in counts:
+                order.append(v)
+                counts[v] = 0
+            counts[v] += 1
+        pos = list(range(len(order)))
+        if sort:
+            # stable sort by count (pandas keeps first-seen order for ties)
+            if ascending:
+                pos.sort(key=lambda p: counts[order[p]])
+            else:
+                pos.sort(key=lambda p: -counts[order[p]])
+        keys = [order[p] for p in pos]
+        cnt = [counts[order[p]] for p in pos]
+        idx = Index._wrap(Column.from_scalars(keys), self.name)
+        if normalize:
+            tot = 0
+            for c in cnt:
+                tot += c
+            return Series._new(Column.floats([float(c) / float(tot) for c in cnt]), idx, "proportion")
+        return Series._new(Column.ints(cnt), idx, "count")
+
+    def describe(self) -> Series:
+        if self._col.kind == K_STR:
+            vc = self.value_counts()
+            labels = ["count", "unique", "top", "freq"]
+            vals = [Scalar.of(self.count()), Scalar.of(self.nunique()), vc.index[0], vc._col.get(0)]
+            return Series._new(Column.from_scalars(vals).astype(K_STR), Index.strs(labels), self.name)
+        a = _sorted_valid(self._col)
+        vals = [float(nancount(self._col)), nanmean(self._col), nanstd(self._col),
+                a[0] if len(a) else NAN, _lerp_quantile(a, 0.25), _lerp_quantile(a, 0.5),
+                _lerp_quantile(a, 0.75), a[-1] if len(a) else NAN]
+        return Series._new(Column.floats(vals), Index.strs(["count", "mean", "std", "min", "25%", "50%", "75%", "max"]), self.name)
+
+    def all(self) -> bool:
+        for x in self:
+            if not x.__bool__():
+                return False
+        return True
+
+    def any(self) -> bool:
+        for x in self:
+            if x.__bool__():
+                return True
+        return False
+
+    # -- elementwise
+    def _mapf(self, f) -> Series:
+        return self._with(Column.floats([f(self._col.getf(k)) for k in range(len(self))]))
+
+    def abs(self) -> Series:
+        if self._col.kind == K_INT:
+            return self._with(Column.ints([abs(x) for x in self._col.i]))
+        return self._mapf(lambda x: abs(x))
+
+    def round(self, decimals: int = 0) -> Series:
+        if self._col.kind != K_FLOAT:
+            return self.copy()
+        a = np.round(np.array(self._col.f), decimals)
+        return self._with(Column.floats([a[k] for k in range(len(a))]))
+
+    def clip(self, lower = None, upper = None) -> Series:
+        c = self._col.copy()
+        for k in range(len(c)):
+            v = c.get(k)
+            if v.isna():
+                continue
+            if lower is not None:
+                if v < Scalar.of(lower):
+                    v = Scalar.of(lower)
+            if upper is not None:
+                if v > Scalar.of(upper):
+                    v = Scalar.of(upper)
+            c.set(k, v)
+        return self._with(c)
+
+    def isna(self) -> Series:
+        return self._with(Column.bools([self._col.isna_at(k) for k in range(len(self))]))
+
+    def isnull(self) -> Series:
+        return self.isna()
+
+    def notna(self) -> Series:
+        return self._with(Column.bools([not self._col.isna_at(k) for k in range(len(self))]))
+
+    def notnull(self) -> Series:
+        return self.notna()
+
+    def fillna(self, value) -> Series:
+        c = self._col.copy()
+        v = Scalar.of(value)
+        for k in range(len(c)):
+            if c.isna_at(k):
+                c.set(k, v)
+        if c.kind == K_FLOAT and v.kind == K_INT:
+            pass
+        return self._with(c)
+
+    def ffill(self) -> Series:
+        c = self._col.copy()
+        for k in range(1, len(c)):
+            if c.isna_at(k) and not c.isna_at(k - 1):
+                c.set(k, c.get(k - 1))
+        return self._with(c)
+
+    def bfill(self) -> Series:
+        c = self._col.copy()
+        for k in range(len(c) - 2, -1, -1):
+            if c.isna_at(k) and not c.isna_at(k + 1):
+                c.set(k, c.get(k + 1))
+        return self._with(c)
+
+    def dropna(self) -> Series:
+        return self._take([k for k in range(len(self)) if not self._col.isna_at(k)])
+
+    def apply(self, func) -> Series:
+        return self._with(Column.of([func(x) for x in self]))
+
+    def map(self, arg) -> Series:
+        if isinstance(arg, Dict):
+            out = List[Scalar](len(self))
+            for x in self:
+                found = False
+                for kk, vv in arg.items():
+                    if Scalar.of(kk) == x:
+                        out.append(Scalar.of(vv))
+                        found = True
+                        break
+                if not found:
+                    out.append(Scalar.none())
+            return self._with(Column.from_scalars(out))
+        elif isinstance(arg, Series):
+            out = List[Scalar](len(self))
+            for x in self:
+                k = arg.index.get_loc_opt(x)
+                out.append(arg._col.get(k) if k >= 0 else Scalar.none())
+            return self._with(Column.from_scalars(out))
+        else:
+            return self.apply(arg)
+
+    def replace(self, to_replace, value) -> Series:
+        c = self._col.copy()
+        a = Scalar.of(to_replace)
+        b = Scalar.of(value)
+        for k in range(len(c)):
+            if c.get(k) == a:
+                c.set(k, b)
+        return self._with(c)
+
+    def isin(self, values) -> Series:
+        vs = Set[Scalar]()
+        for v in values:
+            vs.add(Scalar.of(v))
+        return self._with(Column.bools([self._col.get(k) in vs for k in range(len(self))]))
+
+    def between(self, left, right, inclusive: str = "both") -> Series:
+        l = Scalar.of(left)
+        r = Scalar.of(right)
+        out = List[bool](len(self))
+        for x in self:
+            a = x >= l if inclusive in ("both", "left") else x > l
+            b = x <= r if inclusive in ("both", "right") else x < r
+            out.append(a and b)
+        return self._with(Column.bools(out))
+
+    def where(self, cond, other = None) -> Series:
+        c = self._col.copy()
+        pos = Set[int](_mask_positions(cond))
+        o = Scalar.of(other)
+        for k in range(len(c)):
+            if k not in pos:
+                c.set(k, o if other is not None else Scalar(K_FLOAT, NAN, 0, ""))
+        return self._with(c)
+
+    def mask(self, cond, other = None) -> Series:
+        c = self._col.copy()
+        o = Scalar.of(other)
+        for k in _mask_positions(cond):
+            c.set(k, o if other is not None else Scalar(K_FLOAT, NAN, 0, ""))
+        return self._with(c)
+
+    def cumsum(self, skipna: bool = True) -> Series:
+        if self._col.kind == K_INT or self._col.kind == K_BOOL:
+            out = List[int](len(self))
+            t = 0
+            for x in self._col.i:
+                t += x
+                out.append(t)
+            return self._with(Column.ints(out))
+        out = List[float](len(self))
+        t = 0.0
+        for x in self._col.f:
+            if _isnan(x):
+                out.append(NAN)
+            else:
+                t += x
+                out.append(t)
+        return self._with(Column.floats(out))
+
+    def cumprod(self, skipna: bool = True) -> Series:
+        if self._col.kind == K_INT or self._col.kind == K_BOOL:
+            out = List[int](len(self))
+            t = 1
+            for x in self._col.i:
+                t *= x
+                out.append(t)
+            return self._with(Column.ints(out))
+        out = List[float](len(self))
+        t = 1.0
+        for x in self._col.f:
+            if _isnan(x):
+                out.append(NAN)
+            else:
+                t *= x
+                out.append(t)
+        return self._with(Column.floats(out))
+
+    def _cumext(self, is_max: bool) -> Series:
+        c = self._col.copy()
+        best = Scalar.none()
+        for k in range(len(c)):
+            if c.isna_at(k):
+                continue
+            v = c.get(k)
+            if best.kind == K_NONE or (is_max and v > best) or (not is_max and v < best):
+                best = v
+            c.set(k, best)
+        return self._with(c)
+
+    def cummax(self) -> Series:
+        return self._cumext(True)
+
+    def cummin(self) -> Series:
+        return self._cumext(False)
+
+    def diff(self, periods: int = 1) -> Series:
+        n = len(self)
+        out = List[float](n)
+        for k in range(n):
+            j = k - periods
+            if j < 0 or j >= n:
+                out.append(NAN)
+            else:
+                out.append(self._col.getf(k) - self._col.getf(j))
+        return self._with(Column.floats(out))
+
+    def shift(self, periods: int = 1, fill_value = None) -> Series:
+        n = len(self)
+        pos = [k - periods if 0 <= k - periods < n else -1 for k in range(n)]
+        if fill_value is None:
+            return self._with(self._col.take(pos))
+        c = self._col.take([p if p >= 0 else 0 for p in pos])
+        for k in range(n):
+            if pos[k] < 0:
+                c.set(k, Scalar.of(fill_value))
+        return self._with(c)
+
+    def pct_change(self, periods: int = 1) -> Series:
+        n = len(self)
+        out = List[float](n)
+        for k in range(n):
+            j = k - periods
+            if j < 0 or j >= n:
+                out.append(NAN)
+            else:
+                x = self._col.getf(k)
+                y = self._col.getf(j)
+                if y == 0.0:
+                    out.append(NAN if x == 0.0 or x != x else (float("inf") if x > 0 else -float("inf")))
+                else:
+                    out.append(x / y - 1.0)
+        return self._with(Column.floats(out))
+
+    def rank(self, method: str = "average", ascending: bool = True, na_option: str = "keep", pct: bool = False) -> Series:
+        return self._with(Column.floats(rank_1d(self._col.to_floats(), method, ascending, na_option, pct)))
+
+    def sort_values(self, ascending: bool = True, na_position: str = "last") -> Series:
+        return self._take(_argsort_col(self._col, ascending, na_position))
+
+    def sort_index(self, ascending: bool = True) -> Series:
+        return self._take(_argsort_col(self.index._col, ascending, "last"))
+
+    def nlargest(self, n: int = 5) -> Series:
+        return self.sort_values(ascending=False).head(n)
+
+    def nsmallest(self, n: int = 5) -> Series:
+        return self.sort_values().head(n)
+
+    def drop(self, labels = None, index = None) -> Series:
+        key = labels if labels is not None else index
+        drop = Set[int]()
+        if isinstance(key, List):
+            for x in key:
+                drop.add(self.index.get_loc(x))
+        else:
+            drop.add(self.index.get_loc(key))
+        return self._take([k for k in range(len(self)) if k not in drop])
+
+    def drop_duplicates(self, keep = "first", ignore_index: bool = False) -> Series:
+        d = _dup_mask([repr(self._col.get(k)) for k in range(len(self))], keep)
+        r = self._take([k for k in range(len(self)) if not d[k]])
+        if ignore_index:
+            r.index = Index.range(len(r))
+        return r
+
+    def duplicated(self, keep = "first") -> Series:
+        return self._with(Column.bools(_dup_mask([repr(self._col.get(k)) for k in range(len(self))], keep)))
+
+    def corr(self, other: Series, method: str = "pearson") -> float:
+        a = self._col.to_floats()
+        b = other._col.to_floats()
+        if method == "spearman":
+            return nancorr_spearman([a, b], 1)[0][1]
+        return nancorr([a, b], False, 1)[0][1]
+
+    def cov(self, other: Series, ddof: int = 1) -> float:
+        return nancorr([self._col.to_floats(), other._col.to_floats()], True, 1)[0][1]
+
+    def rolling(self, window: int, min_periods: Optional[int] = None, center: bool = False):
+        return Rolling(self.to_frame(), window, min_periods if min_periods is not None else window, center, False, True)
+
+    def expanding(self, min_periods: int = 1):
+        return Rolling(self.to_frame(), 0, min_periods, False, True, True)
+
+    def groupby(self, by):
+        f = self.to_frame("__value__")
+        keys = Series(by) if not isinstance(by, Series) else by
+        return SeriesGroupBy(_Grouper(keys._col, keys.name), f._cols[0], self.name)
+
+    # -- arithmetic
+    def _binop(self, other, op: int) -> Series:
+        if isinstance(other, Series):
+            if self.index.equals(other.index):
+                return Series._new(_col_binop(self._col, other._col, op), self.index, self.name if self.name == other.name else None)
+            idx = _union_index(self.index, other.index)
+            a = self._col.take([self.index.get_loc_opt(idx[k]) for k in range(len(idx))])
+            b = other._col.take([other.index.get_loc_opt(idx[k]) for k in range(len(idx))])
+            return Series._new(_col_binop(a, b, op), idx, self.name if self.name == other.name else None)
+        elif isinstance(other, ndarray) or isinstance(other, List):
+            return Series._new(_col_binop(self._col, Column.of(other), op), self.index, self.name)
+        else:
+            return Series._new(_col_binop(self._col, Column.full(Scalar.of(other).kind, len(self), Scalar.of(other)), op), self.index, self.name)
+
+    def _rbinop(self, other, op: int) -> Series:
+        sc = Scalar.of(other)
+        return Series._new(_col_binop(Column.full(sc.kind, len(self), sc), self._col, op), self.index, self.name)
+
+    def __add__(self, o) -> Series:
+        return self._binop(o, 0)
+    def __sub__(self, o) -> Series:
+        return self._binop(o, 1)
+    def __mul__(self, o) -> Series:
+        return self._binop(o, 2)
+    def __truediv__(self, o) -> Series:
+        return self._binop(o, 3)
+    def __floordiv__(self, o) -> Series:
+        return self._binop(o, 4)
+    def __mod__(self, o) -> Series:
+        return self._binop(o, 5)
+    def __pow__(self, o) -> Series:
+        return self._binop(o, 6)
+    def __radd__(self, o) -> Series:
+        return self._rbinop(o, 0)
+    def __rsub__(self, o) -> Series:
+        return self._rbinop(o, 1)
+    def __rmul__(self, o) -> Series:
+        return self._rbinop(o, 2)
+    def __rtruediv__(self, o) -> Series:
+        return self._rbinop(o, 3)
+    def __rpow__(self, o) -> Series:
+        return self._rbinop(o, 6)
+    def add(self, o) -> Series:
+        return self._binop(o, 0)
+    def sub(self, o) -> Series:
+        return self._binop(o, 1)
+    def mul(self, o) -> Series:
+        return self._binop(o, 2)
+    def div(self, o) -> Series:
+        return self._binop(o, 3)
+    def __eq__(self, o) -> Series:
+        return self._binop(o, 10)
+    def __ne__(self, o) -> Series:
+        return self._binop(o, 11)
+    def __lt__(self, o) -> Series:
+        return self._binop(o, 12)
+    def __le__(self, o) -> Series:
+        return self._binop(o, 13)
+    def __gt__(self, o) -> Series:
+        return self._binop(o, 14)
+    def __ge__(self, o) -> Series:
+        return self._binop(o, 15)
+    def __and__(self, o) -> Series:
+        return self._binop(o, 20)
+    def __or__(self, o) -> Series:
+        return self._binop(o, 21)
+    def __xor__(self, o) -> Series:
+        return self._binop(o, 22)
+    def __invert__(self) -> Series:
+        if self._col.kind == K_BOOL:
+            return self._with(Column.bools([x == 0 for x in self._col.i]))
+        return self._with(Column.ints([~x for x in self._col.i]))
+    def __neg__(self) -> Series:
+        if self._col.kind == K_FLOAT:
+            return self._with(Column.floats([-x for x in self._col.f]))
+        return self._with(Column.ints([-x for x in self._col.i]))
+    def __abs__(self) -> Series:
+        return self.abs()
+
+    def equals(self, other: Series) -> bool:
+        if len(self) != len(other) or self._col.kind != other._col.kind or not self.index.equals(other.index):
+            return False
+        for k in range(len(self)):
+            if self._col.isna_at(k) and other._col.isna_at(k):
+                continue
+            if self._col.get(k) != other._col.get(k):
+                return False
+        return True
+
+    # -- output
+    def to_csv(self, path_or_buf: Optional[str] = None, sep: str = ",", na_rep: str = "",
+               float_format: Optional[str] = None, header: bool = True, index: bool = True,
+               index_label: Optional[str] = None, lineterminator: str = "\n", decimal: str = ".") -> str:
+        nm = self.name if self.name is not None else "0"
+        return self.to_frame(nm).to_csv(path_or_buf, sep, na_rep, float_format, None, header, index, index_label, lineterminator, decimal)
+
+    def to_string(self) -> str:
+        r = self.__repr__()
+        return r[:r.rfind("\n")]
+
+    def __repr__(self) -> str:
+        if len(self) == 0:
+            nm = f"Name: {self.name.__val__()}, " if self.name is not None else ""
+            return f"Series([], {nm}dtype: {self.dtype})"
+        return series_repr(self._col, self.index._col, self.index.name, self.name, self.dtype)
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+class _SeriesLoc:
+    s: Series
+
+    def __getitem__(self, key):
+        if isinstance(key, Slice):
+            return self.s._take(_label_slice(self.s.index, key))
+        elif isinstance(key, Series) or (isinstance(key, ndarray[bool, 1]) or isinstance(key, List[bool])):
+            return self.s._take(_mask_positions(key))
+        elif isinstance(key, List):
+            return self.s._take([self.s.index.get_loc(x) for x in key])
+        else:
+            return self.s._col.get(self.s.index.get_loc(key))
+
+    def __setitem__(self, key, value):
+        k = self.s.index.get_loc_opt(Scalar.of(key))
+        if k < 0:
+            # enlargement
+            self.s.index = self.s.index.append(Index([key]))
+            self.s._col = self.s._col.extend(Column.full(Scalar.of(value).kind, 1, Scalar.of(value)))
+        else:
+            self.s._col.set(k, Scalar.of(value))
+
+class _SeriesILoc:
+    s: Series
+
+    def __getitem__(self, key):
+        n = len(self.s)
+        if isinstance(key, int):
+            return self.s._col.get(_norm_pos(key, n))
+        elif isinstance(key, Slice):
+            start, stop, step, _ = key.adjust_indices(n)
+            return self.s._take(list(range(start, stop, step)))
+        elif (isinstance(key, ndarray[bool, 1]) or isinstance(key, List[bool])):
+            return self.s._take(_mask_positions(key))
+        else:
+            return self.s._take([_norm_pos(int(k), n) for k in key])
+
+    def __setitem__(self, key: int, value):
+        self.s._col.set(_norm_pos(key, len(self.s)), Scalar.of(value))
+
+def _label_slice(idx: Index, key: Slice) -> List[int]:
+    n = len(idx)
+    a = 0
+    b = n
+    if key.start is not None:
+        a = idx.get_loc(key.start)
+    if key.stop is not None:
+        b = idx.get_loc(key.stop) + 1
+    step = 1
+    if key.step is not None:
+        step = key.step
+    return list(range(a, b, step))
+
+def _union_index(a: Index, b: Index) -> Index:
+    keys = a.tolist()
+    seen = Set[Scalar](keys)
+    for k in range(len(b)):
+        if b[k] not in seen:
+            keys.append(b[k])
+            seen.add(b[k])
+    keys.sort()
+    return Index._wrap(Column.from_scalars(keys), a.name if a.name == b.name else None)
+
+def _dup_mask(keys: List[str], keep) -> List[bool]:
+    # pandas duplicated: keep='first' | 'last' | False
+    mode = 0
+    if isinstance(keep, bool):
+        if keep:
+            raise ValueError("keep must be either \"first\", \"last\" or False")
+        mode = 2
+    elif keep == "first":
+        mode = 0
+    elif keep == "last":
+        mode = 1
+    else:
+        raise ValueError("keep must be either \"first\", \"last\" or False")
+    n = len(keys)
+    out = [False for _ in range(n)]
+    if mode == 2:
+        cnt = Dict[str, int]()
+        for k in keys:
+            cnt[k] = cnt.get(k, 0) + 1
+        return [cnt[k] > 1 for k in keys]
+    seen = Set[str]()
+    order = list(range(n)) if mode == 0 else list(range(n - 1, -1, -1))
+    for i in order:
+        out[i] = keys[i] in seen
+        seen.add(keys[i])
+    return out
+
+def _col_binop(a: Column, b: Column, op: int) -> Column:
+    n = len(a)
+    if len(b) != n:
+        raise ValueError("Lengths must match")
+    if op >= 20:
+        out = List[bool](n)
+        for k in range(n):
+            x = a.get(k).__bool__() and not a.isna_at(k)
+            y = b.get(k).__bool__() and not b.isna_at(k)
+            if op == 20:
+                out.append(x and y)
+            elif op == 21:
+                out.append(x or y)
+            else:
+                out.append(x != y)
+        return Column.bools(out)
+    if op >= 10:
+        out = List[bool](n)
+        for k in range(n):
+            x = a.get(k)
+            y = b.get(k)
+            r = False
+            if op == 10:
+                r = x == y
+            elif op == 11:
+                r = not (x == y)
+            elif op == 12:
+                r = x < y
+            elif op == 13:
+                r = x <= y
+            elif op == 14:
+                r = x > y
+            else:
+                r = x >= y
+            out.append(r)
+        return Column.bools(out)
+    if a.kind == K_STR or b.kind == K_STR:
+        if op == 0 and a.kind == K_STR and b.kind == K_STR:
+            return Column.strs([a.s[k] + b.s[k] if a.s[k] != NA_STR and b.s[k] != NA_STR else NA_STR for k in range(n)])
+        raise TypeError("unsupported operand type(s) for str column")
+    if a.kind != K_FLOAT and b.kind != K_FLOAT and op != 3 and op != 6 and not ((op == 4 or op == 5) and 0 in b.i):
+        out = List[int](n)
+        for k in range(n):
+            x = a.i[k]
+            y = b.i[k]
+            if op == 0:
+                out.append(x + y)
+            elif op == 1:
+                out.append(x - y)
+            elif op == 2:
+                out.append(x * y)
+            elif op == 4:
+                out.append(x // y)
+            else:
+                out.append(x % y)
+        return Column.ints(out)
+    if a.kind != K_FLOAT and b.kind != K_FLOAT and op == 6:
+        ok = True
+        for y in b.i:
+            if y < 0:
+                ok = False
+        if ok:
+            return Column.ints([a.i[k] ** b.i[k] for k in range(n)])
+    out = List[float](n)
+    for k in range(n):
+        x = a.getf(k)
+        y = b.getf(k)
+        r = 0.0
+        if op == 0:
+            r = x + y
+        elif op == 1:
+            r = x - y
+        elif op == 2:
+            r = x * y
+        elif op == 3:
+            if y == 0.0:
+                r = NAN if x == 0.0 or x != x else (float("inf") if x > 0 else -float("inf"))
+            else:
+                r = x / y
+        elif op == 4:
+            r = np.floor_divide(x, y) if y != 0.0 else (NAN if x == 0.0 or x != x else (float("inf") if x > 0 else -float("inf")))
+        elif op == 5:
+            r = np.mod(x, y) if y != 0.0 else NAN
+        else:
+            r = x ** y
+        out.append(r)
+    return Column.floats(out)
+
+def _argsort_col(c: Column, ascending: bool, na_position: str) -> List[int]:
+    n = len(c)
+    valid = [k for k in range(n) if not c.isna_at(k)]
+    nas = [k for k in range(n) if c.isna_at(k)]
+    if c.kind == K_FLOAT:
+        valid.sort(key=lambda k: c.f[k])
+    elif c.kind == K_STR:
+        valid.sort(key=lambda k: c.s[k])
+    else:
+        valid.sort(key=lambda k: c.i[k])
+    if not ascending:
+        # stable descending, like pandas (equal keys keep original order)
+        valid = _stable_reverse(valid, c)
+    if na_position == "first":
+        return nas + valid
+    return valid + nas
+
+def _stable_reverse(v: List[int], c: Column) -> List[int]:
+    out = List[int](len(v))
+    i = len(v) - 1
+    while i >= 0:
+        j = i
+        while j - 1 >= 0 and c.get(v[j - 1]) == c.get(v[i]):
+            j -= 1
+        for t in range(j, i + 1):
+            out.append(v[t])
+        i = j - 1
+    return out
+
+# ---------------------------------------------------------------------------
+# DataFrame
+
+class DataFrame:
+    _cols: List[Column]
+    columns: Index
+    index: Index
+
+    def __init__(self, data = None, index = None, columns = None, dtype = None, copy: bool = False):
+        self._cols = List[Column]()
+        if data is None:
+            self.columns = Index.strs(List[str]())
+            if columns is not None:
+                self.columns = Index(columns)
+                for _ in range(len(self.columns)):
+                    self._cols.append(Column.floats(List[float]()))
+            self.index = _make_index(index, 0)
+        elif isinstance(data, DataFrame):
+            self._cols = [c.copy() for c in data._cols]
+            self.columns = data.columns.copy()
+            self.index = data.index.copy()
+        elif isinstance(data, ndarray):
+            if static.len(data.shape) != 2:
+                compile_error("pandas: DataFrame needs a 2-D array")
+            n, m = data.shape
+            for j in range(m):
+                self._cols.append(Column.of(data[:, j]))
+            self.columns = Index.range(m) if columns is None else Index(columns)
+            if len(self.columns) != m:
+                raise ValueError(f"Shape of passed values is ({n}, {m}), indices imply ({n}, {len(self.columns)})")
+            self.index = _make_index(index, n)
+        elif isinstance(data, Dict):
+            names = List[str]()
+            n = -1
+            for k, v in data.items():
+                c = Column.of(v)
+                if n >= 0 and len(c) != n:
+                    raise ValueError("All arrays must be of the same length")
+                n = len(c)
+                names.append(str(k))
+                self._cols.append(c)
+            idx_from = None
+            for k, v in data.items():
+                if isinstance(v, Series):
+                    idx_from = v.index
+                break
+            self.columns = Index.strs(names)
+            if n < 0:
+                n = 0
+            if index is None and idx_from is not None:
+                self.index = idx_from.copy()
+            else:
+                self.index = _make_index(index, n)
+            if columns is not None:
+                sel = Index(columns)
+                self._cols = [self._cols[self.columns.get_loc(sel[j])] for j in range(len(sel))]
+                self.columns = sel
+        elif isinstance(data, List):
+            n = len(data)
+            m = 0
+            if n > 0:
+                m = len(data[0])
+            for j in range(m):
+                self._cols.append(Column.of([row[j] for row in data]))
+            self.columns = Index.range(m) if columns is None else Index(columns)
+            self.index = _make_index(index, n)
+        else:
+            compile_error("pandas: unsupported DataFrame data")
+        if dtype is not None:
+            kind = _kind_of_dtype(dtype)
+            self._cols = [c.astype(kind) for c in self._cols]
+
+    @staticmethod
+    def _new(cols: List[Column], columns: Index, index: Index):
+        df = DataFrame.__new__()
+        df._cols = cols
+        df.columns = columns
+        df.index = index
+        return df
+
+    # -- attributes
+    @property
+    def shape(self) -> Tuple[int, int]:
+        return (len(self.index), len(self._cols))
+
+    def __len__(self) -> int:
+        return len(self.index)
+
+    @property
+    def ndim(self) -> int:
+        return 2
+
+    @property
+    def size(self) -> int:
+        return len(self.index) * len(self._cols)
+
+    @property
+    def empty(self) -> bool:
+        return len(self.index) == 0 or len(self._cols) == 0
+
+    @property
+    def dtypes(self) -> Series:
+        return Series._new(Column.strs([c.dtype for c in self._cols]), self.columns.copy(), None)
+
+    @property
+    def values(self) -> ndarray[float, 2]:
+        return self.to_numpy()
+
+    @property
+    def T(self):
+        return self.transpose()
+
+    @property
+    def loc(self):
+        return _FrameLoc(self)
+
+    @property
+    def iloc(self):
+        return _FrameILoc(self)
+
+    @property
+    def at(self):
+        return _FrameLoc(self)
+
+    @property
+    def iat(self):
+        return _FrameILoc(self)
+
+    def keys(self) -> Index:
+        return self.columns
+
+    def __contains__(self, key) -> bool:
+        return key in self.columns
+
+    def __iter__(self):
+        for k in range(len(self.columns)):
+            yield self.columns[k]
+
+    def to_numpy(self, dtype: type = float) -> ndarray[dtype, 2]:
+        n, m = self.shape
+        a = np.empty((n, m), dtype=dtype)
+        for j in range(m):
+            c = self._cols[j]
+            for i in range(n):
+                if dtype is float:
+                    a[i, j] = c.getf(i)
+                elif dtype is str:
+                    a[i, j] = str(c.get(i))
+                elif dtype is bool:
+                    a[i, j] = c.get(i).__bool__()
+                else:
+                    a[i, j] = dtype(int(c.get(i)))
+        return a
+
+    def copy(self, deep: bool = True):
+        return DataFrame._new([c.copy() for c in self._cols], self.columns.copy(), self.index.copy())
+
+    def _col_pos(self, key) -> int:
+        return self.columns.get_loc(key)
+
+    def _series(self, j: int) -> Series:
+        return Series._new(self._cols[j], self.index, _label_name(self.columns[j]))
+
+    def _row(self, i: int) -> Series:
+        return Series._new(Column.from_scalars([c.get(i) for c in self._cols]), self.columns, _label_name(self.index[i]))
+
+    def _take_rows(self, pos: List[int]):
+        return DataFrame._new([c.take(pos) for c in self._cols], self.columns.copy(), self.index.take(pos))
+
+    def _take_cols(self, pos: List[int]):
+        return DataFrame._new([self._cols[j].copy() for j in pos], self.columns.take(pos), self.index.copy())
+
+    # -- item access
+    def __getitem__(self, key):
+        if isinstance(key, Optional):
+            return self[key.__val__()]
+        elif isinstance(key, Slice):
+            start, stop, step, _ = key.adjust_indices(len(self))
+            return self._take_rows(list(range(start, stop, step)))
+        elif isinstance(key, Series) or (isinstance(key, ndarray[bool, 1]) or isinstance(key, List[bool])):
+            return self._take_rows(_mask_positions(key))
+        elif isinstance(key, List) or isinstance(key, Index):
+            return self._take_cols([self._col_pos(k) for k in key])
+        else:
+            return self._series(self._col_pos(key))
+
+    def __setitem__(self, key, value):
+        n = len(self.index)
+        col = Column.floats(List[float]())
+        if isinstance(value, Series):
+            if value.index.equals(self.index):
+                col = value._col.copy()
+            else:
+                col = value._col.take([value.index.get_loc_opt(self.index[k]) for k in range(n)])
+        elif isinstance(value, ndarray) or isinstance(value, List) or isinstance(value, Column):
+            col = Column.of(value)
+            if len(col) != n:
+                raise ValueError(f"Length of values ({len(col)}) does not match length of index ({n})")
+        else:
+            sc = Scalar.of(value)
+            col = Column.full(sc.kind, n, sc)
+        k = self.columns.get_loc_opt(Scalar.of(key))
+        if k >= 0:
+            self._cols[k] = col
+        else:
+            if len(self._cols) == 0 and n == 0:
+                self.index = Index.range(len(col))
+            self._cols.append(col)
+            self.columns = self.columns.append(Index([key]))
+
+    def __delitem__(self, key):
+        k = self._col_pos(key)
+        self._cols.pop(k)
+        self.columns = self.columns.take([j for j in range(len(self.columns)) if j != k])
+
+    def __getattr__(self, name: Literal[str]):
+        return self[name]
+
+    def get(self, key, default = None):
+        if key in self.columns:
+            return self[key]
+        return default
+
+    def pop(self, key) -> Series:
+        s = self[key]
+        self.__delitem__(key)
+        return s
+
+    def insert(self, loc: int, column, value):
+        self[column] = value
+        k = len(self._cols) - 1
+        c = self._cols.pop(k)
+        self._cols.insert(loc, c)
+        order = list(range(len(self.columns) - 1))
+        order.insert(loc, k)
+        self.columns = self.columns.take(order)
+
+    def head(self, n: int = 5):
+        m = len(self)
+        if n < 0:
+            n = max(m + n, 0)
+        return self._take_rows(list(range(min(n, m))))
+
+    def tail(self, n: int = 5):
+        m = len(self)
+        if n < 0:
+            n = max(m + n, 0)
+        return self._take_rows(list(range(max(m - n, 0), m)))
+
+    def iterrows(self):
+        for i in range(len(self.index)):
+            yield (self.index[i], self._row(i))
+
+    def items(self):
+        for j in range(len(self._cols)):
+            yield (self.columns[j], self._series(j))
+
+    def itertuples(self, index: bool = True):
+        for i in range(len(self.index)):
+            r = List[Scalar]()
+            if index:
+                r.append(self.index[i])
+            for c in self._cols:
+                r.append(c.get(i))
+            yield r
+
+    # -- structure
+    def drop(self, labels = None, axis: int = 0, index = None, columns = None):
+        if labels is not None:
+            if axis == 1:
+                return self.drop(columns=labels)
+            return self.drop(index=labels)
+        df = self
+        if columns is not None:
+            dropc = Set[int]()
+            if isinstance(columns, List):
+                for x in columns:
+                    dropc.add(self._col_pos(x))
+            else:
+                dropc.add(self._col_pos(columns))
+            df = df._take_cols([j for j in range(len(df._cols)) if j not in dropc])
+        if index is not None:
+            dropr = Set[int]()
+            if isinstance(index, List):
+                for x in index:
+                    for p in df.index.get_locs(x):
+                        dropr.add(p)
+            else:
+                for p in df.index.get_locs(index):
+                    dropr.add(p)
+            df = df._take_rows([i for i in range(len(df)) if i not in dropr])
+        if columns is None and index is None:
+            return self.copy()
+        return df
+
+    def rename(self, columns = None, index = None):
+        df = self.copy()
+        if columns is not None:
+            labels = List[Scalar]()
+            for j in range(len(df.columns)):
+                lab = df.columns[j]
+                newl = lab
+                for k, v in columns.items():
+                    if Scalar.of(k) == lab:
+                        newl = Scalar.of(v)
+                labels.append(newl)
+            df.columns = Index._wrap(Column.from_scalars(labels), df.columns.name)
+        if index is not None:
+            labels = List[Scalar]()
+            for j in range(len(df.index)):
+                lab = df.index[j]
+                newl = lab
+                for k, v in index.items():
+                    if Scalar.of(k) == lab:
+                        newl = Scalar.of(v)
+                labels.append(newl)
+            df.index = Index._wrap(Column.from_scalars(labels), df.index.name)
+        return df
+
+    def astype(self, dtype):
+        if isinstance(dtype, Dict):
+            df = self.copy()
+            for k, v in dtype.items():
+                j = df._col_pos(k)
+                df._cols[j] = df._cols[j].astype(_kind_of_dtype(v))
+            return df
+        kind = _kind_of_dtype(dtype)
+        return DataFrame._new([c.astype(kind) for c in self._cols], self.columns.copy(), self.index.copy())
+
+    def reset_index(self, drop: bool = False):
+        if drop:
+            return DataFrame._new([c.copy() for c in self._cols], self.columns.copy(), Index.range(len(self)))
+        name = self.index.name if self.index.name is not None else "index"
+        cols = [self.index._col.copy()] + [c.copy() for c in self._cols]
+        labels = [Scalar.of(name)] + self.columns.tolist()
+        return DataFrame._new(cols, Index._wrap(Column.from_scalars(labels)), Index.range(len(self)))
+
+    def set_index(self, keys, drop: bool = True):
+        j = self._col_pos(keys)
+        idx = Index._wrap(self._cols[j].copy(), _label_name(self.columns[j]))
+        if drop:
+            df = self._take_cols([k for k in range(len(self._cols)) if k != j])
+            df.index = idx
+            return df
+        df = self.copy()
+        df.index = idx
+        return df
+
+    def sort_values(self, by, ascending = True, na_position: str = "last"):
+        keys = List[int]()
+        if isinstance(by, List):
+            for b in by:
+                keys.append(self._col_pos(b))
+        else:
+            keys.append(self._col_pos(by))
+        asc = List[bool]()
+        if isinstance(ascending, List):
+            asc = ascending
+        else:
+            asc = [ascending for _ in keys]
+        pos = list(range(len(self)))
+        # successive stable sorts from the last key
+        for t in range(len(keys) - 1, -1, -1):
+            c = self._cols[keys[t]].take(pos)
+            order = _argsort_col(c, asc[t], na_position)
+            pos = [pos[o] for o in order]
+        return self._take_rows(pos)
+
+    def sort_index(self, ascending: bool = True, axis: int = 0):
+        if axis == 1:
+            return self._take_cols(_argsort_col(self.columns._col, ascending, "last"))
+        return self._take_rows(_argsort_col(self.index._col, ascending, "last"))
+
+    def transpose(self):
+        n, m = self.shape
+        cols = [Column.from_scalars([self._cols[j].get(i) for j in range(m)]) for i in range(n)]
+        return DataFrame._new(cols, self.index.copy(), self.columns.copy())
+
+    def select_dtypes(self, include = None, exclude = None):
+        def matches(kind: int, spec) -> bool:
+            if isinstance(spec, List):
+                for s in spec:
+                    if matches(kind, s):
+                        return True
+                return False
+            elif isinstance(spec, str):
+                if spec == "number":
+                    return kind == K_FLOAT or kind == K_INT
+                return _kind_of_dtype(spec) == kind
+            else:
+                return _kind_of_dtype(spec) == kind
+        keep = List[int]()
+        for j in range(len(self._cols)):
+            k = self._cols[j].kind
+            ok = True
+            if include is not None:
+                ok = matches(k, include)
+            if exclude is not None and matches(k, exclude):
+                ok = False
+            if ok:
+                keep.append(j)
+        return self._take_cols(keep)
+
+    # -- missing values
+    def isna(self):
+        return self._map_cols(lambda c: Column.bools([c.isna_at(k) for k in range(len(c))]))
+
+    def isnull(self):
+        return self.isna()
+
+    def notna(self):
+        return self._map_cols(lambda c: Column.bools([not c.isna_at(k) for k in range(len(c))]))
+
+    def notnull(self):
+        return self.notna()
+
+    def fillna(self, value):
+        df = self.copy()
+        for j in range(len(df._cols)):
+            v = Scalar.of(value)
+            if isinstance(value, Dict):
+                found = False
+                for k, x in value.items():
+                    if Scalar.of(k) == df.columns[j]:
+                        v = Scalar.of(x)
+                        found = True
+                if not found:
+                    continue
+            c = df._cols[j]
+            for i in range(len(c)):
+                if c.isna_at(i):
+                    c.set(i, v)
+        return df
+
+    def dropna(self, axis: int = 0, how: str = "any", subset: Optional[List[str]] = None):
+        if axis == 1:
+            keep = List[int]()
+            for j in range(len(self._cols)):
+                c = self._cols[j]
+                cnt = nancount(c)
+                if (how == "any" and cnt == len(c)) or (how == "all" and cnt > 0):
+                    keep.append(j)
+            return self._take_cols(keep)
+        cols = list(range(len(self._cols)))
+        if subset is not None:
+            cols = [self._col_pos(s) for s in subset]
+        keep = List[int]()
+        for i in range(len(self)):
+            nna = 0
+            for j in cols:
+                if self._cols[j].isna_at(i):
+                    nna += 1
+            if (how == "any" and nna == 0) or (how == "all" and nna < len(cols)):
+                keep.append(i)
+        return self._take_rows(keep)
+
+    def _map_cols(self, f):
+        return DataFrame._new([f(c) for c in self._cols], self.columns.copy(), self.index.copy())
+
+    def _map_series(self, f):
+        return DataFrame._new([f(self._series(j))._col for j in range(len(self._cols))], self.columns.copy(), self.index.copy())
+
+    # -- reductions
+    def _numeric(self, numeric_only: bool) -> List[int]:
+        res = List[int]()
+        for j in range(len(self._cols)):
+            if self._cols[j].kind != K_STR:
+                res.append(j)
+            elif not numeric_only:
+                raise TypeError(f"could not convert column '{self.columns[j]}' of dtype str to numeric")
+        return res
+
+    def _reduce_f(self, f, axis: int, numeric_only: bool) -> Series:
+        cols = self._numeric(numeric_only)
+        if axis == 1:
+            out = List[float](len(self))
+            for i in range(len(self)):
+                row = Column.floats([self._cols[j].getf(i) for j in cols])
+                out.append(f(row))
+            return Series._new(Column.floats(out), self.index.copy(), None)
+        return Series._new(Column.floats([f(self._cols[j]) for j in cols]), self.columns.take(cols), None)
+
+    def _reduce_s(self, f, axis: int, numeric_only: bool) -> Series:
+        cols = self._numeric(numeric_only)
+        if axis == 1:
+            out = List[Scalar](len(self))
+            for i in range(len(self)):
+                row = Column.from_scalars([self._cols[j].get(i) for j in cols])
+                out.append(f(row))
+            return Series._new(Column.from_scalars(out), self.index.copy(), None)
+        return Series._new(Column.from_scalars([f(self._cols[j]) for j in cols]), self.columns.take(cols), None)
+
+    def sum(self, axis: int = 0, skipna: bool = True, numeric_only: bool = False, min_count: int = 0) -> Series:
+        return self._reduce_s(lambda c: Series._new(c, Index.range(len(c)), None).sum(skipna, min_count), axis, numeric_only)
+
+    def prod(self, axis: int = 0, skipna: bool = True, numeric_only: bool = False) -> Series:
+        return self._reduce_s(lambda c: Series._new(c, Index.range(len(c)), None).prod(skipna), axis, numeric_only)
+
+    def product(self, axis: int = 0, skipna: bool = True, numeric_only: bool = False) -> Series:
+        return self.prod(axis, skipna, numeric_only)
+
+    def mean(self, axis: int = 0, skipna: bool = True, numeric_only: bool = False) -> Series:
+        return self._reduce_f(lambda c: nanmean(c, skipna), axis, numeric_only)
+
+    def median(self, axis: int = 0, skipna: bool = True, numeric_only: bool = False) -> Series:
+        return self._reduce_f(lambda c: nanmedian(c, skipna), axis, numeric_only)
+
+    def var(self, axis: int = 0, skipna: bool = True, ddof: int = 1, numeric_only: bool = False) -> Series:
+        return self._reduce_f(lambda c: nanvar(c, skipna, ddof), axis, numeric_only)
+
+    def std(self, axis: int = 0, skipna: bool = True, ddof: int = 1, numeric_only: bool = False) -> Series:
+        return self._reduce_f(lambda c: nanstd(c, skipna, ddof), axis, numeric_only)
+
+    def sem(self, axis: int = 0, skipna: bool = True, ddof: int = 1, numeric_only: bool = False) -> Series:
+        from math import sqrt
+        return self._reduce_f(lambda c: nanstd(c, skipna, ddof) / sqrt(float(nancount(c))), axis, numeric_only)
+
+    def min(self, axis: int = 0, skipna: bool = True, numeric_only: bool = False) -> Series:
+        return self._reduce_s(lambda c: nanminmax(c, skipna, False), axis, numeric_only)
+
+    def max(self, axis: int = 0, skipna: bool = True, numeric_only: bool = False) -> Series:
+        return self._reduce_s(lambda c: nanminmax(c, skipna, True), axis, numeric_only)
+
+    def quantile(self, q: float = 0.5, axis: int = 0, numeric_only: bool = False) -> Series:
+        s = self._reduce_f(lambda c: nanquantile(c, q), axis, numeric_only)
+        s.name = str(q)
+        return s
+
+    def count(self, axis: int = 0) -> Series:
+        if axis == 1:
+            return Series._new(Column.ints([len(self._cols) - sum(1 for c in self._cols if c.isna_at(i)) for i in range(len(self))]), self.index.copy(), None)
+        return Series._new(Column.ints([nancount(c) for c in self._cols]), self.columns.copy(), None)
+
+    def nunique(self) -> Series:
+        return Series._new(Column.ints([self._series(j).nunique() for j in range(len(self._cols))]), self.columns.copy(), None)
+
+    def idxmax(self) -> Series:
+        return Series._new(Column.from_scalars([self._series(j).idxmax() for j in range(len(self._cols))]), self.columns.copy(), None)
+
+    def idxmin(self) -> Series:
+        return Series._new(Column.from_scalars([self._series(j).idxmin() for j in range(len(self._cols))]), self.columns.copy(), None)
+
+    def all(self) -> Series:
+        return Series._new(Column.bools([self._series(j).all() for j in range(len(self._cols))]), self.columns.copy(), None)
+
+    def any(self) -> Series:
+        return Series._new(Column.bools([self._series(j).any() for j in range(len(self._cols))]), self.columns.copy(), None)
+
+    def cumsum(self):
+        return self._map_series(lambda s: s.cumsum())
+
+    def cumprod(self):
+        return self._map_series(lambda s: s.cumprod())
+
+    def cummax(self):
+        return self._map_series(lambda s: s.cummax())
+
+    def cummin(self):
+        return self._map_series(lambda s: s.cummin())
+
+    def abs(self):
+        return self._map_series(lambda s: s.abs())
+
+    def round(self, decimals: int = 0):
+        return self._map_series(lambda s: s.round(decimals))
+
+    def clip(self, lower = None, upper = None):
+        return self._map_series(lambda s: s.clip(lower, upper))
+
+    def diff(self, periods: int = 1):
+        return self._map_series(lambda s: s.diff(periods))
+
+    def shift(self, periods: int = 1, fill_value = None):
+        return self._map_series(lambda s: s.shift(periods, fill_value))
+
+    def pct_change(self, periods: int = 1):
+        return self._map_series(lambda s: s.pct_change(periods))
+
+    def rank(self, axis: int = 0, method: str = "average", ascending: bool = True, na_option: str = "keep", pct: bool = False):
+        if axis == 1:
+            n = len(self)
+            m = len(self._cols)
+            rows = [rank_1d([c.getf(i) for c in self._cols], method, ascending, na_option, pct) for i in range(n)]
+            return DataFrame._new([Column.floats([rows[i][j] for i in range(n)]) for j in range(m)], self.columns.copy(), self.index.copy())
+        if axis != 0:
+            raise ValueError(f"No axis named {axis} for object type DataFrame")
+        return self._map_series(lambda s: s.rank(method=method, ascending=ascending, na_option=na_option, pct=pct))
+
+    def ffill(self):
+        return self._map_series(lambda s: s.ffill())
+
+    def bfill(self):
+        return self._map_series(lambda s: s.bfill())
+
+    def replace(self, to_replace, value):
+        return self._map_series(lambda s: s.replace(to_replace, value))
+
+    def isin(self, values):
+        return self._map_series(lambda s: s.isin(values))
+
+    def where(self, cond: DataFrame, other = None):
+        return DataFrame._new([self._series(j).where(cond._series(j), other)._col for j in range(len(self._cols))], self.columns.copy(), self.index.copy())
+
+    def mask(self, cond: DataFrame, other = None):
+        return DataFrame._new([self._series(j).mask(cond._series(j), other)._col for j in range(len(self._cols))], self.columns.copy(), self.index.copy())
+
+    def duplicated(self, subset = None, keep = "first") -> Series:
+        cols = List[int]()
+        if subset is None:
+            cols = list(range(len(self._cols)))
+        elif isinstance(subset, List):
+            for x in subset:
+                cols.append(self.columns.get_loc(x))
+        else:
+            cols.append(self.columns.get_loc(subset))
+        keys = ["\x01".join([repr(self._cols[j].get(i)) for j in cols]) for i in range(len(self))]
+        return Series._new(Column.bools(_dup_mask(keys, keep)), self.index.copy(), None)
+
+    def drop_duplicates(self, subset = None, keep = "first", ignore_index: bool = False):
+        d = self.duplicated(subset, keep)
+        r = self._take_rows([i for i in range(len(self)) if not d._col.i[i]])
+        if ignore_index:
+            r.index = Index.range(len(r))
+        return r
+
+    def value_counts(self) -> Series:
+        if len(self._cols) != 1:
+            raise NotImplementedError("DataFrame.value_counts is only supported for one column")
+        s = self._series(0).value_counts()
+        s.index.name = _label_name(self.columns[0])
+        return s
+
+    def apply(self, func, axis: int = 0):
+        # func receives a Series (column for axis=0, row for axis=1) and
+        # returns a scalar (result: Series) or a Series (result: DataFrame)
+        if axis == 1:
+            rows = [func(self._row(i)) for i in range(len(self))]
+            if isinstance(rows, List[Series]):
+                return concat_series_axis1(rows).transpose()._set_index(self.index)
+            else:
+                return Series._new(Column.of(rows), self.index.copy(), None)
+        res = [func(self._series(j)) for j in range(len(self._cols))]
+        if isinstance(res, List[Series]):
+            return DataFrame._new([r._col for r in res], self.columns.copy(), res[0].index.copy() if len(res) else Index.range(0))
+        else:
+            return Series._new(Column.of(res), self.columns.copy(), None)
+
+    def _set_index(self, idx: Index):
+        self.index = idx.copy()
+        return self
+
+    def map(self, func):
+        return self._map_series(lambda s: s.apply(func))
+
+    def applymap(self, func):
+        return self.map(func)
+
+    def describe(self, percentiles: Optional[List[float]] = None):
+        pct = [0.25, 0.5, 0.75] if percentiles is None else percentiles
+        cols = List[int]()
+        for j in range(len(self._cols)):
+            if self._cols[j].kind == K_FLOAT or self._cols[j].kind == K_INT:
+                cols.append(j)
+        labels = ["count", "mean", "std", "min"] + [_pct_label(p) for p in pct] + ["max"]
+        out = List[Column]()
+        for j in cols:
+            c = self._cols[j]
+            a = _sorted_valid(c)
+            vals = [float(nancount(c)), nanmean(c), nanstd(c), a[0] if len(a) else NAN]
+            for p in pct:
+                vals.append(_lerp_quantile(a, p))
+            vals.append(a[-1] if len(a) else NAN)
+            out.append(Column.floats(vals))
+        return DataFrame._new(out, self.columns.take(cols), Index.strs(labels))
+
+    def corr(self, method: str = "pearson", min_periods: int = 1, numeric_only: bool = False):
+        cols = self._numeric(numeric_only)
+        mats = [self._cols[j].to_floats() for j in cols]
+        r = List[List[float]]()
+        if method == "pearson":
+            r = nancorr(mats, False, min_periods)
+        elif method == "spearman":
+            r = nancorr_spearman(mats, min_periods)
+        else:
+            raise ValueError(f"method must be either 'pearson', 'spearman', or a callable, '{method}' was supplied")
+        lab = self.columns.take(cols)
+        return DataFrame._new([Column.floats(r[j]) for j in range(len(cols))], lab, lab.copy())
+
+    def cov(self, min_periods: Optional[int] = None, ddof: int = 1, numeric_only: bool = False):
+        cols = self._numeric(numeric_only)
+        mats = [self._cols[j].to_floats() for j in cols]
+        lab = self.columns.take(cols)
+        K = len(cols)
+        no_nan = True
+        for m in mats:
+            for x in m:
+                if _isnan(x):
+                    no_nan = False
+        res = List[List[float]]()
+        if no_nan and min_periods is None:
+            # np.cov path
+            res = _np_cov(mats, ddof)
+        else:
+            res = nancorr(mats, True, 1 if min_periods is None else min_periods)
+        return DataFrame._new([Column.floats(res[j]) for j in range(K)], lab, lab.copy())
+
+    def corrwith(self, other: Series) -> Series:
+        cols = self._numeric(True)
+        return Series._new(Column.floats([self._series(j).corr(other) for j in cols]), self.columns.take(cols), None)
+
+    def groupby(self, by, sort: bool = True, dropna: bool = True):
+        if isinstance(by, Series):
+            return DataFrameGroupBy(self, _Grouper(by._col, by.name, sort), -1)
+        elif isinstance(by, List):
+            if len(by) != 1:
+                raise NotImplementedError("groupby on multiple keys is not supported")
+            j = self._col_pos(by[0])
+            return DataFrameGroupBy(self, _Grouper(self._cols[j], _label_name(self.columns[j]), sort), j)
+        else:
+            j = self._col_pos(by)
+            return DataFrameGroupBy(self, _Grouper(self._cols[j], _label_name(self.columns[j]), sort), j)
+
+    def rolling(self, window: int, min_periods: Optional[int] = None, center: bool = False):
+        return Rolling(self, window, min_periods if min_periods is not None else window, center, False, False)
+
+    def expanding(self, min_periods: int = 1):
+        return Rolling(self, 0, min_periods, False, True, False)
+
+    def merge(self, right: DataFrame, how: str = "inner", on = None, left_on = None, right_on = None, suffixes: Tuple[str, str] = ("_x", "_y")):
+        return merge(self, right, how=how, on=on, left_on=left_on, right_on=right_on, suffixes=suffixes)
+
+    def equals(self, other: DataFrame) -> bool:
+        if self.shape != other.shape or not self.columns.equals(other.columns) or not self.index.equals(other.index):
+            return False
+        for j in range(len(self._cols)):
+            if not self._series(j).equals(other._series(j)):
+                return False
+        return True
+
+    # -- arithmetic
+    def _binop(self, other, op: int):
+        if isinstance(other, DataFrame):
+            return DataFrame._new([_col_binop(self._cols[j], other._cols[other._col_pos(self.columns[j])], op) for j in range(len(self._cols))], self.columns.copy(), self.index.copy())
+        elif isinstance(other, Series):
+            # align on columns
+            return DataFrame._new([_col_binop(self._cols[j], Column.full(other[self.columns[j]].kind, len(self), other.loc[self.columns[j]]), op) for j in range(len(self._cols))], self.columns.copy(), self.index.copy())
+        else:
+            sc = Scalar.of(other)
+            return DataFrame._new([_col_binop(c, Column.full(sc.kind, len(c), sc), op) for c in self._cols], self.columns.copy(), self.index.copy())
+
+    def _rbinop(self, other, op: int):
+        sc = Scalar.of(other)
+        return DataFrame._new([_col_binop(Column.full(sc.kind, len(c), sc), c, op) for c in self._cols], self.columns.copy(), self.index.copy())
+
+    def __add__(self, o):
+        return self._binop(o, 0)
+    def __sub__(self, o):
+        return self._binop(o, 1)
+    def __mul__(self, o):
+        return self._binop(o, 2)
+    def __truediv__(self, o):
+        return self._binop(o, 3)
+    def __floordiv__(self, o):
+        return self._binop(o, 4)
+    def __mod__(self, o):
+        return self._binop(o, 5)
+    def __pow__(self, o):
+        return self._binop(o, 6)
+    def __radd__(self, o):
+        return self._rbinop(o, 0)
+    def __rsub__(self, o):
+        return self._rbinop(o, 1)
+    def __rmul__(self, o):
+        return self._rbinop(o, 2)
+    def __rtruediv__(self, o):
+        return self._rbinop(o, 3)
+    def add(self, o):
+        return self._binop(o, 0)
+    def sub(self, o):
+        return self._binop(o, 1)
+    def mul(self, o):
+        return self._binop(o, 2)
+    def div(self, o):
+        return self._binop(o, 3)
+    def __eq__(self, o):
+        return self._binop(o, 10)
+    def __ne__(self, o):
+        return self._binop(o, 11)
+    def __lt__(self, o):
+        return self._binop(o, 12)
+    def __le__(self, o):
+        return self._binop(o, 13)
+    def __gt__(self, o):
+        return self._binop(o, 14)
+    def __ge__(self, o):
+        return self._binop(o, 15)
+    def __and__(self, o):
+        return self._binop(o, 20)
+    def __or__(self, o):
+        return self._binop(o, 21)
+    def __neg__(self):
+        return self._map_series(lambda s: -s)
+    def __invert__(self):
+        return self._map_series(lambda s: ~s)
+
+    # -- output
+    def to_csv(self, path_or_buf: Optional[str] = None, sep: str = ",", na_rep: str = "",
+               float_format: Optional[str] = None, columns: Optional[List[str]] = None,
+               header: bool = True, index: bool = True, index_label: Optional[str] = None,
+               lineterminator: str = "\n", decimal: str = ".") -> str:
+        df = self
+        if columns is not None:
+            df = self[columns.__val__()]
+        lines = List[str]()
+        if header:
+            hdr = List[str]()
+            if index:
+                il = index_label if index_label is not None else (df.index.name if df.index.name is not None else "")
+                hdr.append(_csv_quote(il, sep))
+            for j in range(len(df.columns)):
+                hdr.append(_csv_quote(str(df.columns[j]), sep))
+            lines.append(sep.join(hdr))
+        n = len(df)
+        for i in range(n):
+            row = List[str](len(df._cols) + 1)
+            if index:
+                row.append(_csv_quote(df.index._col.fmt_csv(i, float_format, na_rep, decimal), sep))
+            for c in df._cols:
+                row.append(_csv_quote(c.fmt_csv(i, float_format, na_rep, decimal), sep))
+            lines.append(sep.join(row))
+        out = lineterminator.join(lines) + lineterminator
+        if path_or_buf is not None:
+            with open(path_or_buf.__val__(), "w") as f:
+                f.write(out)
+        return out
+
+    def to_dict(self) -> Dict[str, Dict[Scalar, Scalar]]:
+        d = Dict[str, Dict[Scalar, Scalar]]()
+        for j in range(len(self._cols)):
+            d[str(self.columns[j])] = self._series(j).to_dict()
+        return d
+
+    def to_string(self) -> str:
+        return frame_repr(self._cols, [str(self.columns[j]) for j in range(len(self.columns))], self.index._col, self.index.name, len(self), False)
+
+    def __repr__(self) -> str:
+        n, m = self.shape
+        if m == 0 or n == 0:
+            cl = ", ".join([str(c) for c in self.columns])
+            il = ", ".join([str(c) for c in self.index])
+            return f"Empty DataFrame\nColumns: [{cl}]\nIndex: [{il}]"
+        return frame_repr(self._cols, [str(self.columns[j]) for j in range(len(self.columns))], self.index._col, self.index.name, n, True)
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def info(self):
+        print(f"<class 'pandas.DataFrame'>")
+        print(f"RangeIndex: {len(self)} entries, 0 to {len(self) - 1}")
+        print(f"Data columns (total {len(self._cols)} columns):")
+        for j in range(len(self._cols)):
+            print(f" {j}   {self.columns[j]}   {nancount(self._cols[j])} non-null   {self._cols[j].dtype}")
+
+def _pct_label(p: float) -> str:
+    v = p * 100.0
+    if v == float(int(v)):
+        return str(int(v)) + "%"
+    s = str(v)
+    return s + "%"
+
+def _np_cov(mats: List[List[float]], ddof: int) -> List[List[float]]:
+    K = len(mats)
+    N = len(mats[0]) if K > 0 else 0
+    X = np.empty((K, N), float)
+    for j in range(K):
+        for i in range(N):
+            X[j, i] = mats[j][i]
+    C = np.cov(X, ddof=ddof)
+    return [[C[a, b] for b in range(K)] for a in range(K)]
+
+class _FrameLoc:
+    df: DataFrame
+
+    def _rows(self, key) -> List[int]:
+        if isinstance(key, Slice):
+            return _label_slice(self.df.index, key)
+        elif isinstance(key, Series) or (isinstance(key, ndarray[bool, 1]) or isinstance(key, List[bool])):
+            return _mask_positions(key)
+        elif isinstance(key, List):
+            return [self.df.index.get_loc(x) for x in key]
+        else:
+            raise TypeError("unsupported row indexer")
+
+    def _colsel(self, key) -> List[int]:
+        if isinstance(key, Slice):
+            return _label_slice(self.df.columns, key)
+        elif isinstance(key, Series) or (isinstance(key, ndarray[bool, 1]) or isinstance(key, List[bool])):
+            return _mask_positions(key)
+        elif isinstance(key, List):
+            return [self.df._col_pos(x) for x in key]
+        else:
+            raise TypeError("unsupported column indexer")
+
+    def __getitem__(self, key):
+        df = self.df
+        if isinstance(key, Tuple):
+            r = key[0]
+            c = key[1]
+            if (isinstance(r, Slice) or isinstance(r, List) or isinstance(r, Series) or (isinstance(r, ndarray[bool, 1]) or isinstance(r, List[bool]))):
+                if isinstance(c, Slice) or isinstance(c, List):
+                    return df._take_rows(self._rows(r))._take_cols(self._colsel(c))
+                else:
+                    return df._series(df._col_pos(c))._take(self._rows(r))
+            else:
+                i = df.index.get_loc(r)
+                if isinstance(c, Slice) or isinstance(c, List):
+                    sel = self._colsel(c)
+                    return Series._new(Column.from_scalars([df._cols[j].get(i) for j in sel]), df.columns.take(sel), _label_name(df.index[i]))
+                else:
+                    return df._cols[df._col_pos(c)].get(i)
+        elif isinstance(key, Slice) or isinstance(key, List) or isinstance(key, Series) or (isinstance(key, ndarray[bool, 1]) or isinstance(key, List[bool])):
+            return df._take_rows(self._rows(key))
+        else:
+            return df._row(df.index.get_loc(key))
+
+    def __setitem__(self, key, value):
+        df = self.df
+        if isinstance(key, Tuple):
+            r = key[0]
+            c = key[1]
+            k = df.columns.get_loc_opt(Scalar.of(c))
+            if k < 0:
+                df[c] = Scalar(K_FLOAT, NAN, 0, "")
+                k = len(df._cols) - 1
+            if isinstance(r, Slice) or isinstance(r, List) or isinstance(r, Series) or (isinstance(r, ndarray[bool, 1]) or isinstance(r, List[bool])):
+                for i in self._rows(r):
+                    df._cols[k].set(i, Scalar.of(value))
+            else:
+                df._cols[k].set(df.index.get_loc(r), Scalar.of(value))
+        else:
+            i = df.index.get_loc(key)
+            for j in range(len(df._cols)):
+                df._cols[j].set(i, Scalar.of(value))
+
+class _FrameILoc:
+    df: DataFrame
+
+    def _sel(self, key, n: int) -> List[int]:
+        if isinstance(key, Slice):
+            start, stop, step, _ = key.adjust_indices(n)
+            return list(range(start, stop, step))
+        elif (isinstance(key, ndarray[bool, 1]) or isinstance(key, List[bool])):
+            return _mask_positions(key)
+        elif isinstance(key, List) or isinstance(key, ndarray):
+            return [_norm_pos(int(k), n) for k in key]
+        else:
+            raise TypeError("unsupported positional indexer")
+
+    def __getitem__(self, key):
+        df = self.df
+        n, m = df.shape
+        if isinstance(key, Tuple):
+            r = key[0]
+            c = key[1]
+            if isinstance(r, int):
+                i = _norm_pos(r, n)
+                if isinstance(c, int):
+                    return df._cols[_norm_pos(c, m)].get(i)
+                else:
+                    sel = self._sel(c, m)
+                    return Series._new(Column.from_scalars([df._cols[j].get(i) for j in sel]), df.columns.take(sel), _label_name(df.index[i]))
+            else:
+                rows = self._sel(r, n)
+                if isinstance(c, int):
+                    return df._series(_norm_pos(c, m))._take(rows)
+                else:
+                    return df._take_rows(rows)._take_cols(self._sel(c, m))
+        elif isinstance(key, int):
+            return df._row(_norm_pos(key, n))
+        else:
+            return df._take_rows(self._sel(key, n))
+
+    def __setitem__(self, key, value):
+        df = self.df
+        n, m = df.shape
+        if isinstance(key, Tuple):
+            df._cols[_norm_pos(key[1], m)].set(_norm_pos(key[0], n), Scalar.of(value))
+        else:
+            i = _norm_pos(key, n)
+            for j in range(m):
+                df._cols[j].set(i, Scalar.of(value))
+
+# ---------------------------------------------------------------------------
+# GroupBy
+
+class _Grouper:
+    codes: List[int]
+    keys: List[Scalar]
+    key_col: Column
+    name: Optional[str]
+
+    def __init__(self, col: Column, name: Optional[str], sort: bool = True):
+        first = Dict[Scalar, int]()
+        order = List[Scalar]()
+        n = len(col)
+        for i in range(n):
+            if col.isna_at(i):
+                continue
+            v = col.get(i)
+            if v not in first:
+                first[v] = len(order)
+                order.append(v)
+        keys = order.copy()
+        if sort:
+            keys.sort()
+        pos = Dict[Scalar, int]()
+        for g in range(len(keys)):
+            pos[keys[g]] = g
+        codes = List[int](n)
+        for i in range(n):
+            if col.isna_at(i):
+                codes.append(-1)
+            else:
+                codes.append(pos[col.get(i)])
+        self.codes = codes
+        self.keys = keys
+        self.key_col = Column.from_scalars(keys) if col.kind != K_STR else Column.strs([k.s for k in keys])
+        if col.kind == K_INT and len(keys) > 0:
+            self.key_col = Column.ints([k.i for k in keys])
+        self.name = name
+
+    @property
+    def ngroups(self) -> int:
+        return len(self.keys)
+
+    def index(self) -> Index:
+        return Index._wrap(self.key_col.copy(), self.name)
+
+    def members(self) -> List[List[int]]:
+        out = [List[int]() for _ in range(self.ngroups)]
+        for i in range(len(self.codes)):
+            if self.codes[i] >= 0:
+                out[self.codes[i]].append(i)
+        return out
+
+def _agg_col(g: _Grouper, c: Column, how: str, ddof: int = 1) -> Column:
+    G = g.ngroups
+    if how == "count":
+        cnt = [0 for _ in range(G)]
+        for i in range(len(c)):
+            if g.codes[i] >= 0 and not c.isna_at(i):
+                cnt[g.codes[i]] += 1
+        return Column.ints(cnt)
+    if how == "size":
+        cnt = [0 for _ in range(G)]
+        for i in range(len(c)):
+            if g.codes[i] >= 0:
+                cnt[g.codes[i]] += 1
+        return Column.ints(cnt)
+    if how == "nunique":
+        sets = [Set[Scalar]() for _ in range(G)]
+        for i in range(len(c)):
+            if g.codes[i] >= 0 and not c.isna_at(i):
+                sets[g.codes[i]].add(c.get(i))
+        return Column.ints([len(s) for s in sets])
+    if how == "min" or how == "max" or how == "first" or how == "last":
+        res = [Scalar.none() for _ in range(G)]
+        for i in range(len(c)):
+            gg = g.codes[i]
+            if gg < 0 or c.isna_at(i):
+                continue
+            v = c.get(i)
+            b = res[gg]
+            if b.kind == K_NONE or how == "last" or (how == "max" and v > b) or (how == "min" and v < b):
+                res[gg] = v
+        out = Column.empty(c.kind)
+        anynone = False
+        for r in res:
+            if r.kind == K_NONE:
+                anynone = True
+        if anynone and c.kind != K_STR:
+            out = Column.empty(K_FLOAT)
+        for r in res:
+            out.append(r if r.kind != K_NONE else Scalar(K_FLOAT, NAN, 0, ""))
+        return out
+    if c.kind == K_STR:
+        raise TypeError(f"agg function failed [how->{how},dtype->str]")
+    vals = c.to_floats()
+    if how == "sum":
+        if c.kind == K_INT or c.kind == K_BOOL:
+            out = [0 for _ in range(G)]
+            for i in range(len(c)):
+                if g.codes[i] >= 0:
+                    out[g.codes[i]] += c.i[i]
+            return Column.ints(out)
+        return Column.floats(group_sum(vals, g.codes, G))
+    if how == "prod":
+        if c.kind == K_INT or c.kind == K_BOOL:
+            out = [1 for _ in range(G)]
+            for i in range(len(c)):
+                if g.codes[i] >= 0:
+                    out[g.codes[i]] *= c.i[i]
+            return Column.ints(out)
+        return Column.floats(group_prod(vals, g.codes, G))
+    if how == "mean":
+        return Column.floats(group_mean(vals, g.codes, G))
+    if how == "var":
+        return Column.floats(group_var(vals, g.codes, G, ddof, False))
+    if how == "std":
+        return Column.floats(group_var(vals, g.codes, G, ddof, True))
+    if how == "median":
+        mem = g.members()
+        return Column.floats([nanmedian(Column.floats([vals[i] for i in m])) for m in mem])
+    raise ValueError(f"unsupported aggregation '{how}'")
+
+class DataFrameGroupBy:
+    df: DataFrame
+    g: _Grouper
+    key_pos: int
+    sel: Optional[List[int]]
+
+    def __init__(self, df: DataFrame, g: _Grouper, key_pos: int, sel: Optional[List[int]] = None):
+        self.df = df
+        self.g = g
+        self.key_pos = key_pos
+        self.sel = sel
+
+    def _value_cols(self) -> List[int]:
+        if self.sel is not None:
+            return self.sel
+        return [j for j in range(len(self.df._cols)) if j != self.key_pos]
+
+    def __getitem__(self, key: List[str]):
+        return DataFrameGroupBy(self.df, self.g, self.key_pos, [self.df._col_pos(k) for k in key])
+
+    def __getitem__(self, key):
+        j = self.df._col_pos(key)
+        return SeriesGroupBy(self.g, self.df._cols[j], _label_name(self.df.columns[j]))
+
+    def __getattr__(self, name: Literal[str]):
+        return self[name]
+
+    @property
+    def ngroups(self) -> int:
+        return self.g.ngroups
+
+    @property
+    def groups(self) -> Dict[Scalar, List[Scalar]]:
+        d = Dict[Scalar, List[Scalar]]()
+        mem = self.g.members()
+        for k in range(self.g.ngroups):
+            d[self.g.keys[k]] = [self.df.index[i] for i in mem[k]]
+        return d
+
+    def _agg(self, how: str, numeric_only: bool = False, ddof: int = 1):
+        cols = List[int]()
+        for j in self._value_cols():
+            if self.df._cols[j].kind == K_STR and how not in ("count", "size", "nunique", "min", "max", "first", "last"):
+                if numeric_only:
+                    continue
+            cols.append(j)
+        return DataFrame._new([_agg_col(self.g, self.df._cols[j], how, ddof) for j in cols], self.df.columns.take(cols), self.g.index())
+
+    def mean(self, numeric_only: bool = False):
+        return self._agg("mean", numeric_only)
+    def sum(self, numeric_only: bool = False):
+        return self._agg("sum", numeric_only)
+    def prod(self, numeric_only: bool = False):
+        return self._agg("prod", numeric_only)
+    def median(self, numeric_only: bool = False):
+        return self._agg("median", numeric_only)
+    def std(self, ddof: int = 1, numeric_only: bool = False):
+        return self._agg("std", numeric_only, ddof)
+    def var(self, ddof: int = 1, numeric_only: bool = False):
+        return self._agg("var", numeric_only, ddof)
+    def min(self, numeric_only: bool = False):
+        return self._agg("min", numeric_only)
+    def max(self, numeric_only: bool = False):
+        return self._agg("max", numeric_only)
+    def first(self):
+        return self._agg("first")
+    def last(self):
+        return self._agg("last")
+    def count(self):
+        return self._agg("count")
+    def nunique(self):
+        return self._agg("nunique")
+
+    def size(self) -> Series:
+        return Series._new(_agg_col(self.g, Column.ints([0 for _ in range(len(self.g.codes))]), "size"), self.g.index(), None)
+
+    def agg(self, func: str):
+        return self._agg(func)
+
+    def agg(self, func: List[str]):
+        # pandas returns MultiIndex columns (col, func); flattened here as "col_func"
+        cols = List[Column]()
+        labels = List[str]()
+        for j in self._value_cols():
+            for f in func:
+                cols.append(_agg_col(self.g, self.df._cols[j], f))
+                labels.append(str(self.df.columns[j]) + "_" + f)
+        return DataFrame._new(cols, Index.strs(labels), self.g.index())
+
+    def agg(self, func: Dict[str, str]):
+        cols = List[Column]()
+        labels = List[str]()
+        for k, f in func.items():
+            j = self.df._col_pos(k)
+            cols.append(_agg_col(self.g, self.df._cols[j], f))
+            labels.append(k)
+        return DataFrame._new(cols, Index.strs(labels), self.g.index())
+
+    def aggregate(self, func):
+        return self.agg(func)
+
+    def apply(self, func) -> Series:
+        # func: DataFrame -> scalar
+        mem = self.g.members()
+        out = [func(self.df._take_rows(m)) for m in mem]
+        return Series._new(Column.of(out), self.g.index(), None)
+
+    def transform(self, how: str):
+        r = self._agg(how)
+        pos = [c if c >= 0 else 0 for c in self.g.codes]
+        return DataFrame._new([c.take(pos) for c in r._cols], r.columns.copy(), self.df.index.copy())
+
+    def __iter__(self):
+        mem = self.g.members()
+        for k in range(self.g.ngroups):
+            yield (self.g.keys[k], self.df._take_rows(mem[k]))
+
+    def get_group(self, key):
+        sk = Scalar.of(key)
+        mem = self.g.members()
+        for k in range(self.g.ngroups):
+            if self.g.keys[k] == sk:
+                return self.df._take_rows(mem[k])
+        raise KeyError(str(sk))
+
+class SeriesGroupBy:
+    g: _Grouper
+    col: Column
+    name: Optional[str]
+
+    def __init__(self, g: _Grouper, col: Column, name: Optional[str]):
+        self.g = g
+        self.col = col
+        self.name = name
+
+    def _agg(self, how: str, ddof: int = 1) -> Series:
+        return Series._new(_agg_col(self.g, self.col, how, ddof), self.g.index(), self.name)
+
+    def mean(self) -> Series:
+        return self._agg("mean")
+    def sum(self) -> Series:
+        return self._agg("sum")
+    def prod(self) -> Series:
+        return self._agg("prod")
+    def median(self) -> Series:
+        return self._agg("median")
+    def std(self, ddof: int = 1) -> Series:
+        return self._agg("std", ddof)
+    def var(self, ddof: int = 1) -> Series:
+        return self._agg("var", ddof)
+    def min(self) -> Series:
+        return self._agg("min")
+    def max(self) -> Series:
+        return self._agg("max")
+    def first(self) -> Series:
+        return self._agg("first")
+    def last(self) -> Series:
+        return self._agg("last")
+    def count(self) -> Series:
+        return self._agg("count")
+    def nunique(self) -> Series:
+        return self._agg("nunique")
+    def size(self) -> Series:
+        return Series._new(_agg_col(self.g, self.col, "size"), self.g.index(), None)
+
+    def agg(self, func: str) -> Series:
+        return self._agg(func)
+
+    def agg(self, func: List[str]):
+        return DataFrame._new([_agg_col(self.g, self.col, f) for f in func], Index.strs(func), self.g.index())
+
+    def apply(self, func) -> Series:
+        mem = self.g.members()
+        out = [func(Series._new(self.col.take(m), Index.range(len(m)), self.name)) for m in mem]
+        return Series._new(Column.of(out), self.g.index(), self.name)
+
+    def transform(self, how: str) -> Series:
+        r = _agg_col(self.g, self.col, how)
+        pos = [c if c >= 0 else 0 for c in self.g.codes]
+        return Series._new(r.take(pos), Index.range(len(pos)), self.name)
+
+# ---------------------------------------------------------------------------
+# Rolling / Expanding
+
+class Rolling:
+    df: DataFrame
+    window: int
+    min_periods: int
+    center: bool
+    expanding: bool
+    series: bool
+
+    def __init__(self, df: DataFrame, window: int, min_periods: int, center: bool, expanding: bool, series: bool):
+        self.df = df
+        self.window = window
+        self.min_periods = min_periods
+        self.center = center
+        self.expanding = expanding
+        self.series = series
+
+    def _bounds(self, n: int):
+        if self.expanding:
+            return [0 for _ in range(n)], [i + 1 for i in range(n)]
+        return _fixed_bounds(n, self.window, self.center)
+
+    def _apply(self, f):
+        n = len(self.df)
+        start, end = self._bounds(n)
+        cols = List[Column]()
+        for c in self.df._cols:
+            if c.kind == K_STR:
+                raise TypeError("rolling on str column")
+            cols.append(Column.floats(f(c.to_floats(), start, end)))
+        return DataFrame._new(cols, self.df.columns.copy(), self.df.index.copy())
+
+    def _ret(self, f):
+        return self._apply(f)
+
+    def sum(self):
+        mp = self.min_periods
+        return self._apply(lambda v, s, e: roll_sum(v, s, e, mp))
+    def mean(self):
+        mp = self.min_periods
+        return self._apply(lambda v, s, e: roll_mean(v, s, e, mp))
+    def var(self, ddof: int = 1):
+        mp = self.min_periods
+        return self._apply(lambda v, s, e: roll_var(v, s, e, mp, ddof))
+    def std(self, ddof: int = 1):
+        mp = self.min_periods
+        from math import sqrt
+        return self._apply(lambda v, s, e: [sqrt(x) if x == x else x for x in roll_var(v, s, e, mp, ddof)])
+    def min(self):
+        mp = self.min_periods
+        return self._apply(lambda v, s, e: roll_minmax(v, s, e, mp, False))
+    def max(self):
+        mp = self.min_periods
+        return self._apply(lambda v, s, e: roll_minmax(v, s, e, mp, True))
+    def median(self):
+        mp = self.min_periods
+        return self._apply(lambda v, s, e: roll_median(v, s, e, mp))
+    def count(self):
+        return self._apply(lambda v, s, e: [float(sum(1 for j in range(s[i], e[i]) if v[j] == v[j])) for i in range(len(s))])
+
+    def apply(self, func):
+        mp = self.min_periods
+        def f(v: List[float], s: List[int], e: List[int]) -> List[float]:
+            out = List[float](len(s))
+            for i in range(len(s)):
+                w = [v[j] for j in range(s[i], e[i])]
+                cnt = sum(1 for x in w if x == x)
+                out.append(float(func(Series(w))) if cnt >= mp else NAN)
+            return out
+        return self._apply(f)
+
+def _ser(r: DataFrame, series: bool) -> Series:
+    s = r._series(0)
+    return s
+
+# ---------------------------------------------------------------------------
+# module-level functions
+
+def concat(objs, axis: int = 0, ignore_index: bool = False):
+    if len(objs) == 0:
+        raise ValueError("No objects to concatenate")
+    if isinstance(objs[0], Series):
+        if axis == 1:
+            raise ValueError("pandas: concat(list of Series, axis=1) returns a DataFrame; use concat_series_axis1")
+        return _concat_series0(objs, ignore_index)
+    else:
+        return _concat_frames(objs, axis, ignore_index)
+
+def concat_series_axis1(objs: List[Series]) -> DataFrame:
+    # Codon: concat([s1, s2], axis=1) has a different result type than axis=0
+    cols = [s._col.copy() for s in objs]
+    labels = List[Scalar]()
+    for k in range(len(objs)):
+        labels.append(Scalar.of(objs[k].name) if objs[k].name is not None else Scalar.of(k))
+    return DataFrame._new(cols, Index._wrap(Column.from_scalars(labels)), objs[0].index.copy())
+
+def _concat_series0(objs: List[Series], ignore_index: bool) -> Series:
+    c = objs[0]._col.copy()
+    idx = objs[0].index
+    for k in range(1, len(objs)):
+        c = c.extend(objs[k]._col)
+        idx = idx.append(objs[k].index)
+    if ignore_index:
+        idx = Index.range(len(c))
+    return Series._new(c, idx, objs[0].name)
+
+def _concat_frames(objs: List[DataFrame], axis: int, ignore_index: bool) -> DataFrame:
+    if axis == 1:
+        cols = List[Column]()
+        labels = List[Scalar]()
+        base = objs[0].index
+        for df in objs:
+            for j in range(len(df._cols)):
+                if df.index.equals(base):
+                    cols.append(df._cols[j].copy())
+                else:
+                    cols.append(df._cols[j].take([df.index.get_loc_opt(base[i]) for i in range(len(base))]))
+                labels.append(df.columns[j])
+        return DataFrame._new(cols, Index._wrap(Column.from_scalars(labels)), base.copy())
+    # union of columns in order of appearance
+    labels = List[Scalar]()
+    seen = Set[Scalar]()
+    for df in objs:
+        for j in range(len(df.columns)):
+            if df.columns[j] not in seen:
+                seen.add(df.columns[j])
+                labels.append(df.columns[j])
+    cols = List[Column]()
+    for lab in labels:
+        c: Optional[Column] = None
+        for df in objs:
+            k = df.columns.get_loc_opt(lab)
+            part = df._cols[k].copy() if k >= 0 else Column.floats([NAN for _ in range(len(df))])
+            if c is None:
+                c = part
+            else:
+                c = c.extend(part)
+        cols.append(c)
+    idx = objs[0].index.copy()
+    for k in range(1, len(objs)):
+        idx = idx.append(objs[k].index)
+    if ignore_index:
+        idx = Index.range(len(idx))
+    return DataFrame._new(cols, Index._wrap(Column.from_scalars(labels)), idx)
+
+
+def merge(left: DataFrame, right: DataFrame, how: str = "inner", on = None, left_on = None, right_on = None, suffixes: Tuple[str, str] = ("_x", "_y")):
+    lk = ""
+    rk = ""
+    if on is not None:
+        lk = str(on)
+        rk = str(on)
+    else:
+        lk = str(left_on)
+        rk = str(right_on)
+    lj = left._col_pos(lk)
+    rj = right._col_pos(rk)
+    lc = left._cols[lj]
+    rc = right._cols[rj]
+    rmap = Dict[Scalar, List[int]]()
+    rorder = List[Scalar]()
+    for i in range(len(rc)):
+        v = rc.get(i)
+        if v not in rmap:
+            rmap[v] = List[int]()
+            rorder.append(v)
+        rmap[v].append(i)
+    lpos = List[int]()
+    rpos = List[int]()
+    keys = List[Scalar]()
+    used = Set[Scalar]()
+    for i in range(len(lc)):
+        v = lc.get(i)
+        if v in rmap:
+            used.add(v)
+            for r in rmap[v]:
+                lpos.append(i)
+                rpos.append(r)
+                keys.append(v)
+        elif how == "left" or how == "outer":
+            lpos.append(i)
+            rpos.append(-1)
+            keys.append(v)
+    if how == "right" or how == "outer":
+        if how == "right":
+            lpos.clear()
+            rpos.clear()
+            keys.clear()
+            lmap = Dict[Scalar, List[int]]()
+            for i in range(len(lc)):
+                v = lc.get(i)
+                if v not in lmap:
+                    lmap[v] = List[int]()
+                lmap[v].append(i)
+            for r in range(len(rc)):
+                v = rc.get(r)
+                if v in lmap:
+                    for i in lmap[v]:
+                        lpos.append(i)
+                        rpos.append(r)
+                        keys.append(v)
+                else:
+                    lpos.append(-1)
+                    rpos.append(r)
+                    keys.append(v)
+        else:
+            for r in range(len(rc)):
+                v = rc.get(r)
+                if v not in used:
+                    lpos.append(-1)
+                    rpos.append(r)
+                    keys.append(v)
+    if how == "outer":
+        order = list(range(len(keys)))
+        order.sort(key=lambda t: keys[t])
+        lpos = [lpos[t] for t in order]
+        rpos = [rpos[t] for t in order]
+        keys = [keys[t] for t in order]
+    lnames = Set[str]([str(left.columns[j]) for j in range(len(left.columns))])
+    rnames = Set[str]([str(right.columns[j]) for j in range(len(right.columns))])
+    cols = List[Column]()
+    labels = List[str]()
+    for j in range(len(left._cols)):
+        name = str(left.columns[j])
+        if j == lj and lk == rk:
+            kc = Column.from_scalars(keys)
+            if lc.kind == K_INT and not any(p < 0 for p in lpos) or (lc.kind == K_INT and how == "outer"):
+                kc = kc.astype(lc.kind) if lc.kind != K_FLOAT else kc
+            cols.append(kc)
+            labels.append(name)
+            continue
+        cols.append(left._cols[j].take(lpos))
+        labels.append(name + suffixes[0] if name in rnames and name != rk else name)
+    for j in range(len(right._cols)):
+        name = str(right.columns[j])
+        if j == rj and lk == rk:
+            continue
+        cols.append(right._cols[j].take(rpos))
+        labels.append(name + suffixes[1] if name in lnames and name != lk else name)
+    return DataFrame._new(cols, Index.strs(labels), Index.range(len(keys)))
+
+def isna(obj):
+    if isinstance(obj, Series) or isinstance(obj, DataFrame):
+        return obj.isna()
+    else:
+        return Scalar.of(obj).isna()
+
+def isnull(obj):
+    return isna(obj)
+
+def notna(obj):
+    if isinstance(obj, Series) or isinstance(obj, DataFrame):
+        return obj.notna()
+    else:
+        return not Scalar.of(obj).isna()
+
+def notnull(obj):
+    return notna(obj)
+
+def unique(values) -> List[Scalar]:
+    return Series(values).unique()
+
+def to_numeric(arg) -> Series:
+    s = Series(arg)
+    return s.astype(float) if s._col.kind == K_STR else s
+
+# ---------------------------------------------------------------------------
+# CSV reader
+
+def _split_csv(text: str, sep: str) -> List[List[str]]:
+    rows = List[List[str]]()
+    row = List[str]()
+    cur = List[str]()
+    i = 0
+    n = len(text)
+    inq = False
+    quoted = False
+    while i < n:
+        ch = text[i]
+        if inq:
+            if ch == '"':
+                if i + 1 < n and text[i + 1] == '"':
+                    cur.append('"')
+                    i += 1
+                else:
+                    inq = False
+            else:
+                cur.append(ch)
+        else:
+            if ch == '"':
+                inq = True
+                quoted = True
+            elif text[i:i + len(sep)] == sep:
+                row.append("".join(cur))
+                cur.clear()
+                i += len(sep) - 1
+            elif ch == "\n" or ch == "\r":
+                if ch == "\r" and i + 1 < n and text[i + 1] == "\n":
+                    i += 1
+                row.append("".join(cur))
+                cur.clear()
+                if not (len(row) == 1 and row[0] == "" and not quoted):
+                    rows.append(row)
+                row = List[str]()
+                quoted = False
+            else:
+                cur.append(ch)
+        i += 1
+    if len(cur) > 0 or len(row) > 0:
+        row.append("".join(cur))
+        rows.append(row)
+    return rows
+
+_NA_VALUES = ["", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN", "-NaN", "-nan",
+              "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA", "NULL", "NaN", "None", "n/a", "nan", "null"]
+
+def _infer_column(vals: List[str]) -> Column:
+    nas = Set[str](_NA_VALUES)
+    all_int = True
+    all_float = True
+    all_bool = True
+    any_na = False
+    for v in vals:
+        if v in nas:
+            any_na = True
+            continue
+        if all_bool and v not in ("True", "False", "TRUE", "FALSE", "true", "false"):
+            all_bool = False
+        if all_int:
+            try:
+                int(v.strip())
+            except:
+                all_int = False
+        if all_float and not all_int:
+            try:
+                float(v.strip())
+            except:
+                all_float = False
+    nonna = 0
+    for v in vals:
+        if v not in nas:
+            nonna += 1
+    if nonna == 0:
+        return Column.floats([NAN for _ in vals])
+    if all_int and not any_na:
+        return Column.ints([int(v.strip()) for v in vals])
+    if all_int or all_float:
+        return Column.floats([NAN if v in nas else float(v.strip()) for v in vals])
+    if all_bool and not any_na:
+        return Column.bools([v in ("True", "TRUE", "true") for v in vals])
+    return Column.strs([NA_STR if v in nas else v for v in vals])
+
+def read_csv(filepath_or_buffer: str, sep: str = ",", header: Optional[int] = 0, names: Optional[List[str]] = None,
+             index_col = None, usecols: Optional[List[str]] = None, nrows: Optional[int] = None,
+             skiprows: int = 0):
+    text = ""
+    with open(filepath_or_buffer) as f:
+        text = f.read()
+    return _read_csv_text(text, sep, header, names, index_col, usecols, nrows, skiprows)
+
+def read_csv_string(text: str, sep: str = ",", header: Optional[int] = 0, names: Optional[List[str]] = None,
+                    index_col = None, usecols: Optional[List[str]] = None, nrows: Optional[int] = None,
+                    skiprows: int = 0):
+    # Codon extension: parse CSV text directly (pandas: read_csv(io.StringIO(text)))
+    return _read_csv_text(text, sep, header, names, index_col, usecols, nrows, skiprows)
+
+def _read_csv_text(text: str, sep: str, header: Optional[int], names: Optional[List[str]], index_col, usecols: Optional[List[str]], nrows: Optional[int], skiprows: int):
+    rows = _split_csv(text, sep)
+    rows = rows[skiprows:]
+    hdr = List[str]()
+    body = rows
+    if header is not None:
+        hdr = rows[header]
+        body = rows[header + 1:]
+    if names is not None:
+        hdr = names
+    if nrows is not None:
+        body = body[:nrows]
+    m = len(hdr) if len(hdr) > 0 else (len(body[0]) if len(body) > 0 else 0)
+    if index_col is None and len(hdr) > 0 and len(body) > 0 and len(body[0]) == len(hdr) + 1:
+        # pandas: one extra field per row means the first column is the index
+        icol = _infer_column([r[0] if len(r) > 0 else "" for r in body])
+        cols = List[Column]()
+        for j in range(m):
+            cols.append(_infer_column([r[j + 1] if j + 1 < len(r) else "" for r in body]))
+        hdr2 = [h if h != "" else f"Unnamed: {j}" for j, h in enumerate(hdr)]
+        df = DataFrame._new(cols, Index.strs(hdr2), Index._wrap(icol, None))
+        if usecols is not None:
+            df = df[usecols]
+        return df
+    if len(hdr) == 0:
+        hdr = [str(j) for j in range(m)]
+    # unnamed header fields
+    for j in range(len(hdr)):
+        if hdr[j] == "":
+            hdr[j] = f"Unnamed: {j}"
+    cols = List[Column]()
+    for j in range(m):
+        cols.append(_infer_column([r[j] if j < len(r) else "" for r in body]))
+    labels = Index.strs(hdr)
+    if header is None and names is None:
+        labels = Index.range(m)
+    df = DataFrame._new(cols, labels, Index.range(len(body)))
+    if usecols is not None:
+        df = df[usecols]
+    if index_col is not None:
+        if isinstance(index_col, int):
+            j = index_col
+            idx = Index._wrap(df._cols[j].copy(), None if hdr[j].startswith("Unnamed: ") else hdr[j])
+            df = df._take_cols([k for k in range(len(df._cols)) if k != j])
+            df.index = idx
+        else:
+            df = df.set_index(index_col)
+    return df

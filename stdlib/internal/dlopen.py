@@ -1,0 +1,90 @@
+
+from internal.file import _file_path_cstring
+
+# <dlfcn.h>
+@tuple
+class DL_info:
+    dli_fname: cobj
+    dli_fbase: cobj
+    dli_sname: cobj
+    dli_saddr: cobj
+    dli_version: i32
+    dli_reserved1: i32
+    dli_reserved: Ptr[i32]
+
+from C import dlerror() -> cobj as c_dlerror
+from C import dlopen(cobj, int) -> cobj as c_dlopen
+from C import dlsym(cobj, cobj) -> cobj as c_dlsym
+from C import dlclose(cobj) -> i32 as c_dlclose
+from C import dladdr(cobj, Ptr[DL_info]) -> i32
+
+RTLD_LAZY: Literal[int] = 1
+RTLD_NOW: Literal[int] = 2
+
+RTLD_GLOBAL: Literal[int] = 8 if __apple__ else 256
+RTLD_LOCAL: Literal[int] = 0 if __apple__ else 256
+
+def dlext() -> Literal[str]:
+    if __apple__:
+        return "dylib"
+    else:
+        if __windows__:
+            return "dll"
+        else:
+            return "so"
+
+@pure
+def dlerror() -> str:
+    return bytes.from_ptr(c_dlerror()).decode("utf-8", "surrogateescape")
+
+def dlopen(name: str, flag: int = RTLD_NOW | RTLD_GLOBAL) -> cobj:
+    h = c_dlopen(cobj() if name == "" else _file_path_cstring(name), flag)
+    if h == cobj():
+        raise CError(dlerror())
+    return h
+
+@__generated__
+@llvm_c_call
+@llvm
+def _call_c(self: Function[T, TR], args: T, T: type, TR: type) -> TR:
+    noop  # compiler supplies the platform C calling convention
+
+@tuple
+class _CFunction:
+    fn: Fn
+    Fn: type
+
+    def __call__(self, *args):
+        return _call_c(self.fn, args)
+
+    def __raw__(self) -> cobj:
+        return self.fn.__raw__()
+
+def dlsym(lib, name: str, Fn: type) -> Fn:
+    h = cobj()
+    if isinstance(lib, str):
+        h = dlopen(lib)
+    else:
+        h = lib
+    fn = c_dlsym(h, name.c_str())
+    if fn == cobj():
+        raise CError(dlerror())
+    return Fn(fn)
+
+def dlsym_c(lib, name: str, Fn: type):
+    fn = dlsym(lib, name, Fn)
+    if __windows__:
+        return _CFunction(fn)
+    else:
+        return fn
+
+def dlclose(handle: cobj):
+    if c_dlclose(handle) != i32(0):
+        raise CError(dlerror())
+
+def get_library_file_name(handle: cobj):
+    info: DL_info
+    if dladdr(handle, __ptr__(info)):
+        return bytes.from_ptr(info.dli_fname).decode("utf-8", "surrogateescape")
+    else:
+        raise CError(dlerror())

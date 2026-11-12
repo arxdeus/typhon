@@ -1,0 +1,158 @@
+
+from internal.attributes import commutative, associative
+
+@extend
+class bool:
+    def __new__() -> bool:
+        return False
+
+    @overload
+    def __new__(what, /) -> bool:
+        if type(what) is Union:
+            for tag, T in static.vars_types(what, with_index=True):
+                if hasattr(T, "__bool__") or hasattr(T, "__len__"):
+                    if Union._get_tag(what) == tag:
+                        return bool(Union._get_data(what, T))
+            return True  # objects without __bool__/__len__ are truthy
+        return what.__bool__()
+
+    def __repr__(self, /) -> str:
+        return "True" if self else "False"
+
+    def __copy__(self) -> bool:
+        return self
+
+    def __deepcopy__(self) -> bool:
+        return self
+
+    def __bool__(self, /) -> bool:
+        return self
+
+    def __hash__(self, /) -> int:
+        return int(self)
+
+    @commutative
+    def __add__(self, other: bool, /):
+        return self.__int__() + other.__int__()
+
+    def __sub__(self, other: bool, /):
+        return self.__int__() - other.__int__()
+
+    @commutative
+    def __mul__(self, other: bool, /):
+        return self.__and__(other).__int__()
+
+    def __lshift__(self, other: bool, /):
+        return self.__int__() << other.__int__()
+
+    def __rshift__(self, other: bool, /):
+        return self.__int__() >> other.__int__()
+
+    def __floordiv__(self, other: bool, /):
+        if not other:
+            raise ZeroDivisionError("division by zero")
+        return self.__int__()
+
+    def __truediv__(self, other: bool, /):
+        if not other:
+            raise ZeroDivisionError("division by zero")
+        return self.__float__()
+
+    def __mod__(self, other: bool, /):
+        if not other:
+            raise ZeroDivisionError("division by zero")
+        return 0
+
+    def __divmod__(self, other: bool, /):
+        if not other:
+            raise ZeroDivisionError("division by zero")
+        return (self.__int__(), 0)
+
+    def __pow__(self, other: bool, /):
+        return 0 if ((not self) and other) else 0
+
+    @pure
+    @llvm
+    def __invert__(self, /) -> bool:
+        %0 = trunc i8 %self to i1
+        %1 = xor i1 %0, true
+        %2 = zext i1 %1 to i8
+        ret i8 %2
+
+    @pure
+    @llvm
+    def __eq__(self, other: bool, /) -> bool:
+        %0 = icmp eq i8 %self, %other
+        %1 = zext i1 %0 to i8
+        ret i8 %1
+
+    @pure
+    @llvm
+    def __ne__(self, other: bool, /) -> bool:
+        %0 = icmp ne i8 %self, %other
+        %1 = zext i1 %0 to i8
+        ret i8 %1
+
+    @pure
+    @llvm
+    def __lt__(self, other: bool, /) -> bool:
+        %0 = icmp ult i8 %self, %other
+        %1 = zext i1 %0 to i8
+        ret i8 %1
+
+    @pure
+    @llvm
+    def __gt__(self, other: bool, /) -> bool:
+        %0 = icmp ugt i8 %self, %other
+        %1 = zext i1 %0 to i8
+        ret i8 %1
+
+    @pure
+    @llvm
+    def __le__(self, other: bool, /) -> bool:
+        %0 = icmp ule i8 %self, %other
+        %1 = zext i1 %0 to i8
+        ret i8 %1
+
+    @pure
+    @llvm
+    def __ge__(self, other: bool, /) -> bool:
+        %0 = icmp uge i8 %self, %other
+        %1 = zext i1 %0 to i8
+        ret i8 %1
+
+    @pure
+    @commutative
+    @associative
+    @llvm
+    def __and__(self, other: bool, /) -> bool:
+        %0 = and i8 %self, %other
+        ret i8 %0
+
+    @pure
+    @commutative
+    @associative
+    @llvm
+    def __or__(self, other: bool, /) -> bool:
+        %0 = or i8 %self, %other
+        ret i8 %0
+
+    @pure
+    @commutative
+    @associative
+    @llvm
+    def __xor__(self, other: bool, /) -> bool:
+        %0 = xor i8 %self, %other
+        ret i8 %0
+
+    @pure
+    @llvm
+    def __int__(self, /) -> int:
+        %0 = zext i8 %self to i64
+        ret i64 %0
+
+    @pure
+    @llvm
+    def __float__(self, /) -> float:
+        %0 = uitofp i8 %self to double
+        ret double %0

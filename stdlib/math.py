@@ -1,0 +1,492 @@
+
+import internal.static as static
+
+@pure
+@llvm
+def _inf() -> float:
+    ret double 0x7FF0000000000000
+
+@pure
+@llvm
+def _nan() -> float:
+    ret double 0x7FF8000000000000
+
+e = 2.7182818284590452354
+pi = 3.14159265358979323846
+tau = 6.28318530717958647693
+inf = _inf()
+nan = _nan()
+
+def factorial(x: int, /) -> int:
+    @pure
+    @llvm
+    def lookup(index: int) -> int:
+        @data = private unnamed_addr constant [21 x i64] [i64 1, i64 1, i64 2, i64 6, i64 24, i64 120, i64 720, i64 5040, i64 40320, i64 362880, i64 3628800, i64 39916800, i64 479001600, i64 6227020800, i64 87178291200, i64 1307674368000, i64 20922789888000, i64 355687428096000, i64 6402373705728000, i64 121645100408832000, i64 2432902008176640000], align 8
+        %pointer = getelementptr inbounds [21 x i64], ptr @data, i64 0, i64 %index
+        %value = load i64, ptr %pointer, align 8, !range !{i64 1, i64 2432902008176640001}
+        ret i64 %value
+
+    if not (0 <= x <= 20):
+        raise ValueError("factorial is only supported for 0 <= x <= 20")
+    return lookup(x)
+
+def isnan(x: float, /) -> bool:
+    @pure
+    @llvm
+    def f(x: float) -> bool:
+        %y = fcmp uno double %x, 0.000000e+00
+        %z = zext i1 %y to i8
+        ret i8 %z
+
+    return f(x)
+
+def isinf(x: float, /) -> bool:
+    @pure
+    @llvm
+    def f(x: float) -> bool:
+        declare double @llvm.fabs.f64(double)
+        %a = call double @llvm.fabs.f64(double %x)
+        %b = fcmp oeq double %a, 0x7FF0000000000000
+        %c = zext i1 %b to i8
+        ret i8 %c
+
+    return f(x)
+
+def isfinite(x: float, /) -> bool:
+    return not (isnan(x) or isinf(x))
+
+def _check1(arg: float, r: float, can_overflow: bool = False):
+    if __py_numerics__:
+        if isnan(r) and not isnan(arg):
+            raise ValueError("math domain error")
+
+        if isinf(r) and isfinite(arg):
+            if can_overflow:
+                raise OverflowError("math range error")
+            else:
+                raise ValueError("math domain error")
+
+    return r
+
+def _check2(x: float, y: float, r: float, can_overflow: bool = False):
+    if __py_numerics__:
+        if isnan(r) and not isnan(x) and not isnan(y):
+            raise ValueError("math domain error")
+
+        if isinf(r) and isfinite(x) and isfinite(y):
+            if can_overflow:
+                raise OverflowError("math range error")
+            else:
+                raise ValueError("math domain error")
+
+    return r
+
+def ceil(x: float, /) -> int:
+    @pure
+    @llvm
+    def f(x: float) -> float:
+        declare double @llvm.ceil.f64(double)
+        %y = call double @llvm.ceil.f64(double %x)
+        ret double %y
+
+    return int(f(x))
+
+def floor(x: float, /) -> int:
+    @pure
+    @llvm
+    def f(x: float) -> float:
+        declare double @llvm.floor.f64(double)
+        %y = call double @llvm.floor.f64(double %x)
+        ret double %y
+
+    return int(f(x))
+
+def fabs(x: float, /) -> float:
+    @pure
+    @llvm
+    def f(x: float) -> float:
+        declare double @llvm.fabs.f64(double)
+        %y = call double @llvm.fabs.f64(double %x)
+        ret double %y
+
+    return f(x)
+
+def fmod(x: float, y: float, /) -> float:
+    @pure
+    @llvm
+    def f(x: float, y: float) -> float:
+        %z = frem double %x, %y
+        ret double %z
+
+    return f(x, y)
+
+def exp(x: float, /) -> float:
+    @pure
+    @llvm
+    def f(x: float) -> float:
+        declare double @llvm.exp.f64(double)
+        %y = call double @llvm.exp.f64(double %x)
+        ret double %y
+
+    return _check1(x, f(x), True)
+
+def expm1(x: float, /) -> float:
+    return _check1(x, _C.expm1(x), True)
+
+def ldexp(x: float, i: int, /) -> float:
+    return _check1(x, _C.ldexp(x, i32(i)), True)
+
+def log(x: float, base: float = e, /) -> float:
+    @pure
+    @llvm
+    def f(x: float) -> float:
+        declare double @llvm.log.f64(double)
+        %y = call double @llvm.log.f64(double %x)
+        ret double %y
+
+    if base == e:
+        return _check1(x, f(x))
+    else:
+        return _check1(x, f(x)) / _check1(base, f(base))
+
+def log2(x: float, /) -> float:
+    @pure
+    @llvm
+    def f(x: float) -> float:
+        declare double @llvm.log2.f64(double)
+        %y = call double @llvm.log2.f64(double %x)
+        ret double %y
+
+    return _check1(x, f(x))
+
+def log10(x: float, /) -> float:
+    @pure
+    @llvm
+    def f(x: float) -> float:
+        declare double @llvm.log10.f64(double)
+        %y = call double @llvm.log10.f64(double %x)
+        ret double %y
+
+    return _check1(x, f(x))
+
+def degrees(x: float, /) -> float:
+    radToDeg = 180.0 / pi
+    return x * radToDeg
+
+def radians(x: float, /) -> float:
+    degToRad = pi / 180.0
+    return x * degToRad
+
+def sqrt(x: float, /) -> float:
+    @pure
+    @llvm
+    def f(x: float) -> float:
+        declare double @llvm.sqrt.f64(double)
+        %y = call double @llvm.sqrt.f64(double %x)
+        ret double %y
+
+    return _check1(x, f(x))
+
+def pow(x: float, y: float, /) -> float:
+    @pure
+    @llvm
+    def f(x: float, y: float) -> float:
+        declare double @llvm.pow.f64(double, double)
+        %z = call double @llvm.pow.f64(double %x, double %y)
+        ret double %z
+
+    return _check2(x, y, f(x, y), True)
+
+def acos(x: float, /) -> float:
+    return _check1(x, _C.acos(x))
+
+def asin(x: float, /) -> float:
+    return _check1(x, _C.asin(x))
+
+def atan(x: float, /) -> float:
+    return _check1(x, _C.atan(x))
+
+def atan2(y: float, x: float, /) -> float:
+    return _check2(x, y, _C.atan2(y, x))
+
+def cos(x: float, /) -> float:
+    @pure
+    @llvm
+    def f(x: float) -> float:
+        declare double @llvm.cos.f64(double)
+        %y = call double @llvm.cos.f64(double %x)
+        ret double %y
+
+    return _check1(x, f(x))
+
+def sin(x: float, /) -> float:
+    @pure
+    @llvm
+    def f(x: float) -> float:
+        declare double @llvm.sin.f64(double)
+        %y = call double @llvm.sin.f64(double %x)
+        ret double %y
+
+    return _check1(x, f(x))
+
+def hypot(x: float, y: float, /) -> float:
+    return _check2(x, y, _C.hypot(x, y), True)
+
+def tan(x: float, /) -> float:
+    return _check1(x, _C.tan(x))
+
+def cosh(x: float, /) -> float:
+    return _check1(x, _C.cosh(x), True)
+
+def sinh(x: float, /) -> float:
+    return _check1(x, _C.sinh(x), True)
+
+def tanh(x: float, /) -> float:
+    return _check1(x, _C.tanh(x))
+
+def acosh(x: float, /) -> float:
+    return _check1(x, _C.acosh(x))
+
+def asinh(x: float, /) -> float:
+    return _check1(x, _C.asinh(x))
+
+def atanh(x: float, /) -> float:
+    return _check1(x, _C.atanh(x))
+
+def copysign(x: float, y: float, /) -> float:
+    @pure
+    @llvm
+    def f(x: float, y: float) -> float:
+        declare double @llvm.copysign.f64(double, double)
+        %z = call double @llvm.copysign.f64(double %x, double %y)
+        ret double %z
+
+    return _check2(x, y, f(x, y))
+
+def log1p(x: float, /) -> float:
+    return _check1(x, _C.log1p(x))
+
+def trunc(x: float, /) -> int:
+    @pure
+    @llvm
+    def f(x: float) -> float:
+        declare double @llvm.trunc.f64(double)
+        %y = call double @llvm.trunc.f64(double %x)
+        ret double %y
+
+    return int(_check1(x, f(x)))
+
+def erf(x: float, /) -> float:
+    return _check1(x, _C.erf(x))
+
+def erfc(x: float, /) -> float:
+    return _check1(x, _C.erfc(x))
+
+def gamma(x: float, /) -> float:
+    return _check1(x, _C.tgamma(x), True)
+
+def lgamma(x: float, /) -> float:
+    return _check1(x, _C.lgamma(x), True)
+
+def remainder(x: float, y: float, /) -> float:
+    return _check2(x, y, _C.remainder(x, y))
+
+def _gcd2(a, b):
+    a = abs(a)
+    b = abs(b)
+    while a:
+        a, b = b.cmod(a), a
+    return b
+
+def gcd(*args):
+    if static.len(args) == 0:
+        return 0
+
+    res = args[0]
+    T = type(res)
+
+    if static.len(args) == 1:
+        return abs(res)
+
+    for i in range(1, len(args)):
+        if res == T(1):
+            break
+        res = _gcd2(res, args[i])
+
+    return res
+
+def lcm(*args):
+    def lcm2(a, b):
+        return abs((a.cdiv(_gcd2(a, b))) * b)
+
+    if static.len(args) == 0:
+        return 1
+
+    res = args[0]
+    T = type(res)
+
+    if static.len(args) == 1:
+        return abs(res)
+
+    for i in range(1, len(args)):
+        if not res:
+            break
+        res = lcm2(res, args[i])
+
+    return res
+
+@pure
+def frexp(x: float, /) -> Tuple[float, int]:
+    # Non-finite inputs: C frexp leaves the exponent (and on some libc's, e.g.
+    # MSVC, the mantissa) unspecified. Match CPython: frexp(±inf)=(±inf,0),
+    # frexp(nan)=(nan,0). (No-op on glibc, which already returns these.)
+    if not isfinite(x):
+        return (x, 0)
+    tmp = i32(0)
+    res = _C.frexp(float(x), __ptr__(tmp))
+    return (res, int(tmp))
+
+@pure
+def modf(x: float, /) -> Tuple[float, float]:
+    tmp = 0.0
+    res = _C.modf(float(x), __ptr__(tmp))
+    return (res, tmp)
+
+def isclose(a: float, b: float, *, rel_tol: float = 1e-09, abs_tol: float = 0.0) -> bool:
+    # short circuit exact equality -- needed to catch two
+    # infinities of the same sign. And perhaps speeds things
+    # up a bit sometimes.
+    if a == b:
+        return True
+
+    # This catches the case of two infinities of opposite sign, or
+    # one infinity and one finite number. Two infinities of opposite
+    # sign would otherwise have an infinite relative tolerance.
+    # Two infinities of the same sign are caught by the equality check
+    # above.
+    if a == inf or b == inf:
+        return False
+
+    # NAN is not close to anything, not even itself
+    if a == nan or b == nan:
+        return False
+
+    # regular computation
+    diff = fabs(b - a)
+
+    return ((diff <= fabs(rel_tol * b)) or (diff <= fabs(rel_tol * a))) or (
+        diff <= abs_tol
+    )
+
+def fsum(seq, /):
+    def _fsum_realloc(p: Ptr[float], ps: Ptr[float], n: int, m: int):
+        from internal.gc import realloc, sizeof
+        v = Ptr[float]()
+        m += m
+        if n < m:
+            if p == ps:
+                v = Ptr[float](m)
+                str.memcpy(v.as_byte(), ps.as_byte(), n * sizeof(float))
+            else:
+                v = Ptr[float](realloc(p.as_byte(), m * sizeof(float), n * sizeof(float)))
+        return v, m
+
+    _NUM_PARTIALS: Literal[int] = 32
+    ps = __array__[float](_NUM_PARTIALS)
+    p = ps
+    n, m = 0, _NUM_PARTIALS
+    xsave, special_sum, inf_sum = 0.0, 0.0, 0.0
+    hi, yr, lo = 0.0, 0.0, 0.0
+
+    for item in seq:
+        x = float(item)
+        xsave = x
+        i = 0
+
+        for j in range(n):  # for y in partials
+            y = p[j]
+            if fabs(x) < fabs(y):
+                x, y = y, x
+            hi = x + y
+            yr = hi - x
+            lo = y - yr
+            if lo != 0.0:
+                p[i] = lo
+                i += 1
+            x = hi
+
+        n = i
+        if x != 0.0:
+            if not isfinite(x):
+                # a nonfinite x could arise either as
+                # a result of intermediate overflow, or
+                if isfinite(xsave):
+                    raise OverflowError("intermediate overflow in fsum")
+                if isinf(xsave):
+                    inf_sum += xsave
+                special_sum += xsave
+                # reset partials
+                n = 0
+            else:
+                if n >= m:
+                    p, m = _fsum_realloc(p, ps, n, m)
+                p[n] = x
+                n += 1
+
+    if special_sum != 0.0:
+        if isnan(inf_sum):
+            raise ValueError("-inf + inf in fsum")
+        else:
+            return special_sum
+
+    hi = 0.0
+    if n > 0:
+        hi = p[n - 1]
+        n -= 1
+        # sum_exact(ps, hi) from the top, stop when the sum becomes inexact
+        while n > 0:
+            x = hi
+            y = p[n - 1]
+            n -= 1
+            # assert fabs(y) < fabs(x)
+            hi = x + y
+            yr = hi - x
+            lo = y - yr
+            if lo != 0.0:
+                break
+
+        # Make half-even rounding work across multiple partials.
+        # Needed so that sum([1e-16, 1, 1e16]) will round-up the last
+        # digit to two instead of down to zero (the 1e-16 makes the 1
+        # slightly closer to two).  With a potential 1 ULP rounding
+        # error fixed-up, math.fsum() can guarantee commutativity.
+        if n > 0 and ((lo < 0.0 and p[n-1] < 0.0) or (lo > 0.0 and p[n-1] > 0.0)):
+            y = lo * 2.0
+            x = hi + y
+            yr = x - hi
+            if y == yr:
+                hi = x
+
+    return hi
+
+def prod(iterable, /, *, start = 1):
+    def prod_generator(iterable: Generator[T], start, T: type):
+        if T is float:
+            result = float(start)
+        else:
+            result = start
+
+        for a in iterable:
+            result *= a
+        return result
+
+    def prod_tuple(iterable, start):
+        if static.len(iterable) == 0:
+            return start
+        else:
+            return prod(iterable[1:], start=(start * iterable[0]))
+
+    if isinstance(iterable, Tuple):
+        return prod_tuple(iterable, start)
+    else:
+        return prod_generator(iterable, start)

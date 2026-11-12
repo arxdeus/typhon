@@ -16,7 +16,6 @@ typhon-ir.workspace = true
 typhon-ir-analyze.workspace = true
 typhon-ir-transform.workspace = true
 typhon-parser.workspace = true
-typhon-dsl.workspace = true
 typhon-llvm.workspace = true
 include_dir.workspace = true
 libloading.workspace = true
@@ -26,15 +25,9 @@ libc.workspace = true
 tempfile.workspace = true
 typhon-parser.workspace = true
 typhon-ir.workspace = true
-typhon-dsl.workspace = true
 
-# Plugin fixtures for tests/plugins.rs (ports of test/dsl/library.cpp).
-[[example]]
-name = "typhon_test_plugin_compiler"
-path = "tests/fixtures/plugin_compiler.rs"
-crate-type = ["cdylib"]
-
-[[example]]
-name = "typhon_test_plugin_runtime"
-path = "tests/fixtures/plugin_runtime.rs"
-crate-type = ["cdylib"]
+[build-dependencies]
+flate2 = "1"
+tar = "0.4"
+sha2 = "0.10"
+serde_json = "1"

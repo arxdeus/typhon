@@ -1,0 +1,11 @@
+
+@extend
+class ellipsis:
+    def __repr__(self):
+        return 'Ellipsis'
+    def __eq__(self, other: ellipsis):
+        return True
+    def __ne__(self, other: ellipsis):
+        return False
+    def __hash__(self):
+        return 269626442  # same as CPython

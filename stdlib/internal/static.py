@@ -1,0 +1,129 @@
+
+# Methods for static reflection. Implemented within special.cpp, call.cpp and/or loops.cpp.
+# !! Not intended for public use !!
+
+@__generated__
+def len(obj):
+    pass
+
+def platform() -> Literal[str]:
+    pass
+
+@__generated__
+@no_argument_wrap
+def print(*args):
+    pass
+
+def range(start: Literal[int], stop: Literal[int], step: Literal[int] = 1):
+    import internal.types.range
+
+    if step == 0:
+        compile_error("range() step argument must not be zero")
+    # Avoid exception raising method here as exception raising depends on this method
+    return type._force_value_cast((start, stop, step), internal.types.range.range)
+
+@overload
+def range(stop: Literal[int]):
+    import internal.types.range
+
+    # Avoid exception raising method here as exception raising depends on this method
+    return type._force_value_cast((0, stop, 1), internal.types.range.range)
+
+def enumerate(tup):
+    i = -1
+    return tuple(((i := i + 1), t) for t in tup)
+    i
+
+@__generated__
+def tuple(*args):
+    return args
+
+@__generated__
+def has_rtti(T: type):
+    pass
+
+class function:
+    @__generated__
+    def realized(fn, *args):
+        pass
+
+    @__generated__
+    def overloads(T: type, F: Literal[str]):
+        pass
+
+    @__generated__
+    def args(F):  # function: (i, name)
+        pass
+
+    @__generated__
+    def has_type(F, i: Literal[int]):
+        pass
+
+    @__generated__
+    def get_type(F, i: Literal[int]):
+        pass
+
+    @no_argument_wrap
+    @__generated__
+    def can_call(F, *args, **kwargs):
+        pass
+
+    @__generated__
+    def wrap_args(F, *args, **kwargs):
+        pass
+
+    @__generated__
+    def has_default(F, i: Literal[int]):
+        pass
+
+    @__generated__
+    def get_default(F, i: Literal[int]):
+        pass
+
+@__generated__
+def vars(obj, with_index: Literal[bool] = False):
+    pass
+
+@__generated__
+def vars_types(T: type, with_index: Literal[bool] = False):
+    pass
+
+@__generated__
+def methods(T: type):
+    pass
+
+@__generated__
+def children(T: type):
+    pass
+
+@__generated__
+def related(T: type):
+    pass
+
+@__generated__
+def tuple_type(T: type, N: Literal[int]):
+    pass
+
+# Compile-time generated
+@__generated__
+def format(fmt: Literal[str], arg: Literal[str]) -> Literal[str]:
+    """%% is used instead of {} for arguments."""
+
+# Compile-time generated
+@__generated__
+def int_to_string(val: Literal[int]) -> Literal[str]:
+    pass
+
+def loop_string(
+    start: Literal[int], stop: Literal[int],
+    val: Literal[str], delim: Literal[str]
+) -> Literal[str]:
+    if start >= stop:
+        return ""
+    elif start + 1 == stop:
+        return static.format(val, int_to_string(start))
+    else:
+        return static.format(val, int_to_string(start)) + delim + loop_string(start + 1, stop, val, delim)
+
+def contains(text: Literal[str], pattern: Literal[str]) -> Literal[bool]:
+    pass

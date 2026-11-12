@@ -34,8 +34,6 @@ pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_s
     if what != "<jit>" && !force_stdlib {
         let f = fs.borrow();
         for p in [
-            replace_ext(parent.join(what), "codon"),
-            parent.join(what).join("__init__.codon"),
             replace_ext(parent.join(what), "py"),
             parent.join(what).join("__init__.py"),
         ] {
@@ -46,7 +44,7 @@ pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_s
     }
     let check_plugin = |cache: &mut Cache, paths: &mut Vec<String>, path: &Path| {
         let f = fs.borrow();
-        let init = path.join(what).join("stdlib").join(what).join("__init__.codon");
+        let init = path.join(what).join("stdlib").join(what).join("__init__.py");
         if f.exists(&path.join(what).join("plugin.toml")) && f.exists(&init) {
             drop(f);
             let ok = match cache.hooks.load_plugin.clone() {
@@ -66,7 +64,7 @@ pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_s
     for p in sps {
         {
             let f = fs.borrow();
-            for c in [replace_ext(p.join(what), "codon"), p.join(what).join("__init__.codon")] {
+            for c in [replace_ext(p.join(what), "py"), p.join(what).join("__init__.py")] {
                 if f.exists(&c) {
                     paths.push(gen_(f.canonical(&c)));
                 }

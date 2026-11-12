@@ -1,0 +1,285 @@
+from algorithms.qsort import qsort_inplace
+from algorithms.heapsort import heap_sort_inplace
+from algorithms.pdqsort import pdq_sort_inplace
+from algorithms.timsort import tim_sort_inplace
+from time import time
+
+
+def key(n: int):
+    return -n
+
+
+def gen_list(n: int):
+    import random
+
+    v = List[int](n)
+    for _ in range(n):
+        v.append(random.randint(0, 10000))
+    return v
+
+
+def copy_to(a, b):
+    b.clear()
+    for i in a:
+        b.append(i)
+
+
+@test
+def ensure_sorted(v):
+    for i in range(len(v) - 1):
+        assert key(v[i]) <= key(v[i + 1])
+
+
+v0 = gen_list(100)
+v1 = List[int](len(v0))
+
+
+def test_sort1(name, sort):
+    copy_to(v0, v1)
+    t0 = time()
+    sort(v1, key)
+    t1 = time()
+    print name, t1 - t0
+    ensure_sorted(v1)
+
+
+test_sort1("qsort   :", qsort_inplace)
+test_sort1("heapsort:", heap_sort_inplace)
+test_sort1("pdqsort :", pdq_sort_inplace)
+test_sort1("timsort :", tim_sort_inplace)
+
+
+@test
+def test_sort2(name, sort):
+    from random import shuffle
+
+    fail = False
+    print name
+    for N in (0, 1, 10, 100, 1000, 10000):  # , 100000): # too slow; maybe add later?
+        print N
+        for i in range(1000):
+            v = list(range(N))
+            shuffle(v)
+            sort(v, key)
+            if v != list(reversed(range(N))):
+                fail = True
+    assert not fail
+
+
+test_sort2("qsort   :", qsort_inplace)
+test_sort2("heapsort:", heap_sort_inplace)
+test_sort2("pdqsort :", pdq_sort_inplace)
+test_sort2("timsort :", tim_sort_inplace)
+
+# test standard sort routines
+@test
+def test_standard_sort():
+    copy_to(v0, v1)
+    v2 = sorted(v1)
+    for i in range(len(v2) - 1):
+        assert v2[i] <= v2[i + 1]
+
+    v2 = sorted(v1, key=key)
+    for i in range(len(v2) - 1):
+        assert key(v2[i]) <= key(v2[i + 1])
+
+    v2.sort()
+    for i in range(len(v2) - 1):
+        assert v2[i] <= v2[i + 1]
+
+    v2.sort(key=key)
+    for i in range(len(v2) - 1):
+        assert key(v2[i]) <= key(v2[i + 1])
+
+    for original in (List[int](), [1], [3, 2, 1, 2]):
+        expected = sorted(original)
+        for reverse in (False, True):
+            actual = original.copy()
+            actual.sort(key=None, reverse=reverse)
+            ordered = expected[::-1] if reverse else expected
+            assert actual == ordered
+            assert sorted(original, key=None, reverse=reverse) == ordered
+            actual = original.copy()
+            actual.sort(key=None, reverse=reverse, algorithm="tim")
+            assert actual == ordered
+            assert sorted(original, key=None, reverse=reverse, algorithm="tim") == ordered
+
+
+test_standard_sort()
+
+
+@test
+def check_native_sort_type(T: type, lowest: T, highest: T):
+    for size in (0, 1, 2, 7, 15, 16, 17, 63, 64, 65, 127, 128, 129, 1024):
+        original = [T((index * 17) % 31 + 1) for index in range(size)]
+        if size > 0:
+            original[0] = highest
+        if size > 1:
+            original[-1] = lowest
+        expected = sorted(original, algorithm="tim")
+        actual = original.copy()
+        alias = actual
+        actual.sort()
+        assert actual is alias
+        assert alias == expected, f"{T.__name__}, size {size}: {alias} != {expected}"
+        actual.sort(reverse=True)
+        assert actual == expected[::-1]
+        assert sorted(value for value in original) == expected
+        actual = original.copy()
+        actual.sort(key=lambda value: 0)
+        assert actual == original
+        actual.sort(algorithm="pdq")
+        assert actual == expected
+        assert original == [highest if index == 0 else lowest if index == size - 1
+                            else T((index * 17) % 31 + 1) for index in range(size)]
+
+
+@test
+def check_special_float_sort(T: type):
+    from math import copysign, isnan
+    from random import Random
+    originals = [[T(3), T(-0.0), T(0.0), T(1), T(-2)],
+                 [T(-0.0), T(0.0), T(0.0), T(-0.0)],
+                 [T("nan"), T("nan")],
+                 [T("nan"), T(3), T(-1), T("nan"), T(2)],
+                 [T(3), T("nan"), T(-1), T("inf"), T("-inf")]]
+    mixed = [T("nan"), T(-0.0), T(3), T("inf"), T(0.0), T(-2), T("-inf")]
+    for size in (0, 1, 2, 7, 15, 16, 17, 63, 64, 65, 127, 128, 129, 1024,
+                 4097, 65536):
+        originals.append([T(-0.0) if index % 3 == 0 else T(0.0)
+                          for index in range(size)])
+        originals.append([mixed[index % len(mixed)] for index in range(size)])
+    generator = Random(173)
+    stress = [T(generator.uniform(-1.0, 1.0)) for index in range(65536)]
+    for index in range(0, len(stress), 2):
+        stress[index] = mixed[generator.randrange(0, len(mixed))]
+    originals.append(stress)
+    for original in originals:
+        for reverse in (False, True):
+            expected = sorted((value for value in original if not isnan(float(value))),
+                              reverse=reverse, algorithm="pdq")
+            actual = original.copy()
+            actual.sort(reverse=reverse)
+            assert len(actual) == len(original)
+            assert [value for value in actual if not isnan(float(value))] == expected
+            assert sum(1 for value in actual
+                       if value == 0 and copysign(1.0, float(value)) < 0) == sum(
+                           1 for value in original
+                           if value == 0 and copysign(1.0, float(value)) < 0), \
+                f"{T.__name__}, size {len(original)}, reverse {reverse}: signed zeros changed"
+
+
+@test
+def test_native_sort():
+    from internal.sort import _try_native_sort
+
+    check_native_sort_type(int, -9223372036854775808, 9223372036854775807)
+    check_native_sort_type(i16, i16(-32768), i16(32767))
+    check_native_sort_type(u16, u16(0), u16(65535))
+    check_native_sort_type(i32, i32(-2147483648), i32(2147483647))
+    check_native_sort_type(u32, u32(0), u32(4294967295))
+    check_native_sort_type(i64, i64(-9223372036854775808), i64(9223372036854775807))
+    check_native_sort_type(u64, u64(0), u64(18446744073709551615))
+    check_native_sort_type(float32, float32("-inf"), float32("inf"))
+    check_native_sort_type(float, float("-inf"), float("inf"))
+    check_native_sort_type(i8, i8(-128), i8(127))
+    check_native_sort_type(u8, u8(0), u8(255))
+    check_native_sort_type(i128, -(i128(1) << 100), i128(1) << 100)
+    check_native_sort_type(u128, u128(0), u128(1) << 100)
+    wide = [u128(1) << 127, (u128(1) << 64) + u128(1),
+            u128(1) << 64, ~u128(0), u128(0)]
+    native_sorted = _try_native_sort(wide._ptr, len(wide))
+    assert native_sorted
+    assert wide == [u128(0), u128(1) << 64, (u128(1) << 64) + u128(1),
+                    u128(1) << 127, ~u128(0)]
+    check_native_sort_type(bool, False, True)
+    check_special_float_sort(float32)
+    check_special_float_sort(float)
+
+
+test_native_sort()
+
+
+@test
+def test_timsort_minrun():
+    from algorithms.timsort import _tim_sort
+
+    for size in (0, 1, 2, 3, 7, 31, 32, 63, 64, 65, 127, 128):
+        ordered = list(range(size))
+        for values in (ordered, ordered[::-1], ordered[size // 2:] + ordered[:size // 2],
+                       [index % 7 for index in range(size)]):
+            expected = sorted(values)
+            actual = values.copy()
+            tim_sort_inplace(actual, lambda value: value)
+            assert actual == expected
+
+            actual = values.copy()
+            tim_sort_inplace(actual, lambda value: -value)
+            assert actual == expected[::-1]
+
+            actual = [-1] + values + [-2]
+            _tim_sort(actual._ptr, 1, size + 1, lambda value: value)
+            assert actual == [-1] + expected + [-2]
+
+            nested = [[value] for value in values]
+            nested.sort()
+            assert nested == [[value] for value in expected]
+
+
+test_timsort_minrun()
+
+
+@test
+def test_timsort_stability():
+    class Item:
+        key: int
+        position: int
+
+        def __lt__(self, other):
+            return self.key < other.key
+
+        def __le__(self, other):
+            return self.key <= other.key
+
+        def __gt__(self, other):
+            return self.key > other.key
+
+        def __ge__(self, other):
+            return self.key >= other.key
+
+    values = [(1, "a"), (1, "b")]
+    assert sorted(values, key=lambda value: value[0]) == values
+
+    for size in (0, 1, 2, 3, 7, 31, 32, 63, 64, 65, 127, 128, 129, 256, 1024):
+        for keys in ([0 for index in range(size)],
+                     [index // 3 for index in range(size)],
+                     [(size - index) // 3 for index in range(size)],
+                     [(index * 17) % 7 for index in range(size)],
+                     [(index // 64) % 2 for index in range(size)]):
+            original = [(key, index) for index, key in enumerate(keys)]
+            expected = [(key, index) for key in sorted(set(keys))
+                        for index in range(size) if keys[index] == key]
+            actual = original.copy()
+            tim_sort_inplace(actual, lambda value: value[0])
+            assert actual == expected, f"timsort stability, size {size}"
+            assert sorted(original, key=lambda value: value[0]) == expected
+            actual = original.copy()
+            actual.sort(key=lambda value: value[0])
+            assert actual == expected
+            descending = [(key, index) for key in sorted(set(keys), reverse=True)
+                          for index in range(size) if keys[index] == key]
+            assert sorted(original, key=lambda value: value[0], reverse=True) == descending
+            actual = original.copy()
+            actual.sort(key=lambda value: value[0], reverse=True)
+            assert actual == descending
+            assert sorted(original, key=lambda value: value[0], reverse=True,
+                          algorithm="tim") == descending
+            objects = [Item(key, index) for key, index in original]
+            assert [(item.key, item.position) for item in sorted(objects)] == expected
+            assert [(item.key, item.position) for item in sorted(objects, reverse=True)] == descending
+            objects.sort(reverse=True, algorithm="tim")
+            assert [(item.key, item.position) for item in objects] == descending
+            assert original == [(key, index) for index, key in enumerate(keys)]
+
+
+test_timsort_stability()

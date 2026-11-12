@@ -1,0 +1,1127 @@
+
+from threading import Lock, ThreadLocal
+from time import time as _time
+from sys import stderr as _stderr
+import internal.gc as gc
+import internal.static as static
+
+_FUTURE_STATE_PENDING:   Literal[int] = 0
+_FUTURE_STATE_FINISHED:  Literal[int] = 1
+_FUTURE_STATE_EXCEPTION: Literal[int] = 2
+_FUTURE_STATE_CANCELLED: Literal[int] = 3
+
+class _FutureState:
+    _result: cobj
+    _result_size: int
+    _exception: Optional[BaseException]
+    _lock: Lock
+    _cancel_msg: str
+    _done_callbacks: Ptr[Tuple[cobj, Optional[_FutureState]]]
+    _done_callbacks_len: int
+    _done_callbacks_cap: int
+    _state: int
+    _cancel_requested: bool
+    _started: bool
+    _queued: int
+    _name: str
+    _coro: cobj
+    _task_view: cobj
+    _waiting_on: Optional[_FutureState]
+    _waiting_on_lock: cobj
+
+_DoneCallback = Tuple[cobj, Optional[_FutureState]]
+
+@tuple
+class WorkItem:
+    coro: cobj        # Coroutine handle
+    task: Optional[_FutureState]
+
+class WorkNode:
+    work: WorkItem
+    prev: Optional[WorkNode]
+    next: Optional[WorkNode]
+    queued: bool
+
+    def __init__(self, work: WorkItem):
+        self.work = work
+        self.prev = None
+        self.next = None
+        self.queued = True
+
+    def cancelled(self):
+        return self.work.cancelled()
+
+class Timer:
+    work: WorkItem
+    when: float
+    _node: Optional[WorkNode]
+
+    def __init__(self, work: WorkItem, when: float):
+        self.work = work
+        self.when = when
+        self._node = None
+
+    def cancelled(self):
+        return self.work.cancelled()
+
+class EventLoop:
+    _lock: Lock
+    _wakeup: cobj
+    _waiting: bool
+    _wake_pending: bool
+    _work_head: Optional[WorkNode]
+    _work_tail: Optional[WorkNode]
+    _work_curr: Optional[WorkItem]
+    _timers: Ptr[Timer]
+    _timers_len: int
+    _timers_cap: int
+    _tasks: Dict[int, _FutureState]
+    _shutting_down: bool
+    _running: bool
+    _closed: bool
+    _stop_flag: bool
+
+@tuple
+class Handle:
+    _node: WorkNode
+    _loop: EventLoop
+
+    def cancel(self):
+        loop = self._loop
+        with loop._lock:
+            if not self.cancelled():
+                loop._cancel(self._node)
+
+    def cancelled(self):
+        return self._node.cancelled()
+
+@tuple
+class TimerHandle:
+    _timer: Timer
+    _loop: EventLoop
+
+    def cancel(self):
+        loop = self._loop
+        with loop._lock:
+            if not self.cancelled():
+                loop._cancel(self._timer)
+
+    def cancelled(self):
+        return self._timer.cancelled()
+
+    def when(self):
+        return self._timer.when
+
+class Future(object):
+    _data: _FutureState
+    _loop: EventLoop
+    R: type
+
+class Task(Future[R]):
+    R: type
+
+@extend
+class WorkItem:
+    def __new__(coro: cobj):
+        return WorkItem(coro, None)
+
+    def __new__(coro: Coroutine):
+        return WorkItem(coro.__raw__(), None)
+
+    def __new__(task: Task):
+        return WorkItem(task._data)
+
+    def __new__(state: _FutureState):
+        return WorkItem(state._coro, state)
+
+    def __new__():
+        return WorkItem(cobj())
+
+    def cancelled(self):
+        return not bool(self.coro)
+
+class InvalidStateError(Exception):
+    def __init__(self, message: str = '', /):
+        super().__init__(message)
+
+class CancelledError(BaseException):
+    def __init__(self, message: str = '', /):
+        super().__init__(message)
+
+async def _callback_wrapper(callback, *args):
+    callback(*args)
+
+async def _future_callback_wrapper(callback, future):
+    callback(future)
+
+_current_loop: ThreadLocal[Optional[EventLoop]] = None
+_running_loop: ThreadLocal[Optional[EventLoop]] = None
+
+@tuple
+class _EnterLoop:
+    loop: EventLoop
+    old_current_loop: Optional[EventLoop]
+    old_running_loop: Optional[EventLoop]
+
+    def __new__(loop: EventLoop):
+        return _EnterLoop(loop, _current_loop, _running_loop)
+
+    def __enter__(self):
+        global _current_loop
+        global _running_loop
+        _current_loop = self.loop
+        _running_loop = self.loop
+
+    def __exit__(self):
+        global _current_loop
+        global _running_loop
+        _current_loop = self.old_current_loop
+        _running_loop = self.old_running_loop
+
+@extend
+class EventLoop:
+    def __init__(self):
+        TIMERS_CAP_INIT: Literal[int] = 8  # must be power of 2
+        self._lock = Lock()
+        self._wakeup = _C.seq_cond_new()
+        self._waiting = False
+        self._wake_pending = False
+        self._work_head = None
+        self._work_tail = None
+        self._work_curr = None
+        self._timers = Ptr[Timer](TIMERS_CAP_INIT)
+        self._timers_len = 0
+        self._timers_cap = TIMERS_CAP_INIT
+        self._tasks = {}
+        self._shutting_down = False
+        self._running = False
+        self._closed = False
+        self._stop_flag = False
+
+    def _ensure_open(self):
+        if self._closed:
+            raise RuntimeError("Event loop is closed")
+
+    def _ensure_not_running(self):
+        if self._running:
+            raise RuntimeError("This event loop is already running")
+
+    def close(self):
+        with self._lock:
+            if not self._closed:
+                while not self._work_empty():
+                    self._work_dequeue()
+                self._work_head = None
+                self._work_tail = None
+                self._work_curr = None
+                self._timers = Ptr[Timer]()
+                self._timers_len = 0
+                self._timers_cap = 0
+                self._tasks.clear()
+                self._running = False
+                self._closed = True
+                self._stop_flag = True
+                self._notify_waiter()
+
+    def time(self):
+        return _time()
+
+    def stop(self):
+        with self._lock:
+            self._stop_flag = True
+            self._notify_waiter()
+
+    def _notify_waiter(self):
+        if self._waiting:
+            _C.seq_cond_notify(self._wakeup)
+
+    def _wake(self):
+        with self._lock:
+            self._wake_pending = True
+            self._notify_waiter()
+
+    def is_running(self):
+        return self._running
+
+    def is_closed(self):
+        return self._closed
+
+    def _call_soon(self, work: WorkItem, return_handle: Literal[bool] = False):
+        with self._lock:
+            self._ensure_open()
+            node = self._work_enqueue(work)
+        if return_handle:
+            return Handle(node, self)
+
+    def _call_soon_no_duplicate(self, task: _FutureState):
+        with self._lock:
+            self._ensure_open()
+            if task._queued:
+                return False
+            self._work_enqueue(WorkItem(task))
+            return True
+
+    def call_soon(self, callback, *args):
+        item = WorkItem(_callback_wrapper(callback, *args))
+        return self._call_soon(item, return_handle=True)
+
+    def call_soon_threadsafe(self, callback, *args):
+        return self.call_soon(callback, *args)
+
+    def _call_later(self, work: WorkItem, delay: float, return_handle: Literal[bool] = False):
+        return self._call_at(work, self.time() + delay, return_handle=return_handle)
+
+    def _call_at(self, work: WorkItem, when: float, return_handle: Literal[bool] = False):
+        timer = Timer(work, when)
+        with self._lock:
+            self._ensure_open()
+            self._timers_push(timer)
+            self._notify_waiter()
+        if return_handle:
+            return TimerHandle(timer, self)
+
+    def call_later(self, delay: float, callback, *args):
+        item = WorkItem(_callback_wrapper(callback, *args))
+        return self._call_later(item, delay, return_handle=True)
+
+    def call_at(self, when: float, callback, *args):
+        item = WorkItem(_callback_wrapper(callback, *args))
+        return self._call_at(item, when, return_handle=True)
+
+    def _handle_exception(self, exc: BaseException):
+        _stderr.write(f'{exc.typename}: {exc}\n')
+
+    def _enqueue_timers(self, now: float):
+        while self._timers_len > 0 and self._timers[0].when <= now:
+            timer = self._timers_pop()
+            if not timer.cancelled():
+                timer._node = self._work_enqueue(timer.work)
+
+    def _step(self):
+        work: Optional[WorkItem] = None
+        now = self.time()
+
+        with self._lock:
+            if self._stop_flag:
+                return True
+            self._enqueue_timers(now)
+
+            if not self._work_empty():
+                work = self._work_dequeue()
+                self._work_curr = work
+            else:
+                if self._wake_pending:
+                    self._wake_pending = False
+                    return False
+                timeout = -1.0
+                if self._timers_len:
+                    timeout = max(0.0, self._timers[0].when - self.time())
+                self._waiting = True
+                try:
+                    _C.seq_cond_wait(self._wakeup, self._lock.p, timeout)
+                finally:
+                    self._waiting = False
+                return False
+
+        if work is not None:
+            g = Generator[None](work.coro)
+            exception: Optional[BaseException] = None
+            cancel_before_start = False
+            fatal = False
+
+            if work.task is not None:
+                task = work.task
+                if task.done():
+                    with self._lock:
+                        self._tasks.pop(int(task._coro), None)
+                    self._work_curr = None
+                    return False
+                if not task._started:
+                    with task._lock:
+                        cancel_before_start = task._cancel_requested
+                        task._started = True
+
+            try:
+                if cancel_before_start:
+                    raise CancelledError(work.task._cancel_msg)
+                g.__resume__()
+            except CancelledError as error:
+                exception = error
+            except SystemExit as error:
+                exception = error
+                fatal = True
+            except BaseException as e:
+                exception = e
+
+            if work.task is not None:
+                task = work.task
+                callbacks = Ptr[_DoneCallback]()
+                num_callbacks = 0
+
+                with task._lock:
+                    if not task.done():
+                        if exception is not None:
+                            error = exception.__val__()
+                            if isinstance(error, CancelledError):
+                                callbacks, num_callbacks = task._finish_cancelled(str(error))
+                            else:
+                                callbacks, num_callbacks = task._finish_with_exception(error)
+                        elif g.__done__():
+                            if task._cancel_requested:
+                                callbacks, num_callbacks = task._finish_cancelled(task._cancel_msg)
+                            else:
+                                str.memcpy(task._result,
+                                           g.__promise__().as_byte(),
+                                           task._result_size)
+                                callbacks, num_callbacks = task._finish()
+
+                task._schedule_callbacks(self, callbacks, num_callbacks)
+                if task.done():
+                    with self._lock:
+                        self._tasks.pop(int(task._coro), None)
+            elif exception is not None and not fatal:
+                self._handle_exception(exception)
+
+            self._work_curr = None
+            if fatal:
+                raise exception.__val__()
+        return False
+
+    def run_forever(self):
+        self._ensure_open()
+        self._ensure_not_running()
+        self._running = True
+        self._stop_flag = False
+
+        try:
+            with _EnterLoop(self):
+                while True:
+                    stop = self._step()
+                    if stop:
+                        break
+        finally:
+            self._work_curr = None
+            self._running = False
+
+    def run_until_complete(self, future):
+        self._ensure_open()
+        self._ensure_not_running()
+        self._running = True
+        self._stop_flag = False
+
+        try:
+            with _EnterLoop(self):
+                while not future.done():
+                    stop = self._step()
+                    if stop:
+                        break
+        finally:
+            self._work_curr = None
+            self._running = False
+
+        return future.result()
+
+    def _shutdown_tasks(self):
+        self._ensure_open()
+        self._ensure_not_running()
+        self._shutting_down = True
+        self._running = True
+        self._stop_flag = False
+        try:
+            with _EnterLoop(self):
+                with self._lock:
+                    pending = list(self._tasks.values())
+                for task in pending:
+                    task.cancel(self)
+                while self._tasks:
+                    if self._step():
+                        raise RuntimeError("Event loop stopped before tasks completed")
+                for task in pending:
+                    if not task.cancelled():
+                        error = task.exception()
+                        if error is not None:
+                            self._handle_exception(error)
+        finally:
+            self._work_curr = None
+            self._running = False
+            self._shutting_down = False
+
+    def _work_empty(self):
+        return self._work_tail is None
+
+    def _work_enqueue(self, work: WorkItem):
+        node = WorkNode(work)
+        if work.task is not None:
+            work.task._queued += 1
+        tail = self._work_tail
+        if tail is None:
+            self._work_head = node
+            self._work_tail = node
+        else:
+            node.prev = tail
+            tail.next = node
+            self._work_tail = node
+        self._notify_waiter()
+        return node
+
+    def _work_dequeue(self):
+        # caller must ensure non-empty
+        head = self._work_head
+        head.queued = False
+        if head.work.task is not None:
+            head.work.task._queued -= 1
+        self._work_head = head.next
+        if head.next is None:
+            self._work_tail = None
+        else:
+            head.next.prev = None
+            head.next = None
+        return head.work
+
+    def _cancel(self, node: WorkNode):
+        if not node.queued:
+            node.work = WorkItem()
+            return
+        node.queued = False
+        if node.work.task is not None:
+            node.work.task._queued -= 1
+        node.work = WorkItem()
+
+        if self._work_head is None or self._work_tail is None:
+            return
+
+        head: WorkNode = self._work_head
+        tail: WorkNode = self._work_tail
+
+        if node is head:
+            self._work_head = head.next
+            if head.next is None:
+                self._work_tail = None
+            else:
+                head.next.prev = None
+                head.next = None
+        elif node is tail:
+            self._work_tail = tail.prev
+            if tail.prev is None:
+                self._work_head = None
+            else:
+                tail.prev.next = None
+                tail.prev = None
+        else:
+            node.prev.next = node.next
+            node.next.prev = node.prev
+        node.prev = None
+        node.next = None
+
+    def _cancel(self, timer: Timer):
+        if timer._node is not None:
+            self._cancel(timer._node)
+            timer._node = None
+        timer.work = WorkItem()
+
+    def _timers_reserve(self, new_cap: int):
+        old_cap = self._timers_cap
+        if new_cap <= old_cap:
+            return
+
+        sz = gc.sizeof(Timer)
+        self._timers = Ptr[Timer](gc.realloc(
+                        self._timers.as_byte(),
+                        new_cap * sz, old_cap * sz))
+        self._timers_cap = new_cap
+
+    def _timers_swap(self, i: int, j: int):
+        timers = self._timers
+        tmp = timers[i]
+        timers[i] = timers[j]
+        timers[j] = tmp
+
+    def _timers_push(self, t: Timer):
+        if self._timers_len == self._timers_cap:
+            self._timers_reserve(self._timers_cap * 2)
+
+        i = self._timers_len
+        self._timers_len += 1
+        timers = self._timers
+        timers[i] = t
+
+        # Sift up
+        while i > 0:
+            parent = (i - 1) >> 1
+            if timers[parent].when <= timers[i].when:
+                break
+            self._timers_swap(parent, i)
+            i = parent
+
+    def _timers_pop(self):
+        # caller must ensure non-empty
+        timers = self._timers
+        out = timers[0]
+        self._timers_len -= 1
+        timers_len = self._timers_len
+
+        if timers_len > 0:
+            timers[0] = timers[timers_len]
+            i = 0
+            while True:
+                left = 2*i + 1
+                right = 2*i + 2
+                smallest = i
+
+                if (left < timers_len and timers[left].when < timers[smallest].when):
+                    smallest = left
+                if (right < timers_len and timers[right].when < timers[smallest].when):
+                    smallest = right
+                if smallest == i:
+                    break
+
+                self._timers_swap(i, smallest)
+                i = smallest
+
+        return out
+
+    def create_future(self, T: type = NoneType):
+        return Future[T](loop=self)
+
+    def create_task(self, coro: Coroutine, *, name: Optional[str] = None):
+        self._ensure_open()
+        task = Task(coro, loop=self, name=name)
+        work = WorkItem(task)
+        with self._lock:
+            self._ensure_open()
+            self._tasks[int(task._data._coro)] = task._data
+            self._work_enqueue(work)
+        if self._shutting_down:
+            task.cancel()
+        return task
+
+@extend
+class _FutureState:
+    def __init__(self, result: cobj, result_size: int):
+        self._result = result
+        self._result_size = result_size
+        self._exception = None
+        self._lock = Lock()
+        self._cancel_msg = ''
+        self._done_callbacks = Ptr[_DoneCallback]()
+        self._done_callbacks_len = 0
+        self._done_callbacks_cap = 0
+        self._state = _FUTURE_STATE_PENDING
+        self._cancel_requested = False
+        self._started = False
+        self._queued = 0
+        self._name = ''
+        self._coro = cobj()
+        self._task_view = cobj()
+        self._waiting_on = None
+        self._waiting_on_lock = cobj()
+
+    def _reset_callbacks(self):
+        self._done_callbacks = Ptr[_DoneCallback]()
+        self._done_callbacks_len = 0
+        self._done_callbacks_cap = 0
+
+    def _add_done_callback(self, loop: EventLoop, work: WorkItem, add_if_done: Literal[bool] = True):
+        lock = self._lock
+        lock.acquire()
+
+        if self.done():
+            lock.release()
+            if add_if_done:
+                loop._call_soon(work)
+            return False
+
+        n = self._done_callbacks_len
+        m = self._done_callbacks_cap
+
+        if m == 0:
+            self._done_callbacks = Ptr[_DoneCallback](1)
+            self._done_callbacks_cap = 1
+        elif n >= m:
+            new_m = m * 2
+            sz = gc.sizeof(_DoneCallback)
+            self._done_callbacks = Ptr[_DoneCallback](
+                                     gc.realloc(
+                                       self._done_callbacks.as_byte(),
+                                       new_m * sz, m * sz))
+            self._done_callbacks_cap = new_m
+
+        self._done_callbacks[n] = (work.coro, work.task)
+        self._done_callbacks_len += 1
+        lock.release()
+        return True
+
+    def _schedule_callbacks(self, loop: EventLoop, callbacks: Ptr[_DoneCallback], num_callbacks: int):
+        if num_callbacks == 0 and not self._coro:
+            loop._wake()
+        for i in range(num_callbacks):
+            coro, state = callbacks[i]
+            item = WorkItem(coro, state)
+            if item.task is not None:
+                task = item.task
+                waiting_on_lock = task._waiting_on_lock
+                if waiting_on_lock != self._lock.p:
+                    continue
+                task._waiting_on = None
+                task._waiting_on_lock = cobj()
+            loop._call_soon(item)
+        if callbacks:
+            gc.free(callbacks.as_byte())
+
+    def _finish(self):
+        if self.done():
+            raise InvalidStateError("Invalid state")
+
+        self._state = _FUTURE_STATE_FINISHED
+        callbacks = self._done_callbacks
+        num_callbacks = self._done_callbacks_len
+        self._reset_callbacks()
+        return callbacks, num_callbacks
+
+    def _finish_with_exception(self, exception: BaseException):
+        if self.done():
+            raise InvalidStateError("Invalid state")
+
+        self._state = _FUTURE_STATE_EXCEPTION
+        self._exception = exception
+        callbacks = self._done_callbacks
+        num_callbacks = self._done_callbacks_len
+        self._reset_callbacks()
+        return callbacks, num_callbacks
+
+    def _finish_cancelled(self, message: str):
+        if self.done():
+            raise InvalidStateError("Invalid state")
+
+        self._state = _FUTURE_STATE_CANCELLED
+        self._cancel_requested = False
+        self._cancel_msg = message
+        callbacks = self._done_callbacks
+        num_callbacks = self._done_callbacks_len
+        self._reset_callbacks()
+        return callbacks, num_callbacks
+
+    def set_exception(self, loop: EventLoop, exception: BaseException):
+        callbacks = Ptr[_DoneCallback]()
+        num_callbacks = 0
+
+        with self._lock:
+            if self.done():
+                raise InvalidStateError("Invalid state")
+
+            self._exception = exception
+            self._state = _FUTURE_STATE_EXCEPTION
+
+            callbacks = self._done_callbacks
+            num_callbacks = self._done_callbacks_len
+            self._reset_callbacks()
+
+        self._schedule_callbacks(loop, callbacks, num_callbacks)
+
+    def _set_exception_if_not_done(self, loop: EventLoop, exception: BaseException):
+        callbacks = Ptr[_DoneCallback]()
+        num_callbacks = 0
+
+        with self._lock:
+            if self.done():
+                return False
+
+            self._exception = exception
+            self._state = _FUTURE_STATE_EXCEPTION
+
+            callbacks = self._done_callbacks
+            num_callbacks = self._done_callbacks_len
+            self._reset_callbacks()
+
+        self._schedule_callbacks(loop, callbacks, num_callbacks)
+        return True
+
+    def cancelled(self):
+        return self._state == _FUTURE_STATE_CANCELLED
+
+    def done(self):
+        return self._state != _FUTURE_STATE_PENDING
+
+    def cancel(self, loop: EventLoop, msg: Optional[str] = None):
+        callbacks = Ptr[_DoneCallback]()
+        num_callbacks = 0
+        waiting_on: Optional[_FutureState] = None
+
+        with self._lock:
+            if self.done():
+                return False
+
+            if msg is not None:
+                self._cancel_msg = msg
+
+            if self._coro:
+                waiting_on = self._waiting_on
+            else:
+                callbacks, num_callbacks = self._finish_cancelled(self._cancel_msg)
+
+        if self._coro:
+            if waiting_on is not None and waiting_on.cancel(loop, msg):
+                return True
+            with self._lock:
+                if self.done():
+                    return False
+                self._cancel_requested = True
+                self._waiting_on = None
+                self._waiting_on_lock = cobj()
+            current = loop._work_curr
+            if current is None or current.task is not self:
+                loop._call_soon_no_duplicate(self)
+        else:
+            self._schedule_callbacks(loop, callbacks, num_callbacks)
+        return True
+
+    def exception(self) -> Optional[BaseException]:
+        with self._lock:
+            state = self._state
+            if state == _FUTURE_STATE_CANCELLED:
+                raise CancelledError(self._cancel_msg)
+            elif state == _FUTURE_STATE_EXCEPTION:
+                return self._exception.__val__()
+            elif state == _FUTURE_STATE_PENDING:
+                raise InvalidStateError("Exception is not set.")
+            else:
+                return None
+
+@extend
+class Future:
+    def __init__(self, /, *, loop: Optional[EventLoop] = None):
+        self._data = _FutureState(Ptr[R](1).as_byte(), gc.sizeof(R))
+        if loop is None:
+            self._loop = _running_loop if _running_loop is not None else get_event_loop()
+        else:
+            self._loop = loop
+
+    @property
+    def _result(self) -> R:
+        return Ptr[R](self._data._result)[0]
+
+    def _result_size(self):
+        return self._data._result_size
+
+    def add_done_callback(self, callback, /):
+        self._add_done_callback(WorkItem(_future_callback_wrapper(callback, self)))
+
+    def _add_done_callback(self, work: WorkItem, add_if_done: Literal[bool] = True):
+        return self._data._add_done_callback(self._loop, work, add_if_done)
+
+    def _schedule_callbacks(self, callbacks: Ptr[_DoneCallback], num_callbacks: int):
+        self._data._schedule_callbacks(self._loop, callbacks, num_callbacks)
+
+    def result(self, /) -> R:
+        data = self._data
+        with data._lock:
+            if data._state == _FUTURE_STATE_CANCELLED:
+                raise CancelledError(data._cancel_msg)
+            elif data._state == _FUTURE_STATE_EXCEPTION:
+                raise data._exception.__val__()
+            elif data._state == _FUTURE_STATE_PENDING:
+                raise InvalidStateError("Result is not set.")
+            else:
+                return self._result
+
+    def set_result(self, result: R, /):
+        data = self._data
+        with data._lock:
+            if data.done():
+                raise InvalidStateError("Invalid state")
+            Ptr[R](data._result)[0] = result
+            callbacks, num_callbacks = data._finish()
+        data._schedule_callbacks(self._loop, callbacks, num_callbacks)
+
+    def _set_result_if_not_done(self, result: R):
+        data = self._data
+        with data._lock:
+            if data.done():
+                return False
+            Ptr[R](data._result)[0] = result
+            callbacks, num_callbacks = data._finish()
+        data._schedule_callbacks(self._loop, callbacks, num_callbacks)
+        return True
+
+    def set_exception(self, exception: BaseException, /):
+        self._data.set_exception(self._loop, exception)
+
+    def _set_exception_if_not_done(self, exception: BaseException):
+        return self._data._set_exception_if_not_done(self._loop, exception)
+
+    def cancelled(self, /):
+        return self._data.cancelled()
+
+    def done(self, /):
+        return self._data.done()
+
+    def cancel(self, /, msg: Optional[str] = None):
+        return self._data.cancel(self._loop, msg)
+
+    def get_loop(self, /):
+        return self._loop
+
+    def exception(self, /) -> Optional[BaseException]:
+        return self._data.exception()
+
+    async def __await__(self, /):
+        return await self
+
+_default_task_name_counter = 1
+def _default_task_name():
+    global _default_task_name_counter
+    n = _default_task_name_counter
+    _default_task_name_counter += 1
+    return f'Task-{n}'
+
+@extend
+class Task:
+    def __init__(self, /,
+                 coro: Coroutine[R],
+                 *,
+                 loop: Optional[EventLoop] = None,
+                 name: Optional[str] = None):
+        super().__init__(loop=loop)
+        if name is None:
+            self._data._name = _default_task_name()
+        else:
+            self._data._name = name
+        self._data._coro = coro.__raw__()
+        if isinstance(self, Task[None]):
+            view = Ptr[Task[None]](1)
+            view[0] = self
+            self._data._task_view = view.as_byte()
+
+    def _from_state(data: _FutureState, loop: EventLoop) -> Task[None]:
+        with data._lock:
+            if not data._task_view:
+                task = Task[None].__new__()
+                task._data = data
+                task._loop = loop
+                view = Ptr[Task[None]](1)
+                view[0] = task
+                data._task_view = view.as_byte()
+            return Ptr[Task[None]](data._task_view)[0]
+
+    def get_name(self, /):
+        return self._data._name
+
+    def set_name(self, value: str, /):
+        self._data._name = value
+
+    def get_coro(self, /, T: type = NoneType) -> Coroutine[T]:
+        return Coroutine[T](self._data._coro)
+
+    def result(self, /):
+        return super().result()
+
+def _wait_on(future):
+    loop = get_running_loop()
+    if loop is not future.get_loop():
+        raise RuntimeError("running loop is not the same as task loop")
+
+    work_curr = loop._work_curr
+    if work_curr is None:
+        return False
+
+    added = future._add_done_callback(work_curr, add_if_done=False)
+
+    if added and work_curr.task is not None:
+        task = work_curr.task
+        task._waiting_on_lock = future._data._lock.p
+        task._waiting_on = future._data
+
+    return added
+
+def _requeue():
+    loop = get_running_loop()
+    loop._call_soon(loop._work_curr)
+
+def _promise(coro):
+    g = Generator[coro.T](coro.__raw__())
+    return g.__promise__()[0]
+
+def _done(coro):
+    g = Generator[coro.T](coro.__raw__())
+    return g.__done__()
+
+def _resume(coro):
+    g = Generator[coro.T](coro.__raw__())
+    g.__resume__()
+
+def _curr_task():
+    return get_running_loop()._work_curr.task
+
+def _is_waiting(task):
+    return bool(task._waiting_on_lock)
+
+def _cancel_checkpoint():
+    loop = get_running_loop()
+    work_curr = loop._work_curr
+    if work_curr is not None and work_curr.task is not None:
+        task = work_curr.task
+        if not task._cancel_requested:
+            return
+        with task._lock:
+            requested = task._cancel_requested
+            task._cancel_requested = False
+            message = task._cancel_msg
+        if requested:
+            raise CancelledError(message)
+
+def new_event_loop():
+    return EventLoop()
+
+def set_event_loop(loop: EventLoop):
+    global _current_loop
+    _current_loop = loop
+
+def get_event_loop():
+    global _current_loop
+    if _current_loop is not None:
+        return _current_loop
+
+    loop = new_event_loop()
+    _current_loop = loop
+    return loop
+
+def get_running_loop() -> EventLoop:
+    if _running_loop is None:
+        raise RuntimeError("no running event loop")
+    return _running_loop
+
+def create_task(coro, *, name: Optional[str] = None):
+    return get_running_loop().create_task(coro, name=name)
+
+def isfuture(obj) -> Literal[bool]:
+    return isinstance(obj, Future)
+
+def iscoroutine(obj) -> Literal[bool]:
+    return isinstance(obj, Coroutine)
+
+def ensure_future(obj, *, loop: Optional[EventLoop] = None):
+    if isfuture(obj):
+        return obj
+
+    if iscoroutine(obj):
+        return (loop if loop is not None else get_event_loop()).create_task(obj)
+
+    compile_error("An asyncio.Future, a coroutine or an awaitable is required")
+
+def current_task() -> Optional[Task[None]]:
+    loop = get_running_loop()
+    work_curr = loop._work_curr
+    if work_curr is not None and work_curr.task is not None:
+        return Task[None]._from_state(unwrap(work_curr.task), loop)
+    else:
+        return None
+
+def run(coro, *, debug=None, loop_factory=None):
+    if _running_loop is not None:
+        raise RuntimeError("asyncio.run() cannot be called from a running event loop")
+    if loop_factory is not None:
+        loop = loop_factory()
+    else:
+        loop = new_event_loop()
+    try:
+        task = loop.create_task(coro)
+        return loop.run_until_complete(task)
+    finally:
+        try:
+            loop._shutdown_tasks()
+        finally:
+            loop.close()
+
+async def sleep(delay: float, result=None):
+    loop = get_running_loop()
+    future = loop.create_future(type(result))
+    if delay <= 0.0:
+        loop.call_soon(future._set_result_if_not_done, result)
+    else:
+        loop.call_later(delay, future._set_result_if_not_done, result)
+    return await future
+
+def gather(*aws):
+    def ensure_unique(obj, loop: EventLoop, seen: Dict[int, cobj]):
+        if iscoroutine(obj):
+            key = int(obj.__raw__())
+            if key in seen:
+                return Ptr[Task[obj.T]](seen[key])[0]
+            task = loop.create_task(obj)
+            stored = Ptr[type(task)](1)
+            stored[0] = task
+            seen[key] = stored.as_byte()
+            return task
+        else:
+            return ensure_future(obj, loop=loop)
+
+    @pure
+    @llvm
+    def zero(T: type) -> T:
+        ret {=T} zeroinitializer
+
+    @pure
+    @derives
+    @llvm
+    def gep(p: Ptr[T], idx: Literal[int], R: type, T: type) -> Ptr[R]:
+        %q = getelementptr {=T}, ptr %p, i32 0, i32 {=idx}
+        ret ptr %q
+
+    @nocapture
+    @llvm
+    def atomic_decrement(i: Ptr[int]) -> int:
+        %j = atomicrmw sub ptr %i, i64 1 seq_cst
+        ret i64 %j
+
+    @tuple
+    class GatherCallback[T]:
+        payload: T
+
+        def __call__(self, future):
+            outer, results, my_result, remaining = self.payload
+
+            with future._data._lock:
+                if future._data._state == _FUTURE_STATE_FINISHED:
+                    my_result[0] = future._result
+                elif future._data._state == _FUTURE_STATE_EXCEPTION:
+                    outer._set_exception_if_not_done(future._data._exception)
+                    return
+                elif future._data._state == _FUTURE_STATE_CANCELLED:
+                    outer._set_exception_if_not_done(CancelledError(future._data._cancel_msg))
+                    return
+
+            if atomic_decrement(remaining) == 1:
+                outer._set_result_if_not_done(results[0])
+
+    @tuple
+    class CancelCallback[T]:
+        futures: T
+
+        def __call__(self, future):
+            if future.cancelled():
+                for f in self.futures:
+                    f.cancel()
+
+    loop = get_running_loop()
+    seen: Dict[int, cobj] = {}
+    futures = tuple(ensure_unique(a, loop, seen) for a in aws)
+    ret_type = type(tuple(zero(f.R) for f in futures))
+    outer = loop.create_future(ret_type)
+    n: Literal[int] = static.len(futures)
+
+    if n == 0:
+        outer.set_result(())
+        return outer
+
+    results = Ptr[ret_type](1)
+    remaining = Ptr[int](1)
+    remaining[0] = n
+
+    for i in static.range(n):
+        my_future = futures[i]
+        my_result = gep(results, i, my_future.R)
+        payload = (outer, results, my_result, remaining)
+        my_future.add_done_callback(GatherCallback(payload))
+
+    outer.add_done_callback(CancelCallback(futures))
+    return outer

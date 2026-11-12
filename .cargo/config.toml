@@ -12,7 +12,7 @@ CFLAGS_aarch64_apple_darwin = { value = "-DLARGE_CONFIG", force = false }
 CFLAGS_x86_64_apple_darwin = { value = "-DLARGE_CONFIG", force = false }
 CFLAGS_x86_64_unknown_linux_gnu = { value = "-DLARGE_CONFIG", force = false }
 CFLAGS_aarch64_unknown_linux_gnu = { value = "-DLARGE_CONFIG", force = false }
-TYPHON_STDLIB_DIR = { value = "../stdlib", relative = true, force = false }
+TYPHON_STDLIB_DIR = { value = "stdlib", relative = true, force = false }
 
 [build]
 target-dir = "target"

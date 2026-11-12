@@ -1,0 +1,546 @@
+@test
+def t1():
+    assert 2 + 2 == 4
+    assert 3.14 * 2 == 6.28
+    assert 2 + 3*2 == 8
+    assert (1.0).cdiv(0.0) == float('inf')
+    assert str((0.0).cdiv(0.0)) == 'nan'
+
+    assert 5 // 2 == 2
+    assert 5 / 2 == 2.5
+    assert 5.0 // 2.0 == 2
+    assert 5.0 / 2.0 == 2.5
+    assert 5 // 2.0 == 2
+    assert 5 / 2.0 == 2.5
+    assert 5.0 // 2 == 2
+    assert 5.0 / 2 == 2.5
+    assert int(Int[128](5) // Int[128](2)) == 2
+    assert Int[128](5) / Int[128](2) == 2.5
+t1()
+
+@test
+def test_popcnt():
+    assert (42).popcnt() == 3
+    assert (123).popcnt() == 6
+    assert (0).popcnt() == 0
+    assert int.popcnt(-1) == 64
+    assert u8(-1).popcnt() == 8
+    assert (UInt[1024](0xfffffffffffffff3) * UInt[1024](0xfffffffffffffff3)).popcnt() == 4
+    assert UInt[128](-1).popcnt() == 128
+test_popcnt()
+
+@test
+def test_int_shift_count(N: Literal[int]):
+    signed = Int[N](-1)
+    unsigned = UInt[N](-1)
+    for count in range(N):
+        signed_left = signed << count
+        signed_right = signed >> count
+        unsigned_left = unsigned << count
+        unsigned_right = unsigned >> count
+        assert type(signed_left) is Int[N]
+        assert type(signed_right) is Int[N]
+        assert type(unsigned_left) is UInt[N]
+        assert type(unsigned_right) is UInt[N]
+        assert signed_left == signed << Int[N](count)
+        assert signed_right == signed
+        assert unsigned_left == unsigned << UInt[N](count)
+        assert unsigned_right == unsigned >> UInt[N](count)
+
+    assert type(signed << 0) is Int[N]
+    assert type(signed >> 0) is Int[N]
+    assert type(unsigned << 0) is UInt[N]
+    assert type(unsigned >> 0) is UInt[N]
+    if N > 1:
+        signed <<= 1
+        assert type(signed) is Int[N]
+        assert signed == Int[N](-2)
+        signed >>= 1
+        assert signed == Int[N](-1)
+        unsigned >>= 1
+        assert type(unsigned) is UInt[N]
+        assert unsigned == UInt[N](-1) >> UInt[N](1)
+        unsigned <<= 1
+        assert unsigned == UInt[N](-2)
+
+test_int_shift_count(1)
+test_int_shift_count(2)
+test_int_shift_count(7)
+test_int_shift_count(8)
+test_int_shift_count(16)
+test_int_shift_count(32)
+test_int_shift_count(64)
+test_int_shift_count(65)
+test_int_shift_count(128)
+test_int_shift_count(256)
+
+@test
+def test_conversions():
+    # int -> int, float, bool, str
+    assert int(-42) == -42
+    assert float(-42) == -42.0
+    assert bool(0) == False
+    assert bool(-1) == bool(1) == True
+    assert str(-42) == '-42'
+
+    # float -> int, float, bool, str
+    assert int(-4.2) == -4
+    assert int(4.2) == 4
+    assert float(-4.2) == -4.2
+    assert bool(0.0) == False
+    assert bool(-0.1) == bool(0.1) == True
+    assert str(-4.2) == '-4.2'
+
+    # bool -> int, float, bool, str
+    assert int(False) == 0
+    assert int(True) == 1
+    assert float(False) == 0.0
+    assert float(True) == 1.0
+    assert bool(False) == False
+    assert bool(True) == True
+    assert str(False) == 'False'
+    assert str(True) == 'True'
+
+    # u8 -> int, float, bool, str
+    assert int(u8(42)) == 42
+    assert float(u8(42)) == 42.0
+    assert bool(u8(0)) == False
+    assert bool(u8(42)) == True
+
+    # intN -> int, float, bool, str | N < 64
+    assert int(i32(-42)) == -42
+    assert float(i32(-42)) == -42.0
+    assert bool(i32(0)) == False
+    assert bool(i32(-1)) == bool(i32(1)) == True
+    assert str(i32(-42)) == '-42'
+
+    # intN -> int, float, bool, str | N == 64
+    assert int(Int[64](-42)) == -42
+    assert float(Int[64](-42)) == -42.0
+    assert bool(Int[64](0)) == False
+    assert bool(Int[64](-1)) == bool(Int[64](1)) == True
+    assert str(Int[64](-42)) == '-42'
+
+    # intN -> int, float, bool, str | N > 64
+    assert int(Int[80](-42)) == -42
+    assert float(Int[80](-42)) == -42.0
+    assert bool(Int[80](0)) == False
+    assert bool(Int[80](-1)) == bool(Int[80](1)) == True
+    assert str(Int[80](-42)) == '-42'
+
+    # uintN -> int, float, bool, str | N < 64
+    assert int(u32(42)) == 42
+    assert float(u32(42)) == 42.0
+    assert bool(u32(0)) == False
+    assert bool(u32(42)) == True
+    assert str(u32(42)) == '42'
+
+    # uintN -> int, float, bool, str | N == 64
+    assert int(UInt[64](42)) == 42
+    assert float(UInt[64](42)) == 42.0
+    assert bool(UInt[64](0)) == False
+    assert bool(UInt[64](42)) == True
+    assert str(UInt[64](42)) == '42'
+
+    # uintN -> int, float, bool, str | N > 64
+    assert int(UInt[80](42)) == 42
+    assert float(UInt[80](42)) == 42.0
+    assert bool(UInt[80](0)) == False
+    assert bool(Int[80](42)) == True
+    assert str(Int[80](42)) == '42'
+
+    # float -> intN
+    assert i32(3.14) == i32(3)
+
+    # float -> uintN
+    assert u32(3.14) == u32(3)
+
+    # [u]intN -> [u]intN
+    a = Int[16]('42')
+    b = UInt[16](42.0)
+    c = 42
+    e = Int[64](42.0)
+
+    assert i32(a) == i32(42)
+    assert u32(a) == u32(42)
+    assert i8(a) == i8(42)
+    assert u8(a) == u8(42)
+    assert i16(a) == i16(42)
+    assert u16(a) == u16(42)
+
+    assert i32(b) == i32(42)
+    assert u32(b) == u32(42)
+    assert i8(b) == i8(42)
+    assert u8(b) == u8(42)
+    assert i16(b) == i16(42)
+    assert u16(b) == u16(42)
+
+    assert i32(c) == i32(42)
+    assert u32(c) == u32(42)
+    assert i8(c) == i8(42)
+    assert u8(c) == u8(42)
+    assert i16(c) == i16(42)
+    assert u16(c) == u16(42)
+
+    assert i32(e) == i32(42)
+    assert u32(e) == u32(42)
+    assert i8(e) == i8(42)
+    assert u8(e) == u8(42)
+    assert i16(e) == i16(42)
+    assert u16(e) == u16(42)
+    assert i128(e) == i128(42)
+    assert u128(e) == u128(42)
+
+    # ptr -> ptr
+    p1 = Ptr[int]()
+    p2 = Ptr[float]()
+    p3 = cobj()
+    assert Ptr[float](p1) == p2
+    assert Ptr[int](p2) == p1
+    assert Ptr[float](p3) == p2
+    assert Ptr[int](p3) == p1
+    assert cobj(p1) == p3
+    assert cobj(p2) == p3
+test_conversions()
+
+@test
+def test_int_pow():
+    @nonpure
+    def f(n):
+        return n
+
+    assert f(3) ** f(2) == 9
+    assert f(27) ** f(7) == 10460353203
+    assert f(-27) ** f(7) == -10460353203
+    assert f(-27) ** f(6) == 387420489
+    assert f(1) ** f(0) == 1
+    assert f(1) ** f(1000) == 1
+    assert f(0) ** f(3) == 0
+    assert f(0) ** f(0) == 1
+
+    T1 = Int[512]
+    assert f(T1(3)) ** f(T1(2)) == T1(9)
+    assert f(T1(27)) ** f(T1(7)) == T1(10460353203)
+    assert f(T1(-27)) ** f(T1(7)) == T1(-10460353203)
+    assert f(T1(-27)) ** f(T1(6)) == T1(387420489)
+    assert f(T1(1)) ** f(T1(0)) == T1(1)
+    assert f(T1(1)) ** f(T1(1000)) == T1(1)
+    assert f(T1(0)) ** f(T1(3)) == T1(0)
+    assert f(T1(0)) ** f(T1(0)) == T1(1)
+    assert str(f(T1(31)) ** f(T1(31))) == '17069174130723235958610643029059314756044734431'
+    assert str(f(T1(-31)) ** f(T1(31))) == '-17069174130723235958610643029059314756044734431'
+
+    T2 = UInt[200]
+    assert f(T2(3)) ** f(T2(2)) == T2(9)
+    assert f(T2(27)) ** f(T2(7)) == T2(10460353203)
+    assert f(T2(1)) ** f(T2(0)) == T2(1)
+    assert f(T2(1)) ** f(T2(1000)) == T2(1)
+    assert f(T2(0)) ** f(T2(3)) == T2(0)
+    assert f(T2(0)) ** f(T2(0)) == T2(1)
+    assert str(f(T2(31)) ** f(T2(31))) == '17069174130723235958610643029059314756044734431'
+test_int_pow()
+
+@test
+def test_float(F: type):
+    x = F(5.5)
+    assert str(x) == '5.5'
+    assert F(x) == x
+    assert F() == F(0.0)
+    assert x.__copy__() == x
+    assert x.__deepcopy__() == x
+    assert int(x) == 5
+    assert float(x) == 5.5
+    assert bool(x)
+    assert not bool(F())
+    assert +x == x
+    assert -x == F(-5.5)
+    assert x + x == F(11.0)
+    assert x - F(1.0) == F(4.5)
+    assert x * F(3.0) == F(16.5)
+    assert x / F(2.0) == F(2.75)
+    if F is not float128:  # LLVM ops give wrong results for fp128
+        assert x // F(2.0) == F(2.0)
+        assert x % F(0.75) == F(0.25)
+        assert divmod(x, F(0.75)) == (F(7.0), F(0.25))
+    assert x == x
+    assert x != F()
+    assert x < F(6.5)
+    assert x > F(4.5)
+    assert x <= F(6.5)
+    assert x >= F(4.5)
+    assert x >= x
+    assert x <= x
+    assert abs(x) == x
+    assert abs(-x) == x
+    assert x.__match__(x)
+    assert not x.__match__(F())
+    assert hash(x) == hash(5.5)
+
+test_float(float)
+test_float(float32)
+#test_float(float16)
+#test_float(bfloat16)
+#test_float(float128)
+
+@test
+def test_float_out_of_range_parse():
+    x = 5e-324
+    assert Ptr[int](__ptr__(x).as_byte())[0] == 1
+    assert 1e-10000 == 0.0
+    assert 1e10000 == float('inf')
+
+test_float_out_of_range_parse()
+
+@test
+def test_int_float_ops(F: type):
+    def check(got, exp=True):
+        return (exp == got) and (type(exp) is type(got))
+
+    # standard
+    print(F(1.5) + 1, F(2.5), type(F(1.5)+1), type(F(2.5)))
+    assert check(F(1.5) + 1, F(2.5))
+    assert check(F(1.5) - 1, F(0.5))
+    assert check(F(1.5) * 2, F(3.0))
+    assert check(F(1.5) / 2, F(0.75))
+    assert check(F(3.5) // 2, F(1.0))
+    assert check(F(3.5) % 2, F(1.5))
+    assert check(F(3.5) ** 2, F(12.25))
+    assert check(divmod(F(3.5), 2), (F(1.0), F(1.5)))
+
+    # right-hand ops
+    assert check(1 + F(1.5), F(2.5))
+    assert check(1 - F(1.5), F(-0.5))
+    assert check(2 * F(1.5), F(3.0))
+    assert check(2 / F(2.5), F(0.8))
+    assert check(2 // F(1.5), F(1.0))
+    assert check(2 % F(1.5), F(0.5))
+    assert check(4 ** F(2.5), F(32.0))
+    assert check(divmod(4, F(2.5)), (F(1.0), F(1.5)))
+
+    # comparisons
+    assert check(F(1.0) == 1)
+    assert check(F(2.0) != 1)
+    assert check(F(0.0) < 1)
+    assert check(F(2.0) > 1)
+    assert check(F(0.0) <= 1)
+    assert check(F(2.0) >= 1)
+    assert check(1 == F(1.0))
+    assert check(1 != F(2.0))
+    assert check(1 < F(2.0))
+    assert check(1 > F(0.0))
+    assert check(1 <= F(2.0))
+    assert check(1 >= F(0.0))
+
+    # power
+    assert check(F(3.5) ** 1, F(3.5))
+    assert check(F(3.5) ** 2, F(12.25))
+    assert check(F(3.5) ** 3, F(42.875))
+    assert check(F(4.0) ** -1, F(0.25))
+    assert check(F(4.0) ** -2, F(0.0625))
+    assert check(F(4.0) ** -3, F(0.015625))
+    assert check(F(3.5) ** 0, F(1.0))
+
+test_int_float_ops(float)
+test_int_float_ops(float32)
+test_int_float_ops(float16)
+
+@test
+def test_bit_length():
+    assert (0).bit_length() == 0
+    assert (1).bit_length() == 1
+    assert (2).bit_length() == 2
+    assert (3).bit_length() == 2
+    assert (4).bit_length() == 3
+    assert (7).bit_length() == 3
+    assert (8).bit_length() == 4
+    assert (42).bit_length() == 6
+    assert (123).bit_length() == 7
+
+    assert int.bit_length(-1) == 1
+    assert int.bit_length(-2) == 2
+    assert int.bit_length(-3) == 2
+    assert int.bit_length(-4) == 3
+    assert int.bit_length(-5) == 3
+    assert int.bit_length(-6) == 3
+    assert int.bit_length(-7) == 3
+    assert int.bit_length(-8) == 4
+    assert int.bit_length(-9) == 4
+
+    assert i32(0).bit_length() == 0
+    assert i32(1).bit_length() == 1
+    assert i32(2).bit_length() == 2
+    assert i32(3).bit_length() == 2
+    assert i32(4).bit_length() == 3
+    assert i32(7).bit_length() == 3
+    assert i32(8).bit_length() == 4
+    assert i32(42).bit_length() == 6
+    assert i32(123).bit_length() == 7
+
+    assert i32(-1).bit_length() == 1
+    assert i32(-2).bit_length() == 2
+    assert i32(-3).bit_length() == 2
+    assert i32(-4).bit_length() == 3
+    assert i32(-5).bit_length() == 3
+    assert i32(-6).bit_length() == 3
+    assert i32(-7).bit_length() == 3
+    assert i32(-8).bit_length() == 4
+    assert i32(-9).bit_length() == 4
+
+    assert i8(0).bit_length() == 0
+    assert i8(1).bit_length() == 1
+    assert i8(2).bit_length() == 2
+    assert i8(3).bit_length() == 2
+    assert i8(127).bit_length() == 7
+
+    assert i8(-1).bit_length() == 1
+    assert i8(-2).bit_length() == 2
+    assert i8(-3).bit_length() == 2
+    assert i8(-4).bit_length() == 3
+    assert i8(-8).bit_length() == 4
+    assert i8(-128).bit_length() == 8
+
+    assert u8(0).bit_length() == 0
+    assert u8(1).bit_length() == 1
+    assert u8(2).bit_length() == 2
+    assert u8(3).bit_length() == 2
+    assert u8(255).bit_length() == 8
+
+    assert u8(-1).bit_length() == 8
+    assert u8(-2).bit_length() == 8
+
+    assert u32(0).bit_length() == 0
+    assert u32(1).bit_length() == 1
+    assert u32(0xffffffff).bit_length() == 32
+    assert u32(0x80000000).bit_length() == 32
+    assert u32(0x7fffffff).bit_length() == 31
+    assert u32(0x00010000).bit_length() == 17
+
+    assert u32(-1).bit_length() == 32
+
+    assert u64(0).bit_length() == 0
+    assert u64(1).bit_length() == 1
+    assert u64(-1).bit_length() == 64
+    assert u64(0x8000000000000000).bit_length() == 64
+    assert u64(0x7fffffffffffffff).bit_length() == 63
+
+    # For x > 0, bit_length(x) == k implies: (x >> (k-1)) == 1 and (x >> k) == 0
+    xs = [1, 2, 3, 4, 7, 8, 9, 42, 123, 255, 256, 1023, 1024]
+    for x in xs:
+        k = int.bit_length(x)
+        assert k == 0 or ((x >> (k - 1)) == 1)
+        assert (x >> k) == 0
+
+test_bit_length()
+
+@test
+def test_int_pow():
+    @noinline
+    def five(): return 5
+    @noinline
+    def two(): return 2
+    @noinline
+    def zero(): return 0
+
+    assert five() ** two() == 25
+    assert type(five() ** two()) is int
+
+    assert five() ** 3 == 125
+    assert type(five() ** 3) is int
+
+    assert 5 ** two() == 25
+    assert type(5 ** two()) is int
+
+    assert 5 ** 3 == 125
+    assert type(5 ** 3) is int
+
+    assert five() ** -1 == 0.2
+    assert type(five() ** -1) is float
+
+    assert 5 ** -1 == 0.2
+    assert type(5 ** -1) is float
+
+    assert (-five()) ** zero() == 1
+    assert type(five() ** zero()) is int
+
+    assert (-five()) ** 0 == 1
+    assert type(five() ** 0) is int
+
+test_int_pow()
+
+@test
+def test_int_match():
+    n = 0
+    match 42:
+        case 0:
+            n = 1
+        case 42:
+            n = 2
+        case 100:
+            n = 3
+        case _:
+            n = 4
+    assert n == 2
+
+    n = 0
+    match u32(42):
+        case u32(0):
+            n = 1
+        case u32(42):
+            n = 2
+        case u32(100):
+            n = 3
+        case _:
+            n = 4
+    assert n == 2
+
+    n = 0
+    match u32(99):
+        case u32(0):
+            n = 1
+        case u32(42):
+            n = 2
+        case u32(100):
+            n = 3
+        case _:
+            n = 4
+    assert n == 4
+
+    n = 0
+    match i32(42):
+        case i32(0):
+            n = 1
+        case i32(42):
+            n = 2
+        case i32(100):
+            n = 3
+        case _:
+            n = 4
+    assert n == 2
+
+    n = 0
+    match i32(99):
+        case i32(0):
+            n = 1
+        case i32(42):
+            n = 2
+        case i32(100):
+            n = 3
+        case _:
+            n = 4
+    assert n == 4
+
+test_int_match()
+
+@test
+def test_int_int_ops():
+    assert type(u32(1) + u32(1)) is u32
+    assert type(u32(1) + u64(1)) is u64
+    assert u32(1) + u64(1) == u64(2)
+    assert u32(1) + u64(1) == u32(2)
+
+    assert type(i32(1) + i32(1)) is i32
+    assert type(i32(1) + 1) is int
+    assert i32(1) + 1 == u64(2)
+    assert i32(1) + 1 == i32(2)
+
+test_int_int_ops()

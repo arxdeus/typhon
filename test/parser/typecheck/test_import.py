@@ -1,0 +1,179 @@
+#%% import_c,barebones
+from C import sqrt(float) -> float
+print sqrt(4.0) #: 2.0
+
+from C import puts(cobj)
+puts("hello"._ptr) #: hello
+
+from C import atoi(cobj) -> int as s2i
+print s2i("11"._ptr) #: 11
+
+@C
+def log(x: float) -> float:
+    pass
+print log(5.5)  #: 1.7047480922384253
+
+from C import seq_flags: Int[32] as e
+# debug | standalone == 5
+print e  #: 5
+
+#%% import_c_shadow_error,barebones
+# Issue #45
+from C import sqrt(float) -> float as foo
+sqrt(100.0)  #! name 'sqrt' is not defined
+
+
+#%% import_c_dylib,barebones
+from internal.dlopen import dlext
+RT = "codonrt.dll" if dlext() == "dll" else "./libcodonrt." + dlext()
+from C import RT.seq_print(str) -> None as sp
+sp("hello\n")  #: hello
+
+#%% import_c_dylib_error,barebones
+from C import "".seq_print(str) as sp
+sp("hi!") #! syntax error, unexpected '"'
+
+#%% import,barebones
+zoo, _zoo = 1, 1
+print zoo, _zoo, __name__  #: 1 1 __main__
+
+import a  #: a
+a.foo() #: a.foo
+
+from a import foo, bar as b
+foo() #: a.foo
+b() #: a.bar
+
+print str(a)[:9], str(a)[-15:] #: <module ' a/__init__.py'>
+
+import a.b
+print a.b.c #: a.b.c
+a.b.har() #: a.b.har a.b.__init__ a.b.c
+
+print a.b.A.B.b_foo().__add__(1) #: a.b.A.B.b_foo()
+#: 2
+
+print str(a.b)[:9], str(a.b)[-17:] #: <module ' a/b/__init__.py'>
+print Int[a.b.stt].__name__  #: Int[5]
+
+from a.b import *
+har() #: a.b.har a.b.__init__ a.b.c
+a.b.har() #: a.b.har a.b.__init__ a.b.c
+fx() #: a.foo
+print(stt, Int[stt].__name__)  #: 5 Int[5]
+
+from a import *
+print zoo, _zoo, __name__  #: 5 1 __main__
+
+f = Foo(Ptr[B]())
+print f.__class__.__name__, f.t.__class__.__name__  #: Foo Ptr[B]
+
+a.ha()  #: B
+
+print par  #: x
+print woo  #: 10
+try:
+    print woo2
+except NameError:
+    print "woo2 no-no" #: woo2 no-no
+
+
+#%% import_static_time,barebones
+from a.b import stt  #: a
+print(stt, stt.__is_static__)  #: 5 True
+
+#%% import_order,barebones
+def foo():
+    import a
+    a.foo()
+def bar():
+    import a
+    a.bar()
+
+bar() #: a
+#: a.bar
+foo() #: a.foo
+
+#%% import_class
+import sys
+print str(sys)[:20]  #: <module 'sys' from '
+print sys.maxsize  #: 9223372036854775807
+
+#%% import_rec,barebones
+from a.b.rec1 import bar
+#: import rec1
+#: import rec2
+#: done rec2
+#: rec2.x
+#: done rec1
+bar()
+#: rec1.bar
+
+#%% import_rec_err,barebones
+from a.b.rec1_err import bar
+#! cannot import name 'bar' from 'a.b.rec1_err'
+#! during the realization of <import a.b.rec2_err>
+#! during the realization of <import a.b.rec1_err>
+
+#%% import_err_1,barebones
+class Foo:
+    import bar #! unexpected expression in class definition
+
+#%% import_err_2,barebones
+import "".a.b.c #! syntax error, unexpected '"'
+
+#%% import_err_3,barebones
+from a.b import foo() #! function signatures only allowed when importing C or Python functions
+
+#%% import_err_4,barebones
+from a.b.c import hai.hey #! expected identifier
+
+#%% import_err_4_x,barebones
+import whatever #! no module named 'whatever'
+
+#%% import_self,barebones
+import test_import #! cannot import main module
+
+#%% import_bootstrap
+from internal import gc
+from internal import gc as memory
+assert gc.sizeof(int) == 8
+assert memory.sizeof(int) == 8
+
+def bootstrap_size():
+    from internal import gc as local_gc
+    return local_gc.sizeof(int)
+
+assert bootstrap_size() == 8
+
+#%% import_err_5,barebones
+import a.b
+print a.b.x #! cannot import name 'x' from 'a.b.__init__'
+
+#%% import_err_6,barebones
+from a.b import whatever #! cannot import name 'whatever' from 'a.b.__init__'
+
+#%% import_subimport,barebones
+import a as xa  #: a
+
+xa.foo()  #: a.foo
+#: a.sub
+xa.sub.foo()  #: a.sub.foo
+
+#%% import_relative,barebones
+from a.b.relative import result, run
+#: a
+#: a.sub
+print(result)  #: (42, 42, 5)
+run()
+#: a.sub.foo
+#: a.sub.foo
+
+#%% import_c_dylib_abi,barebones
+from internal.dlopen import dlext
+RT = "codonrt.dll" if dlext() == "dll" else "./libcodonrt." + dlext()
+from C import RT.seq_locale_decimal_point() -> str as decimal_point
+from C import RT.seq_pid() -> int as pid
+assert decimal_point.__raw__() != cobj()
+print(decimal_point())  #: .
+assert pid() > 0

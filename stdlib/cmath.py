@@ -1,0 +1,858 @@
+
+import math
+
+e = math.e
+pi = math.pi
+tau = math.tau
+inf = math.inf
+nan = math.nan
+infj = complex(0.0, inf)
+nanj = complex(0.0, nan)
+
+# internal constants
+_FLT_RADIX = 2
+_M_LN2 = 0.6931471805599453094  # ln(2)
+_M_LN10 = 2.302585092994045684  # ln(10)
+
+# math functions
+@pure
+@llvm
+def _fabs(x: float) -> float:
+    declare double @llvm.fabs.f64(double)
+    %y = call double @llvm.fabs.f64(double %x)
+    ret double %y
+
+@pure
+@llvm
+def _sqrt(x: float) -> float:
+    declare double @llvm.sqrt.f64(double)
+    %y = call double @llvm.sqrt.f64(double %x)
+    ret double %y
+
+@pure
+@llvm
+def _exp(x: float) -> float:
+    declare double @llvm.exp.f64(double)
+    %y = call double @llvm.exp.f64(double %x)
+    ret double %y
+
+@pure
+@llvm
+def _log(x: float) -> float:
+    declare double @llvm.log.f64(double)
+    %y = call double @llvm.log.f64(double %x)
+    ret double %y
+
+@pure
+@llvm
+def _cos(x: float) -> float:
+    declare double @llvm.cos.f64(double)
+    %y = call double @llvm.cos.f64(double %x)
+    ret double %y
+
+@pure
+@llvm
+def _sin(x: float) -> float:
+    declare double @llvm.sin.f64(double)
+    %y = call double @llvm.sin.f64(double %x)
+    ret double %y
+
+@pure
+@llvm
+def _isnan(x: float) -> bool:
+    %y = fcmp uno double %x, 0.000000e+00
+    %z = zext i1 %y to i8
+    ret i8 %z
+
+@pure
+@llvm
+def _isinf(x: float) -> bool:
+    declare double @llvm.fabs.f64(double)
+    %a = call double @llvm.fabs.f64(double %x)
+    %b = fcmp oeq double %a, 0x7FF0000000000000
+    %c = zext i1 %b to i8
+    ret i8 %c
+
+@pure
+@llvm
+def _copysign(x: float, y: float) -> float:
+    declare double @llvm.copysign.f64(double, double)
+    %z = call double @llvm.copysign.f64(double %x, double %y)
+    ret double %z
+
+def _isfinite(x: float) -> bool:
+    return not (isnan(x) or isinf(x))
+
+def _tan(x: float) -> float:
+    return _C.tan(x)
+
+def _tanh(x: float) -> float:
+    return _C.tanh(x)
+
+def _cosh(x: float) -> float:
+    return _C.cosh(x)
+
+def _sinh(x: float) -> float:
+    return _C.sinh(x)
+
+def _asinh(x: float) -> float:
+    return _C.asinh(x)
+
+def _atan2(y: float, x: float) -> float:
+    return _C.atan2(y, x)
+
+def _hypot(x: float, y: float) -> float:
+    return _C.hypot(x, y)
+
+def _log1p(x: float) -> float:
+    return _C.log1p(x)
+
+def _ldexp(x: float, i: int) -> float:
+    return _C.ldexp(x, i32(i))
+
+@pure
+@llvm
+def _max_float() -> float:
+    ret double 0x7FEFFFFFFFFFFFFF
+
+@pure
+@llvm
+def _min_float() -> float:
+    ret double 0x10000000000000
+
+_DBL_MAX = _max_float()
+_DBL_MIN = _min_float()
+_DBL_MANT_DIG: Literal[int] = 53
+
+_CM_LARGE_DOUBLE = _DBL_MAX.cdiv(4.)
+_CM_SQRT_LARGE_DOUBLE = _sqrt(_CM_LARGE_DOUBLE)
+_CM_LOG_LARGE_DOUBLE = _log(_CM_LARGE_DOUBLE)
+_CM_SQRT_DBL_MIN = _sqrt(_DBL_MIN)
+_CM_SCALE_UP: Literal[int] = (2*(_DBL_MANT_DIG // 2) + 1)
+_CM_SCALE_DOWN: Literal[int] = (-(_CM_SCALE_UP+1)//2)
+
+# special types
+_ST_NINF  = 0  # negative infinity
+_ST_NEG   = 1  # negative finite number (nonzero)
+_ST_NZERO = 2  # -0.
+_ST_PZERO = 3  # +0.
+_ST_POS   = 4  # positive finite number (nonzero)
+_ST_PINF  = 5  # positive infinity
+_ST_NAN   = 6  # Not a Number
+
+def _special_type(d: float):
+    if _isfinite(d):
+        if d != 0:
+            if _copysign(1., d) == 1.:
+                return _ST_POS
+            else:
+                return _ST_NEG
+        else:
+            if _copysign(1., d) == 1.:
+                return _ST_PZERO
+            else:
+                return _ST_NZERO
+    if _isnan(d):
+        return _ST_NAN
+    if _copysign(1., d) == 1.:
+        return _ST_PINF
+    else:
+        return _ST_NINF
+
+def _acos_special():
+    P = pi
+    P14 = 0.25*pi
+    P12 = 0.5*pi
+    P34 = 0.75*pi
+    INF = inf  # Py_HUGE_VAL
+    N = nan
+    U = -9.5426319407711027e33  # unlikely value, used as placeholder
+    def C(a,b): return complex(a, b)
+    v = (C(P34,INF), C(P,INF), C(P,INF), C(P,-INF), C(P,-INF), C(P34,-INF), C(N,INF),
+         C(P12,INF), C(U,U), C(U,U), C(U,U), C(U,U), C(P12,-INF), C(N,N), C(P12,INF),
+         C(U,U), C(P12,0.), C(P12,-0.), C(U,U), C(P12,-INF), C(P12,N), C(P12,INF), C(U,U),
+         C(P12,0.), C(P12,-0.), C(U,U), C(P12,-INF), C(P12,N), C(P12,INF), C(U,U), C(U,U),
+         C(U,U), C(U,U), C(P12,-INF), C(N,N), C(P14,INF), C(0.,INF), C(0.,INF), C(0.,-INF),
+         C(0.,-INF), C(P14,-INF), C(N,INF), C(N,INF), C(N,N), C(N,N), C(N,N), C(N,N),
+         C(N,-INF), C(N,N))
+    return v
+
+def _acosh_special():
+    P = pi
+    P14 = 0.25*pi
+    P12 = 0.5*pi
+    P34 = 0.75*pi
+    INF = inf  # Py_HUGE_VAL
+    N = nan
+    U = -9.5426319407711027e33  # unlikely value, used as placeholder
+    def C(a,b): return complex(a, b)
+    v = (C(INF,-P34), C(INF,-P), C(INF,-P), C(INF,P), C(INF,P), C(INF,P34), C(INF,N),
+         C(INF,-P12), C(U,U), C(U,U), C(U,U), C(U,U), C(INF,P12), C(N,N), C(INF,-P12),
+         C(U,U), C(0.,-P12), C(0.,P12), C(U,U), C(INF,P12), C(N,N), C(INF,-P12), C(U,U),
+         C(0.,-P12), C(0.,P12), C(U,U), C(INF,P12), C(N,N), C(INF,-P12), C(U,U), C(U,U),
+         C(U,U), C(U,U), C(INF,P12), C(N,N), C(INF,-P14), C(INF,-0.), C(INF,-0.), C(INF,0.),
+         C(INF,0.), C(INF,P14), C(INF,N), C(INF,N), C(N,N), C(N,N), C(N,N), C(N,N), C(INF,N),
+         C(N,N))
+    return v
+
+def _asinh_special():
+    P = pi
+    P14 = 0.25*pi
+    P12 = 0.5*pi
+    P34 = 0.75*pi
+    INF = inf  # Py_HUGE_VAL
+    N = nan
+    U = -9.5426319407711027e33  # unlikely value, used as placeholder
+    def C(a,b): return complex(a, b)
+    v = (C(-INF,-P14), C(-INF,-0.), C(-INF,-0.), C(-INF,0.), C(-INF,0.), C(-INF,P14), C(-INF,N),
+         C(-INF,-P12), C(U,U), C(U,U), C(U,U), C(U,U), C(-INF,P12), C(N,N), C(-INF,-P12), C(U,U),
+         C(-0.,-0.), C(-0.,0.), C(U,U), C(-INF,P12), C(N,N), C(INF,-P12), C(U,U), C(0.,-0.),
+         C(0.,0.), C(U,U), C(INF,P12), C(N,N), C(INF,-P12), C(U,U), C(U,U), C(U,U), C(U,U),
+         C(INF,P12), C(N,N), C(INF,-P14), C(INF,-0.), C(INF,-0.), C(INF,0.), C(INF,0.), C(INF,P14),
+         C(INF,N), C(INF,N), C(N,N), C(N,-0.), C(N,0.), C(N,N), C(INF,N), C(N,N))
+    return v
+
+def _atanh_special():
+    P = pi
+    P14 = 0.25*pi
+    P12 = 0.5*pi
+    P34 = 0.75*pi
+    INF = inf  # Py_HUGE_VAL
+    N = nan
+    U = -9.5426319407711027e33  # unlikely value, used as placeholder
+    def C(a,b): return complex(a, b)
+    v = (C(-0.,-P12), C(-0.,-P12), C(-0.,-P12), C(-0.,P12), C(-0.,P12), C(-0.,P12), C(-0.,N),
+         C(-0.,-P12), C(U,U), C(U,U), C(U,U), C(U,U), C(-0.,P12), C(N,N), C(-0.,-P12), C(U,U),
+         C(-0.,-0.), C(-0.,0.), C(U,U), C(-0.,P12), C(-0.,N), C(0.,-P12), C(U,U), C(0.,-0.), C(0.,0.),
+         C(U,U), C(0.,P12), C(0.,N), C(0.,-P12), C(U,U), C(U,U), C(U,U), C(U,U), C(0.,P12), C(N,N),
+         C(0.,-P12), C(0.,-P12), C(0.,-P12), C(0.,P12), C(0.,P12), C(0.,P12), C(0.,N), C(0.,-P12),
+         C(N,N), C(N,N), C(N,N), C(N,N), C(0.,P12), C(N,N))
+    return v
+
+def _cosh_special():
+    P = pi
+    P14 = 0.25*pi
+    P12 = 0.5*pi
+    P34 = 0.75*pi
+    INF = inf  # Py_HUGE_VAL
+    N = nan
+    U = -9.5426319407711027e33  # unlikely value, used as placeholder
+    def C(a,b): return complex(a, b)
+    v = (C(INF,N), C(U,U), C(INF,0.), C(INF,-0.), C(U,U), C(INF,N), C(INF,N), C(N,N), C(U,U), C(U,U),
+         C(U,U), C(U,U), C(N,N), C(N,N), C(N,0.), C(U,U), C(1.,0.), C(1.,-0.), C(U,U), C(N,0.), C(N,0.),
+         C(N,0.), C(U,U), C(1.,-0.), C(1.,0.), C(U,U), C(N,0.), C(N,0.), C(N,N), C(U,U), C(U,U), C(U,U),
+         C(U,U), C(N,N), C(N,N), C(INF,N), C(U,U), C(INF,-0.), C(INF,0.), C(U,U), C(INF,N), C(INF,N),
+         C(N,N), C(N,N), C(N,0.), C(N,0.), C(N,N), C(N,N), C(N,N))
+    return v
+
+def _exp_special():
+    P = pi
+    P14 = 0.25*pi
+    P12 = 0.5*pi
+    P34 = 0.75*pi
+    INF = inf  # Py_HUGE_VAL
+    N = nan
+    U = -9.5426319407711027e33  # unlikely value, used as placeholder
+    def C(a,b): return complex(a, b)
+    v = (C(0.,0.), C(U,U), C(0.,-0.), C(0.,0.), C(U,U), C(0.,0.), C(0.,0.), C(N,N), C(U,U), C(U,U), C(U,U),
+         C(U,U), C(N,N), C(N,N), C(N,N), C(U,U), C(1.,-0.), C(1.,0.), C(U,U), C(N,N), C(N,N), C(N,N), C(U,U),
+         C(1.,-0.), C(1.,0.), C(U,U), C(N,N), C(N,N), C(N,N), C(U,U), C(U,U), C(U,U), C(U,U), C(N,N), C(N,N),
+         C(INF,N), C(U,U), C(INF,-0.), C(INF,0.), C(U,U), C(INF,N), C(INF,N), C(N,N), C(N,N), C(N,-0.),
+         C(N,0.), C(N,N), C(N,N), C(N,N))
+    return v
+
+def _log_special():
+    P = pi
+    P14 = 0.25*pi
+    P12 = 0.5*pi
+    P34 = 0.75*pi
+    INF = inf  # Py_HUGE_VAL
+    N = nan
+    U = -9.5426319407711027e33  # unlikely value, used as placeholder
+    def C(a,b): return complex(a, b)
+    v = (C(INF,-P34), C(INF,-P), C(INF,-P), C(INF,P), C(INF,P), C(INF,P34), C(INF,N), C(INF,-P12), C(U,U),
+         C(U,U), C(U,U), C(U,U), C(INF,P12), C(N,N), C(INF,-P12), C(U,U), C(-INF,-P), C(-INF,P), C(U,U), C(INF,P12),
+         C(N,N), C(INF,-P12), C(U,U), C(-INF,-0.), C(-INF,0.), C(U,U), C(INF,P12), C(N,N), C(INF,-P12), C(U,U),
+         C(U,U), C(U,U), C(U,U), C(INF,P12), C(N,N), C(INF,-P14), C(INF,-0.), C(INF,-0.), C(INF,0.), C(INF,0.),
+         C(INF,P14), C(INF,N), C(INF,N), C(N,N), C(N,N), C(N,N), C(N,N), C(INF,N), C(N,N))
+    return v
+
+def _sinh_special():
+    P = pi
+    P14 = 0.25*pi
+    P12 = 0.5*pi
+    P34 = 0.75*pi
+    INF = inf  # Py_HUGE_VAL
+    N = nan
+    U = -9.5426319407711027e33  # unlikely value, used as placeholder
+    def C(a,b): return complex(a, b)
+    v = (C(INF,N), C(U,U), C(-INF,-0.), C(-INF,0.), C(U,U), C(INF,N), C(INF,N), C(N,N), C(U,U), C(U,U), C(U,U),
+        C(U,U), C(N,N), C(N,N), C(0.,N), C(U,U), C(-0.,-0.), C(-0.,0.), C(U,U), C(0.,N), C(0.,N), C(0.,N),
+        C(U,U), C(0.,-0.), C(0.,0.), C(U,U), C(0.,N), C(0.,N), C(N,N), C(U,U), C(U,U), C(U,U), C(U,U), C(N,N),
+        C(N,N), C(INF,N), C(U,U), C(INF,-0.), C(INF,0.), C(U,U), C(INF,N), C(INF,N), C(N,N), C(N,N), C(N,-0.),
+        C(N,0.), C(N,N), C(N,N), C(N,N))
+    return v
+
+def _sqrt_special():
+    P = pi
+    P14 = 0.25*pi
+    P12 = 0.5*pi
+    P34 = 0.75*pi
+    INF = inf  # Py_HUGE_VAL
+    N = nan
+    U = -9.5426319407711027e33  # unlikely value, used as placeholder
+    def C(a,b): return complex(a, b)
+    v = (C(INF,-INF), C(0.,-INF), C(0.,-INF), C(0.,INF), C(0.,INF), C(INF,INF), C(N,INF), C(INF,-INF), C(U,U), C(U,U),
+         C(U,U), C(U,U), C(INF,INF), C(N,N), C(INF,-INF), C(U,U), C(0.,-0.), C(0.,0.), C(U,U), C(INF,INF), C(N,N),
+         C(INF,-INF), C(U,U), C(0.,-0.), C(0.,0.), C(U,U), C(INF,INF), C(N,N), C(INF,-INF), C(U,U), C(U,U), C(U,U),
+         C(U,U), C(INF,INF), C(N,N), C(INF,-INF), C(INF,-0.), C(INF,-0.), C(INF,0.), C(INF,0.), C(INF,INF), C(INF,N),
+         C(INF,-INF), C(N,N), C(N,N), C(N,N), C(N,N), C(INF,INF), C(N,N))
+    return v
+
+def _tanh_special():
+    P = pi
+    P14 = 0.25*pi
+    P12 = 0.5*pi
+    P34 = 0.75*pi
+    INF = inf  # Py_HUGE_VAL
+    N = nan
+    U = -9.5426319407711027e33  # unlikely value, used as placeholder
+    def C(a,b): return complex(a, b)
+    v = (C(-1.,0.), C(U,U), C(-1.,-0.), C(-1.,0.), C(U,U), C(-1.,0.), C(-1.,0.), C(N,N), C(U,U), C(U,U), C(U,U),
+         C(U,U), C(N,N), C(N,N), C(N,N), C(U,U), C(-0.,-0.), C(-0.,0.), C(U,U), C(N,N), C(N,N), C(N,N), C(U,U),
+         C(0.,-0.), C(0.,0.), C(U,U), C(N,N), C(N,N), C(N,N), C(U,U), C(U,U), C(U,U), C(U,U), C(N,N), C(N,N),
+         C(1.,0.), C(U,U), C(1.,-0.), C(1.,0.), C(U,U), C(1.,0.), C(1.,0.), C(N,N), C(N,N), C(N,-0.), C(N,0.),
+         C(N,N), C(N,N), C(N,N))
+    return v
+
+def _rect_special():
+    P = pi
+    P14 = 0.25*pi
+    P12 = 0.5*pi
+    P34 = 0.75*pi
+    INF = inf  # Py_HUGE_VAL
+    N = nan
+    U = -9.5426319407711027e33  # unlikely value, used as placeholder
+    def C(a,b): return complex(a, b)
+    v = (C(INF,N), C(U,U), C(-INF,0.), C(-INF,-0.), C(U,U), C(INF,N), C(INF,N), C(N,N), C(U,U), C(U,U), C(U,U), C(U,U),
+         C(N,N), C(N,N), C(0.,0.), C(U,U), C(-0.,0.), C(-0.,-0.), C(U,U), C(0.,0.), C(0.,0.), C(0.,0.), C(U,U), C(0.,-0.),
+         C(0.,0.), C(U,U), C(0.,0.), C(0.,0.), C(N,N), C(U,U), C(U,U), C(U,U), C(U,U), C(N,N), C(N,N), C(INF,N), C(U,U),
+         C(INF,-0.), C(INF,0.), C(U,U), C(INF,N), C(INF,N), C(N,N), C(N,N), C(N,0.), C(N,0.), C(N,N), C(N,N), C(N,N))
+    return v
+
+def _is_special(z):
+    return (not _isfinite(z.real)) or (not _isfinite(z.imag))
+
+def _special_get(z, table):
+    t1 = _special_type(z.real)
+    t2 = _special_type(z.imag)
+    return table[7*t1 + t2]
+
+def _sqrt_impl(z):
+    if _is_special(z):
+        return _special_get(z, _sqrt_special())
+
+    r_real = 0.
+    r_imag = 0.
+    if z.real == 0. and z.imag == 0.:
+        r_real = 0.
+        r_imag = z.imag
+        return complex(r_real, r_imag)
+
+    ax = _fabs(z.real)
+    ay = _fabs(z.imag)
+    s = 0.
+    if ax < _DBL_MIN and ay < _DBL_MIN and (ax > 0. or ay > 0.):
+        # here we catch cases where hypot(ax, ay) is subnormal
+        ax = _ldexp(ax, _CM_SCALE_UP)
+        s = _ldexp(_sqrt(ax + _hypot(ax, _ldexp(ay, _CM_SCALE_UP))), _CM_SCALE_DOWN)
+    else:
+        ax /= 8.
+        s = 2.*_sqrt(ax + _hypot(ax, ay/8.))
+    d = ay.cdiv(2.*s)
+
+    if z.real >= 0.:
+        r_real = s
+        r_imag = _copysign(d, z.imag)
+    else:
+        r_real = d
+        r_imag = _copysign(s, z.imag)
+    # errno = 0
+    return complex(r_real, r_imag)
+
+def _acos_impl(z):
+    if _is_special(z):
+        return _special_get(z, _acos_special())
+
+    r_real = 0.
+    r_imag = 0.
+    if _fabs(z.real) > _CM_LARGE_DOUBLE or _fabs(z.imag) > _CM_LARGE_DOUBLE:
+        # avoid unnecessary overflow for large arguments
+        r_real = _atan2(_fabs(z.imag), z.real)
+        # split into cases to make sure that the branch cut has the
+        # correct continuity on systems with unsigned zeros
+        if z.real < 0.:
+            r_imag = -_copysign(_log(_hypot(z.real/2., z.imag/2.)) + _M_LN2*2, z.imag)
+        else:
+            r_imag = _copysign(_log(_hypot(z.real/2., z.imag/2.)) + _M_LN2*2, -z.imag)
+    else:
+        s1 = _sqrt_impl(complex(1. - z.real, -z.imag))
+        s2 = _sqrt_impl(complex(1. + z.real, z.imag))
+        r_real = 2.*_atan2(s1.real, s2.real)
+        r_imag = _asinh(s2.real*s1.imag - s2.imag*s1.real)
+    return complex(r_real, r_imag)
+
+def _acosh_impl(z):
+    if _is_special(z):
+        return _special_get(z, _acosh_special())
+
+    r_real = 0.
+    r_imag = 0.
+    if _fabs(z.real) > _CM_LARGE_DOUBLE or _fabs(z.imag) > _CM_LARGE_DOUBLE:
+        # avoid unnecessary overflow for large arguments
+        r_real = _log(_hypot(z.real/2., z.imag/2.)) + _M_LN2*2.
+        r_imag = _atan2(z.imag, z.real)
+    else:
+        s1 = _sqrt_impl(complex(z.real - 1., z.imag))
+        s2 = _sqrt_impl(complex(z.real + 1., z.imag))
+        r_real = _asinh(s1.real*s2.real + s1.imag*s2.imag)
+        r_imag = 2.*_atan2(s1.imag, s2.real)
+    return complex(r_real, r_imag)
+
+def _asinh_impl(z):
+    if _is_special(z):
+        return _special_get(z, _asinh_special())
+
+    r_real = 0.
+    r_imag = 0.
+    if _fabs(z.real) > _CM_LARGE_DOUBLE or _fabs(z.imag) > _CM_LARGE_DOUBLE:
+        if z.imag >= 0.:
+            r_real = _copysign(_log(_hypot(z.real/2., z.imag/2.)) + _M_LN2*2, z.real)
+        else:
+            r_real = -_copysign(_log(_hypot(z.real/2., z.imag/2.)) + _M_LN2*2, -z.real)
+        r_imag = _atan2(z.imag, _fabs(z.real))
+    else:
+        s1 = _sqrt_impl(complex(1. + z.imag, -z.real))
+        s2 = _sqrt_impl(complex(1. - z.imag, z.real))
+        r_real = _asinh(s1.real*s2.imag - s2.real*s1.imag)
+        r_imag = _atan2(z.imag, s1.real*s2.real - s1.imag*s2.imag)
+    return complex(r_real, r_imag)
+
+def _asin_impl(z):
+    s = _asinh_impl(complex(-z.imag, z.real))
+    r_real = s.imag
+    r_imag = -s.real
+    return complex(r_real, r_imag)
+
+def _atanh_impl(z):
+    if _is_special(z):
+        return _special_get(z, _atanh_special())
+
+    # Reduce to case where z.real >= 0., using atanh(z) = -atanh(-z).
+    if z.real < 0.:
+        return -_atanh_impl(-z)
+
+    r_real = 0.
+    r_imag = 0.
+    ay = _fabs(z.imag)
+    if z.real > _CM_SQRT_LARGE_DOUBLE or ay > _CM_SQRT_LARGE_DOUBLE:
+        # if abs(z) is large then we use the approximation
+        # atanh(z) ~ 1/z +/- i*pi/2 (+/- depending on the sign
+        # of z.imag)
+        h = _hypot(z.real/2., z.imag/2.)  # safe from overflow
+        r_real = z.real.cdiv(4.).cdiv(h).cdiv(h)
+        # the two negations in the next line cancel each other out
+        # except when working with unsigned zeros: they're there to
+        # ensure that the branch cut has the correct continuity on
+        # systems that don't support signed zeros
+        r_imag = -_copysign(pi/2., -z.imag)
+        # errno = 0
+    elif z.real == 1. and ay < _CM_SQRT_DBL_MIN:
+        # C99 standard says:  atanh(1+/-0.) should be inf +/- 0i
+        if ay == 0.:
+            r_real = inf
+            r_imag = z.imag
+            # errno = EDOM
+        else:
+            r_real = -_log(_sqrt(ay).cdiv(_sqrt(_hypot(ay, 2.))))
+            r_imag = _copysign(_atan2(2., -ay).cdiv(2.), z.imag)
+            # errno = 0
+    else:
+        r_real = _log1p(4.*z.real.cdiv((1-z.real)*(1-z.real) + ay*ay))/4.
+        r_imag = -_atan2(-2.*z.imag, (1-z.real)*(1+z.real) - ay*ay)/2.
+        # errno = 0
+    return complex(r_real, r_imag)
+
+def _atan_impl(z):
+    s = _atanh_impl(complex(-z.imag, z.real))
+    r_real = s.imag
+    r_imag = -s.real
+    return complex(r_real, r_imag)
+
+def _cosh_impl(z):
+    r_real = 0.
+    r_imag = 0.
+    # special treatment for cosh(+/-inf + iy) if y is not a NaN
+    if (not _isfinite(z.real)) or (not _isfinite(z.imag)):
+        if _isinf(z.real) and _isfinite(z.imag) and z.imag != 0.:
+            if z.real > 0:
+                r_real = _copysign(inf, _cos(z.imag))
+                r_imag = _copysign(inf, _sin(z.imag))
+            else:
+                r_real = _copysign(inf, _cos(z.imag))
+                r_imag = -_copysign(inf, _sin(z.imag))
+        else:
+            r = _special_get(z, _cosh_special())
+            r_real = r.real
+            r_imag = r.imag
+        '''
+        /* need to set errno = EDOM if y is +/- infinity and x is not
+           a NaN */
+        if (Py_IS_INFINITY(z.imag) && !Py_IS_NAN(z.real))
+            errno = EDOM;
+        else
+            errno = 0;
+        '''
+        return complex(r_real, r_imag)
+
+    if _fabs(z.real) > _CM_LOG_LARGE_DOUBLE:
+        # deal correctly with cases where cosh(z.real) overflows but
+        # cosh(z) does not.
+        x_minus_one = z.real - _copysign(1., z.real)
+        r_real = _cos(z.imag) * _cosh(x_minus_one) * e
+        r_imag = _sin(z.imag) * _sinh(x_minus_one) * e
+    else:
+        r_real = _cos(z.imag) * _cosh(z.real)
+        r_imag = _sin(z.imag) * _sinh(z.real)
+    '''
+    /* detect overflow, and set errno accordingly */
+    if (Py_IS_INFINITY(r.real) || Py_IS_INFINITY(r.imag))
+        errno = ERANGE;
+    else
+        errno = 0;
+    '''
+    return complex(r_real, r_imag)
+
+def _cos_impl(z):
+    r = _cosh_impl(complex(-z.imag, z.real))
+    return r
+
+def _exp_impl(z):
+    r_real = 0.
+    r_imag = 0.
+    if (not _isfinite(z.real)) or (not _isfinite(z.imag)):
+        if _isinf(z.real) and _isfinite(z.imag) and z.imag != 0.:
+            if z.real > 0:
+                r_real = _copysign(inf, _cos(z.imag))
+                r_imag = _copysign(inf, _sin(z.imag))
+            else:
+                r_real = _copysign(0., _cos(z.imag))
+                r_imag = _copysign(0., _sin(z.imag))
+        else:
+            r = _special_get(z, _exp_special())
+            r_real = r.real
+            r_imag = r.imag
+        '''
+        /* need to set errno = EDOM if y is +/- infinity and x is not
+           a NaN and not -infinity */
+        if (Py_IS_INFINITY(z.imag) &&
+            (Py_IS_FINITE(z.real) ||
+             (Py_IS_INFINITY(z.real) && z.real > 0)))
+            errno = EDOM;
+        else
+            errno = 0;
+        '''
+        return complex(r_real, r_imag)
+
+    if z.real > _CM_LOG_LARGE_DOUBLE:
+        l = _exp(z.real - 1.)
+        r_real = l*_cos(z.imag)*e
+        r_imag = l*_sin(z.imag)*e
+    else:
+        l = _exp(z.real)
+        r_real = l*_cos(z.imag)
+        r_imag = l*_sin(z.imag)
+    '''
+    /* detect overflow, and set errno accordingly */
+    if (Py_IS_INFINITY(r.real) || Py_IS_INFINITY(r.imag))
+        errno = ERANGE;
+    else
+        errno = 0;
+    '''
+    return complex(r_real, r_imag)
+
+def _c_log(z):
+    if _is_special(z):
+        return _special_get(z, _log_special())
+
+    ax = _fabs(z.real)
+    ay = _fabs(z.imag)
+
+    r_real = 0.
+    r_imag = 0.
+    if ax > _CM_LARGE_DOUBLE or ay > _CM_LARGE_DOUBLE:
+        r_real = _log(_hypot(ax/2., ay/2.)) + _M_LN2
+    elif ax < _DBL_MIN and ay < _DBL_MIN:
+        if ax > 0. or ay > 0.:
+            # catch cases where hypot(ax, ay) is subnormal
+            r_real = _log(_hypot(_ldexp(ax, _DBL_MANT_DIG), _ldexp(ay, _DBL_MANT_DIG))) - _DBL_MANT_DIG*_M_LN2
+        else:
+            # log(+/-0. +/- 0i)
+            r_real = -inf
+            r_imag = _atan2(z.imag, z.real)
+            # errno = EDOM
+            return complex(r_real, r_imag)
+    else:
+        h = _hypot(ax, ay)
+        if 0.71 <= h <= 1.73:
+            am = max(ax, ay)
+            an = min(ax, ay)
+            r_real = _log1p((am-1)*(am+1) + an*an)/2.
+        else:
+            r_real = _log(h)
+    r_imag = _atan2(z.imag, z.real)
+    # errno = 0
+    return complex(r_real, r_imag)
+
+def _log10_impl(z):
+    s = _c_log(z)
+    return complex(s.real.cdiv(_M_LN10), s.imag.cdiv(_M_LN10))
+
+def _sinh_impl(z):
+    r_real = 0.
+    r_imag = 0.
+    if (not _isfinite(z.real)) or (not _isfinite(z.imag)):
+        if _isinf(z.real) and _isfinite(z.imag) and z.imag != 0.:
+            if z.real > 0:
+                r_real = _copysign(inf, _cos(z.imag))
+                r_imag = _copysign(inf, _sin(z.imag))
+            else:
+                r_real = -_copysign(inf, _cos(z.imag))
+                r_imag = _copysign(inf, _sin(z.imag))
+        else:
+            r = _special_get(z, _sinh_special())
+            r_real = r.real
+            r_imag = r.imag
+        '''
+        /* need to set errno = EDOM if y is +/- infinity and x is not
+           a NaN */
+        if (Py_IS_INFINITY(z.imag) && !Py_IS_NAN(z.real))
+            errno = EDOM;
+        else
+            errno = 0;
+        '''
+        return complex(r_real, r_imag)
+
+    if _fabs(z.real) > _CM_LOG_LARGE_DOUBLE:
+        x_minus_one = z.real - _copysign(1., z.real)
+        r_real = _cos(z.imag) * _sinh(x_minus_one) * e
+        r_imag = _sin(z.imag) * _cosh(x_minus_one) * e
+    else:
+        r_real = _cos(z.imag) * _sinh(z.real)
+        r_imag = _sin(z.imag) * _cosh(z.real)
+    '''
+    /* detect overflow, and set errno accordingly */
+    if (Py_IS_INFINITY(r.real) || Py_IS_INFINITY(r.imag))
+        errno = ERANGE;
+    else
+        errno = 0;
+    '''
+    return complex(r_real, r_imag)
+
+def _sin_impl(z):
+    s = _sinh_impl(complex(-z.imag, z.real))
+    r = complex(s.imag, -s.real)
+    return r
+
+def _tanh_impl(z):
+    r_real = 0.
+    r_imag = 0.
+    # special treatment for tanh(+/-inf + iy) if y is finite and
+    # nonzero
+    if (not _isfinite(z.real)) or (not _isfinite(z.imag)):
+        if _isinf(z.real) and _isfinite(z.imag) and z.imag != 0.:
+            if z.real > 0:
+                r_real = 1.0
+                r_imag = _copysign(0., 2.*_sin(z.imag)*_cos(z.imag))
+            else:
+                r_real = -1.0
+                r_imag = _copysign(0., 2.*_sin(z.imag)*_cos(z.imag))
+        else:
+            r = _special_get(z, _tanh_special())
+            r_real = r.real
+            r_imag = r.imag
+        '''
+        /* need to set errno = EDOM if z.imag is +/-infinity and
+           z.real is finite */
+        if (Py_IS_INFINITY(z.imag) && Py_IS_FINITE(z.real))
+            errno = EDOM;
+        else
+            errno = 0;
+        '''
+        return complex(r_real, r_imag)
+
+    # danger of overflow in 2.*z.imag !
+    if _fabs(z.real) > _CM_LOG_LARGE_DOUBLE:
+        r_real = _copysign(1., z.real)
+        r_imag = 4.*_sin(z.imag)*_cos(z.imag)*_exp(-2.*_fabs(z.real))
+    else:
+        tx = _tanh(z.real)
+        ty = _tan(z.imag)
+        cx = (1.).cdiv(_cosh(z.real))
+        txty = tx*ty
+        denom = 1. + txty*txty
+        r_real = (tx*(1. + ty*ty)).cdiv(denom)
+        r_imag = ((ty.cdiv(denom))*cx)*cx
+    # errno = 0
+    return complex(r_real, r_imag)
+
+def _tan_impl(z):
+    s = _tanh_impl(complex(-z.imag, z.real))
+    r = complex(s.imag, -s.real)
+    return r
+
+def phase(x, /):
+    z = complex(x)
+    return z._phase()
+
+def polar(x, /):
+    z = complex(x)
+    return complex(x)._polar()
+
+def rect(r, phi, /):
+    z_real = 0.
+    z_imag = 0.
+    if (not _isfinite(r)) or (not _isfinite(phi)):
+        # if r is +/-infinity and phi is finite but nonzero then
+        # result is (+-INF +-INF i), but we need to compute cos(phi)
+        # and sin(phi) to figure out the signs.
+        if _isinf(r) and (_isfinite(phi) and phi != 0.):
+            if r > 0:
+                z_real = _copysign(inf, _cos(phi))
+                z_imag = _copysign(inf, _sin(phi))
+            else:
+                z_real = -_copysign(inf, _cos(phi))
+                z_imag = -_copysign(inf, _sin(phi))
+        else:
+            z = _special_get(complex(r, phi), _rect_special())
+            z_real = z.real
+            z_imag = z.imag
+        '''
+        /* need to set errno = EDOM if r is a nonzero number and phi
+           is infinite */
+        if (r != 0. && !Py_IS_NAN(r) && Py_IS_INFINITY(phi))
+            errno = EDOM;
+        else
+            errno = 0;
+        '''
+    elif phi == 0.0:
+        # Workaround for buggy results with phi=-0.0 on OS X 10.8.  See
+        # bugs.python.org/issue18513.
+        z_real = r
+        z_imag = r * phi
+        # errno = 0
+    else:
+        z_real = r * _cos(phi)
+        z_imag = r * _sin(phi)
+        # errno = 0
+    return complex(z_real, z_imag)
+
+def exp(x, /):
+    z = complex(x)
+    return _exp_impl(z)
+
+def log(x, base = e, /):
+    z = complex(x)
+    y = complex(base)
+    r = _c_log(z)
+    if y == complex(e, 0.0):
+        return r
+    else:
+        return r/_c_log(y)
+
+def log10(x, /):
+    z = complex(x)
+    return _log10_impl(z)
+
+def sqrt(x, /):
+    z = complex(x)
+    return _sqrt_impl(z)
+
+def asin(x, /):
+    z = complex(x)
+    return _asin_impl(z)
+
+def acos(x, /):
+    z = complex(x)
+    return _acos_impl(z)
+
+def atan(x, /):
+    z = complex(x)
+    return _atan_impl(z)
+
+def sin(x, /):
+    z = complex(x)
+    return _sin_impl(z)
+
+def cos(x, /):
+    z = complex(x)
+    return _cos_impl(z)
+
+def tan(x, /):
+    z = complex(x)
+    return _tan_impl(z)
+
+def asinh(x, /):
+    z = complex(x)
+    return _asinh_impl(z)
+
+def acosh(x, /):
+    z = complex(x)
+    return _acosh_impl(z)
+
+def atanh(x, /):
+    z = complex(x)
+    return _atanh_impl(z)
+
+def sinh(x, /):
+    z = complex(x)
+    return _sinh_impl(z)
+
+def cosh(x, /):
+    z = complex(x)
+    return _cosh_impl(z)
+
+def tanh(x, /):
+    z = complex(x)
+    return _tanh_impl(z)
+
+def isfinite(x, /):
+    z = complex(x)
+    return _isfinite(z.real) and _isfinite(z.imag)
+
+def isinf(x, /):
+    z = complex(x)
+    return _isinf(z.real) or _isinf(z.imag)
+
+def isnan(x, /):
+    z = complex(x)
+    return _isnan(z.real) or _isnan(z.imag)
+
+def isclose(a, b, *, rel_tol: float = 1e-09, abs_tol: float = 0.0):
+    if rel_tol < 0. or abs_tol < 0.:
+        raise ValueError("tolerances must be non-negative")
+
+    x = complex(a)
+    y = complex(b)
+
+    if x.real == y.real and x.imag == y.imag:
+        return True
+
+    if (_isinf(x.real) or _isinf(x.imag) or
+        _isinf(y.real) or _isinf(y.imag)):
+        return False
+
+    diff = abs(x - y)
+    return (((diff <= rel_tol * abs(y)) or
+             (diff <= rel_tol * abs(x))) or
+             (diff <= abs_tol))

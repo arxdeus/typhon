@@ -100,13 +100,13 @@ impl<'a> TypecheckVisitor<'a> {
     ) -> Result<()> {
         let stdlib_ctx = TypeContext::new(cache, STDLIB_IMPORT).into_ref();
         let path = crate::typecheck::helpers::get_import_file(cache, STDLIB_INTERNAL_MODULE, "", true);
-        const INIT: &str = "__init__.codon";
+        const INIT: &str = "__init__.py";
         let Some(mut path) = path.filter(|p| p.path.ends_with(INIT)) else {
             return Err(CompilerError::parser(ErrorKind::COMPILER_NO_STDLIB, SrcInfo::default(), &[]));
         };
         // Use __init_test__ for faster testing
         if barebones {
-            path.path = format!("{}__init_test__.codon", &path.path[..path.path.len() - INIT.len()]);
+            path.path = format!("{}__init_test__.py", &path.path[..path.path.len() - INIT.len()]);
         }
         stdlib_ctx.borrow_mut().set_filename(&path.path);
         let mut m = ImportModule::new();

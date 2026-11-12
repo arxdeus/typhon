@@ -1,0 +1,1010 @@
+
+# Implementation of vectorized Rabin-Karp string search.
+# See http://0x80.pl/articles/simd-strfind.html for
+# details. These implementations are modified to not
+# perform any out-of-bounds memory accesses.
+
+@pure
+@llvm
+def cttz(n: UInt[N], N: Literal[int]) -> UInt[N]:
+    declare i{=N} @llvm.cttz.i{=N}(i{=N}, i1)
+    %0 = call i{=N} @llvm.cttz.i{=N}(i{=N} %n, i1 true)
+    ret i{=N} %0
+
+@pure
+@llvm
+def ctlz(n: UInt[N], N: Literal[int]) -> UInt[N]:
+    declare i{=N} @llvm.ctlz.i{=N}(i{=N}, i1)
+    %0 = call i{=N} @llvm.ctlz.i{=N}(i{=N} %n, i1 true)
+    ret i{=N} %0
+
+@pure
+@llvm
+def ctpop(n: UInt[N], N: Literal[int]) -> UInt[N]:
+    declare i{=N} @llvm.ctpop.i{=N}(i{=N})
+    %0 = call i{=N} @llvm.ctpop.i{=N}(i{=N} %n)
+    ret i{=N} %0
+
+@pure
+@llvm
+def forward_mask(s: Ptr[u8], k: int, i: int, firstb: u8, lastb: u8) -> u16:
+    %first0 = insertelement <16 x i8> undef, i8 %firstb, i64 0
+    %first = shufflevector <16 x i8> %first0, <16 x i8> poison, <16 x i32> zeroinitializer
+    %last0 = insertelement <16 x i8> undef, i8 %lastb, i64 0
+    %last = shufflevector <16 x i8> %last0, <16 x i8> poison, <16 x i32> zeroinitializer
+    %offset0 = add i64 %i, %k
+    %offset = sub i64 %offset0, 1
+    %ptr_first = getelementptr inbounds i8, ptr %s, i64 %i
+    %ptr_last = getelementptr inbounds i8, ptr %s, i64 %offset
+    %block_first = load <16 x i8>, ptr %ptr_first, align 1
+    %block_last = load <16 x i8>, ptr %ptr_last, align 1
+    %eq_first = icmp eq <16 x i8> %first, %block_first
+    %eq_last = icmp eq <16 x i8> %last, %block_last
+    %mask0 = and <16 x i1> %eq_first, %eq_last
+    %mask = bitcast <16 x i1> %mask0 to i16
+    ret i16 %mask
+
+@pure
+@llvm
+def backward_mask(s: Ptr[u8], k: int, i: int, firstb: u8, lastb: u8) -> u16:
+    %j0 = sub i64 %i, 16
+    %j = add i64 %j0, 1
+    %first0 = insertelement <16 x i8> undef, i8 %firstb, i64 0
+    %first = shufflevector <16 x i8> %first0, <16 x i8> poison, <16 x i32> zeroinitializer
+    %last0 = insertelement <16 x i8> undef, i8 %lastb, i64 0
+    %last = shufflevector <16 x i8> %last0, <16 x i8> poison, <16 x i32> zeroinitializer
+    %offset0 = sub i64 %j, %k
+    %offset = add i64 %offset0, 1
+    %ptr_first = getelementptr inbounds i8, ptr %s, i64 %offset
+    %ptr_last = getelementptr inbounds i8, ptr %s, i64 %j
+    %block_first = load <16 x i8>, ptr %ptr_first, align 1
+    %block_last = load <16 x i8>, ptr %ptr_last, align 1
+    %eq_first = icmp eq <16 x i8> %last, %block_last
+    %eq_last = icmp eq <16 x i8> %first, %block_first
+    %mask0 = and <16 x i1> %eq_first, %eq_last
+    %mask = bitcast <16 x i1> %mask0 to i16
+    ret i16 %mask
+
+@pure
+@llvm
+def forward_mask_u16(s: Ptr[u16], k: int, i: int, first: u16, last: u16) -> u8:
+    %first0 = insertelement <8 x i16> undef, i16 %first, i64 0
+    %firstv = shufflevector <8 x i16> %first0, <8 x i16> poison, <8 x i32> zeroinitializer
+    %last0 = insertelement <8 x i16> undef, i16 %last, i64 0
+    %lastv = shufflevector <8 x i16> %last0, <8 x i16> poison, <8 x i32> zeroinitializer
+    %offset0 = add i64 %i, %k
+    %offset = sub i64 %offset0, 1
+    %ptr_first = getelementptr inbounds i16, ptr %s, i64 %i
+    %ptr_last = getelementptr inbounds i16, ptr %s, i64 %offset
+    %block_first = load <8 x i16>, ptr %ptr_first, align 1
+    %block_last = load <8 x i16>, ptr %ptr_last, align 1
+    %eq_first = icmp eq <8 x i16> %firstv, %block_first
+    %eq_last = icmp eq <8 x i16> %lastv, %block_last
+    %mask0 = and <8 x i1> %eq_first, %eq_last
+    %mask = bitcast <8 x i1> %mask0 to i8
+    ret i8 %mask
+
+@pure
+@llvm
+def forward_mask_u32(s: Ptr[u32], k: int, i: int, first: u32, last: u32) -> u8:
+    %first0 = insertelement <4 x i32> undef, i32 %first, i64 0
+    %firstv = shufflevector <4 x i32> %first0, <4 x i32> poison, <4 x i32> zeroinitializer
+    %last0 = insertelement <4 x i32> undef, i32 %last, i64 0
+    %lastv = shufflevector <4 x i32> %last0, <4 x i32> poison, <4 x i32> zeroinitializer
+    %offset0 = add i64 %i, %k
+    %offset = sub i64 %offset0, 1
+    %ptr_first = getelementptr inbounds i32, ptr %s, i64 %i
+    %ptr_last = getelementptr inbounds i32, ptr %s, i64 %offset
+    %block_first = load <4 x i32>, ptr %ptr_first, align 1
+    %block_last = load <4 x i32>, ptr %ptr_last, align 1
+    %eq_first = icmp eq <4 x i32> %firstv, %block_first
+    %eq_last = icmp eq <4 x i32> %lastv, %block_last
+    %mask0 = and <4 x i1> %eq_first, %eq_last
+    %mask = bitcast <4 x i1> %mask0 to i4
+    %result = zext i4 %mask to i8
+    ret i8 %result
+
+@pure
+@llvm
+def backward_mask_u16(s: Ptr[u16], k: int, i: int, first: u16, last: u16) -> u8:
+    %j0 = sub i64 %i, 8
+    %j = add i64 %j0, 1
+    %first0 = insertelement <8 x i16> undef, i16 %first, i64 0
+    %firstv = shufflevector <8 x i16> %first0, <8 x i16> poison, <8 x i32> zeroinitializer
+    %last0 = insertelement <8 x i16> undef, i16 %last, i64 0
+    %lastv = shufflevector <8 x i16> %last0, <8 x i16> poison, <8 x i32> zeroinitializer
+    %offset0 = sub i64 %j, %k
+    %offset = add i64 %offset0, 1
+    %ptr_first = getelementptr inbounds i16, ptr %s, i64 %offset
+    %ptr_last = getelementptr inbounds i16, ptr %s, i64 %j
+    %block_first = load <8 x i16>, ptr %ptr_first, align 1
+    %block_last = load <8 x i16>, ptr %ptr_last, align 1
+    %eq_first = icmp eq <8 x i16> %lastv, %block_last
+    %eq_last = icmp eq <8 x i16> %firstv, %block_first
+    %mask0 = and <8 x i1> %eq_first, %eq_last
+    %mask = bitcast <8 x i1> %mask0 to i8
+    ret i8 %mask
+
+@pure
+@llvm
+def backward_mask_u32(s: Ptr[u32], k: int, i: int, first: u32, last: u32) -> u8:
+    %j0 = sub i64 %i, 4
+    %j = add i64 %j0, 1
+    %first0 = insertelement <4 x i32> undef, i32 %first, i64 0
+    %firstv = shufflevector <4 x i32> %first0, <4 x i32> poison, <4 x i32> zeroinitializer
+    %last0 = insertelement <4 x i32> undef, i32 %last, i64 0
+    %lastv = shufflevector <4 x i32> %last0, <4 x i32> poison, <4 x i32> zeroinitializer
+    %offset0 = sub i64 %j, %k
+    %offset = add i64 %offset0, 1
+    %ptr_first = getelementptr inbounds i32, ptr %s, i64 %offset
+    %ptr_last = getelementptr inbounds i32, ptr %s, i64 %j
+    %block_first = load <4 x i32>, ptr %ptr_first, align 1
+    %block_last = load <4 x i32>, ptr %ptr_last, align 1
+    %eq_first = icmp eq <4 x i32> %lastv, %block_last
+    %eq_last = icmp eq <4 x i32> %firstv, %block_first
+    %mask0 = and <4 x i1> %eq_first, %eq_last
+    %mask = bitcast <4 x i1> %mask0 to i4
+    %result = zext i4 %mask to i8
+    ret i8 %result
+
+def _matches(
+    s: Ptr[HaystackChar],
+    needle: Ptr[NeedleChar],
+    k: int,
+    position: int,
+    maxchar: int,
+    HaystackChar: type,
+    NeedleChar: type,
+) -> bool:
+    for index in range(k):
+        codepoint = int(needle[index])
+        if codepoint > maxchar or s[position + index] != HaystackChar(codepoint):
+            return False
+    return True
+
+def _forward_find_u8(
+    s: Ptr[u8],
+    n: int,
+    needle: Ptr[NeedleChar],
+    k: int,
+    NeedleChar: type,
+) -> int:
+    if k == 0:
+        return 0
+    if n < k:
+        return -1
+
+    first_codepoint = int(needle[0])
+    last_codepoint = int(needle[k - 1])
+    if first_codepoint > 0xFF or last_codepoint > 0xFF:
+        return -1
+
+    first = u8(first_codepoint)
+    last = u8(last_codepoint)
+    i = 0
+    while i + k + 15 <= n:
+        mask = forward_mask(s, k, i, first, last)
+        while mask:
+            position = i + int(cttz(mask))
+            if _matches(s, needle, k, position, 0xFF):
+                return position
+            mask &= mask - u16(1)
+        i += 16
+
+    while i + k <= n:
+        if (
+            first == s[i]
+            and last == s[i + k - 1]
+            and _matches(s, needle, k, i, 0xFF)
+        ):
+            return i
+        i += 1
+    return -1
+
+def forward_find_u8_u16(s: Ptr[u8], n: int, needle: Ptr[u16], k: int) -> int:
+    return _forward_find_u8(s, n, needle, k)
+
+def forward_find_u8_u32(s: Ptr[u8], n: int, needle: Ptr[u32], k: int) -> int:
+    return _forward_find_u8(s, n, needle, k)
+
+def _forward_find_u16(
+    s: Ptr[u16],
+    n: int,
+    needle: Ptr[NeedleChar],
+    k: int,
+    NeedleChar: type,
+) -> int:
+    if k == 0:
+        return 0
+    if n < k:
+        return -1
+
+    first_codepoint = int(needle[0])
+    last_codepoint = int(needle[k - 1])
+    if first_codepoint > 0xFFFF or last_codepoint > 0xFFFF:
+        return -1
+
+    first = u16(first_codepoint)
+    last = u16(last_codepoint)
+    i = 0
+    while i + k + 7 <= n:
+        mask = forward_mask_u16(s, k, i, first, last)
+        while mask:
+            position = i + int(cttz(mask))
+            if _matches(s, needle, k, position, 0xFFFF):
+                return position
+            mask &= mask - u8(1)
+        i += 8
+
+    while i + k <= n:
+        if (
+            first == s[i]
+            and last == s[i + k - 1]
+            and _matches(s, needle, k, i, 0xFFFF)
+        ):
+            return i
+        i += 1
+    return -1
+
+def forward_find_u16(s: Ptr[u16], n: int, needle: Ptr[u16], k: int) -> int:
+    return _forward_find_u16(s, n, needle, k)
+
+def forward_find_u16_u8(s: Ptr[u16], n: int, needle: Ptr[u8], k: int) -> int:
+    return _forward_find_u16(s, n, needle, k)
+
+def forward_find_u16_u32(s: Ptr[u16], n: int, needle: Ptr[u32], k: int) -> int:
+    return _forward_find_u16(s, n, needle, k)
+
+def _forward_find_u32(
+    s: Ptr[u32],
+    n: int,
+    needle: Ptr[NeedleChar],
+    k: int,
+    NeedleChar: type,
+) -> int:
+    if k == 0:
+        return 0
+    if n < k:
+        return -1
+
+    first = u32(needle[0])
+    last = u32(needle[k - 1])
+    i = 0
+    while i + k + 3 <= n:
+        mask = forward_mask_u32(s, k, i, first, last)
+        while mask:
+            position = i + int(cttz(mask))
+            if _matches(s, needle, k, position, 0xFFFFFFFF):
+                return position
+            mask &= mask - u8(1)
+        i += 4
+
+    while i + k <= n:
+        if (
+            first == s[i]
+            and last == s[i + k - 1]
+            and _matches(s, needle, k, i, 0xFFFFFFFF)
+        ):
+            return i
+        i += 1
+    return -1
+
+def forward_find_u32(s: Ptr[u32], n: int, needle: Ptr[u32], k: int) -> int:
+    return _forward_find_u32(s, n, needle, k)
+
+def forward_find_u32_u8(s: Ptr[u32], n: int, needle: Ptr[u8], k: int) -> int:
+    return _forward_find_u32(s, n, needle, k)
+
+def forward_find_u32_u16(s: Ptr[u32], n: int, needle: Ptr[u16], k: int) -> int:
+    return _forward_find_u32(s, n, needle, k)
+
+def _forward_count_u8(
+    s: Ptr[u8],
+    n: int,
+    needle: Ptr[NeedleChar],
+    k: int,
+    NeedleChar: type,
+) -> Tuple[int, int]:
+    if k == 0:
+        return n + 1, -1
+    if n < k:
+        return 0, -1
+
+    first_codepoint = int(needle[0])
+    last_codepoint = int(needle[k - 1])
+    if first_codepoint > 0xFF or last_codepoint > 0xFF:
+        return 0, -1
+
+    first = u8(first_codepoint)
+    last = u8(last_codepoint)
+    minimum_position = 0
+    candidate_work = 0
+    total = 0
+    i = 0
+    if k == 1:
+        while i + 15 < n:
+            total += int(ctpop(forward_mask(s, k, i, first, last)))
+            i += 16
+        while i < n:
+            if s[i] == first:
+                total += 1
+            i += 1
+        return total, -1
+
+    while i + k + 15 <= n:
+        mask = forward_mask(s, k, i, first, last)
+        while mask:
+            bit = int(cttz(mask))
+            position = i + bit
+            if k == 2 and position >= minimum_position:
+                total += 1
+                minimum_position = position + k
+                mask &= ~(u16(3) << u16(bit))
+                continue
+            if position >= minimum_position:
+                candidate_work += k
+                if candidate_work > n:
+                    return total, position
+                if _matches(s, needle, k, position, 0xFF):
+                    total += 1
+                    minimum_position = position + k
+            mask &= mask - u16(1)
+        i += 16
+
+    while i + k <= n:
+        if (
+            i >= minimum_position
+            and first == s[i]
+            and last == s[i + k - 1]
+        ):
+            if k == 2:
+                total += 1
+                minimum_position = i + k
+            else:
+                candidate_work += k
+                if candidate_work > n:
+                    return total, i
+                if _matches(s, needle, k, i, 0xFF):
+                    total += 1
+                    minimum_position = i + k
+        i += 1
+    return total, -1
+
+def forward_count(s: Ptr[u8], n: int, needle: Ptr[u8], k: int) -> Tuple[int, int]:
+    return _forward_count_u8(s, n, needle, k)
+
+def forward_count_u8_u16(s: Ptr[u8], n: int, needle: Ptr[u16], k: int) -> Tuple[int, int]:
+    return _forward_count_u8(s, n, needle, k)
+
+def forward_count_u8_u32(s: Ptr[u8], n: int, needle: Ptr[u32], k: int) -> Tuple[int, int]:
+    return _forward_count_u8(s, n, needle, k)
+
+def _forward_count_u16(
+    s: Ptr[u16],
+    n: int,
+    needle: Ptr[NeedleChar],
+    k: int,
+    NeedleChar: type,
+) -> Tuple[int, int]:
+    if k == 0:
+        return n + 1, -1
+    if n < k:
+        return 0, -1
+
+    first_codepoint = int(needle[0])
+    last_codepoint = int(needle[k - 1])
+    if first_codepoint > 0xFFFF or last_codepoint > 0xFFFF:
+        return 0, -1
+
+    first = u16(first_codepoint)
+    last = u16(last_codepoint)
+    minimum_position = 0
+    candidate_work = 0
+    total = 0
+    i = 0
+    if k == 1:
+        while i + 7 < n:
+            total += int(ctpop(forward_mask_u16(s, k, i, first, last)))
+            i += 8
+        while i < n:
+            if s[i] == first:
+                total += 1
+            i += 1
+        return total, -1
+
+    while i + k + 7 <= n:
+        mask = forward_mask_u16(s, k, i, first, last)
+        while mask:
+            bit = int(cttz(mask))
+            position = i + bit
+            if k == 2 and position >= minimum_position:
+                total += 1
+                minimum_position = position + k
+                mask &= ~(u8(3) << u8(bit))
+                continue
+            if position >= minimum_position:
+                candidate_work += k
+                if candidate_work > n:
+                    return total, position
+                if _matches(s, needle, k, position, 0xFFFF):
+                    total += 1
+                    minimum_position = position + k
+            mask &= mask - u8(1)
+        i += 8
+
+    while i + k <= n:
+        if (
+            i >= minimum_position
+            and first == s[i]
+            and last == s[i + k - 1]
+        ):
+            if k == 2:
+                total += 1
+                minimum_position = i + k
+            else:
+                candidate_work += k
+                if candidate_work > n:
+                    return total, i
+                if _matches(s, needle, k, i, 0xFFFF):
+                    total += 1
+                    minimum_position = i + k
+        i += 1
+    return total, -1
+
+def forward_count_u16(s: Ptr[u16], n: int, needle: Ptr[u16], k: int) -> Tuple[int, int]:
+    return _forward_count_u16(s, n, needle, k)
+
+def forward_count_u16_u8(s: Ptr[u16], n: int, needle: Ptr[u8], k: int) -> Tuple[int, int]:
+    return _forward_count_u16(s, n, needle, k)
+
+def forward_count_u16_u32(s: Ptr[u16], n: int, needle: Ptr[u32], k: int) -> Tuple[int, int]:
+    return _forward_count_u16(s, n, needle, k)
+
+def _forward_count_u32(
+    s: Ptr[u32],
+    n: int,
+    needle: Ptr[NeedleChar],
+    k: int,
+    NeedleChar: type,
+) -> Tuple[int, int]:
+    if k == 0:
+        return n + 1, -1
+    if n < k:
+        return 0, -1
+
+    first = u32(needle[0])
+    last = u32(needle[k - 1])
+    minimum_position = 0
+    candidate_work = 0
+    total = 0
+    i = 0
+    if k == 1:
+        while i + 3 < n:
+            total += int(ctpop(forward_mask_u32(s, k, i, first, last)))
+            i += 4
+        while i < n:
+            if s[i] == first:
+                total += 1
+            i += 1
+        return total, -1
+
+    while i + k + 3 <= n:
+        mask = forward_mask_u32(s, k, i, first, last)
+        while mask:
+            bit = int(cttz(mask))
+            position = i + bit
+            if k == 2 and position >= minimum_position:
+                total += 1
+                minimum_position = position + k
+                mask &= ~(u8(3) << u8(bit))
+                continue
+            if position >= minimum_position:
+                candidate_work += k
+                if candidate_work > n:
+                    return total, position
+                if _matches(s, needle, k, position, 0xFFFFFFFF):
+                    total += 1
+                    minimum_position = position + k
+            mask &= mask - u8(1)
+        i += 4
+
+    while i + k <= n:
+        if (
+            i >= minimum_position
+            and first == s[i]
+            and last == s[i + k - 1]
+        ):
+            if k == 2:
+                total += 1
+                minimum_position = i + k
+            else:
+                candidate_work += k
+                if candidate_work > n:
+                    return total, i
+                if _matches(s, needle, k, i, 0xFFFFFFFF):
+                    total += 1
+                    minimum_position = i + k
+        i += 1
+    return total, -1
+
+def forward_count_u32(s: Ptr[u32], n: int, needle: Ptr[u32], k: int) -> Tuple[int, int]:
+    return _forward_count_u32(s, n, needle, k)
+
+def forward_count_u32_u8(s: Ptr[u32], n: int, needle: Ptr[u8], k: int) -> Tuple[int, int]:
+    return _forward_count_u32(s, n, needle, k)
+
+def forward_count_u32_u16(s: Ptr[u32], n: int, needle: Ptr[u16], k: int) -> Tuple[int, int]:
+    return _forward_count_u32(s, n, needle, k)
+
+def _backward_find_u8(
+    s: Ptr[u8],
+    n: int,
+    needle: Ptr[NeedleChar],
+    k: int,
+    NeedleChar: type,
+) -> int:
+    if k == 0:
+        return n
+    if n < k:
+        return -1
+
+    first_codepoint = int(needle[0])
+    last_codepoint = int(needle[k - 1])
+    if first_codepoint > 0xFF or last_codepoint > 0xFF:
+        return -1
+
+    first = u8(first_codepoint)
+    last = u8(last_codepoint)
+    i = n - 1
+    while i - (k - 1) - 15 >= 0:
+        mask = backward_mask(s, k, i, first, last)
+        while mask:
+            position = i - (k - 1) - int(ctlz(mask))
+            if _matches(s, needle, k, position, 0xFF):
+                return position
+            mask &= ~(u16(1) << u16(15 - int(ctlz(mask))))
+        i -= 16
+
+    while i - k + 1 >= 0:
+        position = i - k + 1
+        if (
+            first == s[position]
+            and last == s[i]
+            and _matches(s, needle, k, position, 0xFF)
+        ):
+            return position
+        i -= 1
+    return -1
+
+def backward_find_u8_u16(s: Ptr[u8], n: int, needle: Ptr[u16], k: int) -> int:
+    return _backward_find_u8(s, n, needle, k)
+
+def backward_find_u8_u32(s: Ptr[u8], n: int, needle: Ptr[u32], k: int) -> int:
+    return _backward_find_u8(s, n, needle, k)
+
+def _backward_find_u16(
+    s: Ptr[u16],
+    n: int,
+    needle: Ptr[NeedleChar],
+    k: int,
+    NeedleChar: type,
+) -> int:
+    if k == 0:
+        return n
+    if n < k:
+        return -1
+
+    first_codepoint = int(needle[0])
+    last_codepoint = int(needle[k - 1])
+    if first_codepoint > 0xFFFF or last_codepoint > 0xFFFF:
+        return -1
+
+    first = u16(first_codepoint)
+    last = u16(last_codepoint)
+    i = n - 1
+    while i - (k - 1) - 7 >= 0:
+        mask = backward_mask_u16(s, k, i, first, last)
+        while mask:
+            position = i - (k - 1) - int(ctlz(mask))
+            if _matches(s, needle, k, position, 0xFFFF):
+                return position
+            mask &= ~(u8(1) << u8(7 - int(ctlz(mask))))
+        i -= 8
+
+    while i - k + 1 >= 0:
+        position = i - k + 1
+        if (
+            first == s[position]
+            and last == s[i]
+            and _matches(s, needle, k, position, 0xFFFF)
+        ):
+            return position
+        i -= 1
+    return -1
+
+def backward_find_u16(s: Ptr[u16], n: int, needle: Ptr[u16], k: int) -> int:
+    return _backward_find_u16(s, n, needle, k)
+
+def backward_find_u16_u8(s: Ptr[u16], n: int, needle: Ptr[u8], k: int) -> int:
+    return _backward_find_u16(s, n, needle, k)
+
+def backward_find_u16_u32(s: Ptr[u16], n: int, needle: Ptr[u32], k: int) -> int:
+    return _backward_find_u16(s, n, needle, k)
+
+def _backward_find_u32(
+    s: Ptr[u32],
+    n: int,
+    needle: Ptr[NeedleChar],
+    k: int,
+    NeedleChar: type,
+) -> int:
+    if k == 0:
+        return n
+    if n < k:
+        return -1
+
+    first = u32(needle[0])
+    last = u32(needle[k - 1])
+    i = n - 1
+    while i - (k - 1) - 3 >= 0:
+        mask = backward_mask_u32(s, k, i, first, last)
+        while mask:
+            offset = int(ctlz(mask)) - 4
+            position = i - (k - 1) - offset
+            if _matches(s, needle, k, position, 0xFFFFFFFF):
+                return position
+            mask &= ~(u8(1) << u8(3 - offset))
+        i -= 4
+
+    while i - k + 1 >= 0:
+        position = i - k + 1
+        if (
+            first == s[position]
+            and last == s[i]
+            and _matches(s, needle, k, position, 0xFFFFFFFF)
+        ):
+            return position
+        i -= 1
+    return -1
+
+def backward_find_u32(s: Ptr[u32], n: int, needle: Ptr[u32], k: int) -> int:
+    return _backward_find_u32(s, n, needle, k)
+
+def backward_find_u32_u8(s: Ptr[u32], n: int, needle: Ptr[u8], k: int) -> int:
+    return _backward_find_u32(s, n, needle, k)
+
+def backward_find_u32_u16(s: Ptr[u32], n: int, needle: Ptr[u16], k: int) -> int:
+    return _backward_find_u32(s, n, needle, k)
+
+def forward_find(s: Ptr[u8], n: int, needle: Ptr[u8], k: int):
+    if k == 0:
+        return 0
+
+    if n < k:
+        return -1
+
+    if k == 1:
+        p = _C.memchr(s, i32(int(needle[0])), n)
+        return p - s if p else -1
+
+    firstb = needle[0]
+    lastb = needle[k - 1]
+    i = 0
+
+    while i + k + 16 - 1 <= n:
+        mask = forward_mask(s, k, i, firstb, lastb)
+        while mask:
+            bitpos = int(cttz(mask))
+            if _C.memcmp(s + i + bitpos + 1, needle + 1, k - 2) == i32(0):
+                return i + bitpos
+            mask = mask & (mask - u16(1))
+        i += 16
+
+    # unrolled by hand
+    while True:
+        j = i + 0
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 1
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 2
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 3
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 4
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 5
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 6
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 7
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 8
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 9
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 10
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 11
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 12
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 13
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 14
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        j = i + 15
+        if j + k <= n:
+            if firstb == s[j] and lastb == s[j + k - 1] and _C.memcmp(s + j + 1, needle + 1, k - 2) == i32(0):
+                return j
+        else:
+            break
+
+        break
+
+    return -1
+
+def backward_find(s: Ptr[u8], n: int, needle: Ptr[u8], k: int):
+    if k == 0:
+        return n
+
+    if n < k:
+        return -1
+
+    if k == 1:
+        i = n - 1
+        while i >= 0:
+            if s[i] == needle[0]:
+                return i
+            i -= 1
+        return -1
+
+    firstb = needle[0]
+    lastb = needle[k - 1]
+    i = n - 1
+
+    while i - (k - 1) - (16 - 1) >= 0:
+        mask = backward_mask(s, k, i, firstb, lastb)
+        while mask:
+            bitpos = int(ctlz(mask))
+            if _C.memcmp(s + i - (k - 1) - bitpos + 1, needle + 1, k - 2) == i32(0):
+                return i - (k - 1) - bitpos
+            mask &= ~(u16(1) << u16(16 - 1 - bitpos))
+        i -= 16
+
+    # unrolled by hand
+    while True:
+        j = i - 0
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 1
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 2
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 3
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 4
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 5
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 6
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 7
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 8
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 9
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 10
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 11
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 12
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 13
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 14
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        j = i - 15
+        if j - k + 1 >= 0:
+            if lastb == s[j] and firstb == s[j - k + 1] and _C.memcmp(s + j - k + 2, needle + 1, k - 2) == i32(0):
+                return j - k + 1
+        else:
+            break
+
+        break
+
+    return -1
+
+def find(haystack: bytes, needle: bytes):
+    return forward_find(haystack._ptr, haystack._len, needle._ptr, needle._len)
+
+def rfind(haystack: bytes, needle: bytes):
+    return backward_find(haystack._ptr, haystack._len, needle._ptr, needle._len)
+
+def count(haystack: bytes, needle: bytes):
+    occ = 0
+    tmp = haystack._ptr
+    n = haystack._len
+    k = needle._len
+
+    if k == 0:
+        return n + 1
+
+    while True:
+        pos = forward_find(tmp, n - (tmp - haystack._ptr), needle._ptr, k)
+        if pos == -1:
+            break
+        tmp += pos + k
+        occ += 1
+    return occ
+
+def count_with_max(haystack: bytes, needle: bytes, maxcount: int):
+    occ = 0
+    tmp = haystack._ptr
+    n = haystack._len
+    k = needle._len
+
+    if maxcount == 0:
+        return 0
+
+    if k == 0:
+        return n + 1 if n + 1 < maxcount else maxcount
+
+    while True:
+        pos = forward_find(tmp, n - (tmp - haystack._ptr), needle._ptr, k)
+        if pos == -1:
+            break
+        tmp += pos + k
+        occ += 1
+        if occ == maxcount:
+            return occ
+    return occ

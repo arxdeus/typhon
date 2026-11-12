@@ -1,0 +1,2980 @@
+# Python-specific
+
+@test
+def test_min_max():
+    neg = lambda x: -x
+
+    assert min(42, 24) == 24
+    assert max(42, 24) == 42
+    assert min([42, 24]) == 24
+    assert max([42, 24]) == 42
+    assert min(1, 2, 3, 2, 1, 0, -1, 1, 2) == -1
+    assert max(1, 2, 3, 2, 1, 0, -1, 1, 2) == 3
+    assert min([1, 2, 3, 2, 1, 0, -1, 1, 2]) == -1
+    assert max([1, 2, 3, 2, 1, 0, -1, 1, 2]) == 3
+
+    assert min(42, 24, key=neg) == 42
+    assert max(42, 24, key=neg) == 24
+    assert min([42, 24], key=neg) == 42
+    assert max([42, 24], key=neg) == 24
+    assert min(1, 2, 3, 2, 1, 0, -1, 1, 2, key=neg) == 3
+    assert max(1, 2, 3, 2, 1, 0, -1, 1, 2, key=neg) == -1
+    assert min([1, 2, 3, 2, 1, 0, -1, 1, 2], key=neg) == 3
+    assert max([1, 2, 3, 2, 1, 0, -1, 1, 2], key=neg) == -1
+
+    assert min([42, 24], default=100) == 24
+    assert max([42, 24], default=100) == 42
+    assert min([1, 2, 3, 2, 1, 0, -1, 1, 2], default=100) == -1
+    assert max([1, 2, 3, 2, 1, 0, -1, 1, 2], default=100) == 3
+
+    assert min([42, 24], default=100, key=neg) == 42
+    assert max([42, 24], default=100, key=neg) == 24
+    assert min([1, 2, 3, 2, 1, 0, -1, 1, 2], default=100, key=neg) == 3
+    assert max([1, 2, 3, 2, 1, 0, -1, 1, 2], default=100, key=neg) == -1
+
+    assert max([2, 1, 1, 1, 1]) == 2
+    assert max([1, 2, 1, 1, 1]) == 2
+    assert max([1, 1, 2, 1, 1]) == 2
+    assert max([1, 1, 1, 2, 1]) == 2
+    assert max([1, 1, 1, 1, 2]) == 2
+    assert max([2, 1, 1, 1]) == 2
+    assert max([1, 2, 1, 1]) == 2
+    assert max([1, 1, 2, 1]) == 2
+    assert max([1, 1, 1, 2]) == 2
+    assert max([2, 1, 1]) == 2
+    assert max([1, 2, 1]) == 2
+    assert max([1, 1, 2]) == 2
+    assert max([2, 1]) == 2
+    assert max([1, 2]) == 2
+
+    assert max([2, 1, 1, 1, 1], key=neg) == 1
+    assert max([1, 2, 1, 1, 1], key=neg) == 1
+    assert max([1, 1, 2, 1, 1], key=neg) == 1
+    assert max([1, 1, 1, 2, 1], key=neg) == 1
+    assert max([1, 1, 1, 1, 2], key=neg) == 1
+    assert max([2, 1, 1, 1], key=neg) == 1
+    assert max([1, 2, 1, 1], key=neg) == 1
+    assert max([1, 1, 2, 1], key=neg) == 1
+    assert max([1, 1, 1, 2], key=neg) == 1
+    assert max([2, 1, 1], key=neg) == 1
+    assert max([1, 2, 1], key=neg) == 1
+    assert max([1, 1, 2], key=neg) == 1
+    assert max([2, 1], key=neg) == 1
+    assert max([1, 2], key=neg) == 1
+
+    assert min([2, 1, 1, 1, 1]) == 1
+    assert min([1, 2, 1, 1, 1]) == 1
+    assert min([1, 1, 2, 1, 1]) == 1
+    assert min([1, 1, 1, 2, 1]) == 1
+    assert min([1, 1, 1, 1, 2]) == 1
+    assert min([2, 1, 1, 1]) == 1
+    assert min([1, 2, 1, 1]) == 1
+    assert min([1, 1, 2, 1]) == 1
+    assert min([1, 1, 1, 2]) == 1
+    assert min([2, 1, 1]) == 1
+    assert min([1, 2, 1]) == 1
+    assert min([1, 1, 2]) == 1
+    assert min([2, 1]) == 1
+    assert min([1, 2]) == 1
+
+    assert min([2, 1, 1, 1, 1], key=neg) == 2
+    assert min([1, 2, 1, 1, 1], key=neg) == 2
+    assert min([1, 1, 2, 1, 1], key=neg) == 2
+    assert min([1, 1, 1, 2, 1], key=neg) == 2
+    assert min([1, 1, 1, 1, 2], key=neg) == 2
+    assert min([2, 1, 1, 1], key=neg) == 2
+    assert min([1, 2, 1, 1], key=neg) == 2
+    assert min([1, 1, 2, 1], key=neg) == 2
+    assert min([1, 1, 1, 2], key=neg) == 2
+    assert min([2, 1, 1], key=neg) == 2
+    assert min([1, 2, 1], key=neg) == 2
+    assert min([1, 1, 2], key=neg) == 2
+    assert min([2, 1], key=neg) == 2
+    assert min([1, 2], key=neg) == 2
+
+    assert max([0, 1, 1, 1, 1]) == 1
+    assert max([1, 0, 1, 1, 1]) == 1
+    assert max([1, 1, 0, 1, 1]) == 1
+    assert max([1, 1, 1, 0, 1]) == 1
+    assert max([1, 1, 1, 1, 0]) == 1
+    assert max([0, 1, 1, 1]) == 1
+    assert max([1, 0, 1, 1]) == 1
+    assert max([1, 1, 0, 1]) == 1
+    assert max([1, 1, 1, 0]) == 1
+    assert max([0, 1, 1]) == 1
+    assert max([1, 0, 1]) == 1
+    assert max([1, 1, 0]) == 1
+    assert max([0, 1]) == 1
+    assert max([1, 0]) == 1
+
+    assert max([0, 1, 1, 1, 1], key=neg) == 0
+    assert max([1, 0, 1, 1, 1], key=neg) == 0
+    assert max([1, 1, 0, 1, 1], key=neg) == 0
+    assert max([1, 1, 1, 0, 1], key=neg) == 0
+    assert max([1, 1, 1, 1, 0], key=neg) == 0
+    assert max([0, 1, 1, 1], key=neg) == 0
+    assert max([1, 0, 1, 1], key=neg) == 0
+    assert max([1, 1, 0, 1], key=neg) == 0
+    assert max([1, 1, 1, 0], key=neg) == 0
+    assert max([0, 1, 1], key=neg) == 0
+    assert max([1, 0, 1], key=neg) == 0
+    assert max([1, 1, 0], key=neg) == 0
+    assert max([0, 1], key=neg) == 0
+    assert max([1, 0], key=neg) == 0
+
+    assert min([0, 1, 1, 1, 1]) == 0
+    assert min([1, 0, 1, 1, 1]) == 0
+    assert min([1, 1, 0, 1, 1]) == 0
+    assert min([1, 1, 1, 0, 1]) == 0
+    assert min([1, 1, 1, 1, 0]) == 0
+    assert min([0, 1, 1, 1]) == 0
+    assert min([1, 0, 1, 1]) == 0
+    assert min([1, 1, 0, 1]) == 0
+    assert min([1, 1, 1, 0]) == 0
+    assert min([0, 1, 1]) == 0
+    assert min([1, 0, 1]) == 0
+    assert min([1, 1, 0]) == 0
+    assert min([0, 1]) == 0
+    assert min([1, 0]) == 0
+
+    assert min([0, 1, 1, 1, 1], key=neg) == 1
+    assert min([1, 0, 1, 1, 1], key=neg) == 1
+    assert min([1, 1, 0, 1, 1], key=neg) == 1
+    assert min([1, 1, 1, 0, 1], key=neg) == 1
+    assert min([1, 1, 1, 1, 0], key=neg) == 1
+    assert min([0, 1, 1, 1], key=neg) == 1
+    assert min([1, 0, 1, 1], key=neg) == 1
+    assert min([1, 1, 0, 1], key=neg) == 1
+    assert min([1, 1, 1, 0], key=neg) == 1
+    assert min([0, 1, 1], key=neg) == 1
+    assert min([1, 0, 1], key=neg) == 1
+    assert min([1, 1, 0], key=neg) == 1
+    assert min([0, 1], key=neg) == 1
+    assert min([1, 0], key=neg) == 1
+
+    assert min([0, 1, 1, 1, 1], default=99) == 0
+    assert min([1, 0, 1, 1, 1], default=99) == 0
+    assert min([1, 1, 0, 1, 1], default=99) == 0
+    assert min([1, 1, 1, 0, 1], default=99) == 0
+    assert min([1, 1, 1, 1, 0], default=99) == 0
+    assert min([0, 1, 1, 1], default=99) == 0
+    assert min([1, 0, 1, 1], default=99) == 0
+    assert min([1, 1, 0, 1], default=99) == 0
+    assert min([1, 1, 1, 0], default=99) == 0
+    assert min([0, 1, 1], default=99) == 0
+    assert min([1, 0, 1], default=99) == 0
+    assert min([1, 1, 0], default=99) == 0
+    assert min([0, 1], default=99) == 0
+    assert min([1, 0], default=99) == 0
+    assert min(List[int](), default=99) == 99
+
+    assert min([0, 1, 1, 1, 1], key=neg, default=99) == 1
+    assert min([1, 0, 1, 1, 1], key=neg, default=99) == 1
+    assert min([1, 1, 0, 1, 1], key=neg, default=99) == 1
+    assert min([1, 1, 1, 0, 1], key=neg, default=99) == 1
+    assert min([1, 1, 1, 1, 0], key=neg, default=99) == 1
+    assert min([0, 1, 1, 1], key=neg, default=99) == 1
+    assert min([1, 0, 1, 1], key=neg, default=99) == 1
+    assert min([1, 1, 0, 1], key=neg, default=99) == 1
+    assert min([1, 1, 1, 0], key=neg, default=99) == 1
+    assert min([0, 1, 1], key=neg, default=99) == 1
+    assert min([1, 0, 1], key=neg, default=99) == 1
+    assert min([1, 1, 0], key=neg, default=99) == 1
+    assert min([0, 1], key=neg, default=99) == 1
+    assert min([1, 0], key=neg, default=99) == 1
+    assert min(List[int](), key=neg, default=99) == 99
+
+    assert max([0, 1, 1, 1, 1], default=99) == 1
+    assert max([1, 0, 1, 1, 1], default=99) == 1
+    assert max([1, 1, 0, 1, 1], default=99) == 1
+    assert max([1, 1, 1, 0, 1], default=99) == 1
+    assert max([1, 1, 1, 1, 0], default=99) == 1
+    assert max([0, 1, 1, 1], default=99) == 1
+    assert max([1, 0, 1, 1], default=99) == 1
+    assert max([1, 1, 0, 1], default=99) == 1
+    assert max([1, 1, 1, 0], default=99) == 1
+    assert max([0, 1, 1], default=99) == 1
+    assert max([1, 0, 1], default=99) == 1
+    assert max([1, 1, 0], default=99) == 1
+    assert max([0, 1], default=99) == 1
+    assert max([1, 0], default=99) == 1
+    assert max(List[int](), default=99) == 99
+
+    assert max([0, 1, 1, 1, 1], key=neg, default=99) == 0
+    assert max([1, 0, 1, 1, 1], key=neg, default=99) == 0
+    assert max([1, 1, 0, 1, 1], key=neg, default=99) == 0
+    assert max([1, 1, 1, 0, 1], key=neg, default=99) == 0
+    assert max([1, 1, 1, 1, 0], key=neg, default=99) == 0
+    assert max([0, 1, 1, 1], key=neg, default=99) == 0
+    assert max([1, 0, 1, 1], key=neg, default=99) == 0
+    assert max([1, 1, 0, 1], key=neg, default=99) == 0
+    assert max([1, 1, 1, 0], key=neg, default=99) == 0
+    assert max([0, 1, 1], key=neg, default=99) == 0
+    assert max([1, 0, 1], key=neg, default=99) == 0
+    assert max([1, 1, 0], key=neg, default=99) == 0
+    assert max([0, 1], key=neg, default=99) == 0
+    assert max([1, 0], key=neg, default=99) == 0
+    assert max(List[int](), key=neg, default=99) == 99
+
+    assert max(2, 1, 1, 1, 1) == 2
+    assert max(1, 2, 1, 1, 1) == 2
+    assert max(1, 1, 2, 1, 1) == 2
+    assert max(1, 1, 1, 2, 1) == 2
+    assert max(1, 1, 1, 1, 2) == 2
+    assert max(2, 1, 1, 1) == 2
+    assert max(1, 2, 1, 1) == 2
+    assert max(1, 1, 2, 1) == 2
+    assert max(1, 1, 1, 2) == 2
+    assert max(2, 1, 1) == 2
+    assert max(1, 2, 1) == 2
+    assert max(1, 1, 2) == 2
+    assert max(2, 1) == 2
+    assert max(1, 2) == 2
+
+    assert max(2, 1, 1, 1, 1, key=neg) == 1
+    assert max(1, 2, 1, 1, 1, key=neg) == 1
+    assert max(1, 1, 2, 1, 1, key=neg) == 1
+    assert max(1, 1, 1, 2, 1, key=neg) == 1
+    assert max(1, 1, 1, 1, 2, key=neg) == 1
+    assert max(2, 1, 1, 1, key=neg) == 1
+    assert max(1, 2, 1, 1, key=neg) == 1
+    assert max(1, 1, 2, 1, key=neg) == 1
+    assert max(1, 1, 1, 2, key=neg) == 1
+    assert max(2, 1, 1, key=neg) == 1
+    assert max(1, 2, 1, key=neg) == 1
+    assert max(1, 1, 2, key=neg) == 1
+    assert max(2, 1, key=neg) == 1
+    assert max(1, 2, key=neg) == 1
+
+    assert min(2, 1, 1, 1, 1) == 1
+    assert min(1, 2, 1, 1, 1) == 1
+    assert min(1, 1, 2, 1, 1) == 1
+    assert min(1, 1, 1, 2, 1) == 1
+    assert min(1, 1, 1, 1, 2) == 1
+    assert min(2, 1, 1, 1) == 1
+    assert min(1, 2, 1, 1) == 1
+    assert min(1, 1, 2, 1) == 1
+    assert min(1, 1, 1, 2) == 1
+    assert min(2, 1, 1) == 1
+    assert min(1, 2, 1) == 1
+    assert min(1, 1, 2) == 1
+    assert min(2, 1) == 1
+    assert min(1, 2) == 1
+
+    assert min(2, 1, 1, 1, 1, key=neg) == 2
+    assert min(1, 2, 1, 1, 1, key=neg) == 2
+    assert min(1, 1, 2, 1, 1, key=neg) == 2
+    assert min(1, 1, 1, 2, 1, key=neg) == 2
+    assert min(1, 1, 1, 1, 2, key=neg) == 2
+    assert min(2, 1, 1, 1, key=neg) == 2
+    assert min(1, 2, 1, 1, key=neg) == 2
+    assert min(1, 1, 2, 1, key=neg) == 2
+    assert min(1, 1, 1, 2, key=neg) == 2
+    assert min(2, 1, 1, key=neg) == 2
+    assert min(1, 2, 1, key=neg) == 2
+    assert min(1, 1, 2, key=neg) == 2
+    assert min(2, 1, key=neg) == 2
+    assert min(1, 2, key=neg) == 2
+
+    assert max(0, 1, 1, 1, 1) == 1
+    assert max(1, 0, 1, 1, 1) == 1
+    assert max(1, 1, 0, 1, 1) == 1
+    assert max(1, 1, 1, 0, 1) == 1
+    assert max(1, 1, 1, 1, 0) == 1
+    assert max(0, 1, 1, 1) == 1
+    assert max(1, 0, 1, 1) == 1
+    assert max(1, 1, 0, 1) == 1
+    assert max(1, 1, 1, 0) == 1
+    assert max(0, 1, 1) == 1
+    assert max(1, 0, 1) == 1
+    assert max(1, 1, 0) == 1
+    assert max(0, 1) == 1
+    assert max(1, 0) == 1
+
+    assert max(0, 1, 1, 1, 1, key=neg) == 0
+    assert max(1, 0, 1, 1, 1, key=neg) == 0
+    assert max(1, 1, 0, 1, 1, key=neg) == 0
+    assert max(1, 1, 1, 0, 1, key=neg) == 0
+    assert max(1, 1, 1, 1, 0, key=neg) == 0
+    assert max(0, 1, 1, 1, key=neg) == 0
+    assert max(1, 0, 1, 1, key=neg) == 0
+    assert max(1, 1, 0, 1, key=neg) == 0
+    assert max(1, 1, 1, 0, key=neg) == 0
+    assert max(0, 1, 1, key=neg) == 0
+    assert max(1, 0, 1, key=neg) == 0
+    assert max(1, 1, 0, key=neg) == 0
+    assert max(0, 1, key=neg) == 0
+    assert max(1, 0, key=neg) == 0
+
+    assert min(0, 1, 1, 1, 1) == 0
+    assert min(1, 0, 1, 1, 1) == 0
+    assert min(1, 1, 0, 1, 1) == 0
+    assert min(1, 1, 1, 0, 1) == 0
+    assert min(1, 1, 1, 1, 0) == 0
+    assert min(0, 1, 1, 1) == 0
+    assert min(1, 0, 1, 1) == 0
+    assert min(1, 1, 0, 1) == 0
+    assert min(1, 1, 1, 0) == 0
+    assert min(0, 1, 1) == 0
+    assert min(1, 0, 1) == 0
+    assert min(1, 1, 0) == 0
+    assert min(0, 1) == 0
+    assert min(1, 0) == 0
+
+    assert min(0, 1, 1, 1, 1, key=neg) == 1
+    assert min(1, 0, 1, 1, 1, key=neg) == 1
+    assert min(1, 1, 0, 1, 1, key=neg) == 1
+    assert min(1, 1, 1, 0, 1, key=neg) == 1
+    assert min(1, 1, 1, 1, 0, key=neg) == 1
+    assert min(0, 1, 1, 1, key=neg) == 1
+    assert min(1, 0, 1, 1, key=neg) == 1
+    assert min(1, 1, 0, 1, key=neg) == 1
+    assert min(1, 1, 1, 0, key=neg) == 1
+    assert min(0, 1, 1, key=neg) == 1
+    assert min(1, 0, 1, key=neg) == 1
+    assert min(1, 1, 0, key=neg) == 1
+    assert min(0, 1, key=neg) == 1
+    assert min(1, 0, key=neg) == 1
+
+    assert min(a*a for a in range(3)) == 0
+    assert max(a*a for a in range(3)) == 4
+    assert min([0, 2, -1]) == -1
+    assert max([0, 2, -1]) == 2
+
+    assert min((a*a for a in range(3)), key=neg) == 4
+    assert max((a*a for a in range(3)), key=neg) == 0
+    assert min([0, 2, -1], key=neg) == 2
+    assert max([0, 2, -1], key=neg) == -1
+
+    assert min('abcx') == 'a'
+    assert max('abcx') == 'x'
+    assert min(['a', 'b', 'c', 'x']) == 'a'
+    assert max(['a', 'b', 'c', 'x']) == 'x'
+
+    d = {'a': 4, 'b': 1, 'c': -1, 'x': 9}
+    assert min('abcx', key=d.__getitem__) == 'c'
+    assert max('abcx', key=d.__getitem__) == 'x'
+    assert min(['a', 'b', 'c', 'x'], key=d.__getitem__) == 'c'
+    assert max(['a', 'b', 'c', 'x'], key=d.__getitem__) == 'x'
+
+    try:
+        max('')
+        assert False
+    except ValueError as e:
+        assert str(e) == 'max() arg is an empty sequence'
+
+    try:
+        min('')
+        assert False
+    except ValueError as e:
+        assert str(e) == 'min() arg is an empty sequence'
+
+    try:
+        max(List[float]())
+        assert False
+    except ValueError as e:
+        assert str(e) == 'max() arg is an empty sequence'
+
+    try:
+        min(List[float]())
+        assert False
+    except ValueError as e:
+        assert str(e) == 'min() arg is an empty sequence'
+
+    try:
+        max('', key=lambda x: x * 2)
+        assert False
+    except ValueError as e:
+        assert str(e) == 'max() arg is an empty sequence'
+
+    try:
+        min('', key=lambda x: x * 2)
+        assert False
+    except ValueError as e:
+        assert str(e) == 'min() arg is an empty sequence'
+
+    try:
+        max(List[float](), key=lambda x: x * 2)
+        assert False
+    except ValueError as e:
+        assert str(e) == 'max() arg is an empty sequence'
+
+    try:
+        min(List[float](), key=lambda x: x * 2)
+        assert False
+    except ValueError as e:
+        assert str(e) == 'min() arg is an empty sequence'
+
+@test
+def test_map_filter():
+    assert list(map(lambda i: i+1, (i*2 for i in range(5)))) == [1, 3, 5, 7, 9]
+    assert list(map(lambda i: i+1, (i*2 for i in range(0)))) == []
+    assert list(map(lambda i: i//2, map(lambda i: i-1, map(lambda i: i+1, (i*2 for i in range(5)))))) == [0, 1, 2, 3, 4]
+    def f(x: int) -> int:
+        return x - 1
+    def g(x: int) -> int:
+        return x + 1
+    assert list(map(f, map(g, (i*2 for i in range(5))))) == [0, 2, 4, 6, 8]
+
+    def h(x: list[int]):
+        return x
+    assert h(list(map(lambda i: i-1, map(lambda i: i+1, range(5))))) == [0, 1, 2, 3, 4]
+
+    assert list(filter(lambda i: i % 2 == 0, range(5))) == [0, 2, 4]
+    assert list(filter(lambda i: i % 2 == 1, filter(lambda i: i % 2 == 0, range(5)))) == []
+
+    assert list(filter(lambda i: i%2 == 0, map(lambda i: i*i, range(10)))) == [0, 4, 16, 36, 64]
+
+@test
+def test_gen_builtins():
+    assert sum([1, 2, 3]) == 6
+    assert sum([1, 2, 3], 0.5) == 6.5
+    assert sum([True, False, True, False, True], 0.5) == 3.5
+    assert sum(List[float]()) == 0
+    assert sum(i/2 for i in range(10)) == 22.5
+
+    def g1():
+        yield 1.5
+        yield 2.5
+        return
+        yield 3.5
+
+    assert sum(g1(), 10) == 14.0
+
+    def g2():
+        yield True
+        yield False
+        yield True
+
+    assert sum(g2()) == 2
+
+    class A:
+        iadd_count = 0
+        n: int
+
+        def __init__(self, n):
+            self.n = n
+
+        def __add__(self, other):
+            return A(self.n + other.n)
+
+        def __iadd__(self, other):
+            A.iadd_count += 1
+            self.n += other.n
+            return self
+
+    assert sum((A(i) for i in range(5)), A(100)).n == 110
+    assert A.iadd_count == 0
+
+    def g3(a, b):
+        for i in range(10):
+            yield a
+        yield b
+
+    assert all([True, True])
+    assert all(i for i in range(0))
+    assert not all([True, False])
+    assert all(List[str]())
+    assert all(g3(True, True))
+    assert not all(g3(True, False))
+    assert not all(g3(False, True))
+    assert not all(g3(False, False))
+
+    assert any([True, True])
+    assert not any(i for i in range(0))
+    assert not any([False, False])
+    assert not any(List[bool]())
+    assert any(g3(True, True))
+    assert any(g3(True, False))
+    assert any(g3(False, True))
+    assert not any(g3(False, False))
+
+@test
+def test_int_format():
+    n = 0
+    assert (str(n), bin(n), oct(n), hex(n)) == ('0', '0b0', '0o0', '0x0')
+
+    n = -1
+    assert (str(n), bin(n), oct(n), hex(n)) == ('-1', '-0b1', '-0o1', '-0x1')
+
+    n = 12345
+    assert (str(n), bin(n), oct(n), hex(n)) == ('12345', '0b11000000111001', '0o30071', '0x3039')
+
+    n = -12345
+    assert (str(n), bin(n), oct(n), hex(n)) == ('-12345', '-0b11000000111001', '-0o30071', '-0x3039')
+
+    # this one is different than Python due to 64-bit ints
+    n = 0x8000000000000000
+    assert (str(n), bin(n), oct(n), hex(n)) == ('-9223372036854775808', '-0b1000000000000000000000000000000000000000000000000000000000000000', '-0o1000000000000000000000', '-0x8000000000000000')
+
+    n = 0x7fffffffffffffff
+    assert (str(n), bin(n), oct(n), hex(n)) == ('9223372036854775807', '0b111111111111111111111111111111111111111111111111111111111111111', '0o777777777777777777777', '0x7fffffffffffffff')
+
+    m = i32(0)
+    assert (str(m), bin(m), oct(m), hex(m)) == ('0', '0b0', '0o0', '0x0')
+
+    m = i32(-1)
+    assert (str(m), bin(m), oct(m), hex(m)) == ('-1', '-0b1', '-0o1', '-0x1')
+
+    m = i32(12345)
+    assert (str(m), bin(m), oct(m), hex(m)) == ('12345', '0b11000000111001', '0o30071', '0x3039')
+
+    m = i32(-12345)
+    assert (str(m), bin(m), oct(m), hex(m)) == ('-12345', '-0b11000000111001', '-0o30071', '-0x3039')
+
+    k = Int[128](0)
+    assert (str(k), bin(k), oct(k), hex(k)) == ('0', '0b0', '0o0', '0x0')
+
+    k = Int[128](-1)
+    assert (str(k), bin(k), oct(k), hex(k)) == ('-1', '-0b1', '-0o1', '-0x1')
+
+    k = Int[128](12345)
+    assert (str(k), bin(k), oct(k), hex(k)) == ('12345', '0b11000000111001', '0o30071', '0x3039')
+
+    k = Int[128](-12345)
+    assert (str(k), bin(k), oct(k), hex(k)) == ('-12345', '-0b11000000111001', '-0o30071', '-0x3039')
+
+    # this one is different than Python due to 64-bit ints
+    k = Int[128](0x8000000000000000)
+    assert (str(k), bin(k), oct(k), hex(k)) == ('-9223372036854775808', '-0b1000000000000000000000000000000000000000000000000000000000000000', '-0o1000000000000000000000', '-0x8000000000000000')
+
+    k = Int[128](0x7fffffffffffffff)
+    assert (str(k), bin(k), oct(k), hex(k)) == ('9223372036854775807', '0b111111111111111111111111111111111111111111111111111111111111111', '0o777777777777777777777', '0x7fffffffffffffff')
+
+@test
+def test_complex_format():
+    import math
+
+    assert str(complex(1.1, 2.2)) == '(1.1+2.2j)'
+    assert str(complex(11.0, -22.0)) == '(11-22j)'
+    assert str(complex(-111.0, 222.0)) == '(-111+222j)'
+    assert str(complex(-1111.0, -2222.0)) == '(-1111-2222j)'
+    assert str(complex(1.0, 0.0)) == '(1+0j)'
+    assert str(complex(0.0, 1.0)) == '1j'
+    assert str(complex(-0.0, 1.0)) == '(-0+1j)'
+    assert str(complex(0.0, -1.0)) == '-1j'
+    assert str(complex(-0.0, -1.0)) == '(-0-1j)'
+    assert str(complex(0.0, 0.0)) == '0j'
+    assert str(complex(0.0, -0.0)) == '-0j'
+    assert str(complex(-0.0, 0.0)) == '(-0+0j)'
+    assert str(complex(-0.0, -0.0)) == '(-0-0j)'
+    assert str(complex(math.inf, math.inf)) == '(inf+infj)'
+    assert str(complex(-math.inf, math.nan)) == '(-inf+nanj)'
+    assert str(complex(math.nan, -math.inf)) == '(nan-infj)'
+    assert str(complex(math.nan, math.nan)) == '(nan+nanj)'
+
+    assert repr(complex(1.1, 2.2)) == '(1.1+2.2j)'
+    assert repr(complex(11.0, -22.0)) == '(11-22j)'
+    assert repr(complex(-111.0, 222.0)) == '(-111+222j)'
+    assert repr(complex(-1111.0, -2222.0)) == '(-1111-2222j)'
+    assert repr(complex(1.0, 0.0)) == '(1+0j)'
+    assert repr(complex(0.0, 1.0)) == '1j'
+    assert repr(complex(-0.0, 1.0)) == '(-0+1j)'
+    assert repr(complex(0.0, -1.0)) == '-1j'
+    assert repr(complex(-0.0, -1.0)) == '(-0-1j)'
+    assert repr(complex(0.0, 0.0)) == '0j'
+    assert repr(complex(0.0, -0.0)) == '-0j'
+    assert repr(complex(-0.0, 0.0)) == '(-0+0j)'
+    assert repr(complex(-0.0, -0.0)) == '(-0-0j)'
+    assert repr(complex(math.inf, math.inf)) == '(inf+infj)'
+    assert repr(complex(-math.inf, math.nan)) == '(-inf+nanj)'
+    assert repr(complex(math.nan, -math.inf)) == '(nan-infj)'
+    assert repr(complex(math.nan, math.nan)) == '(nan+nanj)'
+
+    assert str(complex64(1.1, 2.2)) == '(1.1+2.2j)'
+    assert str(complex64(11.0, -22.0)) == '(11-22j)'
+    assert str(complex64(-111.0, 222.0)) == '(-111+222j)'
+    assert str(complex64(-1111.0, -2222.0)) == '(-1111-2222j)'
+    assert str(complex64(1.0, 0.0)) == '(1+0j)'
+    assert str(complex64(0.0, 1.0)) == '1j'
+    assert str(complex64(-0.0, 1.0)) == '(-0+1j)'
+    assert str(complex64(0.0, -1.0)) == '-1j'
+    assert str(complex64(-0.0, -1.0)) == '(-0-1j)'
+    assert str(complex64(0.0, 0.0)) == '0j'
+    assert str(complex64(0.0, -0.0)) == '-0j'
+    assert str(complex64(-0.0, 0.0)) == '(-0+0j)'
+    assert str(complex64(-0.0, -0.0)) == '(-0-0j)'
+    assert str(complex64(math.inf, math.inf)) == '(inf+infj)'
+    assert str(complex64(-math.inf, math.nan)) == '(-inf+nanj)'
+    assert str(complex64(math.nan, -math.inf)) == '(nan-infj)'
+    assert str(complex64(math.nan, math.nan)) == '(nan+nanj)'
+
+    assert repr(complex64(1.1, 2.2)) == 'complex64(1.1+2.2j)'
+    assert repr(complex64(11.0, -22.0)) == 'complex64(11-22j)'
+    assert repr(complex64(-111.0, 222.0)) == 'complex64(-111+222j)'
+    assert repr(complex64(-1111.0, -2222.0)) == 'complex64(-1111-2222j)'
+    assert repr(complex64(1.0, 0.0)) == 'complex64(1+0j)'
+    assert repr(complex64(0.0, 1.0)) == 'complex64(1j)'
+    assert repr(complex64(-0.0, 1.0)) == 'complex64(-0+1j)'
+    assert repr(complex64(0.0, -1.0)) == 'complex64(-1j)'
+    assert repr(complex64(-0.0, -1.0)) == 'complex64(-0-1j)'
+    assert repr(complex64(0.0, 0.0)) == 'complex64(0j)'
+    assert repr(complex64(0.0, -0.0)) == 'complex64(-0j)'
+    assert repr(complex64(-0.0, 0.0)) == 'complex64(-0+0j)'
+    assert repr(complex64(-0.0, -0.0)) == 'complex64(-0-0j)'
+    assert repr(complex64(math.inf, math.inf)) == 'complex64(inf+infj)'
+    assert repr(complex64(-math.inf, math.nan)) == 'complex64(-inf+nanj)'
+    assert repr(complex64(math.nan, -math.inf)) == 'complex64(nan-infj)'
+    assert repr(complex64(math.nan, math.nan)) == 'complex64(nan+nanj)'
+
+@test
+def test_alt_types_from_str():
+    assert float32('3.14') == float32(3.14)
+    # TODO: fails on manylinux w/ "Symbols not found: [ __truncdfhf2, __extendhfsf2 ]"
+    # assert float16('3.14') == float16(3.14)
+    assert complex64('1+2j') == complex64(1+2j)
+
+class A:
+    def __len__(self):
+        return 42
+    def __getitem__(self, idx):
+        return idx
+
+@test
+def test_reversed():
+    assert list(reversed([1,2,3])) == [3,2,1]
+    assert list(reversed('abc')) == ['c','b','a']
+    assert list(reversed('')) == []
+    assert list(reversed(A())) == list(reversed(range(42)))
+
+@test
+def test_divmod():
+    import sys, math
+    assert divmod(12, 7) == (1, 5)
+    assert divmod(-12, 7) == (-2, 2)
+    assert divmod(12, -7) == (-2, -2)
+    assert divmod(-12, -7) == (1, -5)
+
+    assert divmod(i32(12), i32(7)) == (i32(1), i32(5))
+    assert divmod(i32(-12), i32(7)) == (i32(-2), i32(2))
+    assert divmod(i32(12), i32(-7)) == (i32(-2), i32(-2))
+    assert divmod(i32(-12), i32(-7)) == (i32(1), i32(-5))
+
+    assert divmod(u32(12), u32(7)) == (u32(1), u32(5))
+
+    i128 = Int[128]
+    assert divmod(i128(12), i128(7)) == (i128(1), i128(5))
+    assert divmod(i128(-12), i128(7)) == (i128(-2), i128(2))
+    assert divmod(i128(12), i128(-7)) == (i128(-2), i128(-2))
+    assert divmod(i128(-12), i128(-7)) == (i128(1), i128(-5))
+
+    class X:
+        n: int
+        def __floordiv__(self, other: X):
+            return X(self.n // other.n)
+        def __mod__(self, other: X):
+            return X(self.n % other.n)
+        def __eq__(self, other: X):
+            return self.n == other.n
+        def __nq__(self, other: X):
+            return self.n != other.n
+    assert divmod(X(12), X(7)) == (X(1), X(5))
+
+    # following is invalid in our case due to 64-bit ints
+    # print divmod(-sys.maxsize-1, -1), (sys.maxsize+1, 0)
+
+    for num, denom, exp_result in [ (3.25, 1.0, (3.0, 0.25)),
+                                    (-3.25, 1.0, (-4.0, 0.75)),
+                                    (3.25, -1.0, (-4.0, -0.75)),
+                                    (-3.25, -1.0, (3.0, -0.25))]:
+        result = divmod(num, denom)
+        assert math.isclose(result[0], exp_result[0])
+        assert math.isclose(result[1], exp_result[1])
+
+@test
+def test_pow():
+    assert pow(3, 4) == 81
+    assert pow(-3, 3) == -27
+    assert pow(1, 0) == 1
+    assert pow(-1, 0) == 1
+    assert pow(0, 0) == 1
+    assert pow(12, 12, 42) == 36
+    assert pow(1234, 4321, 99) == 46
+    assert pow(9999, 9999, 2) == 1
+    assert pow(0, 0, 1) == 0
+
+    try:
+        pow(1, -1, 2)
+        assert False
+    except ValueError as e:
+        assert 'negative' in str(e)
+
+    try:
+        pow(1, 1, 0)
+        assert False
+    except ValueError as e:
+        assert 'cannot be 0' in str(e)
+
+    assert pow(1.5, 2) == 2.25
+    assert pow(9, 0.5) == 3.0
+    assert pow(2.0, -1.0) == 0.5
+
+@test
+def test_num_from_str():
+    import math
+
+    assert int('0') == 0
+    assert int('010') == 10
+    assert int('3\n') == 3
+    assert int('\r\t\n 42\r\t\n ') == 42
+    assert int('0101', 2) == 5
+    assert int('-0101', 2) == -5
+    assert int('0111', 8) == 73
+    assert int('-0111', 8) == -73
+    assert int('-0xabc', 16) == -2748
+    assert int('0xabc', 16) == 2748
+    assert int('-0xabc', 16) == -2748
+    assert int('111', 0) == 111
+    assert int('-111', 0) == -111
+    assert int('-0xabc', 0) == -2748
+    assert int('0xabc', 0) == 2748
+    assert int('-0xabc', 0) == -2748
+
+    try:
+        int('  10  a')
+        assert False
+    except ValueError as e:
+        assert str(e) == "invalid literal for int() with base 10: '  10  a'"
+
+    try:
+        int('')
+        assert False
+    except ValueError as e:
+        assert str(e) == "invalid literal for int() with base 10: ''"
+
+    # new tests for PR #561
+    assert int("123") == 123
+    assert int("-123") == -123
+    assert int("+123") == 123
+    assert int("0") == 0
+    assert int("-0") == 0
+    assert int("0000123") == 123
+    assert int("-0000123") == -123
+    assert int("+0000123") == 123
+    assert int("123 ") == 123
+    assert int(" 123") == 123
+    assert int(" 123 ") == 123
+
+    assert int("1101", 2) == 13
+    assert int("-1101", 2) == -13
+    assert int("+1101", 2) == 13
+    assert int("0b1101", 2) == 13
+    assert int("-0b1101", 2) == -13
+    assert int("+0b1101", 2) == 13
+    assert int("00001101", 2) == 13
+    assert int("-00001101", 2) == -13
+    assert int("0", 2) == 0
+
+    assert int("123", 8) == 83
+    assert int("-123", 8) == -83
+    assert int("+123", 8) == 83
+    assert int("0o123", 8) == 83
+    assert int("-0o123", 8) == -83
+    assert int("+0o123", 8) == 83
+    assert int("0000123", 8) == 83
+    assert int("-0000123", 8) == -83
+    assert int("0", 8) == 0
+
+    assert int("1A", 16) == 26
+    assert int("-1A", 16) == -26
+    assert int("+1A", 16) == 26
+    assert int("0x1A", 16) == 26
+    assert int("-0x1A", 16) == -26
+    assert int("+0x1A", 16) == 26
+    assert int("00001A", 16) == 26
+    assert int("-00001A", 16) == -26
+    assert int("0", 16) == 0
+
+    assert int("Z", 36) == 35
+    assert int("-Z", 36) == -35
+    assert int("+Z", 36) == 35
+    assert int("0", 36) == 0
+    assert int("10", 36) == 36
+    assert int("000Z", 36) == 35
+    assert int("-000Z", 36) == -35
+    assert int("+000Z", 36) == 35
+
+    assert int("123", 0) == 123
+    assert int("-123", 0) == -123
+    assert int("+123", 0) == 123
+    assert int("0b1101", 0) == 13
+    assert int("-0b1101", 0) == -13
+    assert int("+0b1101", 0) == 13
+    assert int("0o123", 0) == 83
+    assert int("-0o123", 0) == -83
+    assert int("+0o123", 0) == 83
+    assert int("0x1A", 0) == 26
+    assert int("-0x1A", 0) == -26
+    assert int(" +0x1a\n", 0) == 26
+
+    try:
+        int("1A", 10)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("0b1101", 10)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("0o123", 10)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("0x1A", 10)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("Z", 10)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("123", 1)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("123", 37)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("123", -10)
+        assert False
+    except ValueError:
+        pass
+
+    assert int("\n123\n") == 123
+    assert int("\t123\t") == 123
+    assert int("   123   ") == 123
+    assert int("+0x7FFFFFFF", 0) == 0x7FFFFFFF
+    assert int("-0x80000000", 0) == -0x80000000
+    assert int("+0o37777777777", 0) == 4294967295  # 0o37777777777
+    assert int("-0o40000000000", 0) == -4294967296  # -0o40000000000
+    assert int("+0b1111111111111111111111111111111", 0) == 0b1111111111111111111111111111111
+    assert int("-0b10000000000000000000000000000000", 0) == -0b10000000000000000000000000000000
+
+    assert float('0') == 0
+    assert float('3.14') == 3.14
+    assert float('3\n') == 3
+    assert float('\r\t\n -4.2\r\t\n ') == -4.2
+    assert math.isnan(float(' nan '))
+    assert math.isnan(float(' +nan '))
+    assert math.isnan(float(' -nan '))
+    assert math.isinf(float(' inf '))
+    assert math.isinf(float(' +inf '))
+    assert math.isinf(float(' -inf '))
+    assert math.isinf(float(' infinity '))
+    assert math.isinf(float(' +infinity '))
+    assert math.isinf(float(' -infinity '))
+    assert float(' inf ') > 0.0
+    assert float(' +inf ') > 0.0
+    assert float(' -inf ') < 0.0
+    assert float(' infinity ') > 0.0
+    assert float(' +infinity ') > 0.0
+    assert float(' -infinity ') < 0.0
+
+    try:
+        float('  3.14  a')
+        assert False
+    except ValueError as e:
+        assert str(e) == "could not convert string to float: '  3.14  a'"
+
+    try:
+        float('')
+        assert False
+    except ValueError as e:
+        assert str(e) == "could not convert string to float: ''"
+
+    assert int(" 123 ") == 123
+    assert float(" 3.14 ") == 3.14
+    assert float("é3.14é"[1:-1]) == 3.14
+    assert float("Ω3.14Ω"[1:-1]) == 3.14
+    assert float("😀3.14😀"[1:-1]) == 3.14
+    assert float("3.14trailing"[:4]) == 3.14
+    assert float("x3.14trailing"[1:5]) == 3.14
+
+    assert complex(" (1+2j) ") == 1+2j
+    assert complex("é1+2jé"[1:-1]) == 1+2j
+    assert complex("Ω1+2jΩ"[1:-1]) == 1+2j
+    assert complex("😀1+2j😀"[1:-1]) == 1+2j
+    assert complex("1+2jtrailing"[:4]) == 1+2j
+    assert complex("x1+2jtrailing"[1:5]) == 1+2j
+
+    for value in ("", "é", "1\x00", "1e", "1e+", "+"):
+        try:
+            float(value)
+            assert False
+        except ValueError:
+            pass
+
+        try:
+            complex(value)
+            assert False
+        except ValueError:
+            pass
+
+    for value in ("1+2j\x00", "1+", "(1+2j", "1+2j)"):
+        try:
+            complex(value)
+            assert False
+        except ValueError:
+            pass
+
+@test
+def test_int_from_wide_storage():
+    for marker in ("x", "é", "Ω", "😀"):
+        for text, base, expected in (
+            ("  -123\t", 10, -123),
+            ("0x_FF", 0, 255),
+            ("0X_FF", 16, 255),
+            ("0b_101", 2, 5),
+            ("0o_17", 8, 15),
+            ("z", 36, 35),
+            ("9223372036854775807", 10, 9223372036854775807),
+            ("-9223372036854775808", 10, -9223372036854775808),
+        ):
+            value = (marker + text + marker)[1:-1]
+            assert int(value, base) == expected
+
+        for text, base in (("", 10), ("_1", 10), ("1_", 10),
+                           ("1__2", 10), ("1\x00", 10), ("0x", 0),
+                           ("0x__1", 16), ("01", 0)):
+            value = (marker + text + marker)[1:-1]
+            try:
+                int(value, base)
+                assert False
+            except ValueError:
+                pass
+
+        for text in ("9223372036854775808", "-9223372036854775809"):
+            value = (marker + text + marker)[1:-1]
+            try:
+                int(value)
+                assert False
+            except OverflowError:
+                pass
+
+@test
+def test_num_from_str_extended():
+    # Basic decimal
+    assert int("0") == 0
+    assert int("1") == 1
+    assert int("123") == 123
+    assert int("+123") == 123
+    assert int("-123") == -123
+    assert int("   123") == 123
+    assert int("123   ") == 123
+    assert int("   +123   ") == 123
+    assert int("   -123   ") == -123
+
+    # Explicit bases
+    assert int("10", base=2) == 2
+    assert int("10", base=3) == 3
+    assert int("10", base=8) == 8
+    assert int("10", base=10) == 10
+    assert int("10", base=16) == 16
+    assert int("10", base=36) == 36
+    assert int("ff", base=16) == 255
+    assert int("FF", base=16) == 255
+    assert int("z", base=36) == 35
+    assert int("Z", base=36) == 35
+
+    # base=0 prefix detection
+    assert int("123", base=0) == 123
+    assert int("0b1010", base=0) == 10
+    assert int("0B1010", base=0) == 10
+    assert int("0o777", base=0) == 511
+    assert int("0O777", base=0) == 511
+    assert int("0xdeadbeef", base=0) == 3735928559
+    assert int("0XDEADBEEF", base=0) == 3735928559
+    assert int("-0b1010", base=0) == -10
+    assert int("-0o777", base=0) == -511
+    assert int("-0x100", base=0) == -256
+
+    # Matching explicit prefixes
+    assert int("0b1010", base=2) == 10
+    assert int("0o777", base=8) == 511
+    assert int("0xff", base=16) == 255
+    assert int("0X_FF", base=16) == 255
+
+    # Underscores
+    assert int("1_000") == 1000
+    assert int("12_34_56") == 123456
+    assert int("+1_000") == 1000
+    assert int("-1_000") == -1000
+    assert int("0b1010_0101", base=0) == 165
+    assert int("0o12_34", base=0) == 668
+    assert int("0xDEAD_BEEF", base=0) == 3735928559
+    assert int("0x_FF", base=0) == 255
+    assert int("0b_1010", base=0) == 10
+    assert int("0o_777", base=0) == 511
+    assert int("z_z", base=36) == 1295
+
+    # Typed constructors: unsigned
+    assert UInt[8]("0") == UInt[8](0)
+    assert UInt[8]("255") == UInt[8](255)
+    assert UInt[8]("ff", base=16) == UInt[8](255)
+    assert UInt[8]("0xff", base=0) == UInt[8](255)
+    assert UInt[8]("0b1111_1111", base=0) == UInt[8](255)
+
+    assert UInt[16]("65535") == UInt[16](65535)
+    assert UInt[16]("ffff", base=16) == UInt[16](65535)
+    assert UInt[16]("0xffff", base=0) == UInt[16](65535)
+
+    assert UInt[32]("123", base=16) == UInt[32](0x123)
+    assert UInt[32]("4294967295") == UInt[32](4294967295)
+    assert UInt[32]("ffffffff", base=16) == UInt[32](4294967295)
+    assert UInt[32]("0xffffffff", base=0) == UInt[32](4294967295)
+
+    assert UInt[64]("18446744073709551615") == UInt[64](18446744073709551615)
+    assert UInt[64]("ffffffffffffffff", base=16) == UInt[64](18446744073709551615)
+    assert UInt[64]("0xffffffffffffffff", base=0) == UInt[64](18446744073709551615)
+
+    # Typed constructors: signed
+    assert Int[8]("127") == Int[8](127)
+    assert Int[8]("-128") == Int[8](-128)
+    assert Int[8]("0x7f", base=0) == Int[8](127)
+    assert Int[8]("-0x80", base=0) == Int[8](-128)
+
+    assert Int[16]("32767") == Int[16](32767)
+    assert Int[16]("-32768") == Int[16](-32768)
+
+    assert Int[32]("2147483647") == Int[32](2147483647)
+    assert Int[32]("-2147483648") == Int[32](-2147483648)
+    assert Int[32]("0x7fffffff", base=0) == Int[32](2147483647)
+    assert Int[32]("-0x80000000", base=0) == Int[32](-2147483648)
+
+    assert Int[64]("9223372036854775807") == Int[64](9223372036854775807)
+    assert Int[64]("-9223372036854775808") == Int[64](-9223372036854775808)
+    assert Int[64]("0x7fffffffffffffff", base=0) == Int[64](9223372036854775807)
+    assert Int[64]("-0x8000000000000000", base=0) == Int[64](-9223372036854775808)
+
+    # Boundary values in binary/octal
+    assert UInt[8]("11111111", base=2) == UInt[8](255)
+    assert Int[8]("1111111", base=2) == Int[8](127)
+    assert Int[8]("-10000000", base=2) == Int[8](-128)
+
+    assert UInt[16]("177777", base=8) == UInt[16](65535)
+    assert Int[16]("77777", base=8) == Int[16](32767)
+    assert Int[16]("-100000", base=8) == Int[16](-32768)
+
+    # Invalid literals
+    try:
+        int("")
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("   ")
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("+")
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("-")
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("_123")
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("123_")
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("1__23")
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("+_123")
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("-_123")
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("12 34")
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("123abc")
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("0x", base=0)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("0x_", base=0)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("0b", base=0)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("0b_", base=0)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("0o", base=0)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("0o_", base=0)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("2", base=2)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("8", base=8)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("g", base=16)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("z", base=35)
+        assert False
+    except ValueError:
+        pass
+
+    # Invalid bases
+    try:
+        int("123", base=1)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("123", base=37)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("123", base=-2)
+        assert False
+    except ValueError:
+        pass
+
+    # Python-style base=0 should reject old-style leading-zero decimals
+    try:
+        int("010", base=0)
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        int("00_10", base=0)
+        assert False
+    except ValueError:
+        pass
+
+    # Signed overflow
+    try:
+        Int[8]("128")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[8]("-129")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[16]("32768")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[16]("-32769")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[32]("2147483648")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[32]("-2147483649")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[64]("9223372036854775808")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[64]("-9223372036854775809")
+        assert False
+    except OverflowError:
+        pass
+
+    # Unsigned overflow
+    try:
+        UInt[8]("256")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[16]("65536")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[32]("4294967296")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[64]("18446744073709551616")
+        assert False
+    except OverflowError:
+        pass
+
+    # Negative unsigned
+    try:
+        UInt[8]("-1")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[32]("-123")
+        assert False
+    except OverflowError:
+        pass
+
+    # Overflow with prefixes/underscores
+    try:
+        UInt[8]("0x100", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[8]("0x80", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[8]("-0x81", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[32]("0x1_0000_0000", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[32]("0x8000_0000", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[32]("-0x8000_0001", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    # Binary/octal overflow
+    try:
+        UInt[8]("100000000", base=2)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[8]("10000000", base=2)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[8]("-10000001", base=2)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[16]("200000", base=8)
+        assert False
+    except OverflowError:
+        pass
+
+    # Int[4]: range [-8, 7]
+    assert Int[4]("0") == Int[4](0)
+    assert Int[4]("7") == Int[4](7)
+    assert Int[4]("-8") == Int[4](-8)
+    assert Int[4]("0b111", base=0) == Int[4](7)
+    assert Int[4]("-0b1000", base=0) == Int[4](-8)
+    assert Int[4]("0x7", base=0) == Int[4](7)
+    assert Int[4]("-0x8", base=0) == Int[4](-8)
+
+    try:
+        Int[4]("8")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[4]("-9")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[4]("0b1000", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[4]("-0b1001", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[4]("0x8", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[4]("-0x9", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    # UInt[4]: range [0, 15]
+    assert UInt[4]("0") == UInt[4](0)
+    assert UInt[4]("15") == UInt[4](15)
+    assert UInt[4]("0xf", base=0) == UInt[4](15)
+    assert UInt[4]("0b1111", base=0) == UInt[4](15)
+
+    try:
+        UInt[4]("16")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[4]("0x10", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[4]("0b10000", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[4]("z", base=36)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[4]("-1")
+        assert False
+    except OverflowError:
+        pass
+
+    # UInt[5]: range [0, 31]
+    assert UInt[5]("31") == UInt[5](31)
+    assert UInt[5]("v", base=36) == UInt[5](31)
+
+    try:
+        UInt[5]("32")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[5]("w", base=36)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[5]("z", base=36)
+        assert False
+    except OverflowError:
+        pass
+
+    # UInt[6]: range [0, 63]
+    assert UInt[6]("z", base=36) == UInt[6](35)
+    assert UInt[6]("10", base=36) == UInt[6](36)
+    assert UInt[6]("1r", base=36) == UInt[6](63)
+
+    try:
+        UInt[6]("1s", base=36)
+        assert False
+    except OverflowError:
+        pass
+
+    # Int[5]: range [-16, 15]
+    assert Int[5]("15") == Int[5](15)
+    assert Int[5]("-16") == Int[5](-16)
+    assert Int[5]("f", base=16) == Int[5](15)
+    assert Int[5]("-10", base=16) == Int[5](-16)
+
+    try:
+        Int[5]("16")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[5]("-17")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[5]("g", base=17)
+        assert False
+    except OverflowError:
+        pass
+
+    # Int[7]: range [-64, 63]
+    assert Int[7]("63") == Int[7](63)
+    assert Int[7]("-64") == Int[7](-64)
+    assert Int[7]("1r", base=36) == Int[7](63)
+    assert Int[7]("-1s", base=36) == Int[7](-64)
+
+    try:
+        Int[7]("64")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[7]("-65")
+        assert False
+    except OverflowError:
+        pass
+
+    # UInt[128]: max = 2^128 - 1
+    u128_max = "340282366920938463463374607431768211455"
+    assert str(UInt[128]("0")) == "0"
+    assert str(UInt[128](u128_max)) == u128_max
+    assert str(UInt[128]("0xffffffffffffffffffffffffffffffff", base=0)) == u128_max
+    assert str(UInt[128]("ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff", base=16)) == u128_max
+    assert str(UInt[128]("0b" + "1" * 128, base=0)) == u128_max
+
+    try:
+        UInt[128]("340282366920938463463374607431768211456")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[128]("0x100000000000000000000000000000000", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[128]("0b1" + "0" * 128, base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[128]("-1")
+        assert False
+    except OverflowError:
+        pass
+
+    # Int[128]: range [-(2^127), 2^127 - 1]
+    i128_max = "170141183460469231731687303715884105727"
+    i128_min = "-170141183460469231731687303715884105728"
+
+    assert str(Int[128]("0")) == "0"
+    assert str(Int[128](i128_max)) == i128_max
+    assert str(Int[128](i128_min)) == i128_min
+    assert str(Int[128]("0x7fffffffffffffffffffffffffffffff", base=0)) == i128_max
+    assert str(Int[128]("-0x80000000000000000000000000000000", base=0)) == i128_min
+    assert str(Int[128]("0b" + "1" * 127, base=0)) == i128_max
+    assert str(Int[128]("-0b1" + "0" * 127, base=0)) == i128_min
+
+    try:
+        Int[128]("170141183460469231731687303715884105728")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[128]("-170141183460469231731687303715884105729")
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[128]("0x80000000000000000000000000000000", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[128]("-0x80000000000000000000000000000001", base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    # UInt[256]: max = 2^256 - 1
+    u256_max = "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+
+    assert str(UInt[256]("0")) == "0"
+    assert str(UInt[256](u256_max)) == u256_max
+    assert str(UInt[256](
+        "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        base=0,
+    )) == u256_max
+    assert str(UInt[256](
+        "ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff",
+        base=16,
+    )) == u256_max
+    assert str(UInt[256]("0b" + "1" * 256, base=0)) == u256_max
+
+    try:
+        UInt[256](
+            "115792089237316195423570985008687907853269984665640564039457584007913129639936"
+        )
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[256](
+            "0x10000000000000000000000000000000000000000000000000000000000000000",
+            base=0,
+        )
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[256]("0b1" + "0" * 256, base=0)
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        UInt[256]("-1")
+        assert False
+    except OverflowError:
+        pass
+
+    # Int[256]: range [-(2^255), 2^255 - 1]
+    i256_max = "57896044618658097711785492504343953926634992332820282019728792003956564819967"
+    i256_min = "-57896044618658097711785492504343953926634992332820282019728792003956564819968"
+
+    assert str(Int[256]("0")) == "0"
+    assert str(Int[256](i256_max)) == i256_max
+    assert str(Int[256](i256_min)) == i256_min
+    assert str(Int[256](
+        "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        base=0,
+    )) == i256_max
+    assert str(Int[256](
+        "-0x8000000000000000000000000000000000000000000000000000000000000000",
+        base=0,
+    )) == i256_min
+    assert str(Int[256]("0b" + "1" * 255, base=0)) == i256_max
+    assert str(Int[256]("-0b1" + "0" * 255, base=0)) == i256_min
+
+    try:
+        Int[256](
+            "57896044618658097711785492504343953926634992332820282019728792003956564819968"
+        )
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[256](
+            "-57896044618658097711785492504343953926634992332820282019728792003956564819969"
+        )
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[256](
+            "0x8000000000000000000000000000000000000000000000000000000000000000",
+            base=0,
+        )
+        assert False
+    except OverflowError:
+        pass
+
+    try:
+        Int[256](
+            "-0x8000000000000000000000000000000000000000000000000000000000000001",
+            base=0,
+        )
+        assert False
+    except OverflowError:
+        pass
+
+    # extra tests from PR #786
+    assert int("0b0", 0) == 0
+    assert int("0b1", 0) == 1
+    assert int("0b1101", 0) == 13
+    assert int("+0b1101", 0) == 13
+    assert int("-0b1101", 0) == -13
+
+    assert int("7", 0) == 7
+    assert int("42", 0) == 42
+    assert int("12345", 0) == 12345
+    assert int("+67890", 0) == 67890
+    assert int("-24680", 0) == -24680
+
+    assert int("0o7", 0) == 7
+    assert int("0o123", 0) == 83
+    assert int("0o707", 0) == 455
+    assert int("+0o710", 0) == 456
+    assert int("-0o765", 0) == -501
+
+    assert int("0xA", 0) == 10
+    assert int("0xABCD", 0) == 43981
+    assert int("0xFFF", 0) == 4095
+    assert int("+0x1234", 0) == 4660
+    assert int("-0xFF", 0) == -255
+
+    assert int("1_0", 2) == 2
+    assert int("10_01", 2) == 9
+    assert int("101_101", 2) == 45
+    assert int("0b1_101", 0) == 13
+    assert int("-0b101_011", 0) == -43
+
+    assert int("1_2", 8) == 10
+    assert int("12_3", 8) == 83
+    assert int("7_07", 8) == 455
+    assert int("0o1_23", 0) == 83
+    assert int("-0o7_10", 0) == -456
+
+    assert int("1_A", 16) == 26
+    assert int("AB_CD", 16) == 43981
+    assert int("F_FF", 16) == 4095
+    assert int("0x1_A", 0) == 26
+    assert int("-0xF_F", 0) == -255
+
+    assert int("1_2") == 12
+    assert int("12_34") == 1234
+    assert int("123_456") == 123456
+    assert int("+1_000_001") == 1000001
+    assert int("-9_87_65") == -98765
+
+    # If it's both an overflow and invalid value, make
+    # sure the invalid value exception gets priority
+    try:
+        UInt[16]('9999999999999999xxxx')
+        assert False
+    except ValueError:  # not OverflowError
+        pass
+
+    try:
+        UInt[16]('9999999999999999')
+        assert False
+    except OverflowError:
+        pass
+
+@test
+def test_files(open_fn, append_allowed: bool = True):
+    import os
+    path = 'build/testfile-' + str(os.getpid()) + '.txt'
+    f = open_fn(path, 'wt')
+    f.write('hello\nworld\n')
+    f.close()
+
+    with open_fn(path, 'rt') as f:
+        assert [line for line in f] == ['hello\n', 'world\n']
+
+    with open_fn(path, 'rt') as f:
+        assert f.read(3) == 'hel'
+        assert f.read() == 'lo\nworld\n'
+        if hasattr(f, "seek"):
+            f.seek(0, 0)
+            assert f.tell() == 0
+            assert f.read() == 'hello\nworld\n'
+
+    if hasattr(f, "tell"):
+        try:
+            f.tell()
+            assert False
+        except IOError:
+            pass
+
+    if hasattr(f, "seek"):
+        try:
+            f.seek(0, 0)
+            assert False
+        except IOError:
+            pass
+
+    try:
+        f.flush()
+        assert False
+    except IOError:
+        pass
+
+    if append_allowed:
+        f = open_fn(path, 'at')
+        f.write('goodbye')
+        f.flush()
+        f.close()
+    else:
+        f = open_fn(path, 'wt')
+        f.write('hello\nworld\ngoodbye')
+        f.flush()
+        f.close()
+
+    with open_fn(path, 'rt') as f:
+        assert [line for line in f] == ['hello\n', 'world\n', 'goodbye']
+
+    with open_fn(path, 'rt') as f:
+        assert f.read(3) == 'hel'
+        assert f.read() == 'lo\nworld\ngoodbye'
+
+test_min_max()
+test_map_filter()
+test_gen_builtins()
+test_int_format()
+test_complex_format()
+test_alt_types_from_str()
+test_reversed()
+test_divmod()
+test_pow()
+test_num_from_str()
+test_int_from_wide_storage()
+test_num_from_str_extended()
+test_files(open)
+import gzip
+test_files(gzip.open)
+import bz2
+test_files(bz2.open)
+
+
+# Codon-specific
+
+@pure
+@llvm
+def zext(x: int, T: type) -> T:
+    %0 = zext i64 %x to {=T}
+    ret {=T} %0
+
+@test
+def test_narrow_int_str(T: type):
+    z = T(0)
+    o = T(1)
+    a = T(42)
+    b = T(-9)
+
+    assert str(z) == '0'
+    assert str(-z) == '0'
+    assert str(o) == '1'
+    assert str(-o) == '-1'
+    assert str(o + o + o) == '3'
+    assert str((o + o + o + o) * (o + o + o)) == '12'
+    assert str(a) == '42'
+    assert str(b) == '-9'
+    assert repr(a) == f'Int[{T.N}](42)' if T.N != 64 else '42'
+
+@test
+def test_narrow_uint_str(T: type):
+    z = T(0)
+    o = T(1)
+    a = T(42)
+
+    assert str(z) == '0'
+    assert str(-z) == '0'
+    assert str(o) == '1'
+    assert str(o + o + o) == '3'
+    assert str((o + o + o + o) * (o + o + o)) == '12'
+    assert str(a) == '42'
+
+    if T.N == 32:
+        assert str(T(0xffffffff)) == '4294967295'
+
+    if T.N == 64:
+        assert str(T(0xffffffffffffffff)) == '18446744073709551615'
+
+    assert repr(a) == f'UInt[{T.N}](42)'
+
+@test
+def test_wide_int_str(T: type):
+    z = T(0)
+    o = T(1)
+    a = T(0xf23ff2341234)
+    b = T(-77777)
+
+    assert str(z) == '0'
+    assert str(-z) == '0'
+    assert str(o) == '1'
+    assert str(-o) == '-1'
+    assert str(o + o + o) == '3'
+    assert str((o + o + o + o) * (o + o + o)) == '12'
+    assert str(a) == '266356460360244'
+    assert str(b) == '-77777'
+    assert str(a * a) == '70945763975638233282255739536'
+    assert str(b * b) == '6049261729'
+    assert str(a * b) == '-20716406417438697588'
+
+    n = zext(0x7fffffffffffffff, T)
+    m = zext(0xffffffffffffffff, T)
+    s = T(64)
+    assert str((n << s) | m) == '170141183460469231731687303715884105727'
+    if T.N == 128:
+        assert str(T(1) << T(127)) == '-170141183460469231731687303715884105728'
+    if T.N > 500:
+        assert str(a * a * a * a * a * a * a * a) == '25334123245849102734940743817373556303530349383588924760280652082676453679304226528003335153202090430651964934127616'
+        assert str(a * a * a * a * a * a * a * a * b) == '-1970412103692405663415486231883863088619679984007395801080348277034326537815244826668515398210598987424817876681643589632'
+
+    assert repr(a) == f'Int[{T.N}](266356460360244)'
+    assert repr(a * b) == f'Int[{T.N}](-20716406417438697588)'
+
+@test
+def test_wide_uint_str(T: type):
+    z = T(0)
+    o = T(1)
+    a = T(0xf23ff2341234)
+
+    assert str(z) == '0'
+    assert str(-z) == '0'
+    assert str(o) == '1'
+    assert str(o + o + o) == '3'
+    assert str((o + o + o + o) * (o + o + o)) == '12'
+    assert str(a) == '266356460360244'
+    assert str(a * a) == '70945763975638233282255739536'
+
+    n = zext(0xffffffffffffffff, T)
+    s = T(64)
+    assert str((n << s) | n) == '340282366920938463463374607431768211455'
+    assert str((n << s) | (n - T(1))) == '340282366920938463463374607431768211454'
+    if T.N > 500:
+        assert str(a * a * a * a * a * a * a * a) == '25334123245849102734940743817373556303530349383588924760280652082676453679304226528003335153202090430651964934127616'
+
+    assert repr(a) == f'UInt[{T.N}](266356460360244)'
+    assert repr(a * a) == f'UInt[{T.N}](70945763975638233282255739536)'
+
+test_narrow_int_str(Int[7])
+test_narrow_int_str(Int[8])
+test_narrow_int_str(Int[10])
+test_narrow_int_str(Int[16])
+test_narrow_int_str(Int[32])
+test_narrow_int_str(Int[60])
+test_narrow_int_str(Int[63])
+test_narrow_int_str(Int[64])
+
+test_narrow_uint_str(UInt[7])
+test_narrow_uint_str(UInt[8])
+test_narrow_uint_str(UInt[10])
+test_narrow_uint_str(UInt[16])
+test_narrow_uint_str(UInt[32])
+test_narrow_uint_str(UInt[60])
+test_narrow_uint_str(UInt[63])
+test_narrow_uint_str(UInt[64])
+
+test_wide_int_str(Int[128])
+test_wide_int_str(Int[200])
+test_wide_int_str(Int[256])
+test_wide_int_str(Int[512])
+test_wide_int_str(Int[1024])
+
+test_wide_uint_str(UInt[128])
+test_wide_uint_str(UInt[200])
+test_wide_uint_str(UInt[256])
+test_wide_uint_str(UInt[512])
+test_wide_uint_str(UInt[1024])
+
+# These take ages [80+ sec] on LLVM 17 to generate
+# test_wide_int_str(Int[2048])
+# test_wide_int_str(Int[4096])
+# test_wide_uint_str(UInt[2048])
+# test_wide_uint_str(UInt[4096])
+
+
+# __ptr__
+@test
+def test_ptr_fields():
+    @tuple
+    class A:
+        n1: int
+        n2: int
+        n3: int
+
+    @tuple
+    class B:
+        a1: A
+        a2: A
+
+    @tuple
+    class C:
+        b1: B
+        b2: B
+
+    x1 = A(1, 2, 3)
+    __ptr__(x1.n1)[0] += 10
+    __ptr__(x1.n2)[0] += 20
+    __ptr__(x1.n3)[0] += 30
+
+    assert x1.n1 == 10 + 1
+    assert x1.n2 == 20 + 2
+    assert x1.n3 == 30 + 3
+
+    x2 = C(B(A(1, 2, 3), A(4, 5, 6)), B(A(7, 8, 9), A(10, 11, 12)))
+    __ptr__(x2.b1.a1.n1)[0] += 10
+    __ptr__(x2.b1.a1.n2)[0] += 20
+    __ptr__(x2.b1.a1.n3)[0] += 30
+    __ptr__(x2.b1.a2.n1)[0] += 40
+    __ptr__(x2.b1.a2.n2)[0] += 50
+    __ptr__(x2.b1.a2.n3)[0] += 60
+    __ptr__(x2.b2.a1.n1)[0] += 70
+    __ptr__(x2.b2.a1.n2)[0] += 80
+    __ptr__(x2.b2.a1.n3)[0] += 90
+    __ptr__(x2.b2.a2.n1)[0] += 100
+    __ptr__(x2.b2.a2.n2)[0] += 110
+    __ptr__(x2.b2.a2.n3)[0] += 120
+
+    assert x2.b1.a1.n1 == 10 + 1
+    assert x2.b1.a1.n2 == 20 + 2
+    assert x2.b1.a1.n3 == 30 + 3
+    assert x2.b1.a2.n1 == 40 + 4
+    assert x2.b1.a2.n2 == 50 + 5
+    assert x2.b1.a2.n3 == 60 + 6
+    assert x2.b2.a1.n1 == 70 + 7
+    assert x2.b2.a1.n2 == 80 + 8
+    assert x2.b2.a1.n3 == 90 + 9
+    assert x2.b2.a2.n1 == 100 + 10
+    assert x2.b2.a2.n2 == 110 + 11
+    assert x2.b2.a2.n3 == 120 + 12
+
+    __ptr__(x1)[0] = A(-1, -2, -3)
+    assert x1.n1 == -1
+    assert x1.n2 == -2
+    assert x1.n3 == -3
+
+test_ptr_fields()
+
+@test
+def test_sum_types():
+    class A:
+        n: int
+        def __init__(self, n: int):
+            self.n = n
+        def __add__(self, other):
+            return A(self.n + other.n)
+        def __eq__(self, other):
+            return self.n == other.n
+        def __ne__(self, other):
+            return self.n != other.n
+        def __hash__(self):
+            return self.n
+
+    # lists
+    s = sum([i/2 for i in range(6)])
+    assert type(s) is float
+    assert s == 7.5
+
+    s = sum([i*i for i in range(6)])
+    assert type(s) is int
+    assert s == 55
+
+    s = sum([i*i for i in range(6)], start=1.5)
+    assert type(s) is float
+    assert s == 56.5
+
+    s = sum([i%2 == 0 for i in range(6)])
+    assert type(s) is int
+    assert s == 3
+
+    s = sum([i%2 == 0 for i in range(6)], start=1.5)
+    assert type(s) is float
+    assert s == 4.5
+
+    s = sum([A(i) for i in range(6)], start=A(0))
+    assert type(s) is A
+    assert s.n == 15
+
+    # empty lists
+    s = sum([i/2 for i in range(0)])
+    assert type(s) is float
+    assert s == 0.0
+
+    s = sum([i*i for i in range(0)])
+    assert type(s) is int
+    assert s == 0
+
+    s = sum([i*i for i in range(0)], start=1.5)
+    assert type(s) is float
+    assert s == 1.5
+
+    s = sum([i%2 == 0 for i in range(0)])
+    assert type(s) is int
+    assert s == 0
+
+    s = sum([i%2 == 0 for i in range(0)], start=1.5)
+    assert type(s) is float
+    assert s == 1.5
+
+    s = sum([A(i) for i in range(0)], start=A(0))
+    assert type(s) is A
+    assert s.n == 0
+
+    # generators
+    s = sum(i/2 for i in range(6))
+    assert type(s) is float
+    assert s == 7.5
+
+    s = sum(i*i for i in range(6))
+    assert type(s) is int
+    assert s == 55
+
+    s = sum((i*i for i in range(6)), start=1.5)
+    assert type(s) is float
+    assert s == 56.5
+
+    s = sum(i%2 == 0 for i in range(6))
+    assert type(s) is int
+    assert s == 3
+
+    s = sum((i%2 == 0 for i in range(6)), start=1.5)
+    assert type(s) is float
+    assert s == 4.5
+
+    s = sum((A(i) for i in range(6)), start=A(0))
+    assert type(s) is A
+    assert s.n == 15
+
+    # empty generators
+    s = sum(i/2 for i in range(0))
+    assert type(s) is float
+    assert s == 0.0
+
+    s = sum(i*i for i in range(0))
+    assert type(s) is int
+    assert s == 0
+
+    s = sum((i*i for i in range(0)), start=1.5)
+    assert type(s) is float
+    assert s == 1.5
+
+    s = sum(i%2 == 0 for i in range(0))
+    assert type(s) is int
+    assert s == 0
+
+    s = sum((i%2 == 0 for i in range(0)), start=1.5)
+    assert type(s) is float
+    assert s == 1.5
+
+    s = sum((A(i) for i in range(0)), start=A(0))
+    assert type(s) is A
+    assert s.n == 0
+
+    # sets
+    s = sum({i/2 for i in range(6)})
+    assert type(s) is float
+    assert s == 7.5
+
+    s = sum({i*i for i in range(6)})
+    assert type(s) is int
+    assert s == 55
+
+    s = sum({i*i for i in range(6)}, start=1.5)
+    assert type(s) is float
+    assert s == 56.5
+
+    s = sum({i%2 == 0 for i in range(6)})
+    assert type(s) is int
+    assert s == 1
+
+    s = sum({i%2 == 0 for i in range(6)}, start=1.5)
+    assert type(s) is float
+    assert s == 2.5
+
+    s = sum({A(i) for i in range(6)}, start=A(0))
+    assert type(s) is A
+    assert s.n == 15
+
+    # empty sets
+    s = sum({i/2 for i in range(0)})
+    assert type(s) is float
+    assert s == 0.0
+
+    s = sum({i*i for i in range(0)})
+    assert type(s) is int
+    assert s == 0
+
+    s = sum({i*i for i in range(0)}, start=1.5)
+    assert type(s) is float
+    assert s == 1.5
+
+    s = sum({i%2 == 0 for i in range(0)})
+    assert type(s) is int
+    assert s == 0
+
+    s = sum({i%2 == 0 for i in range(0)}, start=1.5)
+    assert type(s) is float
+    assert s == 1.5
+
+    s = sum({A(i) for i in range(0)}, start=A(0))
+    assert type(s) is A
+    assert s.n == 0
+
+test_sum_types()
+
+@test
+def test_round():
+    import math
+
+    # integers
+    assert round(0) == 0
+    assert round(1) == 1
+    assert round(-1) == -1
+    assert round(42) == 42
+    assert round(-42) == -42
+
+    assert round(42, 0) == 42
+    assert round(42, 1) == 42
+    assert round(42, 10) == 42
+    assert round(-42, 0) == -42
+    assert round(-42, 1) == -42
+
+    assert round(42, -1) == 40
+    assert round(45, -1) == 40
+    assert round(55, -1) == 60
+    assert round(65, -1) == 60
+    assert round(75, -1) == 80
+
+    assert round(-42, -1) == -40
+    assert round(-45, -1) == -40
+    assert round(-55, -1) == -60
+    assert round(-65, -1) == -60
+    assert round(-75, -1) == -80
+
+    assert round(1234, -1) == 1230
+    assert round(1234, -2) == 1200
+    assert round(1234, -3) == 1000
+    assert round(1234, -4) == 0
+
+    assert round(1500, -3) == 2000
+    assert round(2500, -3) == 2000
+    assert round(3500, -3) == 4000
+    assert round(4500, -3) == 4000
+
+    assert round(-1500, -3) == -2000
+    assert round(-2500, -3) == -2000
+    assert round(-3500, -3) == -4000
+    assert round(-4500, -3) == -4000
+
+    # Int[N] integers
+    assert round(i32(0)) == i32(0)
+    assert round(i32(1)) == i32(1)
+    assert round(i32(-1)) == i32(-1)
+    assert round(i32(42)) == i32(42)
+    assert round(i32(-42)) == i32(-42)
+
+    assert round(i32(42), 0) == i32(42)
+    assert round(i32(42), 1) == i32(42)
+    assert round(i32(42), 10) == i32(42)
+    assert round(i32(-42), 0) == i32(-42)
+    assert round(i32(-42), 1) == i32(-42)
+
+    assert round(i32(42), -1) == i32(40)
+    assert round(i32(45), -1) == i32(40)
+    assert round(i32(55), -1) == i32(60)
+    assert round(i32(65), -1) == i32(60)
+    assert round(i32(75), -1) == i32(80)
+
+    assert round(i32(-42), -1) == i32(-40)
+    assert round(i32(-45), -1) == i32(-40)
+    assert round(i32(-55), -1) == i32(-60)
+    assert round(i32(-65), -1) == i32(-60)
+    assert round(i32(-75), -1) == i32(-80)
+
+    assert round(i32(1234), -1) == i32(1230)
+    assert round(i32(1234), -2) == i32(1200)
+    assert round(i32(1234), -3) == i32(1000)
+    assert round(i32(1234), -4) == i32(0)
+
+    assert round(i32(1500), -3) == i32(2000)
+    assert round(i32(2500), -3) == i32(2000)
+    assert round(i32(3500), -3) == i32(4000)
+    assert round(i32(4500), -3) == i32(4000)
+
+    assert round(i32(-1500), -3) == i32(-2000)
+    assert round(i32(-2500), -3) == i32(-2000)
+    assert round(i32(-3500), -3) == i32(-4000)
+    assert round(i32(-4500), -3) == i32(-4000)
+
+    # UInt[N] integers
+    assert round(u32(0)) == u32(0)
+    assert round(u32(1)) == u32(1)
+    assert round(u32(42)) == u32(42)
+
+    assert round(u32(42), 0) == u32(42)
+    assert round(u32(42), 1) == u32(42)
+    assert round(u32(42), 10) == u32(42)
+
+    assert round(u32(42), -1) == u32(40)
+    assert round(u32(45), -1) == u32(40)
+    assert round(u32(55), -1) == u32(60)
+    assert round(u32(65), -1) == u32(60)
+    assert round(u32(75), -1) == u32(80)
+
+    assert round(u32(1234), -1) == u32(1230)
+    assert round(u32(1234), -2) == u32(1200)
+    assert round(u32(1234), -3) == u32(1000)
+    assert round(u32(1234), -4) == u32(0)
+
+    assert round(u32(1500), -3) == u32(2000)
+    assert round(u32(2500), -3) == u32(2000)
+    assert round(u32(3500), -3) == u32(4000)
+    assert round(u32(4500), -3) == u32(4000)
+
+    # floats without ndigits return int
+    assert round(0.0) == 0
+    assert round(1.0) == 1
+    assert round(-1.0) == -1
+    assert round(1.2) == 1
+    assert round(1.8) == 2
+    assert round(-1.2) == -1
+    assert round(-1.8) == -2
+
+    # ties-to-even
+    assert round(0.5) == 0
+    assert round(1.5) == 2
+    assert round(2.5) == 2
+    assert round(3.5) == 4
+    assert round(4.5) == 4
+
+    assert round(-0.5) == 0
+    assert round(-1.5) == -2
+    assert round(-2.5) == -2
+    assert round(-3.5) == -4
+    assert round(-4.5) == -4
+
+    # ndigits == 0 returns float for float input
+    assert round(1.2, 0) == 1.0
+    assert round(1.8, 0) == 2.0
+    assert round(-1.2, 0) == -1.0
+    assert round(-1.8, 0) == -2.0
+
+    assert round(0.5, 0) == 0.0
+    assert round(1.5, 0) == 2.0
+    assert round(2.5, 0) == 2.0
+    assert round(3.5, 0) == 4.0
+
+    assert round(-0.5, 0) == -0.0
+    assert round(-1.5, 0) == -2.0
+    assert round(-2.5, 0) == -2.0
+    assert round(-3.5, 0) == -4.0
+
+    # positive ndigits
+    assert round(1.2345, 1) == 1.2
+    assert round(1.2345, 2) == 1.23
+    assert round(1.2345, 3) == 1.234
+    assert round(1.2345, 4) == 1.2345
+
+    assert round(-1.2345, 1) == -1.2
+    assert round(-1.2345, 2) == -1.23
+    assert round(-1.2345, 3) == -1.234
+    assert round(-1.2345, 4) == -1.2345
+
+    assert round(9.8765, 1) == 9.9
+    assert round(9.8765, 2) == 9.88
+    assert round(-9.8765, 1) == -9.9
+    assert round(-9.8765, 2) == -9.88
+
+    # positive ndigits ties-to-even-ish cases
+    assert round(1.25, 1) == 1.2
+    assert round(1.35, 1) == 1.4
+    assert round(1.45, 1) == 1.4
+    assert round(1.55, 1) == 1.6
+
+    assert round(-1.25, 1) == -1.2
+    assert round(-1.35, 1) == -1.4
+    assert round(-1.45, 1) == -1.4
+    assert round(-1.55, 1) == -1.6
+
+    assert round(1.125, 2) == 1.12
+    assert round(1.135, 2) == 1.14
+    assert round(-1.125, 2) == -1.12
+    assert round(-1.135, 2) == -1.14
+
+    # negative ndigits floats
+    assert round(12.0, -1) == 10.0
+    assert round(15.0, -1) == 20.0
+    assert round(25.0, -1) == 20.0
+    assert round(35.0, -1) == 40.0
+    assert round(45.0, -1) == 40.0
+
+    assert round(-12.0, -1) == -10.0
+    assert round(-15.0, -1) == -20.0
+    assert round(-25.0, -1) == -20.0
+    assert round(-35.0, -1) == -40.0
+    assert round(-45.0, -1) == -40.0
+
+    assert round(1234.0, -1) == 1230.0
+    assert round(1234.0, -2) == 1200.0
+    assert round(1234.0, -3) == 1000.0
+    assert round(1234.0, -4) == 0.0
+
+    # large negative ndigits
+    assert round(123456789.0, -1) == 123456790.0
+    assert round(123456789.0, -2) == 123456800.0
+    assert round(123456789.0, -3) == 123457000.0
+    assert round(123456789.0, -4) == 123460000.0
+    assert round(123456789.0, -5) == 123500000.0
+    assert round(123456789.0, -6) == 123000000.0
+    assert round(123456789.0, -7) == 120000000.0
+    assert round(123456789.0, -8) == 100000000.0
+    assert round(123456789.0, -9) == 0.0
+
+    # signed zero
+    x = round(-0.1, 0)
+    assert x == 0.0
+    assert math.copysign(1.0, x) == -1.0
+
+    y = round(-0.5, 0)
+    assert y == 0.0
+    assert math.copysign(1.0, y) == -1.0
+
+    z = round(-0.01, 1)
+    assert z == -0.0
+    assert math.copysign(1.0, z) == -1.0
+
+    # inf/nan with ndigits
+    assert round(math.inf, 0) == math.inf
+    assert round(-math.inf, 0) == -math.inf
+    assert round(math.inf, 5) == math.inf
+    assert round(-math.inf, 5) == -math.inf
+    assert round(math.inf, -5) == math.inf
+    assert round(-math.inf, -5) == -math.inf
+
+    assert math.isnan(round(math.nan, 0))
+    assert math.isnan(round(math.nan, 5))
+    assert math.isnan(round(math.nan, -5))
+
+    # binary-float decimal behavior
+    # assert round(2.675, 2) == 2.67  # <-- these differ from CPython due to different algorithm
+    # assert round(2.685, 2) == 2.69
+    assert round(1.005, 2) == 1.0
+    assert round(1.015, 2) == 1.01
+    assert round(1.025, 2) == 1.02
+    assert round(1.035, 2) == 1.03
+
+    # return types
+    assert isinstance(round(1.2), int)
+    assert isinstance(round(-1.2), int)
+
+    assert isinstance(round(1.2, 0), float)
+    assert isinstance(round(1.2, 1), float)
+    assert isinstance(round(1.2, -1), float)
+
+    assert isinstance(round(123), int)
+    assert isinstance(round(123, 0), int)
+    assert isinstance(round(123, -1), int)
+
+test_round()
+
+@test
+def test_any_tuple():
+    from internal.static import len as static_len
+    from C import GC_gcollect()
+
+    class Record:
+        number: int
+        values: list[int]
+
+        def __eq__(self, other: Record):
+            return self.number == other.number and self.values == other.values
+
+        def __ne__(self, other: Record):
+            return not self == other
+
+        def __hash__(self):
+            return hash((self.number, self.values))
+
+    @tuple
+    class Nested:
+        value: Any
+
+    class Holder:
+        value: Any
+        marker: int
+
+    @noinline
+    def box(value) -> Any:
+        return value
+
+    def unbox(value: Any) -> int:
+        return value
+
+    assert Any.__elemsize__ == Ptr[byte].__elemsize__ + TypeInfo.__elemsize__
+    assert not Any.__atomic__
+    number = box(17)
+    assert static_len(number) == 2
+    assert unbox(number) == 17
+    assert Any(number) == number
+    assert number.__unwrap__(Any) == number
+    assert hash(Any(number)) == hash(number)
+    distinct = box(17)
+    assert distinct == number
+    assert hash(number) == hash(17)
+    hash_method_id = TypeInfo._value_method_id('_hash_value')
+    equal_method_id = TypeInfo._value_method_id('_equal_values')
+    assert hash_method_id > 0 and equal_method_id > 0
+    assert hash_method_id != equal_method_id
+    integer_info = TypeInfo.cache(int)
+    hash_target = integer_info._lookup_method(hash_method_id)
+    equal_target = integer_info._lookup_method(equal_method_id)
+    number_payload = number.__unwrap__(int)
+    distinct_payload = distinct.__unwrap__(int)
+    assert Function[[Ptr[byte]], int](hash_target)(__ptr__(number_payload).as_byte()) == hash(17)
+    assert Function[[Ptr[byte], Ptr[byte]], bool](equal_target)(
+        __ptr__(number_payload).as_byte(), __ptr__(distinct_payload).as_byte())
+    for index in range(integer_info.n_methods):
+        slot = integer_info.methods[index]
+        if slot.id:
+            assert integer_info._lookup_method(slot.id) == slot.target
+    field_names = [name for name, member_type, offset in TypeInfo.cache(TypeInfo)]
+    assert 'value_hash' not in field_names and 'value_equal' not in field_names
+    assert box(18) != number
+    assert box(17.0) != number
+    assert box(True) != box(1)
+    assert box('value') == box('value')
+    assert box('value') != box('other')
+    assert hash(box('value')) == hash('value')
+    assert box((3, 'value')) == box((3, 'value'))
+    assert hash(box((3, 'value'))) == hash((3, 'value'))
+    assert box([3, 5]) == box([3, 5])
+    assert hash(box([3, 5])) == hash([3, 5])
+    nan = box(float('nan'))
+    assert nan != nan
+    keys = {number: 'original'}
+    assert keys[Any(number)] == 'original'
+    keys[distinct] = 'distinct'
+    assert len(keys) == 1 and keys[number] == 'distinct'
+    assert len({number, Any(number), distinct}) == 1
+
+    record = Record(41, [1, 2])
+    boxed = box(record)
+    alias = boxed
+    assert Any(record) == boxed
+    assert Any(Record(41, [1, 2])) == boxed
+    assert Any(Record(40, [1, 2])) != boxed
+    saved_hash = hash(boxed)
+    assert saved_hash == hash(record)
+    alias.__setattr__('number', 42)
+    assert record.number == 42
+    assert boxed.__getattr__('number', int) == 42
+    assert hash(boxed) == hash(record)
+    assert hash(boxed) != saved_hash
+    assert boxed.__getattr__('number') == box(42)
+    assert hash(boxed.__getattr__('number')) == hash(42)
+    assert boxed.__unwrap__(Record) is record
+    assert boxed.__getattr__('values', list[int]) is record.values
+    try:
+        number.__unwrap__(str)
+        assert False
+    except TypeError:
+        pass
+
+    storage = Ptr[Any](1)
+    storage[0] = number
+    assert Any(TypeInfo.cache(Any), storage.as_byte()) == number
+    assert Any(storage).__cast__(Ptr[Any])[0] == number
+    integers = Ptr[int](1)
+    integers[0] = 23
+    assert Any(integers).__cast__(Ptr[Any])[0].__unwrap__(int) == 23
+
+    reference = Record(51, [5, 1])
+    neighbor = Record(63, [6, 3])
+    references = Ptr[Record](2)
+    references[0] = reference
+    references[1] = neighbor
+    converted_reference = cast(Ptr[Any], Any(references))[0]
+    restored_reference = cast(Record, converted_reference)
+    assert restored_reference is reference
+    assert restored_reference.number == 51 and restored_reference.values == [5, 1]
+    restored_reference.number = 52
+    converted_reference.__setattr__('values', [5, 2])
+    assert reference.number == 52 and reference.values == [5, 2]
+    assert references[0] is reference and references[1] is neighbor
+    assert neighbor.number == 63 and neighbor.values == [6, 3]
+
+    present = Any(Optional[Any](number)).__cast__(Optional[Any])
+    assert present is not None and unwrap(present) == number
+    assert Any(Optional[Any]()).__cast__(Optional[Any]) is None
+    present_int = Any(Optional[int](19)).__cast__(Optional[Any])
+    assert present_int is not None and unwrap(present_int).__unwrap__(int) == 19
+    present_ref = Any(Optional[Record](record)).__cast__(Optional[Any])
+    assert present_ref is not None and unwrap(present_ref).__unwrap__(Record) is record
+    assert Any(Optional[Record]()).__cast__(Optional[Any]) is None
+
+    values: list[Any] = [number, box('text'), boxed]
+    viewed = Any(values).__cast__(List[Any])
+    assert len(viewed) == 3
+    assert viewed[0] == number
+    assert viewed[1].__unwrap__(str) == 'text'
+    assert viewed[2].__unwrap__(Record) is record
+    assert Any(List[Any]()).__cast__(List[Any]) == []
+    integer_values = Any([3, 5]).__cast__(List[Any])
+    assert [value.__unwrap__(int) for value in integer_values] == [3, 5]
+    assert integer_values[0] == box(3)
+    assert hash(integer_values[1]) == hash(5)
+    reference_values = Any([record]).__cast__(List[Any])
+    assert reference_values[0].__unwrap__(Record) is record
+    tuple_values = Any((17, 'text', number)).__cast__(List[Any])
+    assert tuple_values[0].__unwrap__(int) == 17
+    assert tuple_values[1].__unwrap__(str) == 'text'
+    assert tuple_values[2] == number
+    assert Any(Nested(number)).__getattr__('value') == number
+    holder = Holder(number, 99)
+    wrapped_holder = Any(holder)
+    assert wrapped_holder.__getattr__('value') == number
+    wrapped_holder.__setattr__('value', distinct)
+    assert holder.value == distinct and holder.marker == 99
+
+    @noinline
+    def retained_values() -> list[Any]:
+        return [Any(Record(73, [7, 3])), Any(('owned', [8, 9])), Any(71)]
+
+    retained = retained_values()
+    GC_gcollect()
+    assert retained[0].__unwrap__(Record).values == [7, 3]
+    assert retained[1].__unwrap__(Tuple[str, list[int]]) == ('owned', [8, 9])
+    assert retained[2].__unwrap__(int) == 71
+
+    class Missing:
+        value: int
+
+    missing = box(Missing(1))
+    assert missing != number
+    try:
+        missing == missing
+        assert False
+    except TypeError:
+        pass
+    try:
+        hash(missing)
+        assert False
+    except TypeError:
+        pass
+
+    unsupported_values = [box([Missing(1)]), box((Missing(1),))]
+    for unsupported in unsupported_values:
+        try:
+            hash(unsupported)
+            assert False
+        except TypeError:
+            pass
+        try:
+            unsupported == unsupported
+            assert False
+        except TypeError:
+            pass
+    assert box(17) == number and hash(number) == hash(17)
+
+    class RawValue:
+        value: int
+
+        def __eq__(self, other: RawValue):
+            return self.value == other.value
+
+        def __hash__(self):
+            return hash(self.value)
+
+    raw_value = RawValue(29)
+    raw_box = Any(TypeInfo.cache(RawValue.__id__), raw_value.__raw__())
+    assert raw_box == raw_box
+    assert hash(raw_box) == hash(29)
+
+    class RawBase:
+        number: int
+
+        def __eq__(self, other: RawBase):
+            return True
+
+        def __hash__(self):
+            return 31
+
+    class RawChild(RawBase):
+        extra: int
+
+    raw_child = RawChild(number=71, extra=73)
+    dynamic_box = Any(get_typeinfo(raw_child), raw_child.__raw__())
+    assert dynamic_box == dynamic_box
+    assert hash(dynamic_box) == 31
+
+    base_pointer = Ptr[RawBase](1)
+    base_pointer[0] = raw_child
+    converted_child = cast(Ptr[Any], Any(base_pointer))[0]
+    assert isinstance(converted_child, RawChild)
+    assert cast(RawBase, converted_child) is raw_child
+    restored_child = cast(RawChild, converted_child)
+    assert restored_child is raw_child
+    assert restored_child.number == 71 and restored_child.extra == 73
+    restored_child.number = 72
+    converted_child.__setattr__('extra', 74)
+    assert base_pointer[0] is raw_child
+    assert raw_child.number == 72 and raw_child.extra == 74
+    GC_gcollect()
+    assert cast(RawChild, converted_child) is raw_child
+    assert converted_child == dynamic_box and hash(converted_child) == 31
+
+    @tuple
+    class ReflectedValue:
+        value: float
+
+    class ReflectedHolder:
+        value: ReflectedValue
+
+    reflected = box(ReflectedHolder(ReflectedValue(7.5))).__getattr__('value')
+    assert reflected == reflected
+    assert hash(reflected) == hash(ReflectedValue(7.5))
+
+    value_pointer = Ptr[ReflectedValue](1)
+    value_pointer[0] = ReflectedValue(8.5)
+    converted_value = cast(Ptr[Any], Any(value_pointer))[0]
+    assert cast(ReflectedValue, converted_value).value == 8.5
+    converted_value.__setattr__('value', 9.5)
+    assert value_pointer[0].value == 9.5
+
+    class Raising:
+        def __eq__(self, other: Raising) -> bool:
+            raise ValueError('equality')
+
+        def __hash__(self) -> int:
+            raise ValueError('hash')
+
+    raising = box(Raising())
+    try:
+        raising == raising
+        assert False
+    except ValueError as error:
+        assert str(error) == 'equality'
+    try:
+        hash(raising)
+        assert False
+    except ValueError as error:
+        assert str(error) == 'hash'
+
+test_any_tuple()
+
+@test
+def test_any_dict_cast():
+    from C import GC_gcollect()
+
+    source = {'second': 2, 'first': 1, 'third': 3}
+    del source['first']
+    source['first'] = 10
+    boxed = Any(source)
+    assert isinstance(boxed, Dict[Any, Any])
+    converted = boxed.__cast__(Dict[Any, Any])
+    assert [(key.__unwrap__(str), value.__unwrap__(int))
+            for key, value in converted.items()] == list(source.items())
+    assert converted[Any('first')].__unwrap__(int) == 10
+    assert len(Any(Dict[str, int]()).__cast__(Dict[Any, Any])) == 0
+
+    resized = {index: 3 * index for index in range(128)}
+    for index in range(0, 128, 3):
+        del resized[index]
+    expected = list(resized.items())
+    copied = Any(resized).__cast__(Dict[Any, Any])
+    resized[1] = -1
+    resized.clear()
+    GC_gcollect()
+    assert [(key.__unwrap__(int), value.__unwrap__(int))
+            for key, value in copied.items()] == expected
+    assert copied[Any(1)].__unwrap__(int) == 3
+
+    class Value:
+        number: int
+
+    value = Value(23)
+    references = Any({('key', 7): value}).__cast__(Dict[Any, Any])
+    assert references[Any(('key', 7))].__unwrap__(Value) is value
+    value.number = 29
+    assert references[Any(('key', 7))].__unwrap__(Value).number == 29
+
+    class Holder:
+        mapping: Dict[float, str]
+
+    reflected = Any(Holder({1.5: 'reflected'})).__getattr__('mapping')
+    assert reflected.__cast__(Dict[Any, Any])[Any(1.5)].__unwrap__(str) == 'reflected'
+
+    raw_source = {True: (31, 'raw')}
+    raw_box = Any(TypeInfo.cache(type(raw_source).__id__), raw_source.__raw__())
+    assert raw_box.__cast__(Dict[Any, Any])[Any(True)].__unwrap__(Tuple[int, str]) == (31, 'raw')
+
+    preboxed = {Any('nested'): Any({5: 'value'})}
+    outer = Any(preboxed).__cast__(Dict[Any, Any])
+    inner = outer[Any('nested')].__cast__(Dict[Any, Any])
+    assert inner[Any(5)].__unwrap__(str) == 'value'
+
+    @noinline
+    def retained():
+        local = {str(73): Value(73)}
+        result = Any(local).__cast__(Dict[Any, Any])
+        local.clear()
+        return result
+
+    owned = retained()
+    GC_gcollect()
+    assert owned[Any('73')].__unwrap__(Value).number == 73
+
+    try:
+        Any([1, 2]).__cast__(Dict[Any, Any])
+        assert False
+    except ValueError as error:
+        assert str(error) == 'expected dict'
+
+test_any_dict_cast()
+
+@test
+def test_any_inline_scalars():
+    from C import GC_gcollect()
+    from C import GC_get_total_bytes() -> int
+
+    def check(value):
+        boxed = Any(value)
+        assert boxed._is_inline()
+        assert boxed._typeinfo == TypeInfo.cache(type(value))
+        assert boxed._typeinfo.inline_value
+        assert isinstance(boxed, type(value))
+        assert boxed.__unwrap__(type(value)) == value
+        assert boxed == Any(value)
+        copied = Any(boxed._typeinfo, __ptr__(value).as_byte())
+        assert copied._is_inline() and copied == boxed
+        assert copied.__unwrap__(type(value)) == value
+        if hasattr(value, '__hash__'):
+            assert hash(boxed) == hash(value)
+        else:
+            try:
+                hash(boxed)
+                assert False
+            except TypeError:
+                pass
+        assert Any(boxed)._is_inline()
+        assert len(list(boxed.members)) == 0
+
+    for value in (0, -1, 9223372036854775807, -9223372036854775807 - 1,
+                  True, False, i1(-1), u1(1), i8(-128), i8(127),
+                  Int[7](-64), UInt[7](127), Int[33](-1), UInt[63](-1),
+                  i16(-32768), i32(-2147483648), u64(0), u64(-1),
+                  0.0, -0.0, 1.25, float('inf'), -float('inf'),
+                  float32(1.25), float16(1.25), bfloat16(1.25), NoneType()):
+        check(value)
+
+    from math import copysign, isnan
+    negative_zero = Any(-0.0)
+    assert copysign(1.0, negative_zero.__unwrap__(float)) == -1.0
+    nan = Any(float('nan'))
+    assert nan._is_inline() and isnan(nan.__unwrap__(float))
+    assert nan != nan
+    assert Any(1) != Any(True) and Any(1) != Any(1.0)
+
+    def check_float_bits(bits, T: type):
+        storage = Ptr[type(bits)](1)
+        storage[0] = bits
+        boxed = Any(Ptr[T](storage)[0])
+        restored = boxed.__unwrap__(T)
+        assert boxed._is_inline()
+        assert Ptr[type(bits)](__ptr__(restored))[0] == bits
+        copied = Any(TypeInfo.cache(T), storage.as_byte())
+        restored_copy = copied.__unwrap__(T)
+        assert copied._is_inline()
+        assert Ptr[type(bits)](__ptr__(restored_copy))[0] == bits
+
+    check_float_bits(u64(0x7ff8000000000042), float)
+    check_float_bits(u32(0x7fc00042), float32)
+    check_float_bits(u16(0x7e42), float16)
+    check_float_bits(u16(0x7fc2), bfloat16)
+    check_float_bits(u64(0x8000000000000000), float)
+    check_float_bits(u32(0x80000000), float32)
+    check_float_bits(u16(0x8000), float16)
+    check_float_bits(u16(0x8000), bfloat16)
+
+    for value in (Int[65](-1), i128(7), u128(7), float128(1.25), 'text', (7,),
+                  complex64(1.0, 2.0),
+                  Ptr[int](1), Optional[int](7)):
+        boxed = Any(value)
+        assert not boxed._is_inline()
+        assert boxed.__unwrap__(type(value)) == value
+
+    storage = Ptr[int](1)
+    storage[0] = 17
+    copied = Any(TypeInfo.cache(int), storage.as_byte())
+    owned = Any(17)
+    assert copied._is_inline()
+    assert owned == copied and copied == owned
+    assert hash(owned) == hash(copied)
+    storage[0] = 19
+    assert copied.__unwrap__(int) == 17 and owned.__unwrap__(int) == 17
+    assert copied == owned
+    assert Any(TypeInfo.cache(int), storage.as_byte()).__unwrap__(int) == 19
+
+    pointer_snapshot = Any(storage).__cast__(Ptr[Any])
+    storage[0] = 23
+    assert pointer_snapshot[0]._is_inline()
+    assert pointer_snapshot[0].__unwrap__(int) == 19
+
+    optional_storage = Ptr[Optional[int]](1)
+    optional_storage[0] = Optional(29)
+    optional_box = Any(TypeInfo.cache(Optional[int]), optional_storage.as_byte())
+    optional_snapshot = optional_box.__cast__(Optional[Any])
+    optional_storage[0] = Optional(31)
+    assert unwrap(optional_snapshot)._is_inline()
+    assert unwrap(optional_snapshot).__unwrap__(int) == 29
+    assert unwrap(optional_box.__unwrap__(Optional[int])) == 31
+
+    class Record:
+        number: int
+
+    record = Record(23)
+    field = Any(record).__getattr__('number')
+    record.number = 29
+    assert field._is_inline() and field.__unwrap__(int) == 23
+    Any(record).__setattr__('number', 47)
+    assert record.number == 47 and field.__unwrap__(int) == 23
+    values = [31]
+    snapshots = Any(values).__cast__(List[Any])
+    values[0] = 37
+    assert snapshots[0]._is_inline() and snapshots[0].__unwrap__(int) == 31
+
+    @tuple
+    class Tiny:
+        number: int
+
+    tiny = Any(Tiny(41))
+    alias = tiny
+    tiny.__setattr__('number', 43)
+    assert not tiny._is_inline()
+    assert alias.__unwrap__(Tiny).number == 43
+
+    try:
+        owned.__unwrap__(str)
+        assert False
+    except TypeError:
+        pass
+    try:
+        owned.__setattr__('missing', 1)
+        assert False
+    except AttributeError:
+        pass
+
+    @noinline
+    def box_number(value: int) -> Any:
+        return Any(value)
+
+    @noinline
+    def copy_number(info: TypeInfo, data: Ptr[byte]) -> Any:
+        return Any(info, data)
+
+    count = 4096
+    retained = Ptr[Any](count)
+    before = GC_get_total_bytes()
+    for index in range(count):
+        retained[index] = box_number(index)
+    assert GC_get_total_bytes() == before
+    GC_gcollect()
+    for index in range(count):
+        assert retained[index]._is_inline()
+        assert retained[index].__unwrap__(int) == index
+    integer_info = TypeInfo.cache(int)
+    before = GC_get_total_bytes()
+    for index in range(count):
+        retained[index] = copy_number(integer_info, __ptr__(index).as_byte())
+    assert GC_get_total_bytes() == before
+    GC_gcollect()
+    for index in range(count):
+        assert retained[index]._is_inline()
+        assert retained[index].__unwrap__(int) == index
+    assert Any.__elemsize__ == 2 * Ptr[byte].__elemsize__
+    assert not Any.__atomic__
+
+test_any_inline_scalars()

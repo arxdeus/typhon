@@ -1,0 +1,107 @@
+
+import internal.static as static
+
+@extend
+class Tuple:
+    def _fix_index(idx: int, len: int) -> int:
+        if idx < 0:
+            idx += len
+        if idx < 0 or idx >= len:
+            raise IndexError("tuple index out of range")
+        return idx
+
+    def _getitem(t: T, idx: int, T: type, E: type) -> E:
+        @pure
+        @derives
+        @llvm
+        def llvm_helper(t: T, idx: int, T: type, E: type) -> E:
+            %x = alloca {=T}
+            store {=T} %t, ptr %x
+            %p = getelementptr {=E}, ptr %x, i64 %idx
+            %v = load {=E}, ptr %p
+            ret {=E} %v
+
+        return llvm_helper(t, Tuple._fix_index(idx, static.len(t)), T, E)
+
+    def _offsetof(x, field: Literal[int]) -> int:
+        @pure
+        @llvm
+        def llvm_helper(T: type, idx: Literal[int], TE: type) -> int:
+            %a = alloca {=T}
+            %b = getelementptr inbounds {=T}, ptr %a, i64 0, i32 {=idx}
+            %base = ptrtoint ptr %a to i64
+            %elem = ptrtoint ptr %b to i64
+            %offset = sub i64 %elem, %base
+            ret i64 %offset
+
+        return llvm_helper(type(x), field, type(x[field]))
+
+    def _str(strs: Ptr[str], names: Ptr[str], n: int) -> str:
+        # special case of 1-element plain tuple: format as "(x,)"
+        if n == 1 and len(names[0]) == 0:
+            buf = _strbuf(len(strs[0]) + 3, strs[0]._kind())
+            buf.append("(")
+            buf.append(strs[0])
+            buf.append(",)")
+            return str(buf)
+
+        total = 2  # one for each of '(' and ')'
+        kind = 0
+        i = 0
+        while i < n:
+            total += len(strs[i])
+            if strs[i]._kind() > kind:
+                kind = strs[i]._kind()
+            if len(names[i]):
+                total += len(names[i]) + 2  # extra : and space
+                if names[i]._kind() > kind:
+                    kind = names[i]._kind()
+            if i < n - 1:
+                total += 2  # ", "
+            i += 1
+
+        buf = _strbuf(total, kind)
+        buf.append("(")
+        i = 0
+        while i < n:
+            if len(names[i]):
+                buf.append(names[i])
+                buf.append(": ")
+            buf.append(strs[i])
+            if i < n - 1:
+                buf.append(", ")
+            i += 1
+        buf.append(")")
+        return str(buf)
+
+
+@extend
+class NamedTuple:
+    def __getitem__(self, key: Literal[str]):
+        return getattr(self, key)
+
+    def __contains__(self, key: Literal[str]):
+        return hasattr(self, key)
+
+    def _get(kw, key: Literal[str], default):
+        if hasattr(kw, key):
+            return getattr(kw, key)
+        else:
+            return default
+
+    def get(self, key: Literal[str], default = None):
+        return NamedTuple._get(self, key, default)
+
+    @__generated__
+    def _namedkeys(N: Literal[int]):
+        # Compiler generated
+        pass
+
+    def __keys__(self):
+        return NamedTuple._namedkeys(N)
+
+    def __repr__(self):
+        keys = self.__keys__()
+        values = [v.__repr__() for v in self.args]
+        s = ', '.join(f"{keys[i]}: {values[i]}" for i in range(len(keys)))
+        return f"({s})"

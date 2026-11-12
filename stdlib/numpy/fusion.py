@@ -1,0 +1,1465 @@
+
+import util
+import zmath
+import internal.static as static
+
+from .ndarray import ndarray
+from .routines import asarray, broadcast_to, empty, empty_like, _empty_like
+
+# Utility
+
+def _cast(x, dtype: type):
+    return util.cast(x, dtype)
+
+@inline
+def _where(condition, on_true, on_false, dtype: type):
+    return util.cast(on_true, dtype) if bool(condition) else util.cast(on_false, dtype)
+
+@inline
+def _clip(value, lower, upper, dtype: type):
+    # Match clip's casts and comparison order, including NaNs and signed zero.
+    value = util.cast(value, dtype)
+    lower = util.cast(lower, dtype)
+    upper = util.cast(upper, dtype)
+    value = value if value > lower else lower
+    return upper if upper < value else value
+
+@inline
+def _clip_min(value, lower, dtype: type):
+    value = util.cast(value, dtype)
+    lower = util.cast(lower, dtype)
+    return value if value > lower else lower
+
+@inline
+def _clip_max(value, upper, dtype: type):
+    value = util.cast(value, dtype)
+    upper = util.cast(upper, dtype)
+    return upper if upper < value else value
+
+@inline
+def _zeros_like(value, dtype: type):
+    return dtype(0)
+
+@inline
+def _ones_like(value, dtype: type):
+    return dtype(1)
+
+def _coerce(dtype1: type, dtype2: type):
+    return util.coerce(dtype1, dtype2)
+
+def _count(shape):
+    return util.count(shape)
+
+def _contig_match(arrs):
+
+    def keep_arrays(arrs):
+        if static.len(arrs) == 0:
+            return ()
+        else:
+            if hasattr(arrs[0], "_contig"):
+                return (arrs[0],) + keep_arrays(arrs[1:])
+            else:
+                return keep_arrays(arrs[1:])
+
+    arrs = keep_arrays(arrs)
+    if static.len(arrs) == 0:
+        return True
+
+    all_cc = True
+    all_fc = True
+
+    for i in static.range(static.len(arrs)):
+        a = arrs[i]
+        cc, fc = a._contig
+
+        if a.ndim != arrs[0].ndim:
+            return False
+        else:
+            if a.shape != arrs[0].shape:
+                return False
+
+        all_cc = all_cc and cc
+        all_fc = all_fc and fc
+
+    return all_cc or all_fc
+
+def _ptrset(p: Ptr[T], x: T, T: type):
+    p[0] = x
+
+@tuple
+class _ReductionFunction:
+    func: F
+    identity: Literal[str]
+    F: type
+
+    @inline
+    def __call__(self, *args):
+        return self.func(*args)
+
+@inline
+def _reduction_function(func, identity: Literal[str]):
+    return _ReductionFunction[identity, type(func)](func)
+
+@inline
+def _loop_alloc(arrays, func, extra, dtype: type):
+    return ndarray._loop(arrays, func, alloc=Tuple[dtype], extra=extra)[0]
+
+@inline
+def _loop_into(arrays, func, extra, output):
+    ndarray._loop((output,) + arrays, func, broadcast='first', extra=extra)
+    return output
+
+def _layout(arrays, dtype: type):
+    # Plan the materialized result without allocating it. Input strides are bytes;
+    # the planner's u8 output prototype supplies strides in output elements.
+    shape, strides, bases, output_strides = ndarray._loop(
+        arrays, None, plan=True, preserve_shape=True)
+    return ndarray(shape, tuple(stride * util.sizeof(dtype) for stride in output_strides),
+                   Ptr[dtype]())
+
+def _producer_layout(prototype, copy: bool, dtype: type, operation: Literal[str],
+                     order: Literal[str]):
+    if operation == 'cast':
+        cc, fc = prototype._contig
+        if dtype is prototype.dtype:
+            if not copy and not (order == 'C' and not cc) and not (order == 'F' and not fc):
+                return prototype
+            if (order == 'C' and cc) or (order == 'F' and fc):
+                return ndarray(prototype.shape, Ptr[dtype](), fcontig=fc and not cc)
+        return ndarray(prototype.shape, Ptr[dtype](),
+                       fcontig=order == 'F' or ((order == 'A' or order == 'K') and fc))
+    else:
+        return _empty_like(prototype, dtype, order, prototype.shape, False)
+
+def _where_layout(condition, on_true, on_false, dtype: type):
+    from .routines import broadcast_shapes
+
+    def prototype(value):
+        if isinstance(value, ndarray):
+            return value
+        else:
+            return ndarray((), Ptr[type(value)]())
+
+    condition = prototype(condition)
+    on_true = prototype(on_true)
+    on_false = prototype(on_false)
+    shape = broadcast_shapes(condition.shape, on_true.shape, on_false.shape)
+    if condition._contig_match(on_true) and condition._contig_match(on_false):
+        return ndarray(shape, Ptr[dtype](), fcontig=not condition._contig[0])
+    return ndarray(shape, Ptr[dtype]())
+
+def _clip_layout(arrays, dtype: type):
+    from .routines import broadcast_shapes
+    shape = broadcast_shapes(*tuple(array.shape for array in arrays))
+    return ndarray(shape, Ptr[dtype]())
+
+@inline
+def _loop_alloc_layout(arrays, func, extra, layout, dtype: type):
+    if layout.data != Ptr[dtype]():
+        return layout
+    output = ndarray(layout.shape, layout.strides, Ptr[dtype](layout.size))
+    ndarray._loop((output,) + arrays, func, broadcast='first', extra=extra)
+    return output
+
+def _roll_shift(array, shift: int, axis: Literal[int]):
+    if axis < 0:
+        return 0
+    else:
+        size = array.shape[axis]
+        if size == 0:
+            return 0
+        shift = shift.cmod(size)
+        return shift + size if shift < 0 else shift
+
+def _roll_region_size(shape, normalized):
+    size = util.count(shape)
+    for dimension in static.range(static.len(shape)):
+        regions = 1
+        for index in static.range(static.len(normalized)):
+            shift = normalized[index][dimension]
+            distinct = shift != 0
+            for previous in static.range(index):
+                distinct = distinct and shift != normalized[previous][dimension]
+            regions += int(distinct)
+        size = size.cdiv(regions)
+    return size
+
+def _loop_roll_regions(inputs, func, extra, output, normalized, position, shape):
+    axis: Literal[int] = static.len(position)
+    if axis == output.ndim:
+        sources = tuple(
+            ndarray(shape, inputs[index].strides,
+                    inputs[index]._ptr(tuple(
+                        position[dimension] - normalized[index][dimension]
+                        if position[dimension] >= normalized[index][dimension]
+                        else position[dimension] + (output.shape[dimension] -
+                                                   normalized[index][dimension])
+                        for dimension in static.range(output.ndim))))
+            for index in static.range(static.len(inputs)))
+        target = ndarray(shape, output.strides, output._ptr(position))
+        ndarray._loop((target,) + sources, func, broadcast='none', check=False, extra=extra)
+    else:
+        start = 0
+        extent = output.shape[axis]
+        while start < extent:
+            end = extent
+            for shifts in normalized:
+                if shifts[axis] > start:
+                    end = min(end, shifts[axis])
+            _loop_roll_regions(inputs, func, extra, output, normalized,
+                               position + (start,), shape + (end - start,))
+            start = end
+
+def _loop_alloc_roll(arrays, func, extra, layout, shifts, dtype: type):
+    output = ndarray(layout.shape, layout.strides, Ptr[dtype](layout.size))
+    inputs = tuple(broadcast_to(array, layout.shape) for array in arrays)
+    normalized = tuple(
+        tuple(_roll_shift(arrays[index], shifts[index][dimension],
+                          dimension - layout.ndim + arrays[index].ndim)
+              for dimension in static.range(layout.ndim))
+        for index in static.range(static.len(arrays)))
+    if output.size == 0:
+        return output
+    min_region_elements: Literal[int] = 64
+    if _roll_region_size(output.shape, normalized) < min_region_elements:
+        for position in util.multirange(output.shape):
+            sources = tuple(
+                inputs[index]._ptr(tuple(
+                    position[dimension] - normalized[index][dimension]
+                    if position[dimension] >= normalized[index][dimension]
+                    else position[dimension] + (output.shape[dimension] -
+                                               normalized[index][dimension])
+                    for dimension in static.range(output.ndim)))
+                for index in static.range(static.len(inputs)))
+            func(output._ptr(position), *sources, extra)
+        return output
+    _loop_roll_regions(inputs, func, extra, output, normalized, (), ())
+    return output
+
+def _loop_reduce_layout(arrays, func, extra, initial, layout,
+                        element_dtype: type, dtype: type, operation: Literal[str]):
+    return _loop_reduce_impl(arrays, func, extra, initial, element_dtype, dtype,
+                             operation, layout)
+
+@inline
+def _loop_basic(arrays, func, extra):
+    ndarray._loop(arrays, func, extra=extra, alias=True)
+
+@inline
+def _reduce_ptr(pointer: Ptr[T], strides, position, T: type):
+    offset = 0
+    for axis in static.range(static.len(strides)):
+        offset += position[axis] * strides[axis]
+    return Ptr[T](pointer.as_byte() + offset)
+
+@inline
+def _advance_reduce(shape, position, count):
+    position[static.len(shape) - 1] += count
+    for reverse_axis in static.range(static.len(shape) - 1):
+        axis: Literal[int] = static.len(shape) - reverse_axis - 1
+        if position[axis] == shape[axis]:
+            position[axis] = 0
+            position[axis - 1] += 1
+
+@inline
+def _reduce_inputs(plan, position, count):
+    shape, strides, bases = plan
+    length = min(count, shape[-1] - position[static.len(shape) - 1])
+    inputs = tuple(ndarray((length,), (strides[axis][-1],),
+                           _reduce_ptr(bases[axis], strides[axis], position))
+                   for axis in static.range(static.len(bases)))
+    return inputs, length
+
+@inline
+def _fill_expr(plan, func, extra, position, count, buffer):
+    def fill(*args):
+        pointers, context = args[:-1], args[-1]
+        func, extra = context
+        pointers[0][0] = func(*pointers[1:], extra)
+
+    filled = 0
+    while filled < count:
+        inputs, length = _reduce_inputs(plan, position, count - filled)
+        output = ndarray((length,), buffer + filled)
+        ndarray._loop((output,) + inputs, fill, broadcast='none', check=False,
+                      optimize_order=False, extra=(func, extra))
+        _advance_reduce(plan[0], position, length)
+        filled += length
+
+@inline
+def _fold_expr(plan, func, extra, position, count, dtype: type,
+               operation: Literal[str], initial=util._NoValue()):
+    def add(*args):
+        pointers, context = args[:-1], args[-1]
+        func, extra, total = context
+        total[0] += util.cast(func(*pointers, extra), type(total[0]))
+
+    def multiply(*args):
+        pointers, context = args[:-1], args[-1]
+        func, extra, total = context
+        total[0] *= util.cast(func(*pointers, extra), type(total[0]))
+
+    def minimum(*args):
+        from .reductions import MinRedux
+        pointers, context = args[:-1], args[-1]
+        func, extra, total = context
+        total[0] = MinRedux[type(total[0])]._min(total[0], func(*pointers, extra))
+
+    def maximum(*args):
+        from .reductions import MaxRedux
+        pointers, context = args[:-1], args[-1]
+        func, extra, total = context
+        total[0] = MaxRedux[type(total[0])]._max(total[0], func(*pointers, extra))
+
+    if operation == 'amin' or operation == 'amax':
+        total = util.cast(initial, dtype)
+    else:
+        total = dtype() if operation == 'sum' else dtype(1)
+    consumed = 0
+    while consumed < count:
+        inputs, length = _reduce_inputs(plan, position, count - consumed)
+        if operation == 'sum':
+            ndarray._loop(inputs, add, broadcast='none', check=False,
+                          optimize_order=False, extra=(func, extra, __ptr__(total)))
+        elif operation == 'prod':
+            ndarray._loop(inputs, multiply, broadcast='none', check=False,
+                          optimize_order=False, extra=(func, extra, __ptr__(total)))
+        elif operation == 'amin':
+            ndarray._loop(inputs, minimum, broadcast='none', check=False,
+                          optimize_order=False, extra=(func, extra, __ptr__(total)))
+        else:
+            ndarray._loop(inputs, maximum, broadcast='none', check=False,
+                          optimize_order=False, extra=(func, extra, __ptr__(total)))
+        _advance_reduce(plan[0], position, length)
+        consumed += length
+    return total
+
+def _sum_expr(plan, func, extra, position, count, element_dtype: type, dtype: type):
+    from .reductions import _pairwise_sum
+    # Match the ordinary reducer's split/alignment and round each expression value
+    # to element_dtype before accumulation, without materializing the whole array.
+    COMPLEX: Literal[bool] = element_dtype is complex or element_dtype is complex64
+    BLOCK: Literal[int] = 64 if COMPLEX else 128
+    ALIGN: Literal[int] = 3 if COMPLEX else 7
+    if count <= BLOCK:
+        buffer = __array__[element_dtype](BLOCK)
+        _fill_expr(plan, func, extra, position, count, buffer)
+        return _pairwise_sum(buffer, count, element_dtype.__elemsize__, dtype=dtype)
+    else:
+        half = count >> 1
+        half -= half & ALIGN
+        left = _sum_expr(plan, func, extra, position, half, element_dtype, dtype)
+        right = _sum_expr(plan, func, extra, position, count - half, element_dtype, dtype)
+        return left + right
+
+def _reduction_plan(shape, strides, bases, output_strides):
+    # Select the traversal of the would-be materialized result, not that of an
+    # arbitrary input. Changing this order also changes floating-point reduction.
+    rank: Literal[int] = static.len(shape)
+    count = util.count(shape)
+    cc, fc = ndarray(shape, output_strides, Ptr[u8]())._contig
+    if not cc and fc:
+        reverse_axes = tuple(rank - position - 1 for position in static.range(rank))
+        ordered_shape = util.tuple_perm(shape, reverse_axes)
+        ordered_strides = tuple(util.tuple_perm(item, reverse_axes) for item in strides)
+        return (ordered_shape, ordered_strides, bases), count
+    elif not cc and not fc:
+        loop_axis = -1
+        min_stride = 0x7FFFFFFFFFFFFFFF
+        for axis in static.range(rank):
+            stride = abs(output_strides[axis])
+            if stride and stride < min_stride:
+                loop_axis = axis
+                min_stride = stride
+        if loop_axis == -1:
+            loop_axis = rank - 1
+        batch = util.tuple_get(shape, loop_axis)
+        ordered_shape = util.tuple_delete(shape, loop_axis) + (batch,)
+        ordered_strides = tuple(util.tuple_delete(item, loop_axis) +
+                                (util.tuple_get(item, loop_axis),) for item in strides)
+        return (ordered_shape, ordered_strides, bases), batch
+    else:
+        return (shape, strides, bases), count
+
+def _truth_expr(plan, func, extra, position, count, decisive: Literal[bool]):
+    consumed = 0
+    while consumed < count:
+        inputs, length = _reduce_inputs(plan, position, count - consumed)
+        for index in range(length):
+            pointers = tuple(Ptr[type(array.data[0])](
+                                 array.data.as_byte() + index * array.strides[0])
+                             for array in inputs)
+            if bool(func(*pointers, extra)) == decisive:
+                return decisive
+        _advance_reduce(plan[0], position, length)
+        consumed += length
+    return not decisive
+
+def _loop_reduce(arrays, func, extra, initial, element_dtype: type, dtype: type,
+                 operation: Literal[str]):
+    return _loop_reduce_impl(arrays, func, extra, initial, element_dtype, dtype,
+                             operation, None)
+
+def _loop_reduce_impl(arrays, func, extra, initial, element_dtype: type, dtype: type,
+                      operation: Literal[str], layout):
+    if layout is None:
+        plan, batch = _reduction_plan(*ndarray._loop(arrays, None, plan=True))
+    else:
+        shape, strides, bases, output_strides = ndarray._loop(
+            arrays, None, plan=True, preserve_shape=True)
+        plan, batch = _reduction_plan(shape, strides, bases,
+            tuple(stride.cdiv(layout.itemsize) for stride in layout.strides))
+    return _reduce_expr_plan(plan, batch, func, extra, initial, element_dtype,
+                              dtype, operation)
+
+def _reduce_expr_plan(plan, batch, func, extra, initial, element_dtype: type,
+                       dtype: type, operation: Literal[str]):
+    count = util.count(plan[0])
+    if operation == 'mean':
+        from .reductions import MeanRedux
+        reducer = MeanRedux[dtype]()
+        reducer.total = _reduce_expr_plan(plan, batch, func, extra, dtype(),
+                                          element_dtype, dtype, 'sum')
+        return reducer.result(count)
+    position = __array__[int](static.len(plan[0]))
+    for axis in static.range(static.len(plan[0])):
+        position[axis] = 0
+    if operation == 'any' or operation == 'all':
+        return _truth_expr(plan, func, extra, position, count, operation == 'any')
+    if operation == 'amin' or operation == 'amax':
+        if isinstance(initial, type(())):
+            if count == 0:
+                from .reductions import MinRedux, MaxRedux
+                if operation == 'amin':
+                    MinRedux.empty()
+                else:
+                    MaxRedux.empty()
+            inputs, length = _reduce_inputs(plan, position, 1)
+            first = func(*tuple(array.data for array in inputs), extra)
+            _advance_reduce(plan[0], position, 1)
+            return _fold_expr(plan, func, extra, position, count - 1, dtype, operation,
+                              initial=first)
+        else:
+            return _fold_expr(plan, func, extra, position, count, dtype, operation,
+                              initial=initial)
+    total = util.cast(initial, dtype)
+    if count == 0:
+        return total + dtype() if operation == 'sum' else total * dtype(1)
+    for offset in range(0, count, batch):
+        if operation == 'sum':
+            if util.isfloat(dtype) or dtype is complex or dtype is complex64:
+                subtotal = dtype() + _sum_expr(plan, func, extra, position, batch,
+                                               element_dtype, dtype)
+            else:
+                subtotal = _fold_expr(plan, func, extra, position, batch, dtype, operation)
+            total += subtotal
+        else:
+            total *= _fold_expr(plan, func, extra, position, batch, dtype, operation)
+    return total
+
+def _axis_partition(items, axes):
+    reduced = (0,) * static.len(axes)
+    retained = (0,) * (static.len(items) - static.len(axes))
+    reduced_ptr = Ptr[int](__ptr__(reduced).as_byte())
+    retained_ptr = Ptr[int](__ptr__(retained).as_byte())
+    reduced_index = 0
+    retained_index = 0
+    for axis in static.range(static.len(items)):
+        if axis in axes:
+            reduced_ptr[reduced_index] = items[axis]
+            reduced_index += 1
+        else:
+            retained_ptr[retained_index] = items[axis]
+            retained_index += 1
+    return reduced, retained
+
+def _axis_base(pointer: Ptr[T], strides, index, T: type):
+    offset = 0
+    for axis in static.range(static.len(index)):
+        offset += strides[axis] * index[axis]
+    return Ptr[T](pointer.as_byte() + offset)
+
+def _axis_gradual_expr(output, reduced_shape, partitions, bases, func, extra,
+                        initial, transpose: bool, operation: Literal[str]):
+    """Sum/prod receive resolved initial values, including their default 0/1.
+
+    Only extrema without an initial use (); output storage is not preinitialized.
+    """
+    def accept(*args):
+        pointers, context = args[:-1], args[-1]
+        func, extra, position, initial = context
+        destination = pointers[0]
+        item = util.cast(func(*pointers[1:], extra), type(destination[0]))
+        if operation == 'sum' or operation == 'mean':
+            destination[0] += item
+        elif operation == 'prod':
+            destination[0] *= item
+        else:
+            from .reductions import MinRedux, MaxRedux
+            if isinstance(initial, type(())) and position == 0:
+                destination[0] = item
+            elif operation == 'amin':
+                destination[0] = MinRedux[type(item)]._min(destination[0], item)
+            else:
+                destination[0] = MaxRedux[type(item)]._max(destination[0], item)
+
+    if not isinstance(initial, type(())):
+        for index in range(output.size):
+            output.data[index] = util.cast(initial, output.dtype)
+    reduced_strides = tuple(partition[0] for partition in partitions)
+    if static.len(reduced_shape) > 1 and transpose:
+        iteration_shape = reduced_shape[::-1]
+        iteration_strides = tuple(stride[::-1] for stride in reduced_strides)
+    else:
+        iteration_shape = reduced_shape
+        iteration_strides = reduced_strides
+    position = 0
+    for index in util.multirange(iteration_shape):
+        inputs = tuple(ndarray(output.shape, partitions[operand][1],
+                               _axis_base(bases[operand], iteration_strides[operand], index))
+                       for operand in static.range(static.len(bases)))
+        ndarray._loop((output,) + inputs, accept, broadcast='none', check=False,
+                      extra=(func, extra, position, initial))
+        position += 1
+    if operation == 'mean':
+        from .reductions import MeanRedux
+        reducer = MeanRedux[output.dtype]()
+        count = util.count(reduced_shape)
+        for index in range(output.size):
+            output.data[index] = reducer.gradual_result(output.data[index], count)
+
+def _axis_slice_plan(shape, strides, bases, layout, operation: Literal[str]):
+    if static.len(shape) == 0:
+        return ((1,), tuple((0,) for stride in strides), bases), 1
+    if operation == 'any' or operation == 'all':
+        cc, fc = layout._contig
+        reverse = (not cc and fc) or (not cc and not fc and layout._should_transpose())
+    else:
+        return _reduction_plan(shape, strides, bases,
+            tuple(stride.cdiv(layout.itemsize) for stride in layout.strides))
+    if reverse:
+        return (shape[::-1], tuple(stride[::-1] for stride in strides), bases), util.count(shape)
+    return (shape, strides, bases), util.count(shape)
+
+def _loop_reduce_axis(arrays, func, extra, initial, layout, axis,
+                      element_dtype: type, dtype: type, operation: Literal[str],
+                      result_rank: Literal[int]):
+    if axis is None:
+        axes = util.tuple_range(layout.ndim)
+    elif isinstance(axis, int):
+        axes = (util.normalize_axis_index(axis, layout.ndim),)
+    else:
+        axes = util.normalize_axis_tuple(axis, layout.ndim)
+
+    if static.len(axes) == layout.ndim:
+        value = _loop_reduce_impl(arrays, func, extra, initial, element_dtype,
+                                   dtype, operation, layout)
+        if result_rank == 0:
+            return value
+        else:
+            result = ndarray((1,) * result_rank, Ptr[dtype](1))
+            result.data[0] = value
+            return result
+    else:
+        if operation == 'amin' or operation == 'amax':
+            if isinstance(initial, type(())) and layout.size == 0:
+                from .reductions import MinRedux, MaxRedux
+                if operation == 'amin':
+                    MinRedux.empty()
+                else:
+                    MaxRedux.empty()
+
+        shape, strides, bases, output_strides = ndarray._loop(
+            arrays, None, plan=True, preserve_shape=True)
+        reduced_shape, retained_shape = _axis_partition(shape, axes)
+        reduced_layout, retained_layout = _axis_partition(layout.strides, axes)
+        partitions = tuple(_axis_partition(stride, axes) for stride in strides)
+        # Keep this gradual-vs-slice choice aligned with reductions._reduce.
+        # Stride sign controls traversal direction, not which axis is fastest.
+        min_reduced_stride = -1
+        min_retained_stride = -1
+        for stride in reduced_layout:
+            magnitude = abs(stride)
+            if magnitude and (min_reduced_stride == -1 or magnitude < min_reduced_stride):
+                min_reduced_stride = magnitude
+        for stride in retained_layout:
+            magnitude = abs(stride)
+            if magnitude and (min_retained_stride == -1 or magnitude < min_retained_stride):
+                min_retained_stride = magnitude
+        gradual = (operation != 'any' and operation != 'all' and layout.ndim > 1 and
+                   min_retained_stride > 0 and min_retained_stride < min_reduced_stride)
+        transpose = layout._should_transpose()
+        if result_rank == layout.ndim:
+            result_shape = tuple(1 if position in axes else shape[position]
+                                 for position in static.range(layout.ndim))
+            prototype = ndarray(retained_shape, Ptr[dtype](), fcontig=transpose)
+            result_strides = ndarray(result_shape, Ptr[dtype]()).strides
+            if static.len(axes) == 0:
+                result_strides = prototype.strides
+            elif not prototype._contig[0]:
+                success, reshape_strides = prototype._attempt_reshape_nocopy(result_shape, False)
+                if success:
+                    result_strides = reshape_strides
+            result = ndarray(result_shape, result_strides,
+                             Ptr[dtype](util.count(retained_shape)))
+            reduced_result, retained_result = _axis_partition(result.strides, axes)
+            output = ndarray(retained_shape, retained_result, result.data)
+        else:
+            result = ndarray(retained_shape, Ptr[dtype](util.count(retained_shape)),
+                             fcontig=transpose)
+            output = result
+        if operation != 'any' and operation != 'all':
+            if gradual:
+                _axis_gradual_expr(output, reduced_shape, partitions, bases, func,
+                                     extra, initial, transpose, operation)
+                return result
+        sub_layout = ndarray(reduced_shape, reduced_layout, Ptr[element_dtype]())
+        for index in util.multirange(retained_shape):
+            sub_bases = tuple(_axis_base(bases[position], partitions[position][1], index)
+                              for position in static.range(static.len(bases)))
+            sub_strides = tuple(partition[0] for partition in partitions)
+            plan, batch = _axis_slice_plan(reduced_shape, sub_strides, sub_bases,
+                                           sub_layout, operation)
+            value = _reduce_expr_plan(plan, batch, func, extra, initial,
+                                       element_dtype, dtype, operation)
+            output._ptr(index)[0] = value
+        return result
+
+def _broadcast(sh1, sh2):
+
+    def bc_one(sh1, sh2, i: Literal[int]):
+        a = sh1[i]
+        b = sh2[i]
+        if a == 1:
+            return b
+        elif b == 1 or a == b:
+            return a
+        else:
+            raise ValueError(f"operands could not be broadcast together with shapes {sh1} {sh2}")
+
+    def bc_same(sh1, sh2):
+        return tuple(bc_one(sh1, sh2, i) for i in static.range(static.len(sh1)))
+
+    N1: Literal[int] = static.len(sh1)
+    N2: Literal[int] = static.len(sh2)
+
+    if N1 == 0:
+        return sh2
+    elif N2 == 0:
+        return sh1
+    elif N1 > N2:
+        return sh1[:-N2] + bc_same(sh1[-N2:], sh2)
+    elif N1 < N2:
+        return sh2[:-N1] + bc_same(sh1, sh2[-N1:])
+    else:
+        return bc_same(sh1, sh2)
+
+def _matmul_shape(x1, x2):
+    from .linalg.linalg import _matmul_shape as matmul_shape
+    return matmul_shape(x1, x2)
+
+def _matmul_layout(left, right, dtype: type):
+    return ndarray(_matmul_shape(left.shape, right.shape), Ptr[dtype]())
+
+def _matmul_add_fallback(left, right, bias, output, mode: Literal[int]):
+    from .linalg.linalg import _matmul_ufunc
+    product = _matmul_ufunc(left, right)
+    if _broadcast(product.shape, bias.shape) == product.shape:
+        def accumulate(destination, addend):
+            if mode == 0:
+                destination[0] = destination[0] + addend[0]
+            elif mode == 1:
+                destination[0] = addend[0] + destination[0]
+            elif mode == 2:
+                destination[0] = destination[0] - addend[0]
+            else:
+                destination[0] = addend[0] - destination[0]
+
+        ndarray._loop((product, bias), accumulate, broadcast='first')
+        result = product
+    else:
+        if mode == 0:
+            result = product + bias
+        elif mode == 1:
+            result = bias + product
+        elif mode == 2:
+            result = product - bias
+        else:
+            result = bias - product
+        _free(product)
+    if output is None:
+        return result
+    else:
+        output[:] = result
+        _free(result)
+        return output
+
+def _matmul_add(left, right, bias, output=None, mode: Literal[int] = 0):
+    # The compiler proves output/input disjointness (or exact output/bias identity).
+    # Runtime guards handle sizes and layouts; they are not a general alias check.
+    from .linalg.linalg import _gemv, _matmul_matrixmatrix, _is_blasable2d, BLAS_MAXSIZE
+    product_shape = _matmul_shape(left.shape, right.shape)
+    shape = _broadcast(product_shape, bias.shape)
+    rows, inner = left.shape
+    itemsize = left.itemsize
+    left_ok = (_is_blasable2d(*left.strides, rows, inner, itemsize) or
+               _is_blasable2d(*left.strides[::-1], inner, rows, itemsize))
+    if right.ndim == 1:
+        columns = 1
+        right_ok = _is_blasable2d(right.strides[0], itemsize, inner, 1, itemsize)
+    else:
+        columns = right.shape[1]
+        right_ok = (_is_blasable2d(*right.strides, inner, columns, itemsize) or
+                    _is_blasable2d(*right.strides[::-1], columns, inner, itemsize))
+    eligible = (shape == product_shape and rows > 1 and inner > 1 and
+                rows <= BLAS_MAXSIZE and inner <= BLAS_MAXSIZE and
+                columns <= BLAS_MAXSIZE and left_ok and right_ok)
+    if right.ndim == 2:
+        eligible = (eligible and columns > 1 and not (
+            left.data == right.data and rows == columns and
+            left.strides == right.strides[::-1]))
+    if output is None and bias.ndim == 2:
+        bias_c, bias_f = bias._contig
+        eligible = eligible and (bias_c or not bias_f)
+    if output is not None:
+        eligible = eligible and output.shape == shape
+        if output.ndim == 1:
+            eligible = eligible and _is_blasable2d(
+                output.strides[0], itemsize, rows, 1, itemsize)
+        else:
+            eligible = eligible and (
+                _is_blasable2d(*output.strides, rows, columns, itemsize) or
+                _is_blasable2d(*output.strides[::-1], columns, rows, itemsize))
+    if not eligible:
+        return _matmul_add_fallback(left, right, bias, output, mode)
+    if output is None:
+        result = empty(shape, dtype=left.dtype)
+        result[:] = bias
+    else:
+        result = output
+        if result.data != bias.data:
+            result[:] = bias
+    product_sign: Literal[int] = -1 if mode == 3 else 1
+    bias_sign: Literal[int] = -1 if mode == 2 else 1
+    if right.ndim == 1:
+        _gemv(left.data, *left.strides, right.data, right.strides[0],
+              result.data, result.strides[0], rows, inner, accumulate=True,
+              product_sign=product_sign, bias_sign=bias_sign)
+    elif _is_blasable2d(*result.strides, rows, columns, itemsize):
+        _matmul_matrixmatrix(left.data, *left.strides, right.data, *right.strides,
+                             result.data, *result.strides, rows, inner, columns,
+                             accumulate=True, product_sign=product_sign,
+                             bias_sign=bias_sign)
+    else:
+        _matmul_matrixmatrix(right.data, *right.strides[::-1],
+                             left.data, *left.strides[::-1],
+                             result.data, *result.strides[::-1], columns, inner, rows,
+                             accumulate=True, product_sign=product_sign,
+                             bias_sign=bias_sign)
+    return result
+
+def _create(like, shape, dtype: type):
+    return empty_like(like, shape=shape, dtype=dtype)
+
+def _shape(x):
+    if hasattr(x, "shape"):
+        return x.shape
+    else:
+        return ()
+
+def _free(x):
+    util.free(x.data)
+
+@inline
+def _free_replacement(x, threshold: int):
+    if x.nbytes >= threshold:
+        util.free(x.data)
+
+def _free_copy_source(source, result):
+    # Layout-aware copy/cast helpers can return the source; only a distinct result
+    # ends the source allocation's lifetime.
+    if source.data.as_byte() != result.data.as_byte():
+        util.free(source.data)
+
+def _apply_vectorized_loop_unary(arr, out, func: Literal[str]):
+    if arr.ndim == 0 or out.ndim == 0 or arr.ndim > out.ndim:
+        compile_error("[internal error] bad array dims for vectorized loop")
+
+    if out.ndim == 1:
+        util.call_vectorized_loop(arr.data, arr.strides[0], Ptr[arr.dtype](),
+                                  0, out.data, out.strides[0], out.size, func)
+        return
+
+    shape = arr.shape
+    arr = broadcast_to(arr, shape)
+
+    if arr._contig_match(out):
+        s1 = util.sizeof(arr.dtype)
+        s2 = util.sizeof(out.dtype)
+        util.call_vectorized_loop(arr.data, s1, Ptr[arr.dtype](), 0, out.data,
+                                  s2, out.size, func)
+    else:
+        # Find smallest stride to use in vectorized loop
+        arr_strides = arr.strides
+        out_strides = out.strides
+        n = 0
+        si = 0
+        so = 0
+        loop_axis = -1
+
+        for i in static.range(arr.ndim):
+            if shape[i] > 1 and (loop_axis == -1 or abs(arr_strides[i]) < abs(si)):
+                n = shape[i]
+                si = arr_strides[i]
+                so = out_strides[i]
+                loop_axis = i
+
+        if loop_axis == -1:
+            n = shape[0]
+            si = arr_strides[0]
+            so = out_strides[0]
+            loop_axis = 0
+
+        for idx in util.multirange(util.tuple_delete(shape, loop_axis)):
+            idx1 = util.tuple_insert(idx, loop_axis, 0)
+            p = arr._ptr(idx1)
+            q = out._ptr(idx1)
+            util.call_vectorized_loop(p, si, Ptr[arr.dtype](), 0, q, so, n,
+                                      func)
+
+def _apply_vectorized_loop_binary(arr1, arr2, out, func: Literal[str]):
+    if (arr1.ndim == 0 and arr2.ndim == 0) or out.ndim == 0 or arr1.ndim > out.ndim or arr2.ndim > out.ndim:
+        compile_error("[internal error] bad array dims for vectorized loop")
+
+    if arr1.ndim == 0:
+        st1 = 0
+    else:
+        st1 = 0 if arr1.shape[0] == 1 else arr1.strides[0]
+
+    if arr2.ndim == 0:
+        st2 = 0
+    else:
+        st2 = 0 if arr2.shape[0] == 1 else arr2.strides[0]
+
+    if out.ndim == 1:
+        util.call_vectorized_loop(arr1.data, st1, arr2.data,
+                                  st2, out.data, out.strides[0],
+                                  out.size, func)
+        return
+
+    shape = out.shape
+    arr1 = broadcast_to(arr1, shape)
+    arr2 = broadcast_to(arr2, shape)
+
+    if arr1._contig_match(out) and arr2._contig_match(out):
+        s = util.sizeof(out.dtype)
+        util.call_vectorized_loop(arr1.data, s, arr2.data, s, out.data, s, out.size, func)
+    else:
+        # Find smallest stride to use in vectorized loop
+        arr1_strides = arr1.strides
+        arr2_strides = arr2.strides
+        out_strides = out.strides
+        n = 0
+        si1 = 0
+        si2 = 0
+        so = 0
+        loop_axis = -1
+
+        for i in static.range(arr1.ndim):
+            stride = max(abs(arr1_strides[i]), abs(arr2_strides[i]), abs(out_strides[i]))
+            if shape[i] > 1 and (loop_axis == -1 or stride < max(abs(si1), abs(si2), abs(so))):
+                n = shape[i]
+                si1 = arr1_strides[i]
+                si2 = arr2_strides[i]
+                so = out_strides[i]
+                loop_axis = i
+
+        if loop_axis == -1:
+            n = shape[0]
+            si1 = arr1_strides[0]
+            si2 = arr2_strides[0]
+            so = out_strides[0]
+            loop_axis = 0
+
+        for idx in util.multirange(util.tuple_delete(shape, loop_axis)):
+            idx1 = util.tuple_insert(idx, loop_axis, 0)
+            p1 = arr1._ptr(idx1)
+            p2 = arr2._ptr(idx1)
+            q = out._ptr(idx1)
+            util.call_vectorized_loop(p1, si1, p2, si2, q, so, n, func)
+
+# Operations
+
+@inline
+def _pos(x):
+    return +x
+
+@inline
+def _neg(x):
+    return -x
+
+@inline
+def _invert(x):
+    return ~x
+
+@inline
+def _abs(x):
+    return abs(x)
+
+@inline
+def _transpose(x):
+    return x.T
+
+@inline
+def _add(x, y):
+    return x + y
+
+@inline
+def _sub(x, y):
+    return x - y
+
+@inline
+def _mul(x, y):
+    return x * y
+
+@inline
+def _matmul(x, y):
+    return x @ y
+
+@inline
+def _true_div(x, y):
+    X = type(x)
+    Y = type(y)
+    if X is Y and util.isfloat(X):
+        return x.cdiv(y)
+    elif X is Y and util.isint(X):
+        return float(x).cdiv(float(y))
+    else:
+        return x / y
+
+@inline
+def _floor_div(x, y):
+    X = type(x)
+    Y = type(y)
+    if isinstance(X, Int) and isinstance(Y, Int):
+        return util.pydiv(x, y)
+    elif isinstance(X, UInt) and isinstance(Y, UInt):
+        return x.cdiv(y)
+    else:
+        return x // y
+
+@inline
+def _mod(x, y):
+    X = type(x)
+    Y = type(y)
+    if isinstance(X, Int) and isinstance(Y, Int):
+        return util.pymod(x, y)
+    elif ((X is float and Y is float) or
+          (X is float32 and Y is float32) or
+          (X is float16 and Y is float16)):
+        return util.pyfmod(x, y)
+    else:
+        return x % y
+
+@inline
+def _fmod(x, y):
+    X = type(x)
+    Y = type(y)
+    if isinstance(X, Int) and isinstance(Y, Int):
+        return util.cmod_int(x, y)
+    elif ((X is float and Y is float) or
+          (X is float32 and Y is float32) or
+          (X is float16 and Y is float16)):
+        return util.cmod(x, y)
+    else:
+        return x % y
+
+@inline
+def _pow(x, y):
+    return x ** y
+
+@inline
+def _lshift(x, y):
+    return x << y
+
+@inline
+def _rshift(x, y):
+    return x >> y
+
+@inline
+def _and(x, y):
+    return x & y
+
+@inline
+def _or(x, y):
+    return x | y
+
+@inline
+def _xor(x, y):
+    return x ^ y
+
+@inline
+def _eq(x, y):
+    return x == y
+
+@inline
+def _ne(x, y):
+    return x != y
+
+@inline
+def _lt(x, y):
+    return x < y
+
+@inline
+def _le(x, y):
+    return x <= y
+
+@inline
+def _gt(x, y):
+    return x > y
+
+@inline
+def _ge(x, y):
+    return x >= y
+
+def _apply(x, f, f_complex = None):
+    if f_complex is not None and (isinstance(x, complex) or isinstance(x, complex64)):
+        return f_complex(x)
+    elif isinstance(x, float) or isinstance(x, float32) or isinstance(x, float16):
+        return f(x)
+    else:
+        return f(util.to_float(x))
+
+def _apply2(x, y, f, f_complex = None):
+    if type(x) is not type(y):
+        compile_error("type mismatch in util")
+
+    if f_complex is not None and (isinstance(x, complex) or isinstance(x, complex64)):
+        return f_complex(x, y)
+    elif isinstance(x, float) or isinstance(x, float32) or isinstance(x, float16):
+        return f(x, y)
+    else:
+        return f(util.to_float(x), util.to_float(y))
+
+def _fabs(x):
+    return _apply(x, util.fabs)
+
+def _rint(x):
+    def rint_complex(x):
+        C = type(x)
+        return C(util.rint(x.real), util.rint(x.imag))
+
+    return _apply(x, util.rint, rint_complex)
+
+def _exp(x):
+    return _apply(x, util.exp, zmath.exp)
+
+def _exp2(x):
+    return _apply(x, util.exp2, zmath.exp2)
+
+def _expm1(x):
+    return _apply(x, util.expm1, zmath.expm1)
+
+def _log(x):
+    return _apply(x, util.log, zmath.log)
+
+def _log2(x):
+    return _apply(x, util.log2, zmath.log2)
+
+def _log10(x):
+    return _apply(x, util.log10, zmath.log10)
+
+def _log1p(x):
+    return _apply(x, util.log1p, zmath.log1p)
+
+def _sqrt(x):
+    return _apply(x, util.sqrt, zmath.sqrt)
+
+def _cbrt(x):
+    return _apply(x, util.cbrt)
+
+def _square(x):
+    return x * x
+
+def _sin(x):
+    return _apply(x, util.sin, zmath.sin)
+
+def _cos(x):
+    return _apply(x, util.cos, zmath.cos)
+
+def _tan(x):
+    return _apply(x, util.tan, zmath.tan)
+
+def _arcsin(x):
+    return _apply(x, util.asin, zmath.asin)
+
+def _arccos(x):
+    return _apply(x, util.acos, zmath.acos)
+
+def _arctan(x):
+    return _apply(x, util.atan, zmath.atan)
+
+def _sinh(x):
+    return _apply(x, util.sinh, zmath.sinh)
+
+def _cosh(x):
+    return _apply(x, util.cosh, zmath.cosh)
+
+def _tanh(x):
+    return _apply(x, util.tanh, zmath.tanh)
+
+def _arcsinh(x):
+    return _apply(x, util.asinh, zmath.asinh)
+
+def _arccosh(x):
+    return _apply(x, util.acosh, zmath.acosh)
+
+def _arctanh(x):
+    return _apply(x, util.atanh, zmath.atanh)
+
+def _rad2deg(x):
+    r2d = (180.0).cdiv(util.PI)
+    x = util.to_float(x)
+    F = type(x)
+    return x * F(r2d)
+
+def _deg2rad(x):
+    d2r = (util.PI).cdiv(180.0)
+    x = util.to_float(x)
+    F = type(x)
+    return x * F(d2r)
+
+def _arctan2(x, y):
+    return _apply2(x, y, util.atan2)
+
+def _hypot(x, y):
+    return _apply2(x, y, util.hypot)
+
+def _logaddexp(x, y):
+    return _apply2(x, y, util.logaddexp)
+
+def _logaddexp2(x, y):
+    return _apply2(x, y, util.logaddexp2)
+
+def _isnan(x):
+    if isinstance(x, float) or isinstance(x, float32) or isinstance(x, float16):
+        return util.isnan(x)
+    elif isinstance(x, complex) or isinstance(x, complex64):
+        return util.isnan(x.real) or util.isnan(x.imag)
+    else:
+        return False
+
+def _isinf(x):
+    if isinstance(x, float) or isinstance(x, float32) or isinstance(x, float16):
+        return util.isinf(x)
+    elif isinstance(x, complex) or isinstance(x, complex64):
+        return util.isinf(x.real) or util.isinf(x.imag)
+    else:
+        return False
+
+def _isfinite(x):
+    if isinstance(x, float) or isinstance(x, float32) or isinstance(x, float16):
+        return util.isfinite(x)
+    elif isinstance(x, complex) or isinstance(x, complex64):
+        return util.isfinite(x.real) and util.isfinite(x.imag)
+    else:
+        return True
+
+def _signbit(x):
+    if isinstance(x, float) or isinstance(x, float32) or isinstance(x, float16):
+        return util.signbit(x)
+    else:
+        T = type(x)
+        return x < T()
+
+def _copysign(x, y):
+    return _apply2(x, y, util.copysign)
+
+def _nextafter(x, y):
+    return _apply2(x, y, util.nextafter)
+
+def _floor(x):
+    return _apply(x, util.floor)
+
+def _ceil(x):
+    return _apply(x, util.ceil)
+
+def _trunc(x):
+    return _apply(x, util.trunc)
+
+def _sign(x):
+    def sign1(x):
+        T = type(x)
+        if x < T(0):
+            return T(-1)
+        elif x > T(0):
+            return T(1)
+        else:
+            return x
+
+    if isinstance(x, complex):
+        if _isnan(x):
+            return complex(util.nan64(), 0.0)
+        return complex(sign1(x.real), 0) if x.real else complex(sign1(x.imag), 0)
+    elif isinstance(x, complex64):
+        if _isnan(x):
+            return complex64(util.nan64(), 0.0)
+        return complex64(sign1(x.real), 0) if x.real else complex64(sign1(x.imag), 0)
+    else:
+        return sign1(x)
+
+def _heaviside(x, y):
+    def heaviside(x, y):
+        if isinstance(x, float16) and isinstance(y, float16):
+            if x < float16(0):
+                return float16(0)
+            elif x > float16(0):
+                return float16(1)
+            elif x == float16(0):
+                return y
+            else:
+                return x
+        elif isinstance(x, float32) and isinstance(y, float32):
+            if x < float32(0):
+                return float32(0)
+            elif x > float32(0):
+                return float32(1)
+            elif x == float32(0):
+                return y
+            else:
+                return x
+        elif isinstance(x, float) and isinstance(y, float):
+            if x < 0:
+                return 0.0
+            elif x > 0:
+                return 1.0
+            elif x == 0.0:
+                return y
+            else:
+                return x
+
+    return _apply2(x, y, heaviside)
+
+def _conj(x):
+    if isinstance(x, complex) or isinstance(x, complex64):
+        return x.conjugate()
+    else:
+        return x
+
+def _gcd(x, y):
+    while x:
+        z = x
+        x = y % x
+        y = z
+    return y
+
+def _lcm(x, y):
+    gcd = _gcd(x, y)
+    return x.cdiv(gcd) * y if gcd else 0
+
+def _reciprocal(x: T, T: type):
+    if isinstance(x, Int):
+        return x if (x == T(1) or x == T(-1)) else T(0)
+    elif isinstance(x, UInt):
+        return T(1) if x == T(1) else T(0)
+    elif util.isfloat(T):
+        return T(1).cdiv(x)
+    else:
+        return T(1) / x
+
+def _logical_and(x, y):
+    return bool(x) and bool(y)
+
+def _logical_or(x, y):
+    return bool(x) or bool(y)
+
+def _logical_xor(x, y):
+    return bool(x) ^ bool(y)
+
+def _logical_not(x):
+    return not bool(x)
+
+def _coerce_types_for_minmax(x, y):
+    if isinstance(x, complex):
+        if isinstance(y, complex64):
+            return x, complex(y)
+        elif not isinstance(y, complex):
+            return x, complex(util.cast(y, float))
+    elif isinstance(x, complex64):
+        if isinstance(y, complex):
+            return complex(x), y
+        elif not isinstance(y, complex64):
+            return complex(x), complex(util.cast(y, float))
+
+    if isinstance(y, complex):
+        if isinstance(x, complex64):
+            return complex(x), y
+        elif not isinstance(x, complex):
+            return complex(util.cast(x, float)), y
+    elif isinstance(y, complex64):
+        if isinstance(x, complex):
+           return x, complex(y)
+        elif not isinstance(x, complex64):
+            return complex(util.cast(x, float)), complex(y)
+
+    T = type(util.coerce(type(x), type(y)))
+    return util.cast(x, T), util.cast(y, T)
+
+def _compare_le(x, y):
+    if isinstance(x, complex) or isinstance(x, complex64):
+        return (x.real, x.imag) <= (y.real, y.imag)
+    else:
+        return x <= y
+
+def _compare_ge(x, y):
+    if isinstance(x, complex) or isinstance(x, complex64):
+        return (x.real, x.imag) >= (y.real, y.imag)
+    else:
+        return x >= y
+
+def _maximum(x, y):
+    x, y = _coerce_types_for_minmax(x, y)
+
+    if _isnan(x):
+        return x
+
+    if _isnan(y):
+        return y
+
+    return x if _compare_ge(x, y) else y
+
+def _minimum(x, y):
+    x, y = _coerce_types_for_minmax(x, y)
+
+    if _isnan(x):
+        return x
+
+    if _isnan(y):
+        return y
+
+    return x if _compare_le(x, y) else y
+
+def _fmax(x, y):
+    x, y = _coerce_types_for_minmax(x, y)
+
+    if _isnan(y):
+        return x
+
+    if _isnan(x):
+        return y
+
+    return x if _compare_ge(x, y) else y
+
+def _fmin(x, y):
+    x, y = _coerce_types_for_minmax(x, y)
+
+    if _isnan(y):
+        return x
+
+    if _isnan(x):
+        return y
+
+    return x if _compare_le(x, y) else y
+
+def _divmod_float(x, y):
+    F = type(x)
+    mod = util.cmod(x, y)
+    if not y:
+        return util.cdiv(x, y), mod
+
+    div = util.cdiv(x - mod, y)
+    if mod:
+        if (y < F(0)) != (mod < F(0)):
+            mod += y
+            div -= F(1)
+    else:
+        mod = util.copysign(F(0), y)
+
+    floordiv = F()
+    if div:
+        floordiv = util.floor(div)
+        if div - floordiv > F(0.5):
+            floordiv += F(1)
+    else:
+        floordiv = util.copysign(F(0), util.cdiv(x, y))
+
+    return floordiv, mod
+
+def _divmod(x, y):
+    if isinstance(x, float16) and isinstance(y, float16):
+        return _divmod_float(x, y)
+
+    if isinstance(x, float32) and isinstance(y, float32):
+        return _divmod_float(x, y)
+
+    if isinstance(x, float) or isinstance(y, float):
+        return _divmod_float(util.cast(x, float), util.cast(y, float))
+
+    if isinstance(x, Int) and isinstance(y, Int):
+        return (x.cdiv(y), x.cmod(y))
+
+    if isinstance(x, UInt) and isinstance(y, UInt):
+        return (x.cdiv(y), x.cmod(y))
+
+    return (x // y, x % y)
+
+def _modf(x):
+    return _apply(x, util.modf)
+
+def _frexp(x):
+    def frexp(x):
+        a, b = util.frexp(x)
+        return a, i32(b)
+
+    return _apply(x, frexp)
+
+def _spacing16(h: float16):
+    h_u16 = util.bitcast(h, u16)
+    h_exp = h_u16 & u16(0x7c00)
+    h_sig = h_u16 & u16(0x03ff)
+
+    if h_exp == u16(0x7c00):
+        return util.nan16()
+    elif h_u16 == u16(0x7bff):
+        return util.inf16()
+    elif (h_u16 & u16(0x8000)) and not h_sig:
+        if h_exp > u16(0x2c00):
+            return util.bitcast(h_exp - u16(0x2c00), float16)
+        elif h_exp > u16(0x0400):
+            return util.bitcast(u16(1) << ((h_exp >> u16(10)) - u16(2)), float16)
+        else:
+            return util.bitcast(u16(0x0001), float16)
+    elif h_exp > u16(0x2800):
+        return util.bitcast(h_exp - u16(0x2800), float16)
+    elif h_exp > u16(0x0400):
+        return util.bitcast(u16(1) << ((h_exp >> u16(10)) - u16(1)), float16)
+    else:
+        return util.bitcast(u16(0x0001), float16)
+
+def _spacing(x):
+    if isinstance(x, float16):
+        return _spacing16(x)
+    elif isinstance(x, float32):
+        if util.isinf32(x):
+            return util.nan32()
+        p = util.inf32() if x >= float32(0) else -util.inf32()
+        return util.nextafter32(x, util.inf32()) - x
+    elif isinstance(x, float):
+        x = util.cast(x, float)
+        if util.isinf64(x):
+            return util.nan64()
+        p = util.inf64() if x >= 0 else -util.inf64()
+        return util.nextafter64(x, p) - x
+    else:
+        return _spacing(util.to_float(x))
+
+
+# Indexing optimization
+
+def _array1d_get_nocheck(arr: ndarray[T, 1], idx: int, T: type):
+    p = arr.data.as_byte() + (arr.strides[0] * idx)
+    return Ptr[T](p)[0]
+
+def _array1d_set_nocheck(arr: ndarray[T, 1], idx: int, elem: S, T: type, S: type):
+    p = arr.data.as_byte() + (arr.strides[0] * idx)
+    Ptr[T](p)[0] = util.cast(elem, T)

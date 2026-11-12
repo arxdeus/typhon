@@ -1,0 +1,1363 @@
+@test
+def test_missing_returns():
+    def required(flag: bool) -> int:
+        if flag:
+            return 17
+
+    assert required(True) == 17
+    try:
+        required(False)
+        assert False, "missing return did not raise"
+    except RuntimeError as error:
+        assert "required" in error.message
+        assert "exceptions.py" in error.message
+        assert error.func == "required"
+        assert error.file.endswith("exceptions.py")
+        assert error.line > 0 and error.col > 0
+        assert f":{error.line}:{error.col})" in error.message
+
+    def nullable(flag: bool) -> Optional[int]:
+        if flag:
+            return 17
+    assert nullable(False) is None
+    assert nullable(True) == 17
+
+    def nullable_union(flag: bool) -> Union[int, str, NoneType]:
+        if flag:
+            return "present"
+    assert nullable_union(False) is None
+    assert nullable_union(True) == "present"
+
+    def nullable_reference_union(flag: bool) -> Union[list[int], str, NoneType]:
+        if flag:
+            return [17]
+    assert nullable_reference_union(False) is None
+    assert nullable_reference_union(True) == [17]
+
+    def optional_union(flag: bool) -> Optional[Union[int, str]]:
+        if flag:
+            return "present"
+    assert optional_union(False) is None
+    assert optional_union(True) == "present"
+
+    def explicit_none() -> Union[int, str, NoneType]:
+        return None
+    assert explicit_none() is None
+
+    def required_union(flag: bool) -> Union[int, str]:
+        if flag:
+            return "present"
+    assert required_union(True) == "present"
+    try:
+        required_union(False)
+        assert False, "missing union return did not raise"
+    except RuntimeError as error:
+        assert error.func == "required_union"
+
+    events: list[int] = []
+    def nothing(events: list[int]):
+        events.append(1)
+    nothing(events)
+    assert events == [1]
+
+    def reference(flag: bool) -> list[int]:
+        if flag:
+            return [17]
+    assert reference(True) == [17]
+    try:
+        reference(False)
+        assert False, "missing reference return did not raise"
+    except RuntimeError as error:
+        assert error.func == "reference"
+
+    def fail():
+        raise ValueError("original error")
+    def fail_wrapper():
+        fail()
+    def calls_error(flag: bool) -> int:
+        if flag:
+            return 17
+        fail_wrapper()
+    try:
+        calls_error(False)
+        assert False
+    except ValueError as error:
+        assert error.message == "original error"
+
+    def cleanup_breaks() -> int:
+        while True:
+            try:
+                return 17
+            finally:
+                break
+    try:
+        cleanup_breaks()
+        assert False, "cleanup suppressed a return without a guard"
+    except RuntimeError as error:
+        assert error.func == "cleanup_breaks"
+
+    import asyncio
+    async def async_required(flag: bool):
+        await asyncio.sleep(0)
+        if flag:
+            return 17
+    assert asyncio.run(async_required(True)) == 17
+    try:
+        asyncio.run(async_required(False))
+        assert False, "missing async return did not raise"
+    except RuntimeError as error:
+        assert "function 'async_required'" in error.message
+        assert "exceptions.py:" in error.message
+
+    async def async_nullable_union(flag: bool):
+        await asyncio.sleep(0)
+        if flag:
+            value: Union[int, str, NoneType] = 17
+            return value
+    assert asyncio.run(async_nullable_union(True)) == 17
+    assert asyncio.run(async_nullable_union(False)) is None
+
+test_missing_returns()
+
+@test
+def test_native_hierarchy():
+    assert IOError is OSError and EnvironmentError is OSError
+    assert isinstance(FileNotFoundError("missing"), OSError)
+    assert isinstance(BrokenPipeError("pipe"), ConnectionError)
+    assert isinstance(UnicodeError("unicode"), ValueError)
+    assert isinstance(RecursionError("recursion"), RuntimeError)
+    assert not isinstance(KeyboardInterrupt(), Exception)
+    assert not isinstance(GeneratorExit(), Exception)
+    assert isinstance(OSError(2, "missing", "file"), FileNotFoundError)
+    assert isinstance(OSError(13, "denied"), PermissionError)
+    assert isinstance(OSError(17, "exists"), FileExistsError)
+    assert not isinstance(FileNotFoundError(13, "explicit"), PermissionError)
+    decoded = UnicodeDecodeError("utf-8", b"a\xff", 1, 2, "invalid start byte")
+    assert isinstance(decoded, UnicodeError) and isinstance(decoded, ValueError)
+    assert decoded.args == ("utf-8", b"a\xff", 1, 2, "invalid start byte")
+    assert str(decoded) == "'utf-8' codec can't decode byte 0xff in position 1: invalid start byte"
+    decoded.reason = "changed"
+    assert decoded.args[-1] == "invalid start byte"
+    try:
+        raise decoded
+    except ValueError as error:
+        assert str(error).endswith(": changed")
+        assert repr(error) == "UnicodeDecodeError('utf-8', b'a\\xff', 1, 2, 'invalid start byte')"
+    encoded = UnicodeEncodeError("ascii", "\u00e9", 0, 1, "ordinal not in range(128)")
+    assert str(encoded) == "'ascii' codec can't encode character '\\xe9' in position 0: ordinal not in range(128)"
+    for encoding in ["utf-8", "utf-16-le", "ascii", "cp1252"]:
+        value = "a" + chr(0xD800) + chr(0xD801) + "b"
+        try:
+            value.encode(encoding)
+            assert False
+        except UnicodeEncodeError as error:
+            assert error.object == value and error.start == 1
+            assert error.end == (2 if encoding == "utf-16-le" else 3)
+    translated = UnicodeTranslateError("\u1234", 0, 1, "invalid")
+    assert str(translated) == "can't translate character '\\u1234' in position 0: invalid"
+    for raw in [b"a\xff", b"a\xe2\x82", b"a\xe2\x82b"]:
+        try:
+            raw.decode("utf-8")
+            assert False
+        except UnicodeDecodeError as error:
+            assert error.encoding == "utf-8" and error.object == raw
+            assert error.start == 1
+            assert error.end == (2 if raw == b"a\xff" else 3)
+            assert str(error) == error.message
+    try:
+        raise OSError(2, "missing", "file")
+    except FileNotFoundError as error:
+        assert error.errno == 2 and error.filename == "file"
+
+test_native_hierarchy()
+
+@test
+def test_base_exception_routing():
+    class RoutingPadding(object):
+        padding: tuple[int, int, int]
+
+    class RoutingError(ValueError, RoutingPadding):
+        payload: int
+
+        def __init__(self):
+            super().__init__("shifted exception")
+            self.padding = (17, 19, 23)
+            self.payload = 29
+
+    @noinline
+    def throw_root(error: BaseException):
+        raise error
+
+    @noinline
+    def route(error: BaseException):
+        try:
+            throw_root(error)
+        except KeyError:
+            return 1
+        except ValueError as caught:
+            assert caught is error
+            return 2
+        except Exception:
+            return 3
+        except BaseException as caught:
+            assert caught is error
+            return 4
+        except:
+            return 5
+        return 0
+
+    assert route(KeyError("key")) == 1
+    assert route(ValueError("value")) == 2
+    assert route(TypeError("type")) == 3
+    assert route(BaseException("base")) == 4
+    assert route(KeyboardInterrupt()) == 4
+    assert route(GeneratorExit()) == 4
+    assert route(SystemExit(7)) == 4
+    padded = RoutingError()
+    assert TypeInfo.cache(RoutingError)._dist_to(BaseException) != TypeInfo.cache(ValueError)._dist_to(BaseException)
+    assert route(padded) == 2
+    assert padded.message == "shifted exception"
+    assert padded.padding == (17, 19, 23) and padded.payload == 29
+
+    @noinline
+    def root_first(error: BaseException):
+        try:
+            throw_root(error)
+        except BaseException:
+            return 1
+        except ValueError:
+            return 2
+        return 0
+
+    assert root_first(padded) == 1
+
+    @noinline
+    def rethrow_root(error: BaseException, events: list[int]):
+        try:
+            try:
+                throw_root(error)
+            except KeyError:
+                assert False
+            finally:
+                events.append(1)
+        except BaseException as caught:
+            assert caught is error
+            events.append(2)
+            raise
+
+    events: list[int] = []
+    try:
+        rethrow_root(padded, events)
+    except:
+        events.append(3)
+    assert events == [1, 2, 3]
+
+test_base_exception_routing()
+
+from internal.types.error import OSError as NativeOSError
+
+class OSError:
+    value: int
+
+    def __init__(self, value: int):
+        self.value = value
+
+@test
+def test_shadowed_oserror():
+    shadowed = OSError(7)
+    assert shadowed.value == 7
+    assert isinstance(NativeOSError(2, "missing"), FileNotFoundError)
+    assert isinstance(IOError(13, "denied"), PermissionError)
+    assert isinstance(EnvironmentError(17, "exists"), FileExistsError)
+
+test_shadowed_oserror()
+
+class Exc1(Exception):
+    def __init__(self, msg: str):
+        super().__init__(msg)
+
+    def show(self):
+        print self.message
+
+class Exc2(Exception):
+    def __init__(self, msg: str):
+        super().__init__(msg)
+
+    def show(self):
+        print self.message
+
+class A(Exception):
+    def __init__(self, msg: str):
+        super().__init__(msg)
+
+class B(Exception):
+    def __init__(self, msg: str):
+        super().__init__(msg)
+
+class C(Exception):
+    def __init__(self, msg: str):
+        super().__init__(msg)
+
+class D(Exception):
+    def __init__(self, msg: str):
+        super().__init__(msg)
+
+class E(Exception):
+    def __init__(self, msg: str):
+        super().__init__(msg)
+
+def foo1(x):
+    if x:
+        raise Exc1('e1')
+    else:
+        raise Exc2('e2')
+
+def foo2(x):
+    foo1(x)
+
+def foo(x):
+    foo2(x)
+
+def square(x):
+    return x * x
+
+def bar(x):
+    try:
+        print 'try'
+        foo(x)
+        print 'error'
+    except Exc1 as e:
+        print 'catch Exc1 1'
+        print e.message
+        print 'catch Exc1 2'
+    except Exc2 as e:
+        print 'catch Exc2 1'
+        print e.message
+        print 'catch Exc2 2'
+    finally:
+        print 'finally'
+    print 'done'
+
+def baz(x):
+    try:
+        print 'try 1'
+        square(x)
+        print 'try 2'
+    except Exc1 as e:
+        print 'catch Exc1 1'
+        print e.message
+        print 'catch Exc1 2'
+    except Exc2 as e:
+        print 'catch Exc2 1'
+        print e.message
+        print 'catch Exc2 2'
+    finally:
+        print 'finally'
+    print 'done'
+
+def baz1(x):
+    try:
+        print 'try 1.1'
+        foo(x)
+        print 'try 1.2'
+    except Exc1 as e:
+        print 'catch Exc1 1.1'
+        print e.message
+        print 'catch Exc1 1.2'
+    finally:
+        print 'finally 1'
+    print 'done 1'
+
+def baz2(x):
+    try:
+        print 'try 2.1'
+        baz1(x)
+        print 'try 2.2'
+    except:
+        print 'catch Exc2'
+    finally:
+        print 'finally 2'
+    print 'done 2'
+
+def nest1(b):
+    if b:
+        raise C('C')
+    else:
+        raise E('E')
+
+def nest2(b):
+    try:
+        try:
+            try:
+                try:
+                    nest1(b)
+                except A:
+                    print 'A'
+                finally:
+                    print 'f A'
+            except B:
+                print 'B'
+            finally:
+                print 'f B'
+        except C as c:
+            print c.message
+        finally:
+            print 'f C'
+    except D:
+        print 'D'
+    finally:
+        print 'f D'
+
+def nest3(b):
+    try:
+        nest2(b)
+    except:
+        print 'except'
+    finally:
+        print 'done'
+
+def finally_return(x):
+    try:
+        try:
+            return 'A'
+        finally:
+            if x < 5:
+                return 'B'
+    finally:
+        if x > 10:
+            return 'C'
+
+def finally_return_void():
+    try:
+        try:
+            print 'A'
+            return
+        finally:
+            print 'B'
+            return
+    finally:
+        print 'C'
+
+def finally_break_continue1():
+    try:
+        for i in range(3):
+            try:
+                continue
+            finally:
+                print i
+                continue
+            print 'X'
+    finally:
+        print 'f'
+
+def finally_break_continue2():
+    try:
+        for i in range(5):
+            try:
+                if i == 4:
+                    continue
+
+                for j in range(i):
+                    try:
+                        try:
+                            if j == 3:
+                                break
+                            elif j == 1:
+                                continue
+                            print j
+                        finally:
+                            print 'f1'
+                    finally:
+                        print 'f2'
+                        if j == 4:
+                            break
+            finally:
+                print 'f3'
+    finally:
+        print 'f4'
+
+def finally_break_continue3(n):
+    while n != 0:
+        print 'A'
+        try:
+            while n != 0:
+                print 'B'
+                if n == 42:
+                    print 'C'
+                    n -= 1
+                    continue
+                try:
+                    print 'D'
+                    if n > 0:
+                        print 'E'
+                        continue
+                    else:
+                        print 'F'
+                        break
+                finally:
+                    print('G')
+                    return -1
+            print 'H'
+            return -2
+        finally:
+            print 'I'
+            return n + 1
+
+def test_try_with_loop1(_):
+    try:
+        print 'A'
+        while True:
+            print 'B'
+            try:
+                print 'C'
+                raise ValueError()
+                assert False
+            except ValueError:
+                print 'D'
+                break
+    finally:
+        print 'E'
+
+def test_try_with_loop2(_):
+    try:
+        print 'A'
+        while True:
+            print 'B'
+            try:
+                print 'C'
+                raise ValueError()
+                assert False
+            except:
+                print 'D'
+                break
+    finally:
+        print 'E'
+
+def test_try_with_loop3(_):
+    try:
+        try:
+            print 'A'
+            while True:
+                print 'B'
+                try:
+                    print 'C'
+                    raise ValueError()
+                    assert False
+                except IOError:
+                    print 'D'
+                    break
+        finally:
+            print 'E'
+    except:
+        print 'F'
+    finally:
+        print 'G'
+
+def test_try_with_loop4(_):
+    try:
+        try:
+            print 'A'
+            while True:
+                print 'B'
+                try:
+                    print 'C'
+                    raise ValueError()
+                    assert False
+                except:
+                    print 'D'
+                    raise IOError()
+                    break
+        finally:
+            print 'E'
+    except:
+        print 'F'
+    finally:
+        print 'G'
+
+# EXPECT: try
+# EXPECT: catch Exc1 1
+# EXPECT: e1
+# EXPECT: catch Exc1 2
+# EXPECT: finally
+# EXPECT: done
+bar(True)
+
+# EXPECT: try
+# EXPECT: catch Exc2 1
+# EXPECT: e2
+# EXPECT: catch Exc2 2
+# EXPECT: finally
+# EXPECT: done
+bar(0)
+
+# EXPECT: try 1
+# EXPECT: try 2
+# EXPECT: finally
+# EXPECT: done
+baz(3.14)
+
+# EXPECT: try 2.1
+# EXPECT: try 1.1
+# EXPECT: catch Exc1 1.1
+# EXPECT: e1
+# EXPECT: catch Exc1 1.2
+# EXPECT: finally 1
+# EXPECT: done 1
+# EXPECT: try 2.2
+# EXPECT: finally 2
+# EXPECT: done 2
+baz2(1)
+
+# EXPECT: try 2.1
+# EXPECT: try 1.1
+# EXPECT: finally 1
+# EXPECT: catch Exc2
+# EXPECT: finally 2
+# EXPECT: done 2
+baz2(0)
+
+# EXPECT: f A
+# EXPECT: f B
+# EXPECT: C
+# EXPECT: f C
+# EXPECT: f D
+# EXPECT: done
+nest3(True)
+
+# EXPECT: f A
+# EXPECT: f B
+# EXPECT: f C
+# EXPECT: f D
+# EXPECT: except
+# EXPECT: done
+nest3(0)
+
+print finally_return(3.14)  # EXPECT: B
+print finally_return(7)     # EXPECT: A
+print finally_return(11)    # EXPECT: C
+
+# EXPECT: A
+# EXPECT: B
+# EXPECT: C
+finally_return_void()
+
+# EXPECT: 0
+# EXPECT: 1
+# EXPECT: 2
+# EXPECT: f
+finally_break_continue1()
+
+# EXPECT: f3
+# EXPECT: 0
+# EXPECT: f1
+# EXPECT: f2
+# EXPECT: f3
+# EXPECT: 0
+# EXPECT: f1
+# EXPECT: f2
+# EXPECT: f1
+# EXPECT: f2
+# EXPECT: f3
+# EXPECT: 0
+# EXPECT: f1
+# EXPECT: f2
+# EXPECT: f1
+# EXPECT: f2
+# EXPECT: 2
+# EXPECT: f1
+# EXPECT: f2
+# EXPECT: f3
+# EXPECT: f3
+# EXPECT: f4
+finally_break_continue2()
+
+# EXPECT: A
+# EXPECT: B
+# EXPECT: C
+# EXPECT: B
+# EXPECT: D
+# EXPECT: E
+# EXPECT: G
+# EXPECT: I
+# EXPECT: 42
+print finally_break_continue3(42)
+
+# EXPECT: A
+# EXPECT: B
+# EXPECT: C
+# EXPECT: D
+# EXPECT: E
+test_try_with_loop1(0)
+
+# EXPECT: A
+# EXPECT: B
+# EXPECT: C
+# EXPECT: D
+# EXPECT: E
+test_try_with_loop2(0.0)
+
+# EXPECT: A
+# EXPECT: B
+# EXPECT: C
+# EXPECT: E
+# EXPECT: F
+# EXPECT: G
+test_try_with_loop3('')
+
+# EXPECT: A
+# EXPECT: B
+# EXPECT: C
+# EXPECT: D
+# EXPECT: E
+# EXPECT: F
+# EXPECT: G
+test_try_with_loop4(False)
+
+class Foo:
+    i: int
+    def __enter__(self: Foo):
+        print '> foo! ' + str(self.i)
+        return self
+    def __exit__(self: Foo):
+        print '< foo! ' + str(self.i)
+    def foo(self: Foo):
+        print 'woof'
+
+class Bar:
+    s: str
+    def __enter__(self: Bar):
+        print '> bar! ' + self.s
+        return self
+    def __exit__(self: Bar):
+        print '< bar! ' + self.s
+    def bar(self: Bar):
+        print 'meow'
+
+def test_with():
+    with Foo(0) as f:
+        f.foo()
+    with Foo(1) as f, Bar('s') as b:
+        f.foo()
+        b.bar()
+    with Foo(2), Bar('t') as q:
+        print 'eeh'
+        q.bar()
+
+# EXPECT: > foo! 0
+# EXPECT: woof
+# EXPECT: < foo! 0
+# EXPECT: > foo! 1
+# EXPECT: > bar! s
+# EXPECT: woof
+# EXPECT: meow
+# EXPECT: < bar! s
+# EXPECT: < foo! 1
+# EXPECT: > foo! 2
+# EXPECT: > bar! t
+# EXPECT: eeh
+# EXPECT: meow
+# EXPECT: < bar! t
+# EXPECT: < foo! 2
+test_with()
+
+
+class PropClass:
+    x: int
+
+    @property
+    def foo(self: PropClass):
+        raise IOError('foo')
+
+def test_property_exceptions():
+    try:
+        PropClass(42).foo
+        print 'X'
+    except IOError as e:
+        print e.message
+
+# EXPECT: foo
+test_property_exceptions()
+
+def test_empty_raise():
+    def foo(b):
+        if b:
+            raise ValueError('A')
+        else:
+            raise IOError('B')
+
+    def bar(b):
+        try:
+            foo(b)
+            print('X')
+        except IOError as e:
+            print(e)
+            raise
+        except:
+            raise
+
+    def baz(b):
+        try:
+            bar(b)
+        except ValueError as e:
+            print(e)
+            raise
+
+    for b in (False, True):
+        try:
+            baz(b)
+        except:
+            print('C')
+
+# EXPECT: B
+# EXPECT: C
+# EXPECT: A
+# EXPECT: C
+test_empty_raise()
+
+def test_raise_from_except_or_else():
+    def div(x, y):
+        if y == 0: raise ZeroDivisionError("oops!")
+        return x // y
+
+    try:
+        try:
+            div(5, 0)
+        except ZeroDivisionError:
+            print('Zero')
+            div(5, 0)
+        finally:
+            print("finally")
+    except:
+        print('caught')
+
+    try:
+        try:
+            div(5, 1)
+        except ZeroDivisionError:
+            print('Zero')
+        else:
+            print('else before')
+            div(5, 0)
+            print('else after')
+        finally:
+            print("finally")
+    except:
+        print('caught')
+
+# EXPECT: Zero
+# EXPECT: finally
+# EXPECT: caught
+# EXPECT: else before
+# EXPECT: finally
+# EXPECT: caught
+test_raise_from_except_or_else()
+
+def test_abrupt_break_continue():
+    for i in range(6):
+        print('->', i)
+        try:
+            if i == 0:
+                raise ValueError("v1")
+            if i == 5:
+                raise IOError("io1")
+        except ValueError as e:
+            print(e)
+            break
+        except IOError as e:
+            print(e)
+            break
+        else:
+            if i == 3:
+                raise ZeroDivisionError("z1")
+        finally:
+            if i == 0 or i == 3:
+                continue
+            print(i)
+
+# EXPECT: -> 0
+# EXPECT: v1
+# EXPECT: -> 1
+# EXPECT: 1
+# EXPECT: -> 2
+# EXPECT: 2
+# EXPECT: -> 3
+# EXPECT: -> 4
+# EXPECT: 4
+# EXPECT: -> 5
+# EXPECT: io1
+# EXPECT: 5
+test_abrupt_break_continue()
+
+# core_exceptions_codon: copying through an exception base must accept an
+# override returning its concrete subclass and preserve that dynamic type.
+class CopyBaseError(Exception):
+    def __copy__(self) -> CopyBaseError:
+        return CopyBaseError(self.message)
+
+class CopyLeafError(CopyBaseError):
+    def __copy__(self) -> CopyLeafError:
+        return CopyLeafError(self.message)
+
+@test
+def test_covariant_exception_copy():
+    error: CopyBaseError = CopyLeafError("copied")
+    copied = error.__copy__()
+    assert copied is not error
+    assert isinstance(copied, CopyLeafError)
+    assert copied.message == "copied"
+
+test_covariant_exception_copy()
+
+def test_returns_through_finally():
+    @noinline
+    def fail(kind: int) -> int:
+        if kind == 0:
+            raise ValueError('return expression')
+        raise KeyError('return expression')
+
+    def from_handler(events, kind: int):
+        try:
+            if kind < 2:
+                return fail(kind)
+            return 7
+        except ValueError:
+            return 42
+        except Exception as error:
+            return 43
+        finally:
+            events.append('handler')
+
+    def from_else(events):
+        try:
+            events.append('try')
+        except Exception:
+            return -1
+        else:
+            return 42
+        finally:
+            events.append('else')
+
+    def nested_handler(events):
+        try:
+            try:
+                return fail(0)
+            except ValueError:
+                return 42
+            finally:
+                events.append('inner')
+        finally:
+            events.append('outer')
+
+    def nested_try_in_handler(events, cleanup: bool):
+        try:
+            return fail(0)
+        except ValueError:
+            if cleanup:
+                try:
+                    return 42
+                finally:
+                    events.append('inner')
+            else:
+                try:
+                    return 42
+                except KeyError:
+                    return -1
+        finally:
+            events.append('outer')
+
+    def return_none(events):
+        try:
+            fail(0)
+        except:
+            return
+        finally:
+            events.append('void')
+
+    def nested_loop_control(events):
+        for iteration in range(2):
+            try:
+                fail(0)
+            except ValueError:
+                try:
+                    if iteration == 0:
+                        continue
+                    break
+                finally:
+                    events.append('inner')
+            finally:
+                events.append('outer')
+
+    def generator(events, cleanup: bool):
+        try:
+            yield 1
+            fail(0)
+        except ValueError:
+            if cleanup:
+                try:
+                    return
+                finally:
+                    events.append('inner')
+            return
+        finally:
+            events.append('generator')
+
+    for kind in range(3):
+        events = []
+        assert from_handler(events, kind) == (42, 43, 7)[kind]
+        assert events == ['handler']
+    events = []
+    assert from_else(events) == 42
+    assert events == ['try', 'else']
+    events = []
+    assert nested_handler(events) == 42
+    assert events == ['inner', 'outer']
+    for cleanup in (False, True):
+        events = []
+        assert nested_try_in_handler(events, cleanup) == 42
+        assert events == (['inner', 'outer'] if cleanup else ['outer'])
+    events = []
+    return_none(events)
+    assert events == ['void']
+    events = []
+    nested_loop_control(events)
+    assert events == ['inner', 'outer', 'inner', 'outer']
+    for cleanup in (False, True):
+        events = []
+        assert list(generator(events, cleanup)) == [1]
+        assert events == (['inner', 'generator'] if cleanup else ['generator'])
+
+test_returns_through_finally()
+
+def test_pending_finally_state():
+    def pending(events, action: int):
+        try:
+            for iteration in range(2):
+                try:
+                    events.append(str(iteration))
+                    if action == 0:
+                        return 42
+                    if action == 1:
+                        raise TypeError('original')
+                    if action == 2:
+                        break
+                    continue
+                finally:
+                    try:
+                        events.append('normal cleanup')
+                    except KeyError:
+                        assert False
+                    events.append('after cleanup')
+                    try:
+                        raise ValueError('temporary')
+                    except ValueError:
+                        events.append('handled temporary')
+        except TypeError as error:
+            assert str(error) == 'original'
+            events.append('caught original')
+            return 42
+        finally:
+            events.append('outer finally')
+        return 99
+
+    for action in range(4):
+        events = []
+        assert pending(events, action) == (42 if action < 2 else 99)
+        expected = ['0', 'normal cleanup', 'after cleanup', 'handled temporary']
+        if action == 1:
+            expected.append('caught original')
+        if action == 3:
+            expected.extend(['1', 'normal cleanup', 'after cleanup', 'handled temporary'])
+        expected.append('outer finally')
+        assert events == expected
+
+    def suppress(events, action: int):
+        for iteration in range(2):
+            try:
+                try:
+                    try:
+                        raise ValueError('original')
+                    finally:
+                        events.append('inner finally')
+                        if action == 0:
+                            return 42
+                        if action == 1:
+                            break
+                        continue
+                except ValueError:
+                    assert False
+                finally:
+                    events.append('middle finally')
+            except ValueError:
+                assert False
+            finally:
+                events.append('outer finally')
+        return 43
+
+    for action in range(3):
+        events = []
+        assert suppress(events, action) == (42 if action == 0 else 43)
+        assert events == ['inner finally', 'middle finally', 'outer finally'] * (2 if action == 2 else 1)
+
+test_pending_finally_state()
+
+def test_escaping_cleanup_exception():
+    def from_handler(events, cleanup: bool):
+        try:
+            try:
+                raise ValueError('first')
+            except ValueError:
+                if cleanup:
+                    try:
+                        raise TypeError('second')
+                    except KeyError:
+                        assert False
+                    finally:
+                        events.append('inner finally')
+                else:
+                    try:
+                        raise TypeError('second')
+                    except KeyError:
+                        assert False
+            finally:
+                events.append('outer finally')
+        except TypeError as error:
+            assert str(error) == 'second'
+            events.append('caught')
+
+    def from_else(events):
+        try:
+            try:
+                events.append('try')
+            except ValueError:
+                assert False
+            else:
+                try:
+                    raise TypeError('second')
+                finally:
+                    events.append('inner finally')
+            finally:
+                events.append('outer finally')
+        except TypeError as error:
+            assert str(error) == 'second'
+            events.append('caught')
+
+    for cleanup in (False, True):
+        events = []
+        from_handler(events, cleanup)
+        assert events == (['inner finally', 'outer finally', 'caught'] if cleanup else ['outer finally', 'caught'])
+    events = []
+    from_else(events)
+    assert events == ['try', 'inner finally', 'outer finally', 'caught']
+
+test_escaping_cleanup_exception()
+
+def test_finally_bare_raise():
+    def pending(events, original, nested: bool):
+        try:
+            raise original
+        finally:
+            if nested:
+                try:
+                    raise TypeError('temporary')
+                except TypeError:
+                    events.append('handled temporary')
+            events.append('finally')
+            raise
+
+    for nested in (False, True):
+        events = []
+        original = ValueError('original')
+        try:
+            pending(events, original, nested)
+            assert False
+        except ValueError as error:
+            assert error is original
+        assert events == (['handled temporary', 'finally'] if nested else ['finally'])
+
+    def in_handler(outer, inner, throw_inner: bool):
+        try:
+            raise outer
+        except ValueError:
+            try:
+                if throw_inner:
+                    raise inner
+            finally:
+                raise
+
+    outer = ValueError('outer')
+    inner = TypeError('inner')
+    for throw_inner in (False, True):
+        try:
+            in_handler(outer, inner, throw_inner)
+            assert False
+        except ValueError as error:
+            assert not throw_inner and error is outer
+        except TypeError as error:
+            assert throw_inner and error is inner
+
+    def no_active_exception(handled: bool, return_from_handler: bool):
+        if handled:
+            try:
+                raise ValueError('handled')
+            except ValueError:
+                if return_from_handler:
+                    return 42
+            finally:
+                raise
+        else:
+            try:
+                pass
+            finally:
+                raise
+        return 99
+
+    for handled in (False, True):
+        for return_from_handler in (False, True):
+            try:
+                no_active_exception(handled, return_from_handler)
+                assert False
+            except RuntimeError as error:
+                assert str(error) == 'No active exception to reraise'
+
+    def bare_raise():
+        raise
+
+    try:
+        bare_raise()
+        assert False
+    except RuntimeError as error:
+        assert str(error) == 'No active exception to reraise'
+
+    def generator(events, original):
+        try:
+            raise original
+        finally:
+            yield 1
+            try:
+                raise TypeError('temporary')
+            except TypeError:
+                events.append('handled temporary')
+            yield 2
+            raise
+
+    events = []
+    yielded = []
+    original = ValueError('original')
+    try:
+        for item in generator(events, original):
+            yielded.append(item)
+        assert False
+    except ValueError as error:
+        assert error is original
+    assert yielded == [1, 2]
+    assert events == ['handled temporary']
+
+test_finally_bare_raise()
+
+@test
+def test_devirtualized_exception_construction():
+    class Marker:
+        marker: int
+
+    class DetailedIndexError(IndexError, Marker):
+        payload: str
+
+        def __init__(self, message: str, marker: int):
+            super().__init__(message)
+            self.payload = message + ":payload"
+            self.marker = marker
+
+        def __str__(self):
+            return self.payload
+
+    @noinline
+    def update(error: IndexError, message: str):
+        error.message = message
+        return str(error)
+
+    @noinline
+    def merge(flag: bool, message: str) -> IndexError:
+        if flag:
+            error: IndexError = IndexError(message)
+        else:
+            error: IndexError = DetailedIndexError(message, 17)
+        error.message = message + ":updated"
+        return error
+
+    @noinline
+    def loop(error: IndexError, count: int):
+        messages: list[str] = []
+        for index in range(count):
+            messages.append(error.message)
+            error = IndexError(str(index))
+        return messages
+
+    for flag in (False, True):
+        error = merge(flag, "original")
+        assert error.message == "original:updated"
+        assert update(error, "changed") == ("changed" if flag else "original:payload")
+        assert error.message == "changed"
+        assert loop(error, 3) == ["changed", "0", "1"]
+        if not flag:
+            if isinstance(error, DetailedIndexError):
+                assert error.marker == 17
+                assert error.payload == "original:payload"
+            else:
+                assert False
+
+    original = DetailedIndexError("alias", 23)
+    alias: IndexError = original
+    original = DetailedIndexError("replacement", 29)
+    alias.message = "retained"
+    assert alias.message == "retained"
+    assert original.message == "replacement"
+    assert str(alias) == "alias:payload"
+
+    @noinline
+    def alternate(first: IndexError, second: IndexError, count: int) -> str:
+        if count:
+            return alternate(second, first, count - 1)
+        return first.message
+
+    @noinline
+    def pack(error: IndexError):
+        return ((error,), 5)
+
+    plain = IndexError("plain")
+    detailed = DetailedIndexError("detailed", 37)
+    assert alternate(plain, detailed, 3) == "detailed"
+    assert alternate(plain, detailed, 4) == "plain"
+    packed = pack(detailed)[0][0]
+    assert packed is detailed
+    assert packed.message == "detailed"
+    assert update(packed, "packed") == "detailed:payload"
+    assert packed.message == "packed"
+
+    def raise_detailed(cause: ValueError):
+        raise DetailedIndexError("raised", 31) from cause
+
+    cause = ValueError("cause")
+    try:
+        raise_detailed(cause)
+    except IndexError as error:
+        assert error.message == "raised"
+        if isinstance(error, DetailedIndexError):
+            assert error.payload == "raised:payload"
+            assert error.marker == 31
+        else:
+            assert False
+        assert error.__cause__ is cause
+        assert "raise_detailed" in error.func
+        assert error.file.endswith("exceptions.py")
+        assert error.line > 0 and error.col > 0
+
+    for value in ("abc", "a\u0100\U0001f642"):
+        assert value[0] == "a"
+        assert value[-1] == value[len(value) - 1:]
+        try:
+            value[len(value)]
+            assert False
+        except IndexError as error:
+            assert error.message == "string index out of range"
+
+test_devirtualized_exception_construction()

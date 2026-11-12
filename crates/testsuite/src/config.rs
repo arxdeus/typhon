@@ -6,13 +6,13 @@ use std::time::Duration;
 pub struct Config {
     /// Compiler CLI (`TYPHON_BIN`).
     pub bin: PathBuf,
-    /// Stdlib directory (`TYPHON_STDLIB_DIR`), exported to the child as `CODON_PATH`.
+    /// Stdlib directory (`TYPHON_STDLIB_DIR`), exported to the child as `TYPHON_PATH`.
     pub stdlib: PathBuf,
-    /// Test data dir (`TYPHON_TEST_DIR`), default `<workspace>/../test`.
+    /// Test data dir (`TYPHON_TEST_DIR`), default `<workspace>/test`.
     pub test_dir: PathBuf,
     /// Per-case timeout (`TYPHON_TEST_TIMEOUT_SECS`, default 1200 like the C++ Windows watchdog).
     pub timeout: Duration,
-    /// libpython for the python-interop cases (`CODON_PYTHON`, else auto-discovered).
+    /// libpython for the python-interop cases (`TYPHON_PYTHON`, else auto-discovered).
     pub python: Option<PathBuf>,
 }
 
@@ -27,11 +27,11 @@ impl Config {
         let var = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
         let bin = var("TYPHON_BIN").unwrap_or_else(|| ws.join("target/debug/typhon"));
         let stdlib = var("TYPHON_STDLIB_DIR").map(|p| if p.is_relative() { ws.join(p) } else { p })
-            .unwrap_or_else(|| ws.join("../stdlib"));
-        let test_dir = var("TYPHON_TEST_DIR").unwrap_or_else(|| ws.join("../test"));
+            .unwrap_or_else(|| ws.join("stdlib"));
+        let test_dir = var("TYPHON_TEST_DIR").unwrap_or_else(|| ws.join("test"));
         let secs = std::env::var("TYPHON_TEST_TIMEOUT_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(1200);
         let canon = |p: PathBuf| p.canonicalize().unwrap_or(p);
-        let python = var("CODON_PYTHON").or_else(find_libpython);
+        let python = var("TYPHON_PYTHON").or_else(find_libpython);
         Config {
             bin: canon(bin),
             stdlib: canon(stdlib),

@@ -1,0 +1,1057 @@
+# Ordered dict implementation based on CPython dict
+# Unordered dict implementation based on klib's khash
+
+import internal.khash as khash
+import internal.gc as gc
+
+
+###########
+# Ordered #
+###########
+
+_DKIX_EMPTY   : Literal[int] = -1
+_DKIX_DUMMY   : Literal[int] = -2
+_PERTURB_SHIFT: Literal[int] = 5
+
+@tuple
+class DictEntry:
+    key: K
+    value: V
+    hash: int
+    K: type
+    V: type
+
+    def with_value(self, new_value: V):
+        return DictEntry(self.key, new_value, self.hash)
+
+    def __deepcopy__(self):
+        return DictEntry(
+            self.key.__deepcopy__(),
+            self.value.__deepcopy__(),
+            self.hash)
+
+def _get_index(indices: cobj, log2_index_bytes: u8, i: int):
+    b = int(log2_index_bytes)
+    if b == 0:
+        return int(Ptr[i8](indices)[i])
+    elif b == 1:
+        return int(Ptr[i16](indices)[i])
+    elif b == 2:
+        return int(Ptr[i32](indices)[i])
+    else:
+        return int(Ptr[i64](indices)[i])
+
+def _set_index(indices: cobj, log2_index_bytes: u8, i: int, ix: int):
+    b = int(log2_index_bytes)
+    if b == 0:
+        Ptr[i8](indices)[i] = i8(ix)
+    elif b == 1:
+        Ptr[i16](indices)[i] = i16(ix)
+    elif b == 2:
+        Ptr[i32](indices)[i] = i32(ix)
+    else:
+        Ptr[i64](indices)[i] = i64(ix)
+
+@tuple
+class LookupResult:
+    slot: int
+    found: bool
+
+class OrderedDict:
+    _used: int
+    _usable: int
+    _indices: cobj
+    _nentries: int
+    _entries: Ptr[DictEntry[K, V]]
+    _active: Ptr[u8]
+    _log2_size: u8
+    _log2_index_bytes: u8
+    K: type = NoneType
+    V: type = NoneType
+
+    @property
+    def _log_size(self):
+        return int(self._log2_size)
+
+    @property
+    def _size(self):
+        return 1 << self._log_size
+
+    @property
+    def _log_index_bytes(self):
+        return int(self._log2_index_bytes)
+
+    @property
+    def _index_bytes(self):
+        return 1 << self._log_index_bytes
+
+    @property
+    def _capacity(self):
+        return (self._size << 1).cdiv(3)
+
+    @property
+    def _active_bytes(self):
+        return (self._capacity + 7) >> 3
+
+    def _is_active(self, i: int):
+        return bool(self._active[i >> 3] & (u8(1) << u8(i & 7)))
+
+    def _set_active(self, i: int):
+        self._active[i >> 3] |= (u8(1) << u8(i & 7))
+
+    def _clear_active(self, i: int):
+        self._active[i >> 3] &= ~(u8(1) << u8(i & 7))
+
+    def _clear_slot(self, i: int):
+        self._clear_active(i)
+        if not (K.__atomic__ and V.__atomic__):
+            str.memset((self._entries + i).as_byte(), byte(0),
+                       gc.sizeof(DictEntry[K, V]))
+
+    def _init(self, minsize: int = 8):
+        def log2_index_bytes(log2_size: u8):
+            l = int(log2_size)
+            if l <= 7:
+                return u8(0)  # int8
+            if l <= 15:
+                return u8(1)  # int16
+            if l <= 31:
+                return u8(2)  # int32
+            return u8(3)      # int64
+
+        self._log2_size = u8(3 if minsize <= 8 else (minsize - 1).bit_length())
+        self._log2_index_bytes = log2_index_bytes(self._log2_size)
+        size = self._size
+        self._usable = self._capacity
+        self._nentries = 0
+
+        self._indices = cobj(size * self._index_bytes)
+        for i in range(size):
+            _set_index(self._indices, self._log2_index_bytes, i, _DKIX_EMPTY)
+
+        active_bytes = self._active_bytes
+        self._entries = Ptr[DictEntry[K, V]](self._usable)
+        self._active = Ptr[u8](active_bytes)
+        str.memset(self._active.as_byte(), byte(0), active_bytes)
+
+    def __init__(self, /, capacity: int = 8):
+        self._used = 0
+        self._init(capacity)
+
+    def __init__(self, items: Generator[Tuple[K, V]], /):
+        self.__init__()
+        for k, v in items:
+            self[k] = v
+
+    def _init_from(self, other):
+        self._used = other._used
+        self._usable = other._usable
+        self._nentries = other._nentries
+        self._log2_size = other._log2_size
+        self._log2_index_bytes = other._log2_index_bytes
+
+        indices_size = other._size * other._index_bytes
+        self._indices = cobj(indices_size)
+        str.memcpy(self._indices, other._indices, indices_size)
+
+        capacity = self._capacity
+        self._entries = Ptr[DictEntry[K, V]](capacity)
+        str.memcpy(self._entries.as_byte(), other._entries.as_byte(),
+                   capacity * gc.sizeof(DictEntry[K, V]))
+
+        active_bytes = other._active_bytes
+        self._active = Ptr[u8](active_bytes)
+        str.memcpy(self._active.as_byte(), other._active.as_byte(), active_bytes)
+
+    def __init__(self, other: OrderedDict[K, V], /):
+        self._init_from(other)
+
+    def __copy__(self):
+        return OrderedDict[K, V](self)
+
+    def copy(self, /):
+        return self.__copy__()
+
+    def __deepcopy__(self):
+        d = self.copy()
+        for i in range(d._nentries):
+            if self._is_active(i):
+                d._entries[i] = d._entries[i].__deepcopy__()
+        return d
+
+    def __len__(self, /):
+        return self._used
+
+    def __bool__(self):
+        return self._used > 0
+
+    def _hash(self, key: K):
+        k = key.__hash__()
+        return (k >> 33) ^ k ^ (k << 11)
+
+    def _lookup(self, key: K, h: int):
+        mask = self._size - 1
+        perturb = u64(h)
+        i = int(perturb & u64(mask))
+        freeslot = _DKIX_EMPTY
+
+        while True:
+            ix = _get_index(self._indices, self._log2_index_bytes, i)
+
+            if ix == _DKIX_EMPTY:
+                if freeslot != _DKIX_EMPTY:
+                    return LookupResult(freeslot, False)
+                return LookupResult(i, False)
+
+            if ix == _DKIX_DUMMY:
+                if freeslot == _DKIX_EMPTY:
+                    freeslot = i
+            else:
+                if self._is_active(ix):
+                    e = self._entries[ix]
+                    if e.hash == h and e.key == key:
+                        return LookupResult(i, True)
+
+            perturb >>= u64(_PERTURB_SHIFT)
+            i = int((u64(i) * u64(5) + perturb + u64(1)) & u64(mask))
+
+    def _resize(self, minused: int):
+        minsize = ((minused * 3) >> 1) + 1
+        if minsize < 8:
+            minsize = 8
+
+        old_indices = self._indices
+        old_entries = self._entries
+        old_active = self._active
+        old_nentries = self._nentries
+        old_log2_index_bytes = self._log2_index_bytes
+
+        self._init(minsize)
+        self._nentries = 0
+        self._used = 0
+
+        for i in range(old_nentries):
+            if not (old_active[i >> 3] & (u8(1) << u8(i & 7))):
+                continue
+
+            e = old_entries[i]
+            r = self._lookup(e.key, e.hash)
+            new_ix = self._nentries
+            self._nentries += 1
+
+            self._entries[new_ix] = e
+            self._set_active(new_ix)
+            _set_index(self._indices, self._log2_index_bytes, r.slot, new_ix)
+            self._usable -= 1
+            self._used += 1
+
+    def resize(self, minused: int):
+        self._resize(minused)
+
+    def __setitem__(self, key: K, value: V, /):
+        if self._usable == 0:
+            self._resize(self._used + 1)
+
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if r.found:
+            ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+            old = self._entries[ix]
+            self._entries[ix] = DictEntry[K, V](old.key, value, old.hash)
+            return
+
+        ix = self._nentries
+        self._nentries += 1
+
+        self._entries[ix] = DictEntry[K, V](key, value, h)
+        self._set_active(ix)
+        _set_index(self._indices, self._log2_index_bytes, r.slot, ix)
+
+        self._usable -= 1
+        self._used += 1
+
+    def __getitem__(self, key: K, /):
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if not r.found:
+            raise KeyError(str(key))
+
+        ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+        return self._entries[ix].value
+
+    def get(self, key: K, /) -> Optional[V]:
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if not r.found:
+            return None
+
+        ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+        return self._entries[ix].value
+
+    def get(self, key: K, default: V, /):
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if not r.found:
+            return default
+
+        ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+        return self._entries[ix].value
+
+    def setdefault(self, key: K, value: V, /) -> V:
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if not r.found:
+            if self._usable == 0:
+                self._resize(self._used + 1)
+                r = self._lookup(key, h)
+
+            ix = self._nentries
+            self._nentries += 1
+
+            self._entries[ix] = DictEntry[K, V](key, value, h)
+            self._set_active(ix)
+            _set_index(self._indices, self._log2_index_bytes, r.slot, ix)
+
+            self._usable -= 1
+            self._used += 1
+            return value
+
+        ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+        return self._entries[ix].value
+
+    def __contains__(self, key: K, /):
+        h = self._hash(key)
+        return self._lookup(key, h).found
+
+    def __delitem__(self, key: K, /):
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if not r.found:
+            raise KeyError(str(key))
+
+        ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+        e = self._entries[ix]
+
+        _set_index(self._indices, self._log2_index_bytes, r.slot, _DKIX_DUMMY)
+        self._clear_slot(ix)
+        self._used -= 1
+
+    def _delete(self, key: K):
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if r.found:
+            ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+            e = self._entries[ix]
+
+            _set_index(self._indices, self._log2_index_bytes, r.slot, _DKIX_DUMMY)
+            self._clear_slot(ix)
+            self._used -= 1
+
+    def pop(self, key: K, /) -> V:
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if not r.found:
+            raise KeyError(str(key))
+
+        ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+        e = self._entries[ix]
+
+        _set_index(self._indices, self._log2_index_bytes, r.slot, _DKIX_DUMMY)
+        self._clear_slot(ix)
+        self._used -= 1
+
+        return e.value
+
+    def pop(self, key: K, missing, /):
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if not r.found:
+            if missing is None:
+                return None
+            elif isinstance(missing, Optional[V]):
+                return missing
+            elif isinstance(missing, V):
+                return missing
+            else:
+                compile_error("invalid type for missing value")
+
+        ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+        e = self._entries[ix]
+
+        _set_index(self._indices, self._log2_index_bytes, r.slot, _DKIX_DUMMY)
+        self._clear_slot(ix)
+        self._used -= 1
+
+        return e.value
+
+    def popitem(self, /):
+        if self._used == 0:
+            raise KeyError("popitem(): dictionary is empty")
+
+        while self._nentries > 0:
+            ix = self._nentries - 1
+            self._nentries -= 1
+
+            if not self._is_active(ix):
+                continue
+
+            e = self._entries[ix]
+            r = self._lookup(e.key, e.hash)
+            if r.found:
+                _set_index(self._indices, self._log2_index_bytes, r.slot, _DKIX_DUMMY)
+
+            e_key = e.key
+            e_value = e.value
+            self._clear_slot(ix)
+            self._used -= 1
+            return (e_key, e_value)
+
+        raise KeyError("popitem(): dictionary is empty")
+
+    def keys(self, /):
+        for i in range(self._nentries):
+            if self._is_active(i):
+                e = self._entries[i]
+                yield e.key
+
+    def values(self, /):
+        for i in range(self._nentries):
+            if self._is_active(i):
+                e = self._entries[i]
+                yield e.value
+
+    def items(self, /):
+        for i in range(self._nentries):
+            if self._is_active(i):
+                e = self._entries[i]
+                yield (e.key, e.value)
+
+    def __reversed__(self, /):
+        for i in range(self._nentries - 1, -1, -1):
+            if self._is_active(i):
+                e = self._entries[i]
+                yield e.key
+
+    def update(self, other, /):
+        if isinstance(other, OrderedDict[K, V]):
+            for k, v in other.items():
+                self[k] = v
+        else:
+            for k, v in other:
+                self[k] = v
+
+    def clear(self, /):
+        self.__init__()
+
+    def __iter__(self, /):
+        return self.keys()
+
+    def __eq__(self, other: OrderedDict[K, V], /) -> bool:
+        if self.__len__() != other.__len__():
+            return False
+        for k, v in self.items():
+            r = other.get(k)
+            if r is None or r != v:
+                return False
+        return True
+
+    def __ne__(self, other: OrderedDict[K, V], /) -> bool:
+        return not (self == other)
+
+    def __or__(self, other, /):
+        new = self.__copy__()
+        OrderedDict.update(new, other)
+        return new
+
+    def __ior__(self, other, /):
+        OrderedDict.update(self, other)
+        return self
+
+    def __repr__(self, /):
+        if self.__len__() == 0:
+            return '{}'
+
+        s = _strbuf()
+        s.append('{')
+        n = 0
+        for i in range(self._nentries):
+            if self._is_active(i):
+                e = self._entries[i]
+                s.append(repr(e.key))
+                s.append(': ')
+                s.append(repr(e.value))
+                if n < self._used - 1:
+                    s.append(', ')
+                n += 1
+        s.append('}')
+        return s.__str__()
+
+    def fromkeys(ks: Generator[K], v: V, /, K: type, V: type) -> OrderedDict[K, V]:
+        return {k: v for k in ks}
+
+
+    # IR dict optimization helpers
+
+    def __dict_do_op_throws__(self, key: K, other: Z, op: F, F: type, Z: type):
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if r.found:
+            ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+            e = self._entries[ix]
+            self._entries[ix] = e.with_value(op(e.value, other))
+        else:
+            if hasattr(self, "__missing__"):  # defaultdict
+                self.__missing__(key)
+                r = self._lookup(key, h)
+                ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+                e = self._entries[ix]
+                self._entries[ix] = e.with_value(op(e.value, other))
+            else:
+                raise KeyError(str(key))
+
+    def __dict_do_op__(self, key: K, other: Z, dflt: V, op: F, F: type, Z: type):
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if r.found:
+            ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+            e = self._entries[ix]
+            self._entries[ix] = e.with_value(op(e.value, other))
+        else:
+            if self._usable == 0:
+                self._resize(self._used + 1)
+                r = self._lookup(key, h)
+
+            ix = self._nentries
+            self._nentries += 1
+
+            self._entries[ix] = DictEntry[K, V](key, op(dflt, other), h)
+            self._set_active(ix)
+            _set_index(self._indices, self._log2_index_bytes, r.slot, ix)
+
+            self._usable -= 1
+            self._used += 1
+
+    def increment(self, key: K, by: T = 1, T: type):
+        h = self._hash(key)
+        r = self._lookup(key, h)
+
+        if r.found:
+            ix = _get_index(self._indices, self._log2_index_bytes, r.slot)
+            e = self._entries[ix]
+            self._entries[ix] = e.with_value(e.value + by)
+        else:
+            if self._usable == 0:
+                self._resize(self._used + 1)
+                r = self._lookup(key, h)
+
+            ix = self._nentries
+            self._nentries += 1
+
+            self._entries[ix] = DictEntry[K, V](key, by, h)
+            self._set_active(ix)
+            _set_index(self._indices, self._log2_index_bytes, r.slot, ix)
+
+            self._usable -= 1
+            self._used += 1
+
+
+#############
+# Unordered #
+#############
+
+class UnorderedDict:
+    _n_buckets: int
+    _size: int
+    _n_occupied: int
+    _upper_bound: int
+
+    _flags: Ptr[u32]
+    _keys: Ptr[K]
+    _vals: Ptr[V]
+
+    K: type = NoneType
+    V: type = NoneType
+
+    # Magic methods
+
+    def _init(self):
+        self._n_buckets = 0
+        self._size = 0
+        self._n_occupied = 0
+        self._upper_bound = 0
+        self._flags = Ptr[u32]()
+        self._keys = Ptr[K]()
+        self._vals = Ptr[V]()
+
+    def _init_from(self, other):
+        n = other._n_buckets
+
+        if n == 0:
+            self._init()
+            return
+
+        f = khash.__ac_fsize(n)
+        self._n_buckets = n
+        self._size = other._size
+        self._n_occupied = other._n_occupied
+        self._upper_bound = other._upper_bound
+
+        flags_copy = Ptr[u32](f)
+        keys_copy = Ptr[K](n)
+        vals_copy = Ptr[V](n)
+        str.memcpy(flags_copy.as_byte(), other._flags.as_byte(), f * gc.sizeof(u32))
+        str.memcpy(keys_copy.as_byte(), other._keys.as_byte(), n * gc.sizeof(K))
+        str.memcpy(vals_copy.as_byte(), other._vals.as_byte(), n * gc.sizeof(V))
+
+        self._flags = flags_copy
+        self._keys = keys_copy
+        self._vals = vals_copy
+
+    def _hash(self, key) -> int:
+        k = key.__hash__()
+        return (k >> 33) ^ k ^ (k << 11)
+
+    def __init__(self, /):
+        self._init()
+
+    def __init__(self, /, capacity: int):
+        self.__init__()
+        self._resize(capacity)
+
+    def __init__(self, g: Generator[Tuple[K, V]], /):
+        self._init()
+        for k, v in g:
+            self[k] = v
+
+    def __init__(self, other: UnorderedDict[K, V], /):
+        self._init_from(other)
+
+    def __getitem__(self, key: K, /) -> V:
+        x = self._kh_get(key)
+        if x != self._kh_end():
+            return self._vals[x]
+        raise KeyError(str(key))
+
+    def __setitem__(self, key: K, val: V, /):
+        ret, x = self._kh_put(key)
+        self._vals[x] = val
+
+    def __delitem__(self, key: K, /):
+        x = self._kh_get(key)
+        if x != self._kh_end():
+            self._kh_del(x)
+        else:
+            raise KeyError(str(key))
+
+    def __contains__(self, key: K, /) -> bool:
+        return self._kh_get(key) != self._kh_end()
+
+    def __eq__(self, other: UnorderedDict[K, V], /) -> bool:
+        if self.__len__() != other.__len__():
+            return False
+        for k, v in self.items():
+            if k not in other or other[k] != v:
+                return False
+        return True
+
+    def __ne__(self, other: UnorderedDict[K, V], /) -> bool:
+        return not (self == other)
+
+    def __iter__(self, /) -> Generator[K]:
+        return self.keys()
+
+    def __len__(self, /) -> int:
+        return self._size
+
+    def __or__(self, other, /):
+        new = self.__copy__()
+        UnorderedDict.update(new, other)
+        return new
+
+    def __ior__(self, other, /):
+        UnorderedDict.update(self, other)
+        return self
+
+    def __copy__(self):
+        if self.__len__() == 0:
+            return UnorderedDict[K, V]()
+        n = self._n_buckets
+        f = khash.__ac_fsize(n)
+        flags_copy = Ptr[u32](f)
+        keys_copy = Ptr[K](n)
+        vals_copy = Ptr[V](n)
+        str.memcpy(flags_copy.as_byte(), self._flags.as_byte(), f * gc.sizeof(u32))
+        str.memcpy(keys_copy.as_byte(), self._keys.as_byte(), n * gc.sizeof(K))
+        str.memcpy(vals_copy.as_byte(), self._vals.as_byte(), n * gc.sizeof(V))
+        return UnorderedDict[K, V](
+            n,
+            self._size,
+            self._n_occupied,
+            self._upper_bound,
+            flags_copy,
+            keys_copy,
+            vals_copy,
+        )
+
+    def __deepcopy__(self) -> UnorderedDict[K, V]:
+        return {k.__deepcopy__(): v.__deepcopy__() for k, v in self.items()}
+
+    def __repr__(self, /) -> str:
+        n = self.__len__()
+        if n == 0:
+            return "{}"
+        else:
+            buf = _strbuf()
+            buf.append("{")
+            first = True
+            for k, v in self.items():
+                if not first:
+                    buf.append(", ")
+                else:
+                    first = False
+                buf.append(k.__repr__())
+                buf.append(": ")
+                buf.append(v.__repr__())
+            buf.append("}")
+            return buf.__str__()
+
+    # Helper methods
+
+    def __bool__(self):
+        return self.__len__() > 0
+
+    def resize(self, new_n_buckets: int):
+        self._kh_resize(new_n_buckets)
+
+    def get(self, key: K, default: V, /) -> V:
+        x = self._kh_get(key)
+        return self._vals[x] if x != self._kh_end() else default
+
+    def get(self, key: K, /) -> Optional[V]:
+        x = self._kh_get(key)
+        return self._vals[x] if x != self._kh_end() else None
+
+    def setdefault(self, key: K, val: V, /) -> V:
+        ret, x = self._kh_put(key)
+        if ret != 0:  # i.e. key not present
+            self._vals[x] = val
+            return val
+        return self._vals[x]
+
+    def increment(self, key: K, by: T = 1, T: type):
+        ret, x = self._kh_put(key)
+        if ret != 0:  # i.e. key not present
+            self._vals[x] = by
+        else:
+            self._vals[x] += by
+
+    def __dict_do_op_throws__(self, key: K, other: Z, op: F, F: type, Z: type):
+        x = self._kh_get(key)
+        if x == self._kh_end():
+            if hasattr(self, "__missing__"):  # defaultdict
+                self.__missing__(key)
+                x = self._kh_get(key)
+            else:
+                raise KeyError(str(key))
+        self._vals[x] = op(self._vals[x], other)
+
+    def __dict_do_op__(self, key: K, other: Z, dflt: V, op: F, F: type, Z: type):
+        ret, x = self._kh_put(key)
+        self._vals[x] = op(dflt if ret != 0 else self._vals[x], other)
+
+    def update(self, other, /):
+        if isinstance(other, UnorderedDict[K, V]):
+            for k, v in other.items():
+                self[k] = v
+        else:
+            for k, v in other:
+                self[k] = v
+
+    def update(self, other: UnorderedDict[K, V], /):
+        for k, v in other.items():
+            self[k] = v
+
+    def pop(self, key: K, /) -> V:
+        x = self._kh_get(key)
+        if x != self._kh_end():
+            v = self._vals[x]
+            self._kh_del(x)
+            return v
+        raise KeyError(str(key))
+
+    def pop(self, key: K, missing, /):
+        x = self._kh_get(key)
+        if x == self._kh_end():
+            if missing is None:
+                return None
+            elif isinstance(missing, Optional[V]):
+                return missing
+            elif isinstance(missing, V):
+                return missing
+            else:
+                compile_error("invalid type for missing value")
+        v = self._vals[x]
+        self._kh_del(x)
+        return v
+
+    def popitem(self, /) -> Tuple[K, V]:
+        if self._size == 0:
+            raise KeyError("dictionary is empty")
+
+        i = self._kh_begin()
+        while i < self._kh_end():
+            if self._kh_exist(i):
+                item = (self._keys[i], self._vals[i])
+                if not K.__atomic__:
+                    str.memset((self._keys + i).as_byte(), byte(0), gc.sizeof(K))
+                if not V.__atomic__:
+                    str.memset((self._vals + i).as_byte(), byte(0), gc.sizeof(V))
+                self._size -= 1
+                return item
+            i += 1
+
+    def clear(self, /):
+        self._kh_clear()
+
+    def items(self, /) -> Generator[Tuple[K, V]]:
+        i = self._kh_begin()
+        while i < self._kh_end():
+            if self._kh_exist(i):
+                yield self._keys[i], self._vals[i]
+            i += 1
+
+    def keys(self, /) -> Generator[K]:
+        i = self._kh_begin()
+        while i < self._kh_end():
+            if self._kh_exist(i):
+                yield self._keys[i]
+            i += 1
+
+    def values(self, /) -> Generator[V]:
+        i = self._kh_begin()
+        while i < self._kh_end():
+            if self._kh_exist(i):
+                yield self._vals[i]
+            i += 1
+
+    def __reversed__(self, /):
+        i = self._kh_end() - 1
+        while i >= self._kh_begin():
+            if self._kh_exist(i):
+                yield self._keys[i]
+            i -= 1
+
+    def copy(self, /):
+        return self.__copy__()
+
+    def fromkeys(ks: Generator[K], v: V, /, K: type, V: type) -> UnorderedDict[K, V]:
+        return {k: v for k in ks}
+
+    # Internal helpers
+
+    def _kh_clear(self):
+        if self._flags:
+            i = 0
+            n = khash.__ac_fsize(self._n_buckets)
+            while i < n:
+                self._flags[i] = u32(0xAAAAAAAA)
+                i += 1
+            if not K.__atomic__:
+                str.memset(self._keys.as_byte(), u8(0), self._n_buckets * gc.sizeof(K))
+            if not V.__atomic__:
+                str.memset(self._vals.as_byte(), u8(0), self._n_buckets * gc.sizeof(V))
+            self._size = 0
+            self._n_occupied = 0
+
+    def _kh_get(self, key: K) -> int:
+        if self._n_buckets:
+            step = 0
+            mask = self._n_buckets - 1
+            k = self._hash(key)
+            i = k & mask
+            last = i
+            while not khash.__ac_isempty(self._flags, i) and (
+                khash.__ac_isdel(self._flags, i) or self._keys[i] != key
+            ):
+                step += 1
+                i = (i + step) & mask
+                if i == last:
+                    return self._n_buckets
+            return self._n_buckets if khash.__ac_iseither(self._flags, i) else i
+        else:
+            return 0
+
+    def _kh_resize(self, new_n_buckets: int):
+        HASH_UPPER = 0.77
+        new_flags = Ptr[u32]()
+        j = 1
+
+        # round up to next power of 2
+        new_n_buckets -= 1
+        new_n_buckets |= new_n_buckets >> 1
+        new_n_buckets |= new_n_buckets >> 2
+        new_n_buckets |= new_n_buckets >> 4
+        new_n_buckets |= new_n_buckets >> 8
+        new_n_buckets |= new_n_buckets >> 16
+        new_n_buckets |= new_n_buckets >> 32
+        new_n_buckets += 1
+
+        if new_n_buckets < 4:
+            new_n_buckets = 4
+
+        if self._size >= int(new_n_buckets * HASH_UPPER + 0.5):
+            j = 0
+        else:
+            fsize = khash.__ac_fsize(new_n_buckets)
+            new_flags = Ptr[u32](fsize)
+            i = 0
+            while i < fsize:
+                new_flags[i] = u32(0xAAAAAAAA)
+                i += 1
+
+            if self._n_buckets < new_n_buckets:
+                self._keys = Ptr[K](
+                    gc.realloc(self._keys.as_byte(),
+                               new_n_buckets * gc.sizeof(K),
+                               self._n_buckets * gc.sizeof(K))
+                )
+                self._vals = Ptr[V](
+                    gc.realloc(self._vals.as_byte(),
+                               new_n_buckets * gc.sizeof(V),
+                               self._n_buckets * gc.sizeof(V))
+                )
+
+        if j:
+            j = 0
+            while j != self._n_buckets:
+                if khash.__ac_iseither(self._flags, j) == 0:
+                    key = self._keys[j]
+                    val = self._vals[j]
+                    new_mask = new_n_buckets - 1
+                    khash.__ac_set_isdel_true(self._flags, j)
+
+                    while True:
+                        step = 0
+                        k = self._hash(key)
+                        i = k & new_mask
+
+                        while not khash.__ac_isempty(new_flags, i):
+                            step += 1
+                            i = (i + step) & new_mask
+
+                        khash.__ac_set_isempty_false(new_flags, i)
+                        if (
+                            i < self._n_buckets
+                            and khash.__ac_iseither(self._flags, i) == 0
+                        ):
+                            self._keys[i], key = key, self._keys[i]
+                            self._vals[i], val = val, self._vals[i]
+                            khash.__ac_set_isdel_true(self._flags, i)
+                        else:
+                            self._keys[i] = key
+                            self._vals[i] = val
+                            break
+                j += 1
+
+            if self._n_buckets > new_n_buckets:
+                self._keys = Ptr[K](
+                    gc.realloc(self._keys.as_byte(),
+                               new_n_buckets * gc.sizeof(K),
+                               self._n_buckets * gc.sizeof(K))
+                )
+                self._vals = Ptr[V](
+                    gc.realloc(self._vals.as_byte(),
+                               new_n_buckets * gc.sizeof(V),
+                               self._n_buckets * gc.sizeof(V))
+                )
+
+            self._flags = new_flags
+            self._n_buckets = new_n_buckets
+            self._n_occupied = self._size
+            self._upper_bound = int(self._n_buckets * HASH_UPPER + 0.5)
+
+    def _kh_put(self, key: K) -> Tuple[int, int]:
+        if self._n_occupied >= self._upper_bound:
+            if self._n_buckets > (self._size << 1):
+                self._kh_resize(self._n_buckets - 1)
+            else:
+                self._kh_resize(self._n_buckets + 1)
+
+        mask = self._n_buckets - 1
+        step = 0
+        site = self._n_buckets
+        x = site
+        k = self._hash(key)
+        i = k & mask
+        if khash.__ac_isempty(self._flags, i):
+            x = i
+        else:
+            last = i
+            while not khash.__ac_isempty(self._flags, i) and (
+                khash.__ac_isdel(self._flags, i) or self._keys[i] != key
+            ):
+                if khash.__ac_isdel(self._flags, i):
+                    site = i
+                step += 1
+                i = (i + step) & mask
+                if i == last:
+                    x = site
+                    break
+
+            if x == self._n_buckets:
+                if khash.__ac_isempty(self._flags, i) and site != self._n_buckets:
+                    x = site
+                else:
+                    x = i
+
+        ret = 0
+        if khash.__ac_isempty(self._flags, x):
+            self._keys[x] = key
+            khash.__ac_set_isboth_false(self._flags, x)
+            self._size += 1
+            self._n_occupied += 1
+            ret = 1
+        elif khash.__ac_isdel(self._flags, x):
+            self._keys[x] = key
+            khash.__ac_set_isboth_false(self._flags, x)
+            self._size += 1
+            ret = 2
+
+        return (ret, x)
+
+    def _kh_del(self, x: int):
+        if x != self._n_buckets and not khash.__ac_iseither(self._flags, x):
+            khash.__ac_set_isdel_true(self._flags, x)
+            if not K.__atomic__:
+                str.memset((self._keys + x).as_byte(), u8(0), gc.sizeof(K))
+            if not V.__atomic__:
+                str.memset((self._vals + x).as_byte(), u8(0), gc.sizeof(V))
+            self._size -= 1
+
+    def _kh_begin(self) -> int:
+        return 0
+
+    def _kh_end(self) -> int:
+        return self._n_buckets
+
+    def _kh_exist(self, x: int) -> bool:
+        return not khash.__ac_iseither(self._flags, x)
+
+
+if __dict_unordered__:
+    Dict = UnorderedDict
+    dict = UnorderedDict
+else:
+    Dict = OrderedDict
+    dict = OrderedDict

@@ -560,7 +560,7 @@ impl<'a> TypecheckVisitor<'a> {
                 let imp = self.get_import(&import_name);
                 (imp.ctx.clone().expect("import without ctx"), imp.name.clone())
             };
-            if !self.ctx.borrow().is_stdlib_loading && import_name.ends_with("__init__.codon") {
+            if !self.ctx.borrow().is_stdlib_loading && import_name.ends_with("__init__.py") {
                 // Special case: subimport is not yet loaded
                 //   (e.g., import a; a.b.x where a.b is a module as well)
                 if super::helpers::get_import_file(self.cache, &chain[import_end], &import_name, false).is_some() {

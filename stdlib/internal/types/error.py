@@ -1,0 +1,570 @@
+
+# Warning(!): This type must be consistent with the exception
+# header type defined in runtime/exc.cpp.
+class BaseException(object):
+    _pytype: ClassVar[cobj] = cobj()
+    message: str
+    func: str
+    file: str
+    line: int
+    col: int
+    python_type: cobj
+    cause: Optional[BaseException]
+
+    def __init__(self, message: str = "", /):
+        self.message = message
+        self.func = ""
+        self.file = ""
+        self.line = 0
+        self.col = 0
+        self.python_type = BaseException._pytype
+        self.cause = Optional._ref_new(T=BaseException)
+
+    def __str__(self: BaseException, /) -> str:
+        return self.message
+
+    def __repr__(self: BaseException, /) -> str:
+        return f'{self.typename}({self.message.__repr__()})'
+
+    @property
+    def typename(self):
+        return get_typeinfo(self).nice_name
+
+    @property
+    def __cause__(self):
+        return self.cause
+
+    def _context_exit_is_legacy_none(exit_method, is_async: Literal[bool]) -> Literal[bool]:
+        """Select plain finally cleanup only for exclusively legacy None exits."""
+        import internal.static as static
+        if static.function.can_call(exit_method, NoneType(), NoneType(), NoneType()):
+            return False
+        elif static.function.can_call(exit_method, get_typeinfo(BaseException()),
+                                      BaseException(), NoneType()):
+            return False
+        elif not static.function.can_call(exit_method):
+            return False
+        elif is_async:
+            if isinstance(exit_method(), Coroutine):
+                return type(exit_method()).T is NoneType
+            else:
+                return False
+        else:
+            return type(exit_method()) is NoneType
+
+    def _context_exit(exit_method, exc_type, exc_value):
+        """Prefer the exception-aware protocol, retaining legacy zero-argument exits."""
+        import internal.static as static
+        if static.function.can_call(exit_method, exc_type, exc_value, NoneType()):
+            return exit_method(exc_type, exc_value, NoneType())
+        else:
+            return exit_method()
+
+    async def _context_aexit(exit_method, exc_type, exc_value):
+        """Await the selected async exit protocol without coercing its result."""
+        import internal.static as static
+        if static.function.can_call(exit_method, exc_type, exc_value, NoneType()):
+            return await exit_method(exc_type, exc_value, NoneType())
+        else:
+            return await exit_method()
+
+    @__hidden__
+    def _set_header(e, func, file, line, col, cause):
+        if not isinstance(e, BaseException):
+            compile_error("exceptions must derive from BaseException")
+
+        e.func = func
+        e.file = file
+        e.line = line
+        e.col = col
+        if cause is not None:
+            c: BaseException = cause
+            e.cause = c
+        return e
+
+
+class Exception(BaseException):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        if hasattr(self.__class__, "_pytype"):
+            self.python_type = self.__class__._pytype
+
+class NameError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+def _errno() -> int:
+    import internal.static as static
+    if static.platform() == "darwin":
+        from C import __error() -> Ptr[i32]
+        return int(__error()[0])
+    elif static.platform() == "win32":
+        from C import _get_errno(Ptr[i32]) -> i32
+        code = i32(0)
+        _get_errno(__ptr__(code))
+        return int(code)
+    else:
+        from C import __errno_location() -> Ptr[i32]
+        return int(__errno_location()[0])
+
+class OSError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    errno: Optional[int]
+    strerror: Optional[str]
+    filename: Optional[str]
+    filename2: Optional[str]
+    winerror: Optional[int]
+
+    def _construct(message: str = "") -> OSError:
+        result = OSError.__new__()
+        result.__init__(message)
+        return result
+
+    def _construct(errno: Optional[int], strerror: str,
+                   filename: Optional[str] = None, winerror: Optional[int] = None,
+                   filename2: Optional[str] = None) -> OSError:
+        import internal.static as static
+        code = unwrap(errno) if errno is not None else 0
+        darwin = static.platform() == "darwin"
+        windows = static.platform() == "win32"
+        if code == 2:
+            return FileNotFoundError(errno, strerror, filename, winerror, filename2)
+        if code == 17:
+            return FileExistsError(errno, strerror, filename, winerror, filename2)
+        if code == 1 or code == 13:
+            return PermissionError(errno, strerror, filename, winerror, filename2)
+        if code == 20:
+            return NotADirectoryError(errno, strerror, filename, winerror, filename2)
+        if code == 21:
+            return IsADirectoryError(errno, strerror, filename, winerror, filename2)
+        if code == 3:
+            return ProcessLookupError(errno, strerror, filename, winerror, filename2)
+        if code == 4:
+            return InterruptedError(errno, strerror, filename, winerror, filename2)
+        if code == 10:
+            return ChildProcessError(errno, strerror, filename, winerror, filename2)
+        if code == 32 or (not windows and code == (58 if darwin else 108)):
+            return BrokenPipeError(errno, strerror, filename, winerror, filename2)
+        if code == (53 if darwin else 106 if windows else 103):
+            return ConnectionAbortedError(errno, strerror, filename, winerror, filename2)
+        if code == (61 if darwin else 107 if windows else 111):
+            return ConnectionRefusedError(errno, strerror, filename, winerror, filename2)
+        if code == (54 if darwin else 108 if windows else 104):
+            return ConnectionResetError(errno, strerror, filename, winerror, filename2)
+        if code == (60 if darwin else 138 if windows else 110):
+            return TimeoutError(errno, strerror, filename, winerror, filename2)
+        if code == (35 if darwin else 11) or code == (37 if darwin else 103 if windows else 114) or code == (36 if darwin else 112 if windows else 115):
+            return BlockingIOError(errno, strerror, filename, winerror, filename2)
+        result = OSError.__new__()
+        result.__init__(errno, strerror, filename, winerror, filename2)
+        return result
+
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+        self.errno = None
+        self.strerror = None
+        self.filename = None
+        self.filename2 = None
+        self.winerror = None
+
+    def __init__(self, errno: Optional[int], strerror: str,
+                 filename: Optional[str] = None, winerror: Optional[int] = None,
+                 filename2: Optional[str] = None, /):
+        super().__init__()
+        self.python_type = self.__class__._pytype
+        self.errno = errno
+        self.strerror = strerror
+        self.filename = filename
+        self.filename2 = filename2
+        self.winerror = winerror
+        self.message = self._format_message()
+
+    def _format_message(self) -> str:
+        if self.strerror is None:
+            return self.message
+        result = str(self.strerror)
+        if self.winerror is not None:
+            result = f"[WinError {self.winerror}] {result}"
+        elif self.errno is not None:
+            result = f"[Errno {self.errno}] {result}"
+        if self.filename is not None:
+            result += ": " + repr(str(self.filename))
+            if self.filename2 is not None:
+                result += " -> " + repr(str(self.filename2))
+        return result
+
+IOError = OSError
+
+class ValueError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class LookupError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class IndexError(LookupError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class KeyError(LookupError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class CError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class TypeError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class ArithmeticError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class ZeroDivisionError(ArithmeticError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class OverflowError(ArithmeticError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class AttributeError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class RuntimeError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+def _raise_no_active_exception():
+    raise RuntimeError("No active exception to reraise")
+
+def _missing_return_error(message: str, name: str, file: str, line: int, column: int) -> BaseException:
+    error = RuntimeError(message)
+    error.func = name
+    error.file = file
+    error.line = line
+    error.col = column
+    return error
+
+class NotImplementedError(RuntimeError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class StopIteration(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class AssertionError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class EOFError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class SystemExit(BaseException):
+    _pytype: ClassVar[cobj] = cobj()
+    _status: int
+    _message_exit: bool
+
+    def __init__(self, message: str, status: int = 1, /):
+        super().__init__(message)
+        self._status = status
+        self._message_exit = True
+        self.python_type = self.__class__._pytype
+
+    def __init__(self, status: int = 0, /):
+        self.__init__("", status)
+        self._message_exit = False
+
+    @property
+    def status(self):
+        return self._status
+
+class StaticCompileError(Exception):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+
+EnvironmentError = OSError
+
+class GeneratorExit(BaseException):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class KeyboardInterrupt(BaseException):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = self.__class__._pytype
+
+class MemoryError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = MemoryError._pytype
+
+class ReferenceError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = ReferenceError._pytype
+
+class SystemError(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = SystemError._pytype
+
+class StopAsyncIteration(Exception):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = StopAsyncIteration._pytype
+
+class FloatingPointError(ArithmeticError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = FloatingPointError._pytype
+
+class RecursionError(RuntimeError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = RecursionError._pytype
+
+class UnicodeError(ValueError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+        self.python_type = UnicodeError._pytype
+
+class UnicodeDecodeError(UnicodeError):
+    _pytype: ClassVar[cobj] = cobj()
+    encoding: str
+    object: bytes
+    start: int
+    end: int
+    reason: str
+    _args: Tuple[str, bytes, int, int, str]
+
+    def __init__(self, encoding: str, object: bytes, start: int, end: int, reason: str, /):
+        super().__init__()
+        self.python_type = UnicodeDecodeError._pytype
+        self.encoding, self.object = encoding, object
+        self.start, self.end, self.reason = start, end, reason
+        self._args = encoding, object, start, end, reason
+        self.message = self.__str__()
+
+    @property
+    def args(self):
+        return self._args
+
+    def __repr__(self, /):
+        return self.typename + repr(self.args)
+
+    def __str__(self, /):
+        prefix = "'" + self.encoding + "' codec can't decode "
+        if self.end == self.start + 1 and 0 <= self.start < len(self.object):
+            return prefix + ("byte 0x%02x in position %d: " % (self.object[self.start], self.start)) + self.reason
+        return prefix + ("bytes in position %d-%d: " % (self.start, self.end - 1)) + self.reason
+
+def _unicode_error_character(character: str) -> str:
+    code = ord(character)
+    if code <= 0xFF:
+        return "\\x%02x" % code
+    if code <= 0xFFFF:
+        return "\\u%04x" % code
+    return "\\U%08x" % code
+
+class UnicodeEncodeError(UnicodeError):
+    _pytype: ClassVar[cobj] = cobj()
+    encoding: str
+    object: str
+    start: int
+    end: int
+    reason: str
+    _args: Tuple[str, str, int, int, str]
+
+    def __init__(self, encoding: str, object: str, start: int, end: int, reason: str, /):
+        super().__init__()
+        self.python_type = UnicodeEncodeError._pytype
+        self.encoding, self.object = encoding, object
+        self.start, self.end, self.reason = start, end, reason
+        self._args = encoding, object, start, end, reason
+        self.message = self.__str__()
+
+    @property
+    def args(self):
+        return self._args
+
+    def __repr__(self, /):
+        return self.typename + repr(self.args)
+
+    def __str__(self, /):
+        prefix = "'" + self.encoding + "' codec can't encode "
+        if self.end == self.start + 1 and 0 <= self.start < len(self.object):
+            return prefix + "character '" + _unicode_error_character(self.object[self.start]) + ("' in position %d: " % self.start) + self.reason
+        return prefix + ("characters in position %d-%d: " % (self.start, self.end - 1)) + self.reason
+
+class UnicodeTranslateError(UnicodeError):
+    _pytype: ClassVar[cobj] = cobj()
+    object: str
+    start: int
+    end: int
+    reason: str
+    _args: Tuple[str, int, int, str]
+
+    def __init__(self, object: str, start: int, end: int, reason: str, /):
+        super().__init__()
+        self.python_type = UnicodeTranslateError._pytype
+        self.object, self.start, self.end, self.reason = object, start, end, reason
+        self._args = object, start, end, reason
+        self.message = self.__str__()
+
+    @property
+    def encoding(self) -> Optional[str]:
+        return None
+
+    @property
+    def args(self):
+        return self._args
+
+    def __repr__(self, /):
+        return self.typename + repr(self.args)
+
+    def __str__(self, /):
+        if self.end == self.start + 1 and 0 <= self.start < len(self.object):
+            return "can't translate character '" + _unicode_error_character(self.object[self.start]) + ("' in position %d: " % self.start) + self.reason
+        return ("can't translate characters in position %d-%d: " % (self.start, self.end - 1)) + self.reason
+
+class BlockingIOError(OSError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = BlockingIOError._pytype
+
+class ChildProcessError(OSError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = ChildProcessError._pytype
+
+class ConnectionError(OSError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = ConnectionError._pytype
+
+class BrokenPipeError(ConnectionError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = BrokenPipeError._pytype
+
+class ConnectionAbortedError(ConnectionError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = ConnectionAbortedError._pytype
+
+class ConnectionRefusedError(ConnectionError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = ConnectionRefusedError._pytype
+
+class ConnectionResetError(ConnectionError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = ConnectionResetError._pytype
+
+class FileExistsError(OSError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = FileExistsError._pytype
+
+class FileNotFoundError(OSError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = FileNotFoundError._pytype
+
+class InterruptedError(OSError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = InterruptedError._pytype
+
+class IsADirectoryError(OSError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = IsADirectoryError._pytype
+
+class NotADirectoryError(OSError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = NotADirectoryError._pytype
+
+class PermissionError(OSError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = PermissionError._pytype
+
+class ProcessLookupError(OSError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = ProcessLookupError._pytype
+
+class TimeoutError(OSError):
+    _pytype: ClassVar[cobj] = cobj()
+    def __init__(self, /, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.python_type = TimeoutError._pytype

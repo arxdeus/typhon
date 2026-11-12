@@ -1,0 +1,1990 @@
+from copy import copy, deepcopy
+
+
+@tuple
+class A:
+    a: int
+    b: float
+
+    def __getitem__(self: A, n: int):
+        return 1
+
+    def __getitem__(self: A, x: Slice):
+        if x.start is None and x.stop is None:
+            return -1
+        if x.start is None:
+            return 2
+        elif x.stop is None:
+            return 3
+        else:
+            return self.a
+
+@dataclass(init=True, order=True, eq=True)
+class A0:
+    pass
+
+@dataclass(init=True, order=True, eq=True)
+class A1:
+    a: int
+
+@dataclass(init=True, order=True, eq=True)
+class A2:
+    a: int
+    b: int
+
+@dataclass(init=True, order=True, eq=True)
+class A3:
+    a: int
+    b: int
+    c: int
+
+@test
+def test_tuple():
+    def test_in():
+        for i in range(10):
+            yield i, i in (4, 9, 10, -1, 3, 1), i in (7,)
+    assert list(test_in()) == [(0, False, False), (1, True, False), (2, False, False), (3, True, False), (4, True, False), (5, False, False), (6, False, False), (7, False, True), (8, False, False), (9, True, False)]
+
+    def test_cmp[T](a: T, b: T):
+        yield 'EQ', a == b
+        yield 'NE', a != b
+        yield 'LT', a < b
+        yield 'GT', a > b
+        yield 'LE', a <= b
+        yield 'GE', a >= b
+
+    assert list(test_cmp((1,), (2,))) == [('EQ', False), ('NE', True), ('LT', True), ('GT', False), ('LE', True), ('GE', False)]
+    assert list(test_cmp((1,), (1,))) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+    assert list(test_cmp((2,), (1,))) == [('EQ', False), ('NE', True), ('LT', False), ('GT', True), ('LE', False), ('GE', True)]
+    assert list(test_cmp((1,2), (1,2))) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+    assert list(test_cmp((1,2,2), (1,2,3))) == [('EQ', False), ('NE', True), ('LT', True), ('GT', False), ('LE', True), ('GE', False)]
+    assert list(test_cmp((1,2,-1), (1,0,1))) == [('EQ', False), ('NE', True), ('LT', False), ('GT', True), ('LE', False), ('GE', True)]
+    assert list(test_cmp((), ())) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+    assert list(test_cmp(A0(), A0())) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+    assert list(test_cmp(A1(1), A1(2))) == [('EQ', False), ('NE', True), ('LT', True), ('GT', False), ('LE', True), ('GE', False)]
+    assert list(test_cmp(A1(1), A1(1))) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+    assert list(test_cmp(A1(2), A1(1))) == [('EQ', False), ('NE', True), ('LT', False), ('GT', True), ('LE', False), ('GE', True)]
+    assert list(test_cmp(A2(1,2), A2(1,2))) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+    assert list(test_cmp(A3(1,2,2), A3(1,2,3))) == [('EQ', False), ('NE', True), ('LT', True), ('GT', False), ('LE', True), ('GE', False)]
+    assert list(test_cmp(A3(1,2,-1), A3(1,0,1))) == [('EQ', False), ('NE', True), ('LT', False), ('GT', True), ('LE', False), ('GE', True)]
+
+    t = (1,2,3)
+    assert (t[0], t[1], t[2]) == (1, 2, 3)
+    assert (t[-1], t[-2], t[-3]) == (3, 2, 1)
+    assert t[1:3] == (2, 3)
+    assert t[-3:1] == (1,)
+    assert t[-10:2] == (1, 2)
+    assert t[0:] == (1, 2, 3)
+    assert t[-2:] == (2, 3)
+    assert t[3:] == ()
+    assert t[:-1] == (1, 2)
+    assert t[:1] == (1,)
+    assert t[:] == (1, 2, 3)
+    assert t[::] == (1, 2, 3)
+    assert t[1::1] == (2, 3)
+    assert t[:2:1] == (1, 2)
+    assert t[::2] == (1, 3)
+    assert t[::-1] == (3, 2, 1)
+    assert t[0:3:-1] == ()
+    assert t[3:0:-1] == (3, 2)
+
+    a = A(42, 3.14)
+    assert a[0] == 1
+    assert a[:1] == 2
+    assert a[0:] == 3
+    assert a[0:1] == 42
+    assert a[:] == -1
+
+    assert str((11, 2, 333)) == '(11, 2, 333)'
+    assert str(()) == '()'
+    assert str((42,)) == '(42,)'
+    assert repr((11, 2, 333)) == '(11, 2, 333)'
+    assert repr(()) == '()'
+    assert repr((42,)) == '(42,)'
+
+@test
+def test_dyn_tuple():
+    def D(*args):
+        return DynamicTuple(args)
+
+    def test_in():
+        for i in range(10):
+            yield i, i in D(4, 9, 10, -1, 3, 1), i in D(7)
+    assert list(test_in()) == [(0, False, False), (1, True, False), (2, False, False), (3, True, False), (4, True, False), (5, False, False), (6, False, False), (7, False, True), (8, False, False), (9, True, False)]
+
+    def test_cmp(a, b):
+        yield 'EQ', a == b
+        yield 'NE', a != b
+        yield 'LT', a < b
+        yield 'GT', a > b
+        yield 'LE', a <= b
+        yield 'GE', a >= b
+
+    assert list(test_cmp(D(1,2), D(1,2))) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+    assert list(test_cmp(D(1,2,2), D(1,2,3))) == [('EQ', False), ('NE', True), ('LT', True), ('GT', False), ('LE', True), ('GE', False)]
+    assert list(test_cmp(D(1,2,-1), D(1,0,1))) == [('EQ', False), ('NE', True), ('LT', False), ('GT', True), ('LE', False), ('GE', True)]
+    assert list(test_cmp(DynamicTuple[int](), DynamicTuple[int]())) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+
+    assert list(test_cmp((1,2), D(1,2))) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+    assert list(test_cmp((1,2,2), D(1,2,3))) == [('EQ', False), ('NE', True), ('LT', True), ('GT', False), ('LE', True), ('GE', False)]
+    assert list(test_cmp((1,2,-1), D(1,0,1))) == [('EQ', False), ('NE', True), ('LT', False), ('GT', True), ('LE', False), ('GE', True)]
+    assert list(test_cmp((), DynamicTuple[int]())) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+
+    assert list(test_cmp(D(1,2), (1,2))) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+    assert list(test_cmp(D(1,2,2), (1,2,3))) == [('EQ', False), ('NE', True), ('LT', True), ('GT', False), ('LE', True), ('GE', False)]
+    assert list(test_cmp(D(1,2,-1), (1,0,1))) == [('EQ', False), ('NE', True), ('LT', False), ('GT', True), ('LE', False), ('GE', True)]
+    assert list(test_cmp(DynamicTuple[int](), ())) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+
+    t = D(1,2,3)
+    assert D(t[0], t[1], t[2]) == D(1, 2, 3)
+    assert D(t[-1], t[-2], t[-3]) == D(3, 2, 1)
+    assert t[1:3] == D(2, 3)
+    assert t[-3:1] == D(1,)
+    assert t[-10:2] == D(1, 2)
+    assert t[0:] == D(1, 2, 3)
+    assert t[-2:] == D(2, 3)
+    assert t[3:] == DynamicTuple[int]()
+    assert t[:-1] == D(1, 2)
+    assert t[:1] == D(1)
+    assert t[:] == D(1, 2, 3)
+    assert t[::] == D(1, 2, 3)
+    assert t[1::1] == D(2, 3)
+    assert t[:2:1] == D(1, 2)
+    assert t[::2] == D(1, 3)
+    assert t[::-1] == D(3, 2, 1)
+    assert t[0:3:-1] == DynamicTuple[int]()
+    assert t[3:0:-1] == D(3, 2)
+
+    assert D(t[0], t[1], t[2]) == (1, 2, 3)
+    assert D(t[-1], t[-2], t[-3]) == (3, 2, 1)
+    assert t[1:3] == (2, 3)
+    assert t[-3:1] == (1,)
+    assert t[-10:2] == (1, 2)
+    assert t[0:] == (1, 2, 3)
+    assert t[-2:] == (2, 3)
+    assert t[3:] == ()
+    assert t[:-1] == (1, 2)
+    assert t[:1] == (1,)
+    assert t[:] == (1, 2, 3)
+    assert t[::] == (1, 2, 3)
+    assert t[1::1] == (2, 3)
+    assert t[:2:1] == (1, 2)
+    assert t[::2] == (1, 3)
+    assert t[::-1] == (3, 2, 1)
+    assert t[0:3:-1] == DynamicTuple[int]()
+    assert t[3:0:-1] == (3, 2)
+
+    t = (1,2,3)
+    assert (t[0], t[1], t[2]) == D(1, 2, 3)
+    assert (t[-1], t[-2], t[-3]) == D(3, 2, 1)
+    assert t[1:3] == D(2, 3)
+    assert t[-3:1] == D(1,)
+    assert t[-10:2] == D(1, 2)
+    assert t[0:] == D(1, 2, 3)
+    assert t[-2:] == D(2, 3)
+    assert t[3:] == DynamicTuple[int]()
+    assert t[:-1] == D(1, 2)
+    assert t[:1] == D(1)
+    assert t[:] == D(1, 2, 3)
+    assert t[::] == D(1, 2, 3)
+    assert t[1::1] == D(2, 3)
+    assert t[:2:1] == D(1, 2)
+    assert t[::2] == D(1, 3)
+    assert t[::-1] == D(3, 2, 1)
+    assert t[0:3:-1] == DynamicTuple[int]()
+    assert t[3:0:-1] == D(3, 2)
+
+    assert hash(D(1,2,3,4,5)) == hash((1,2,3,4,5))
+
+    assert (1, 2) + (3,) == (1, 2, 3)
+    assert (1,) + (2, 3) == (1, 2, 3)
+    assert (1, 2) + () == (1, 2)
+    assert () + () == ()
+    assert () + (1, 2) == (1, 2)
+    assert (1,) + (2,) == (1, 2)
+    assert (1, 2) * 3 == (1, 2, 1, 2, 1, 2)
+    assert () * 99 == ()
+    assert (1, 2, 3, 4) * 1 == (1, 2, 3, 4)
+    assert (1, 2) * 0 == ()
+    assert (1, 2) * (-1) == ()
+    assert () * -1 == ()
+
+@test
+def test_list():
+    l1 = [i+1 for i in range(100)]
+    assert len(l1) == 100
+    l1 = l1[98:]
+    l2 = [1, 2] * 2
+
+    assert [a for a in l1] == [99, 100]
+    assert [a for a in l2] == [1, 2, 1, 2]
+    assert 2 * [1, 2] == l2
+
+    for count in (-2, 0, 1, 2, 17, 129):
+        assert [7] * count == [7 for index in range(max(0, count))]
+        assert [1.25] * count == [1.25 for index in range(max(0, count))]
+        assert ["value"] * count == ["value" for index in range(max(0, count))]
+        assert [(1, "x")] * count == [(1, "x") for index in range(max(0, count))]
+        assert [None] * count == [None for index in range(max(0, count))]
+        assert List[int]() * count == []
+        assert [1, 2, 3] * count == [value for index in range(max(0, count)) for value in (1, 2, 3)]
+        assert [1.25, 2.5] * count == [value for index in range(max(0, count)) for value in (1.25, 2.5)]
+        assert ["first", "second"] * count == [value for index in range(max(0, count)) for value in ("first", "second")]
+        assert [(1, "x"), (2, "y")] * count == [value for index in range(max(0, count)) for value in ((1, "x"), (2, "y"))]
+        assert [None, None] * count == [None for index in range(max(0, 2 * count))]
+    assert List[int]() * 0x7FFFFFFFFFFFFFFF == []
+    source = [1]
+    repeated = [source] * 7
+    source.append(2)
+    assert all(value is source and value == [1, 2] for value in repeated)
+    repeated.append([3])
+    assert len(repeated) == 8
+    assert source == [1, 2]
+
+    other = [3]
+    original = [source, other]
+    repeated = 17 * original
+    assert repeated is not original
+    assert len(repeated) == 34
+    for index in range(17):
+        assert repeated[2 * index] is source
+        assert repeated[2 * index + 1] is other
+    repeated[0] = [99]
+    other.append(4)
+    repeated.append([5])
+    assert original == [[1, 2], [3, 4]]
+    assert repeated[0] == [99] and repeated[2] is source
+    assert repeated[1] == [3, 4] and repeated[-1] == [5]
+    assert len(repeated) == 35
+
+    l1 = [i*2 for i in range(3)]
+    l1.insert(0, 99)
+    l1[0] += 1
+    del l1[1]
+    assert [a for a in l1[0:3]] == [100, 2, 4]
+
+    l3 = [1, 2, 3]
+    assert l3.remove(2) == True
+    assert l3.remove(2) == False
+    assert l3 == [1, 3]
+    assert list[int]().remove(0) == False
+
+    l4 = [5, 1, 4, 2, 1, -10, 10, 100, -100]
+    assert sorted(l4) == [-100, -10, 1, 1, 2, 4, 5, 10, 100]
+    l4.sort()
+    assert l4 == [-100, -10, 1, 1, 2, 4, 5, 10, 100]
+    assert str(sorted(list[int]())) == "[]"
+
+    l5 = [11, 22, 33, 44]
+    del l5[-1]
+    assert l5 == [11, 22, 33]
+    l5.insert(-1, 55)
+    l5.insert(1000, 66)
+    l5.insert(-100, 77)
+    assert l5 == [77, 11, 22, 55, 33, 66]
+    l5 = [11, 22, 55, 33]
+    assert l5 + [1,2,3] == [11, 22, 55, 33, 1, 2, 3]
+    l5 += [1,2,3]
+    assert l5 == [11, 22, 55, 33, 1, 2, 3]
+    assert l5.pop() == 3
+    assert l5 * 2 == [11, 22, 55, 33, 1, 2, 11, 22, 55, 33, 1, 2]
+    l5 *= 2
+    assert l5 == [11, 22, 55, 33, 1, 2, 11, 22, 55, 33, 1, 2]
+    assert l5.index(33) == 3
+    try:
+        l5.index(0)
+        assert False
+    except ValueError as e:
+        assert str(e) == '0 is not in list'
+    l5 *= 0
+    assert len(l5) == 0
+
+    l6 = []
+    l6.extend('abc')
+    l6.extend(['xyz'])
+    l6.extend('')
+    assert l6 == ['a', 'b', 'c', 'xyz']
+
+    assert List[int]().__copy__() == List[int]()
+    assert [1,2,3].__copy__() == [1,2,3]
+
+    def test_cmp[T](a: T, b: T):
+        yield 'EQ', a == b
+        yield 'NE', a != b
+        yield 'LT', a < b
+        yield 'GT', a > b
+        yield 'LE', a <= b
+        yield 'GE', a >= b
+
+    assert list(test_cmp([1,2], [1,2])) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+    assert list(test_cmp([1,2,2], [1,2,3])) == [('EQ', False), ('NE', True), ('LT', True), ('GT', False), ('LE', True), ('GE', False)]
+    assert list(test_cmp([1,2,-1], [1,0,1])) == [('EQ', False), ('NE', True), ('LT', False), ('GT', True), ('LE', False), ('GE', True)]
+    assert list(test_cmp(List[int](), List[int]())) == [('EQ', True), ('NE', False), ('LT', False), ('GT', False), ('LE', True), ('GE', True)]
+    assert list(test_cmp([1], List[int]())) == [('EQ', False), ('NE', True), ('LT', False), ('GT', True), ('LE', False), ('GE', True)]
+    assert list(test_cmp(List[int](), [1])) == [('EQ', False), ('NE', True), ('LT', True), ('GT', False), ('LE', True), ('GE', False)]
+    assert list(test_cmp([1,2,-1], [2])) == [('EQ', False), ('NE', True), ('LT', True), ('GT', False), ('LE', True), ('GE', False)]
+    assert list(test_cmp([1,2,-1], [1,2,-1,3])) == [('EQ', False), ('NE', True), ('LT', True), ('GT', False), ('LE', True), ('GE', False)]
+    assert list(test_cmp([1,2,-1,3], [1,2,-1])) == [('EQ', False), ('NE', True), ('LT', False), ('GT', True), ('LE', False), ('GE', True)]
+
+    assert str([1] + [2] + [] + [3]) == '[1, 2, 3]'
+    assert ['a', 'b'] + ['x', 'y', 'z'] == ['a', 'b'] + ['x', 'y', 'z']
+    assert [(1,1), (2,2)] + [] == [(1,1), (2,2)]
+    assert [] + [(1,1), (2,2)] == [(1,1), (2,2)]
+    assert List[int]() + List[int]() == List[int]()
+    l7 = [3.14, 2.5]
+    l7 += [9.99, -1.0]
+    assert l7 == [3.14, 2.5, 9.99, -1.0]
+    l8 = []
+    l8 += [11, 22, 33]
+    assert l8 == [11, 22, 33]
+    l8 = [11, 22, 33]
+    l8 += []
+    assert l8 == [11, 22, 33]
+    l8 = List[int]()
+    l8 += List[int]()
+    assert l8 == List[int]()
+
+    assert list(reversed(list('abc'))) == ['c', 'b', 'a']
+    assert list(list('abc')[::-1]) == ['c', 'b', 'a']
+    assert list(reversed(List[str]())) == List[str]()
+
+    # https://github.com/upstream/codon/issues/402
+    b1 = [1 for _ in range(0)]
+    b2 = [str(x) for x in b1]
+    b3 = List[float](capacity=0)
+    b4 = List[float](capacity=-1)
+    assert len(b1) == 0
+    assert len(b2) == 0
+    assert len(b3) == 0
+    assert len(b4) == 0
+    b1.append(42)
+    b2.append('a')
+    b3.append(4.2)
+    b4.append(2.4)
+    assert b1 == [42]
+    assert b2 == ['a']
+    assert b3 == [4.2]
+    assert b4 == [2.4]
+
+    # item deletion on list of non-atomic type
+    # --- basic deletes ---
+    l9 = ["a", "b", "c", "d", "e"]
+    del l9[0]
+    assert l9 == ["b", "c", "d", "e"]
+
+    del l9[-1]
+    assert l9 == ["b", "c", "d"]
+
+    del l9[1]
+    assert l9 == ["b", "d"]
+
+    # delete entire list via slice
+    del l9[:]
+    assert l9 == []
+
+    # --- slice deletes ---
+    l9 = ["a", "b", "c", "d", "e", "f"]
+    del l9[1:4]
+    assert l9 == ["a", "e", "f"]
+
+    l9 = ["a", "b", "c", "d", "e", "f"]
+    del l9[::2]  # delete even indices
+    assert l9 == ["b", "d", "f"]
+
+    l9 = ["a", "b", "c", "d", "e", "f"]
+    del l9[1::2]  # delete odd indices
+    assert l9 == ["a", "c", "e"]
+
+    # negative step delete
+    l9 = ["a", "b", "c", "d", "e", "f"]
+    del l9[::-2]
+    assert l9 == ["a", "c", "e"]
+
+    # --- slice assignment (same length) ---
+    l9 = ["a", "b", "c", "d"]
+    l9[1:3] = ["x", "y"]
+    assert l9 == ["a", "x", "y", "d"]
+
+    # --- slice assignment (shrink) ---
+    l9 = ["a", "b", "c", "d", "e"]
+    l9[1:4] = ["x"]
+    assert l9 == ["a", "x", "e"]
+
+    # --- slice assignment (grow) ---
+    l9 = ["a", "b", "c"]
+    l9[1:2] = ["x", "y", "z"]
+    assert l9 == ["a", "x", "y", "z", "c"]
+
+    # --- extended slice assignment (step != 1, must match length) ---
+    l9 = ["a", "b", "c", "d", "e", "f"]
+    l9[::2] = ["x", "y", "z"]
+    assert l9 == ["x", "b", "y", "d", "z", "f"]
+
+    l9 = ["a", "b", "c", "d", "e", "f"]
+    l9[1::2] = ["u", "v", "w"]
+    assert l9 == ["a", "u", "c", "v", "e", "w"]
+
+    # --- extended slice assignment with negative step ---
+    l9 = ["a", "b", "c", "d", "e", "f"]
+    l9[::-2] = ["x", "y", "z"]
+    assert l9 == ["a", "z", "c", "y", "e", "x"]
+
+    # --- replace entire list via slice ---
+    l9 = ["a", "b", "c"]
+    l9[:] = ["x", "y"]
+    assert l9 == ["x", "y"]
+
+    # --- insert via empty slice ---
+    l9 = ["a", "b", "c"]
+    l9[1:1] = ["x", "y"]
+    assert l9 == ["a", "x", "y", "b", "c"]
+
+    # --- delete via assigning empty list ---
+    l9 = ["a", "b", "c", "d"]
+    l9[1:3] = []
+    assert l9 == ["a", "d"]
+
+    # --- clear() ---
+    l9 = ["a", "b", "c"]
+    l9.clear()
+    assert l9 == []
+
+    # --- interactions after clear ---
+    l9 = ["a", "b"]
+    l9.clear()
+    l9.append("x")
+    assert l9 == ["x"]
+
+    # --- edge cases ---
+    # deleting single-element slice
+    l9 = ["a", "b", "c"]
+    del l9[1:2]
+    assert l9 == ["a", "c"]
+
+    # assigning to empty list
+    l9 = []
+    l9[:] = ["a", "b"]
+    assert l9 == ["a", "b"]
+
+    # deleting with out-of-bounds slice (should be safe)
+    l9 = ["a", "b"]
+    del l9[5:10]
+    assert l9 == ["a", "b"]
+
+    # assigning empty extended slice (no-op but valid)
+    l9 = ["a", "b", "c"]
+    l9[5:10] = []
+    assert l9 == ["a", "b", "c"]
+test_list()
+
+@test
+def test_list_index_errors():
+    for size in (0, 1, 3):
+        values = list(range(size))
+        for index in range(-size, size):
+            assert values[index] == index % size
+        for index in (-9223372036854775807 - 1, -size - 1, size, 9223372036854775807):
+            try:
+                values[index]
+                assert False, "out-of-range read succeeded"
+            except IndexError as error:
+                assert error.message == "list index out of range"
+            try:
+                values[index] = 99
+                assert False, "out-of-range assignment succeeded"
+            except IndexError as error:
+                assert error.message == "list assignment index out of range"
+            try:
+                del values[index]
+                assert False, "out-of-range deletion succeeded"
+            except IndexError as error:
+                assert error.message == "list assignment index out of range"
+            assert values == list(range(size))
+
+    def paired_values(data):
+        for index in range(len(data)):
+            yield data[index]
+            yield data[index] * 3
+
+    assert list(paired_values(list[int]())) == []
+    assert list(paired_values([2, 5])) == [2, 6, 5, 15]
+    values = [2, 5]
+    items = paired_values(values)
+    assert next(items) == 2
+    values[0] = 7
+    assert next(items) == 21
+    values.clear()
+    try:
+        next(items)
+        assert False, "generator missed list mutation"
+    except IndexError as error:
+        assert error.message == "list index out of range"
+test_list_index_errors()
+
+@test
+def test_setslice():
+    l = [0, 1]
+    a = l
+
+    for i in range(-3, 4):
+        a[:i] = l[:i]
+        assert a == l
+        a2 = a[:]
+        a2[:i] = a[:i]
+        assert a2 == a
+        a[i:] = l[i:]
+        assert a == l
+        a2 = a[:]
+        a2[i:] = a[i:]
+        assert a2 == a
+        for j in range(-3, 4):
+            a[i:j] = l[i:j]
+            assert a == l
+            a2 = a[:]
+            a2[i:j] = a[i:j]
+            assert a2 == a
+
+    a2 = a[:]
+    aa2 = a2[:]
+    aa2[:0] = [-2, -1]
+    assert aa2 == [-2, -1, 0, 1]
+    aa2[0:] = list[int]()
+    assert aa2 == list[int]()
+
+    a = [1, 2, 3, 4, 5]
+    a[:-1] = a
+    assert a == [1, 2, 3, 4, 5, 5]
+    a = [1, 2, 3, 4, 5]
+    a[1:] = a
+    assert a == [1, 1, 2, 3, 4, 5]
+    a = [1, 2, 3, 4, 5]
+    a[1:-1] = a
+    assert a == [1, 1, 2, 3, 4, 5, 5]
+
+    a = list[int]()
+    a[:] = list(range(10))
+    assert a == list(range(10))
+
+    a = list(range(20))
+    try:
+        a[0:10:0] = [1,2,3]
+        assert False
+    except ValueError:
+        pass
+
+    try:
+        a[0:10:2] = [1,2]
+        assert False
+    except ValueError:
+        pass
+
+    a[2:10:3] = [1,2,3]
+    assert a == [0, 1, 1, 3, 4, 2, 6, 7, 3, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+@test
+def test_delslice():
+    a = [0, 1]
+    del a[1:2]
+    del a[0:1]
+    assert a == list[int]()
+
+    a = [0, 1]
+    del a[1:2]
+    del a[0:1]
+    assert a == list[int]()
+
+    a = [0, 1]
+    del a[-2:-1]
+    assert a == [1]
+
+    a = [0, 1]
+    del a[-2:-1]
+    assert a == [1]
+
+    a = [0, 1]
+    del a[1:]
+    del a[:1]
+    assert a == list[int]()
+
+    a = [0, 1]
+    del a[1:]
+    del a[:1]
+    assert a == list[int]()
+
+    a = [0, 1]
+    del a[-1:]
+    assert a == [0]
+
+    a = [0, 1]
+    del a[-1:]
+    assert a == [0]
+
+    a = [0,1]
+    del a[:]
+    assert a == list[int]()
+
+@test
+def test_extendedslicing():
+    a = [0,1,2,3,4]
+    del a[::2]
+    assert a == [1,3]
+
+    a = list(range(5))
+    del a[1::2]
+    assert a == [0,2,4]
+
+    a = list(range(5))
+    del a[1::-2]
+    assert a == [0,2,3,4]
+
+    a = list(range(10))
+    del a[::1000]
+    assert a == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    a = list(range(10))
+    a[::2] = [-1]*5
+    assert a == [-1, 1, -1, 3, -1, 5, -1, 7, -1, 9]
+
+    a = list(range(10))
+    a[::-4] = [10]*3
+    assert a == [0, 10, 2, 3, 4, 10, 6, 7, 8 ,10]
+
+    a = list(range(4))
+    a[::-1] = a
+    assert a == [3, 2, 1, 0]
+
+    a = list(range(10))
+    b = a[:]
+    c = a[:]
+    a[2:3] = [222, 333]
+    b[2:3] = [222, 333]
+    c[2:3:] = [222, 333]
+    assert a == b
+    assert a == c
+
+    a = list(range(10))
+    a[::2] = (0, 1, 2, 3, 4)
+    assert a == [0, 1, 1, 3, 2, 5, 3, 7, 4, 9]
+
+    assert repr(['x', 'y', 'z']) == "['x', 'y', 'z']"
+    assert repr(List[int]()) == '[]'
+
+@test
+def test_set():
+    s1 = {a for a in range(100)}
+    assert len(s1) == 100
+    s1 = {a%8 for a in range(100)}
+    for a in range(8):
+        assert a in s1
+    for a in range(8,100):
+        assert a not in s1
+
+    assert 5 in s1
+    s1.remove(5)
+    assert 5 not in s1
+    assert len(s1) == 7
+
+    s1 = {1,2,3,4}
+    s2 = {2,3,4,5}
+    s3 = set[int]()
+
+    assert (s1 | s2) == {1, 2, 3, 4, 5}
+    assert (s1 & s2) == {4, 2, 3}
+    assert (s1 ^ s2) == {1, 5}
+    assert (s1 | s3) == {1, 2, 3, 4}
+    assert (s1 & s3) == set[int]()
+    assert (s1 ^ s3) == {1, 2, 3, 4}
+    assert (s1 - s2) == {1}
+    assert (s2 - s1) == {5}
+    assert (s3 - s1 - s2) == set[int]()
+    assert (s1 > s2) == False
+    assert (s1 < s2) == False
+    assert (s3 <= s1) == True
+    assert (s2 >= s1) == False
+    assert ((s1 | s2) > s1) == True
+
+    s1c = copy(s1)
+    s2c = copy(s2)
+    s3c = copy(s3)
+
+    assert s1c == {1, 2, 3, 4}
+    s1c &= s2c
+    assert s1c == {2, 3, 4}
+    s1c -= s3c
+    assert s1c == {2, 3, 4}
+    s1c ^= s1c
+    assert s1c == set[int]()
+    s1c |= s2c
+    assert s1c == {2, 3, 4, 5}
+    assert s1 == {1, 2, 3, 4}
+
+    s1 = {1, 2, 3, 999999}
+    s2 = {1, 2, 3, 999999}
+    v = s1.pop()
+    assert v in s2
+    s2.remove(v)
+
+    v = s1.pop()
+    assert v in s2
+    s2.remove(v)
+
+    v = s1.pop()
+    assert v in s2
+    s2.remove(v)
+
+    v = s1.pop()
+    assert v in s2
+    s2.remove(v)
+
+    try:
+        s1.pop()
+        assert False
+    except ValueError:
+        pass
+
+    s1 = {'1', '2', '3', '999999'}
+    s2 = {'1', '2', '3', '999999'}
+    v = s1.pop()
+    assert v in s2
+    s2.remove(v)
+
+    v = s1.pop()
+    assert v in s2
+    s2.remove(v)
+
+    v = s1.pop()
+    assert v in s2
+    s2.remove(v)
+
+    v = s1.pop()
+    assert v in s2
+    s2.remove(v)
+
+    try:
+        s1.pop()
+        assert False
+    except ValueError:
+        pass
+
+    s1 = {'1', '2', '3', '999999'}
+    s1.clear()
+    s1.add('42')
+    assert repr(s1) == "{'42'}"
+
+    assert repr({(1,2)}) == '{(1, 2)}'
+    assert repr(Set[int]()) == 'set()'
+
+@test
+def test_dict():
+    d1 = copy({a: a*a for a in range(100)})
+    assert len(d1) == 100
+    d1 = {a: a*a for a in range(5)}
+    assert len(copy(dict[int,int]())) == 0
+
+    assert [d1.get(a, -1) for a in range(6)] == [0, 1, 4, 9, 16, -1]
+
+    assert 2 in d1
+    del d1[2]
+    assert 2 not in d1
+    d1[2] = 44
+    assert 2 in d1
+    assert d1.get(2, -1) == 44
+    assert d1[3] == 9
+
+    del d1[3]
+    del d1[4]
+
+    assert [k for k in d1] == [0, 1, 2]
+    assert [t for t in d1.items()] == [(0, 0), (1, 1), (2, 44)]
+
+    d2 = {'x': 10, 'y': 0}
+    d2.increment('x')
+    d2.increment('y', by=-1)
+    d2.increment('z', by=2)
+    assert d2['x'] == 11
+    assert d2['y'] == -1
+    assert d2['z'] == 2
+    assert d2 == {'x': 11, 'y': -1, 'z': 2}
+
+    d3 = {1: 2, 42: 42}
+    d4 = {1: 5, 2: 9}
+    assert d3 | d4 == {1: 5, 42: 42, 2: 9}
+    d3 |= d4
+    assert d3 == {1: 5, 42: 42, 2: 9}
+
+    assert repr({1: ['x']}) == "{1: ['x']}"
+    assert repr(Dict[int,int]()) == '{}'
+
+    d5 = {'1': 'one', '2': 'two', '3': 'three'}
+    assert d5.pop('2') == 'two'
+    assert len(d5) == 2 and d5['1'] == 'one' and d5['3'] == 'three'
+    d5.clear()
+    d5['4'] = 'four'
+    assert repr(d5) == "{'4': 'four'}"
+test_dict()
+
+@test
+def test_dict_pop(mapping):
+    for populated in [False, True]:
+        if populated:
+            mapping["keep"] = 17
+            mapping["target"] = 0
+        before = list(mapping.items())
+        try:
+            mapping.pop("absent")
+        except KeyError:
+            pass
+        else:
+            assert False
+        assert list(mapping.items()) == before
+    value = mapping.pop("target")
+    assert type(value) is int and value == 0
+    assert "target" not in mapping and len(mapping) == 1
+    assert mapping["keep"] == 17
+    try:
+        mapping.pop("target")
+    except KeyError:
+        pass
+    else:
+        assert False
+    assert list(mapping.items()) == [("keep", 17)]
+    mapping["target"] = 23
+    value = mapping.pop("target")
+    assert value == 23 and "target" not in mapping
+    value = mapping.pop("keep")
+    assert value == 17 and len(mapping) == 0
+
+test_dict_pop(OrderedDict[str, int]())
+test_dict_pop(UnorderedDict[str, int]())
+
+@test
+def test_dict_pop_with_missing(mapping, missing, expected: Optional[int]):
+    value = mapping.pop("absent", missing)
+    assert value == expected and len(mapping) == 0
+    mapping["first"] = 11
+    mapping["target"] = 0
+    mapping["last"] = 17
+    before = list(mapping.items())
+    value = mapping.pop("absent", missing)
+    assert value == expected and list(mapping.items()) == before
+    value = mapping.pop("target", missing)
+    assert value == 0
+    assert "target" not in mapping and len(mapping) == 2
+    assert sorted(mapping.items()) == [("first", 11), ("last", 17)]
+    if isinstance(mapping, OrderedDict):
+        assert list(mapping.items()) == [("first", 11), ("last", 17)]
+    value = mapping.pop("target", missing)
+    assert value == expected and len(mapping) == 2
+    mapping["target"] = 23
+    if isinstance(mapping, OrderedDict):
+        assert list(mapping.items()) == [("first", 11), ("last", 17), ("target", 23)]
+    value = mapping.pop("target", missing)
+    assert value == 23 and "target" not in mapping
+    value = mapping.pop("first", missing)
+    assert value == 11
+    value = mapping.pop("last", missing)
+    assert value == 17 and len(mapping) == 0
+    value = mapping.pop("last", missing)
+    assert value == expected and len(mapping) == 0
+
+test_dict_pop_with_missing(OrderedDict[str, int](), 0, Optional(0))
+test_dict_pop_with_missing(UnorderedDict[str, int](), 0, Optional(0))
+test_dict_pop_with_missing(OrderedDict[str, int](), -1, Optional(-1))
+test_dict_pop_with_missing(UnorderedDict[str, int](), -1, Optional(-1))
+test_dict_pop_with_missing(OrderedDict[str, int](), None, Optional[int]())
+test_dict_pop_with_missing(UnorderedDict[str, int](), None, Optional[int]())
+test_dict_pop_with_missing(OrderedDict[str, int](), Optional[int](), Optional[int]())
+test_dict_pop_with_missing(UnorderedDict[str, int](), Optional[int](), Optional[int]())
+test_dict_pop_with_missing(OrderedDict[str, int](), Optional(99), Optional(99))
+test_dict_pop_with_missing(UnorderedDict[str, int](), Optional(99), Optional(99))
+
+@test
+def test_dict_pop_optional(mapping):
+    for stored in (Optional[int](), Optional(0), Optional(42)):
+        mapping["key"] = stored
+        value = mapping.pop("key")
+        assert value == stored and len(mapping) == 0
+        mapping["key"] = stored
+        value = mapping.pop("key", Optional(99))
+        assert value == stored and len(mapping) == 0
+        mapping["key"] = stored
+        value = mapping.pop("key", None)
+        assert value == stored and len(mapping) == 0
+    value = mapping.pop("key", Optional(99))
+    assert value == 99 and len(mapping) == 0
+    value = mapping.pop("key", None)
+    assert value is None and len(mapping) == 0
+    try:
+        mapping.pop("key")
+    except KeyError:
+        pass
+    else:
+        assert False
+    assert len(mapping) == 0
+
+test_dict_pop_optional(OrderedDict[str, Optional[int]]())
+test_dict_pop_optional(UnorderedDict[str, Optional[int]]())
+
+@test
+def test_dict_ordering():
+    # test_order_basic_insert
+    d = OrderedDict()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+    assert list(d.keys()) == ["a", "b", "c"]
+    assert list(d.values()) == [1, 2, 3]
+    assert list(d.items()) == [("a", 1), ("b", 2), ("c", 3)]
+
+
+    # test_order_update_does_not_move
+    d = OrderedDict()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+    d["b"] = 22
+    assert list(d.items()) == [("a", 1), ("b", 22), ("c", 3)]
+
+
+    # test_order_delete_removes_only_that_key
+    d = OrderedDict()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+    del d["b"]
+    assert list(d.items()) == [("a", 1), ("c", 3)]
+
+
+    # test_order_reinsert_deleted_key_moves_to_end
+    d = OrderedDict()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+    del d["b"]
+    d["b"] = 22
+    assert list(d.items()) == [("a", 1), ("c", 3), ("b", 22)]
+
+
+    # test_order_delete_insert_many
+    d = OrderedDict()
+    for i in range(10):
+        d[i] = i
+
+    del d[2]
+    del d[5]
+    del d[7]
+
+    d[5] = 50
+    d[2] = 20
+    d[11] = 11
+
+    assert list(d.keys()) == [0, 1, 3, 4, 6, 8, 9, 5, 2, 11]
+
+
+    # test_order_pop_preserves_remaining_order
+    d = OrderedDict()
+    for c in ["a", "b", "c", "d"]:
+        d[c] = ord(c)
+
+    v = d.pop("b")
+    assert v == ord("b")
+    assert list(d.keys()) == ["a", "c", "d"]
+
+    d["e"] = ord("e")
+    assert list(d.keys()) == ["a", "c", "d", "e"]
+
+
+    # test_order_popitem_lifo
+    d = OrderedDict()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+
+    assert d.popitem() == ("c", 3)
+    assert list(d.items()) == [("a", 1), ("b", 2)]
+
+    d["d"] = 4
+    assert d.popitem() == ("d", 4)
+    assert list(d.items()) == [("a", 1), ("b", 2)]
+
+
+    # test_order_popitem_skips_deleted_tail
+    d = OrderedDict()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+
+    del d["c"]
+    assert d.popitem() == ("b", 2)
+    assert list(d.items()) == [("a", 1)]
+
+
+    # test_order_clear_resets_order
+    d = OrderedDict()
+    d["a"] = 1
+    d["b"] = 2
+    d.clear()
+
+    assert list(d.items()) == []
+
+    d["c"] = 3
+    d["a"] = 10
+    assert list(d.items()) == [("c", 3), ("a", 10)]
+
+
+    # test_order_resize_preserves_order
+    d = OrderedDict()
+    expected = []
+
+    for i in range(1000):
+        d[i] = i
+        expected.append(i)
+
+    assert list(d.keys()) == expected
+
+    for i in range(0, 1000, 3):
+        del d[i]
+        expected.remove(i)
+
+    assert list(d.keys()) == expected
+
+    for i in range(1000, 1300):
+        d[i] = i
+        expected.append(i)
+
+    assert list(d.keys()) == expected
+
+
+    # test_order_comprehension
+    d = OrderedDict({i: i * i for i in range(10)})
+    assert list(d.keys()) == list(range(10))
+    assert list(d.values()) == [i * i for i in range(10)]
+
+
+    # test_order_constructor_from_pairs
+    pairs = [("a", 1), ("b", 2), ("a", 3), ("c", 4)]
+    d = dict(pairs)
+
+    # Updating existing "a" does not move it.
+    assert list(d.items()) == [("a", 3), ("b", 2), ("c", 4)]
+
+
+    # test_order_update_method_existing_and_new
+    d = OrderedDict({"a": 1, "b": 2})
+    d.update(OrderedDict({"b": 20, "c": 3, "d": 4}))
+
+    assert list(d.items()) == [("a", 1), ("b", 20), ("c", 3), ("d", 4)]
+
+
+    # test_order_setdefault_existing_does_not_move
+    d = OrderedDict({"a": 1, "b": 2, "c": 3})
+
+    v = d.setdefault("b", 200)
+    assert v == 2
+    assert list(d.items()) == [("a", 1), ("b", 2), ("c", 3)]
+
+
+    # test_order_setdefault_new_appends
+    d = OrderedDict({"a": 1, "b": 2})
+
+    v = d.setdefault("c", 3)
+    assert v == 3
+    assert list(d.items()) == [("a", 1), ("b", 2), ("c", 3)]
+
+
+    # test_order_reversed_keys
+    d = OrderedDict()
+    for i in range(10):
+        d[i] = i
+
+    assert list(reversed(d)) == list(range(9, -1, -1))
+
+    del d[7]
+    del d[3]
+    d[7] = 70
+
+    assert list(d.keys()) == [0, 1, 2, 4, 5, 6, 8, 9, 7]
+    assert list(reversed(d)) == [7, 9, 8, 6, 5, 4, 2, 1, 0]
+test_dict_ordering()
+
+def slice_indices(slice, length):
+    """
+    Reference implementation for the slice.indices method.
+
+    """
+    # Compute step and length as integers.
+    #length = operator.index(length)
+    step: int = 1 if slice.step is None else slice.step
+
+    # Raise ValueError for negative length or zero step.
+    if length < 0:
+        raise ValueError("length should not be negative")
+    if step == 0:
+        raise ValueError("slice step cannot be zero")
+
+    # Find lower and upper bounds for start and stop.
+    lower = -1 if step < 0 else 0
+    upper = length - 1 if step < 0 else length
+
+    # Compute start.
+    if slice.start is None:
+        start = upper if step < 0 else lower
+    else:
+        start = slice.start
+        start = max(start + length, lower) if start < 0 else min(start, upper)
+
+    # Compute stop.
+    if slice.stop is None:
+        stop = lower if step < 0 else upper
+    else:
+        stop = slice.stop
+        stop = max(stop + length, lower) if stop < 0 else min(stop, upper)
+
+    return start, stop, step
+
+def check_indices(slice, length):
+    err1 = False
+    err2 = False
+
+    try:
+        actual = slice.indices(length)
+    except ValueError:
+        err1 = True
+
+    try:
+        expected = slice_indices(slice, length)
+    except ValueError:
+        err2 = True
+
+    if err1 or err2:
+        return err1 and err2
+
+    if actual != expected:
+        return False
+
+    if length >= 0 and slice.step != 0:
+        actual = range(*slice.indices(length))
+        expected = range(length)[slice]
+        if actual != expected:
+            return False
+
+    return True
+
+@test
+def test_slice():
+    assert repr(slice(1, 2, 3)) == 'slice(1, 2, 3)'
+
+    s1 = slice(1, 2, 3)
+    s2 = slice(1, 2, 3)
+    s3 = slice(1, 2, 4)
+
+    assert s1 == s2
+    assert s1 != s3
+
+    s = slice(1)
+    assert s.start == None
+    assert s.stop == 1
+    assert s.step == None
+
+    s = slice(1, 2)
+    assert s.start == 1
+    assert s.stop == 2
+    assert s.step == None
+
+    s = slice(1, 2, 3)
+    assert s.start == 1
+    assert s.stop == 2
+    assert s.step == 3
+
+    # TODO
+    assert slice(None           ).indices(10) == (0, 10,  1)
+    assert slice(None,  None,  2).indices(10) == (0, 10,  2)
+    assert slice(1,     None,  2).indices(10) == (1, 10,  2)
+    assert slice(None,  None, -1).indices(10) == (9, -1, -1)
+    assert slice(None,  None, -2).indices(10) == (9, -1, -2)
+    assert slice(3,     None, -2).indices(10) == (3, -1, -2)
+    # issue 3004 tests
+    assert slice(None, -9).indices(10) == (0, 1, 1)
+    assert slice(None, -10).indices(10) == (0, 0, 1)
+    assert slice(None, -11).indices(10) == (0, 0, 1)
+    assert slice(None, -10, -1).indices(10) == (9, 0, -1)
+    assert slice(None, -11, -1).indices(10) == (9, -1, -1)
+    assert slice(None, -12, -1).indices(10) == (9, -1, -1)
+    assert slice(None, 9).indices(10) == (0, 9, 1)
+    assert slice(None, 10).indices(10) == (0, 10, 1)
+    assert slice(None, 11).indices(10) == (0, 10, 1)
+    assert slice(None, 8, -1).indices(10) == (9, 8, -1)
+    assert slice(None, 9, -1).indices(10) == (9, 9, -1)
+    assert slice(None, 10, -1).indices(10) == (9, 9, -1)
+
+    assert slice(-100,  100     ).indices(10) == slice(None).indices(10)
+
+    assert slice(100,  -100,  -1).indices(10) == slice(None, None, -1).indices(10)
+
+    assert slice(-100, 100, 2).indices(10) == (0, 10,  2)
+
+    import sys
+    assert list(range(10))[::sys.maxsize - 1] == [0]
+
+    # Check a variety of start, stop, step and length values, including
+    # values exceeding sys.maxsize (see issue #14794).
+    vals = [None, -2**100, -2**30, -53, -7, -1, 0, 1, 7, 53, 2**30, 2**100]
+    lengths = [0, 1, 7, 53, 2**30, 2**100]
+    #for slice_args in itertools.product(vals, repeat=3):
+    for a in vals:
+        for b in vals:
+            for c in vals:
+                slice_args = (a, b, c)
+                s = slice(*slice_args)
+                for length in lengths:
+                    assert check_indices(s, length)
+    assert check_indices(slice(0, 10, 1), -3)
+
+    # Negative length should raise ValueError
+    try:
+        slice(None).indices(-1)
+        assert False
+    except ValueError:
+        pass
+
+    # Zero step should raise ValueError
+    try:
+        slice(0, 10, 0).indices(5)
+    except ValueError:
+        pass
+
+    # ... but it should be fine to use a custom class that provides index.
+    assert slice(0, 10, 1).indices(5) == (0, 5, 1)
+    '''  # not yet supported in Codon
+    assert slice(MyIndexable(0), 10, 1).indices(5) == (0, 5, 1)
+    assert slice(0, MyIndexable(10), 1).indices(5) == (0, 5, 1)
+    assert slice(0, 10, MyIndexable(1)).indices(5) == (0, 5, 1)
+    assert slice(0, 10, 1).indices(MyIndexable(5)) == (0, 5, 1)
+    '''
+    tmp = []
+    class X[T]:
+        tmp: T
+        def __setitem__(self, i, k):
+            self.tmp.append((i, k))
+
+    x = X(tmp)
+    x[1:2] = 42
+    assert tmp == [(slice(1, 2), 42)]
+
+    # Non-int elements
+    def check_types(s, T: type, U: type, V: type):
+        return (type(s.start) is Optional[T] and
+                type(s.stop) is Optional[U] and
+                type(s.step) is Optional[V])
+    assert check_types(slice(1j, 'x', 3.14), complex, str, float)
+    assert check_types(slice(None, 'x', 3.14), int, str, float)
+    assert check_types(slice(1j, None, 3.14), complex, int, float)
+    assert check_types(slice(1j, 'x', None), complex, str, int)
+    assert check_types(slice(1j, None, None), complex, int, int)
+    assert check_types(slice(None, 'x', None), int, str, int)
+    assert check_types(slice(None, None, 3.14), int, int, float)
+    assert check_types(slice(None, None, None), int, int, int)
+    assert check_types(slice(1j, 'x'), complex, str, int)
+    assert check_types(slice(None, 'x'), int, str, int)
+    assert check_types(slice(1j, None), complex, int, int)
+    assert check_types(slice(None, None), int, int, int)
+    assert check_types(slice(1j), int, complex, int)
+    assert check_types(slice(None), int, int, int)
+
+    # eq / ne
+    assert slice(1, 2, 3) == slice(1, 2, 3)
+    assert slice(0, 2, 3) != slice(1, 2, 3)
+    assert slice(1, 0, 3) != slice(1, 2, 3)
+    assert slice(1, 2, 0) != slice(1, 2, 3)
+    assert slice(None, None, None) == slice(None, None, None)
+    assert slice(None, 42, None) == slice(None, 42, None)
+    assert slice(None, 42, None) != slice(None, 43, None)
+    assert slice(1, None, 3) == slice(1, None, 3)
+    assert slice(1, None, 3) != slice(1, None, 0)
+    assert slice(1, None, 3) != slice(0, None, 3)
+    assert slice(1) == slice(1)
+    assert slice(1) != slice(2)
+
+@test
+def test_deque():
+    from collections import deque
+
+    dq = deque[int]()
+    dq.append(1)
+    dq.append(2)
+    dq.append(3)
+    dq.appendleft(11)
+    dq.appendleft(22)
+    assert str(dq) == 'deque([22, 11, 1, 2, 3])'
+    assert bool(dq) == True
+
+    # test cap increase:
+    dq.clear()
+    assert bool(dq) == False
+    for i in range(20):
+        dq.append(i)
+        dq.appendleft(i)
+    assert str(dq) == 'deque([19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19])'
+    assert len(dq) == 40
+
+    for i in range(19):
+        dq.pop()
+        dq.popleft()
+    assert str(dq) == 'deque([0, 0])'
+    for a in dq:
+        assert a == 0
+
+    assert (0 in dq) == True
+    assert (1 in dq) == False
+    assert str(copy(dq)) == 'deque([0, 0])'
+
+    # test maxlen:
+    dq = deque[int](5)
+    for i in range(100):
+        dq.append(i)
+    assert str(dq) == 'deque([95, 96, 97, 98, 99])'
+
+    for i in range(5):
+        dq.append(i)
+    assert str(dq) == 'deque([0, 1, 2, 3, 4])'
+
+    dq = deque[str]()
+    dq.append('1')
+    dq.append('2')
+    dq.append('3')
+    dq.appendleft('11')
+    dq.appendleft('22')
+    assert str(dq) == "deque(['22', '11', '1', '2', '3'])"
+    assert bool(dq) == True
+
+    # test cap increase:
+    dq.clear()
+    assert bool(dq) == False
+    for i in range(20):
+        dq.append(str(i))
+        dq.appendleft(str(i))
+    assert str(dq) == "deque(['19', '18', '17', '16', '15', '14', '13', '12', '11', '10', '9', '8', '7', '6', '5', '4', '3', '2', '1', '0', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19'])"
+    assert len(dq) == 40
+
+    for i in range(19):
+        dq.pop()
+        dq.popleft()
+    assert str(dq) == "deque(['0', '0'])"
+    for a in dq:
+        assert a == '0'
+
+    assert ('0' in dq) == True
+    assert ('1' in dq) == False
+    assert str(copy(dq)) == "deque(['0', '0'])"
+
+    # test maxlen:
+    dq = deque[str](5)
+    for i in range(100):
+        dq.append(str(i))
+    assert str(dq) == "deque(['95', '96', '97', '98', '99'])"
+
+    for i in range(5):
+        dq.append(str(i))
+    assert str(dq) == "deque(['0', '1', '2', '3', '4'])"
+test_deque()
+
+@test
+def test_counter():
+    from collections import Counter
+
+    # main
+    c = Counter('abcaba')
+    assert c == Counter({'a':3 , 'b': 2, 'c': 1})
+    assert len(c) == 3
+    assert sum(c.values()) == 6
+    assert set(c.values()) == {1, 2, 3}
+    assert set(c.keys()) == {'a','b','c'}
+    assert set(c.items()) == {('a',3), ('b',2), ('c',1)}
+    assert c['b'] == 2
+    assert c['z'] == 0
+    assert c.__contains__('b')
+    assert not c.__contains__('z')
+    assert c.get('b', 10) == 2
+    assert c.get('z', 10) == 10
+    assert c == {'a':3 , 'b': 2, 'c': 1}
+    assert c.most_common() == [('a', 3), ('b', 2), ('c', 1)]
+    for i in range(5):
+        assert c.most_common(i) == [('a', 3), ('b', 2), ('c', 1)][:i]
+
+    c['a'] += 1         # increment an existing value
+    c['b'] -= 2         # sub existing value to zero
+    del c['c']          # remove an entry
+    del c['c']          # make sure that del doesn't raise KeyError
+    c['d'] -= 2         # sub from a missing value
+    c['e'] = -5         # directly assign a missing value
+    c['f'] += 4         # add to a missing value
+
+    assert dict(c) == {'a':4, 'b':0, 'd':-2, 'e':-5, 'f':4}
+    assert c.pop('f') == 4
+    assert 'f' not in c
+    for i in range(3):
+        elem, cnt = c.popitem()
+        assert elem not in c
+    c.clear()
+    assert c == {}
+    c.update({'a':5, 'b':3})
+    c.update({'c': 1})
+    c.update(Counter('a' * 50 + 'b' * 30))
+    c.update()
+    c.update('a' * 500 + 'b' * 300)
+    c.update('cdc')
+    assert c == {'a':555, 'b':333, 'c':3, 'd':1}
+
+    assert c.setdefault('d',5) == 1
+    assert c['d'] == 1
+    assert c.setdefault('e', 5) == 5
+    assert c['e'] == 5
+
+
+    # total
+    c = Counter({'a':10, 'b':5, 'c':0})
+    assert c.total() == 15
+
+
+    # conversions
+    s = 'she sells sea shells by the sea shore'
+    assert sorted(Counter(s).elements()) == sorted(s)
+    assert sorted(Counter(s)) == sorted(set(s))
+    assert dict(Counter(s)) == dict(Counter(s).items())
+    assert set(Counter(s)) == set(s)
+
+
+    # in invariant
+    c = Counter({'a':10, 'b':-2, 'c':0})
+    for elem in c:
+        assert elem in c
+
+
+    # multiset
+    c = Counter({'a':10, 'b':-2, 'c':0}) + Counter()
+    assert dict(c) == {'a':10}
+
+    from random import randint, randrange
+    elements = 'abcd'
+    for i in range(1000):
+        # test random pairs of multisets
+        p = Counter(dict((elem, randrange(-2,4)) for elem in elements))
+        p.update({'e':1, 'f':-1, 'g':0})
+        q = Counter(dict((elem, randrange(-2,4)) for elem in elements))
+        q.update({'h':1, 'i':-1, 'j':0})
+
+        result = p + q
+        for x in elements:
+            assert max(0, p[x] + q[x]) == result[x]
+        assert all(x>0 for x in result.values())
+
+        result = p - q
+        for x in elements:
+            assert max(0, p[x] - q[x]) == result[x]
+        assert all(x>0 for x in result.values())
+
+        result = p | q
+        for x in elements:
+            assert max(0, p[x], q[x]) == result[x]
+        assert all(x>0 for x in result.values())
+
+        result = p & q
+        for x in elements:
+            assert max(0, min(p[x], q[x])) == result[x]
+        assert all(x>0 for x in result.values())
+
+    elements = 'abcdef'
+    for i in range(100):
+        # verify that random multisets with no repeats are exactly like sets
+        p = Counter(dict((elem, randrange(0, 2)) for elem in elements))
+        q = Counter(dict((elem, randrange(0, 2)) for elem in elements))
+
+        counter_result = p - q
+        set_result = set(p.elements()) - set(q.elements())
+        assert counter_result == dict.fromkeys(set_result, 1)
+
+        counter_result = p | q
+        set_result = set(p.elements()) | set(q.elements())
+        assert counter_result == dict.fromkeys(set_result, 1)
+
+        counter_result = p & q
+        set_result = set(p.elements()) & set(q.elements())
+        assert counter_result == dict.fromkeys(set_result, 1)
+
+
+    # in-place
+    elements = 'abcd'
+    for i in range(1000):
+        # test random pairs of multisets
+        p = Counter(dict((elem, randrange(-2,4)) for elem in elements))
+        p.update({'e':1, 'f':-1, 'g':0})
+        q = Counter(dict((elem, randrange(-2,4)) for elem in elements))
+        q.update({'h':1, 'i':-1, 'j':0})
+
+        c = p.__copy__()
+        c_id = id(c._dict)
+        regular_result = c + q
+        inplace_result = c.__iadd__(q)
+        assert inplace_result == regular_result
+        assert id(inplace_result._dict) == c_id
+
+        c = p.__copy__()
+        c_id = id(c._dict)
+        regular_result = c - q
+        inplace_result = c.__isub__(q)
+        assert inplace_result == regular_result
+        assert id(inplace_result._dict) == c_id
+
+        c = p.__copy__()
+        c_id = id(c._dict)
+        regular_result = c | q
+        inplace_result = c.__ior__(q)
+        assert inplace_result == regular_result
+        assert id(inplace_result._dict) == c_id
+
+        c = p.__copy__()
+        c_id = id(c._dict)
+        regular_result = c & q
+        inplace_result = c.__iand__(q)
+        assert inplace_result == regular_result
+        assert id(inplace_result._dict) == c_id
+
+
+    # subtract
+    c = Counter({'a':-5, 'b':0, 'c':5, 'd':10, 'e':15,'g':40})
+    c.subtract({'a':1, 'b':2, 'c':-3, 'd':10, 'e':20, 'f':30, 'h':-50})
+    assert c == Counter({'a':-6, 'b':-2, 'c':8, 'd':0, 'e':-5, 'f':-30, 'g':40, 'h':50})
+    c = Counter({'a':-5, 'b':0, 'c':5, 'd':10, 'e':15,'g':40})
+    c.subtract(Counter({'a':1, 'b':2, 'c':-3, 'd':10, 'e':20, 'f':30, 'h':-50}))
+    assert c == Counter({'a':-6, 'b':-2, 'c':8, 'd':0, 'e':-5, 'f':-30, 'g':40, 'h':50})
+
+    c = Counter('aaabbcd')
+    c.subtract('aaaabbcce')
+    assert c == Counter({'a':-1, 'b':0, 'c':-1, 'd':1, 'e':-1})
+
+    c = Counter()
+    c.subtract({'self':42})
+    assert list(c.items()) == [('self', -42)]
+    c = Counter()
+    c.subtract({'iterable':42})
+    assert list(c.items()) == [('iterable', -42)]
+
+
+    # unary
+    c = Counter({'a':-5, 'b':0, 'c':5, 'd':10, 'e':15, 'g':40})
+    assert dict(+c) == {'c':5, 'd':10, 'e':15, 'g':40}
+    assert dict(-c) == {'a':5}
+
+
+    # equality
+    assert Counter({'a':3, 'b':2}) == Counter('ababa')
+    assert Counter({'a':3, 'b':2}) != Counter('babab')
+
+
+    # most common
+    c = Counter({v:k for k,v in enumerate('hgfedcba')})
+    q = [(v,k) for k,v in enumerate('hgfedcba')][::-1]
+    assert c.most_common() == q
+    for i in range(10):
+        assert c.most_common(i) == q[:i]
+
+    for limit in range(100):
+        for samples in range(100):
+            for most_common in range(100):
+                data = [randint(0, limit) for _ in range(samples)]
+                d = Counter(data)
+                exp = sorted(d.values(), reverse=True)[:most_common]
+                got = [v for k,v in d.most_common(most_common)]
+                assert exp == got
+
+    for limit in range(100):
+        for samples in range(100):
+            data = [randint(0, limit) for _ in range(samples)]
+            d = Counter(data)
+            exp = sorted(d.values(), reverse=True)
+            got = [v for k,v in d.most_common()]
+            assert exp == got
+
+    assert repr(Counter('abcabc')) == "Counter({'a': 2, 'b': 2, 'c': 2})"
+
+@test
+def test_defaultdict():
+    from collections import defaultdict
+
+    # basic
+    #d1 = defaultdict()
+    #self.assertEqual(d1.default_factory, None)
+    #d1.default_factory = list
+    d1 = defaultdict(list)
+    d1[12].append(42)
+    assert d1 == {12: [42]}
+    d1[12].append(24)
+    assert d1 == {12: [42, 24]}
+    d1[13]
+    d1[14]
+    assert d1 == {12: [42, 24], 13: [], 14: []}
+    assert d1[12] is not d1[13] is not d1[14]
+    #d2 = defaultdict(list, foo=1, bar=2)
+    #self.assertEqual(d2.default_factory, list)
+    #self.assertEqual(d2, {"foo": 1, "bar": 2})
+    #self.assertEqual(d2["foo"], 1)
+    #self.assertEqual(d2["bar"], 2)
+    #self.assertEqual(d2[42], [])
+    #self.assertIn("foo", d2)
+    #self.assertIn("foo", d2.keys())
+    #self.assertIn("bar", d2)
+    #self.assertIn("bar", d2.keys())
+    #self.assertIn(42, d2)
+    #self.assertIn(42, d2.keys())
+    #self.assertNotIn(12, d2)
+    #self.assertNotIn(12, d2.keys())
+    #d2.default_factory = None
+    #self.assertEqual(d2.default_factory, None)
+    #try:
+    #    d2[15]
+    #except KeyError as err:
+    #    self.assertEqual(err.args, (15,))
+    #else:
+    #    self.fail("d2[15] didn't raise KeyError")
+    #self.assertRaises(TypeError, defaultdict, 1)
+
+    # missing
+    #d1 = defaultdict()
+    #self.assertRaises(KeyError, d1.__missing__, 42)
+    #d1.default_factory = list
+    #d1 = defaultdict(list)
+    assert d1.__missing__(42) == []
+
+    # repr
+    d1 = defaultdict(lambda: 0)
+    #self.assertEqual(d1.default_factory, None)
+    #self.assertEqual(repr(d1), "defaultdict(None, {})")
+    #self.assertEqual(eval(repr(d1)), d1)
+    d1[11] = 41
+    assert repr(d1) == "defaultdict(<default factory of 'int'>, {11: 41})"
+    d2 = defaultdict(lambda: 0)  # TODO: use 'int' when it's fixed...
+    #self.assertEqual(d2.default_factory, int)
+    d2[12] = 42
+    assert repr(d2) == "defaultdict(<default factory of 'int'>, {12: 42})"
+    def foo(): return 43
+    d3 = defaultdict(foo)
+    #self.assertTrue(d3.default_factory is foo)
+    d3[13]
+    assert repr(d3) == "defaultdict(<default factory of 'int'>, {13: 43})"
+
+
+    # copy
+    d1 = defaultdict(list)
+    d2 = d1.__copy__()
+    #self.assertEqual(type(d2), defaultdict)
+    #self.assertEqual(d2.default_factory, None)
+    assert d2 == {}
+    #d1.default_factory = list
+    #d3 = d1.__copy__()
+    #self.assertEqual(type(d3), defaultdict)
+    #self.assertEqual(d3.default_factory, list)
+    #self.assertEqual(d3, {})
+    d1[42].append(0)
+    #d4 = d1.__copy__()
+    #assert d4 == {42: [0]}
+    #d4[12]
+    #assert d4 == {42: [], 12: []}
+
+    # Issue 6637: Copy fails for empty default dict
+    #d = defaultdict()
+    #d['a'] = 42
+    #e = d.__copy__()
+    #assert e['a'] == 42
+
+
+    # shallow copy
+    foobar = list
+    d1 = defaultdict(foobar)
+    d1[1] += [1]
+    d2 = copy(d1)
+    #self.assertEqual(d2.default_factory, foobar)
+    assert d2 == d1
+    #d1.default_factory = list
+    d2 = copy(d1)
+    #self.assertEqual(d2.default_factory, list)
+    assert d2 == d1
+
+    # deep copy
+    d1 = defaultdict(foobar)
+    d1[1].append(1)
+    d2 = deepcopy(d1)
+    #self.assertEqual(d2.default_factory, foobar)
+    assert d2 == d1
+    assert d1[1] is not d2[1]
+    #d1.default_factory = list
+    d2 = deepcopy(d1)
+    #self.assertEqual(d2.default_factory, list)
+    assert d2 == d1
+
+    # KeyError without factory
+    #d1 = defaultdict()
+    #try:
+    #    d1[(1,)]
+    #except KeyError as err:
+    #    self.assertEqual(err.args[0], (1,))
+    #else:
+    #    self.fail("expected KeyError")
+
+    # pickling
+    #d = defaultdict(int)
+    #d[1]
+    #for proto in range(pickle.HIGHEST_PROTOCOL + 1):
+    #    s = pickle.dumps(d, proto)
+    #    o = pickle.loads(s)
+    #    self.assertEqual(d, o)
+
+    # union
+    i = defaultdict(int, {1: 1, 2: 2})
+    s = defaultdict(int, {0: 0, 1: 111})
+
+    i_s = i | s
+    #self.assertIs(i_s.default_factory, int)
+    assert i_s == {1: 111, 2: 2, 0: 0}
+    assert sorted(i_s) == [0, 1, 2]
+
+    s_i = s | i
+    #self.assertIs(s_i.default_factory, str)
+    assert s_i == {0: 0, 1: 1, 2: 2}
+    assert sorted(s_i) == [0, 1, 2]
+
+    i_ds = i | dict(s)
+    #self.assertIs(i_ds.default_factory, int)
+    assert i_ds == {1: 111, 2: 2, 0: 0}
+    assert sorted(i_ds) == [0, 1, 2]
+
+    ds_i = dict(s) | i
+    #self.assertIs(ds_i.default_factory, int)
+    assert ds_i == {0: 0, 1: 1, 2: 2}
+    assert sorted(ds_i) == [0, 1, 2]
+
+    # We inherit a fine |= from dict, so just a few sanity checks here:
+    i |= list(s.items())
+    #self.assertIs(i.default_factory, int)
+    assert i == {1: 111, 2: 2, 0: 0}
+    assert sorted(i), [1, 2, 0]
+
+    # general
+    s = 'mississippi'
+    d = defaultdict(int)
+    for k in s:
+        d[k] += 1
+    assert sorted(d.items()) == [('i', 4), ('m', 1), ('p', 2), ('s', 4)]
+
+    s = 'mississippi'
+    d = defaultdict(int)
+    for k in s:
+        d[k] = d.get(k, 0) + 1
+    assert sorted(d.items()) == [('i', 4), ('m', 1), ('p', 2), ('s', 4)]
+
+    s = [('yellow', 1), ('blue', 2), ('yellow', 3), ('blue', 4), ('red', 1)]
+    d = defaultdict(list)
+    for k, v in s:
+        d[k].append(v)
+    assert sorted(d.items()) == [('blue', [2, 4]), ('red', [1]), ('yellow', [1, 3])]
+
+    def constant_factory(value):
+        return lambda: value
+
+    d = defaultdict(constant_factory('<missing>'))
+    assert d[10] == '<missing>'
+
+test_tuple()
+test_dyn_tuple()
+test_list()
+test_setslice()
+test_delslice()
+test_extendedslicing()
+test_set()
+test_dict()
+test_slice()
+test_deque()
+test_counter()  # this call doubles compile time!
+test_defaultdict()
+
+@test
+def test_ordereddict_termination():
+    class Key:
+        x: int
+
+        def __init__(self, x):
+            self.x = x
+
+        def __hash__(self):
+            return self.x
+
+        def __eq__(self, other):
+            return self.x == other.x
+
+    d = OrderedDict[Key, int]()
+
+    # size = 16, usable = 10
+    #
+    # Occupy slots 0..9.
+    for i in range(10):
+        d[Key(i)] = i
+
+    # Convert all 10 occupied index slots to DUMMY.
+    # popitem() also incorrectly restores _usable each time.
+    for _ in range(10):
+        d.popitem()
+
+    # At this point:
+    #
+    # indices =
+    # D D D D D D D D D D E E E E E E
+    #
+    # usable = 10
+
+    # Consume the remaining six genuinely EMPTY hash slots.
+    for i in range(10, 16):
+        d[Key(i)] = i
+
+    # Expected index table:
+    #
+    # D D D D D D D D D D O O O O O O
+    #
+    # No DKIX_EMPTY anywhere, but _usable == 4.
+
+    # This should loop forever in _lookup().
+    assert (Key(16) in d) == False
+
+
+    d = OrderedDict[Key, int]()
+    d[Key(0)] = 0
+    d[Key(1)] = 1
+    d[Key(4)] = 4
+    assert (Key(-1) in d) == False
+test_ordereddict_termination()
+
+@test
+def test_composed_mappings():
+    from collections import Counter, defaultdict
+    from internal.static import has_rtti, len as static_len
+
+    assert not has_rtti(OrderedDict[str, int])
+    assert not has_rtti(UnorderedDict[str, int])
+    assert not has_rtti(Counter[str])
+
+    counter = Counter('abca')
+    assert static_len(counter) == 1
+    assert Counter[str].__elemsize__ == Dict[str, int].__elemsize__
+    assert not isinstance(counter, Dict[str, int])
+    assert list(counter) == ['a', 'b', 'c']
+    assert list(reversed(counter)) == ['c', 'b', 'a']
+    assert counter.get('missing') is None
+    assert counter.pop('missing', None) is None
+    assert counter.pop('missing', 9) == 9
+    counter.resize(100)
+    counter.increment('d', 4)
+    counter['e'] = counter.get('e', 8) + 2
+    counter['f'] += 3
+    assert counter['d'] == 4 and counter['e'] == 10 and counter['f'] == 3
+    assert Counter[str].fromkeys(ks='xy', v=2) == {'x': 2, 'y': 2}
+    for cloned in (counter.copy(), copy(counter), deepcopy(counter), Counter(counter)):
+        assert isinstance(cloned, Counter[str])
+        assert cloned == counter and cloned._dict is not counter._dict
+        cloned['a'] = 100
+        assert counter['a'] == 2
+    assert {'a': 2, 'b': 1, 'c': 1, 'd': 4, 'e': 10, 'f': 3} == counter
+    assert {'a': 1} != counter
+    merged = counter | {'a': -1, 'extra': 5}
+    assert isinstance(merged, Counter[str])
+    assert merged['a'] == -1 and counter['a'] == 2
+    original = merged
+    merged |= [('a', -2)]
+    assert merged._dict is original._dict and merged['a'] == -2
+    converted = dict(counter)
+    converted.clear()
+    assert counter and not converted
+    counter_alias = counter
+    counter_alias['shared'] += 1
+    assert counter['shared'] == 1
+    counter_alias.clear()
+    assert not counter
+
+    def make_default(calls):
+        calls[0] += 1
+        return 7
+
+    calls = 0
+    mapping = defaultdict(make_default(__ptr__(calls), ...), {'seed': 3})
+    assert static_len(mapping) == 2
+    assert not has_rtti(type(mapping))
+    assert not isinstance(mapping, Dict[str, int])
+    assert mapping.get('missing') is None
+    assert mapping.get('missing', 9) == 9
+    assert mapping.pop('missing', None) is None
+    assert mapping.pop('missing', 9) == 9
+    assert 'missing' not in mapping
+    try:
+        mapping.pop('missing')
+        assert False
+    except KeyError:
+        pass
+    try:
+        del mapping['missing']
+        assert False
+    except KeyError:
+        pass
+    assert calls == 0
+    assert mapping.setdefault('plain', 4) == 4
+    mapping.increment('incremented', 5)
+    mapping['explicit'] = mapping.get('explicit', 10) + 2
+    assert calls == 0
+    mapping['created'] += 2
+    assert mapping['created'] == 9 and calls == 1
+    mapping['created'] += 3
+    assert mapping['created'] == 12 and calls == 1
+    mapping.resize(100)
+    assert list(mapping.keys()) == ['seed', 'plain', 'incremented', 'explicit', 'created']
+    assert list(mapping.values()) == [3, 4, 5, 12, 12]
+    assert list(reversed(mapping)) == ['created', 'explicit', 'incremented', 'plain', 'seed']
+    assert type(mapping).fromkeys('xy', 2) == {'x': 2, 'y': 2}
+    for cloned in (mapping.copy(), copy(mapping), deepcopy(mapping)):
+        assert isinstance(cloned, type(mapping))
+        assert cloned == mapping and cloned._dict is not mapping._dict
+        assert cloned['fresh'] == 7 and 'fresh' not in mapping
+    assert calls == 4
+    assert dict(mapping) == mapping
+    assert {'seed': -1} != mapping
+    assert mapping.popitem() == ('created', 12)
+    assert mapping.pop('plain') == 4
+    del mapping['explicit']
+    alias = mapping
+    mapping.clear()
+    assert alias._dict is mapping._dict and not alias and len(mapping) == 0
+    assert mapping['after-clear'] == 7 and calls == 5
+
+    other = defaultdict(int, {'x': 2, 'y': 1})
+    counted = Counter(other)
+    assert counted == other and other == counted
+    assert not (counted != other) and not (other != counted)
+    counted.update(other)
+    counted.subtract(other)
+    assert counted == other
+    copied = defaultdict(int, other)
+    from_counter = defaultdict(int, counted)
+    callable_copy = defaultdict(make_default(__ptr__(calls), ...), other)
+    callable_counter = defaultdict(make_default(__ptr__(calls), ...), counted)
+    assert copied == other and from_counter == other
+    assert callable_copy == other and callable_counter == other
+    from_counter['x'] = 10
+    assert counted['x'] == 2
+    other.update(Counter({'z': 6}))
+    copied.update(other)
+    plain: Dict[str, int] = {}
+    plain.update(counted)
+    plain.update(other)
+    assert plain == copied == other
+    assert (Dict[str, int]() | counted) == counted
+    assert (Dict[str, int]() | other) == other
+    assert (other | counted) == other
+    assert (counted | other) == other
+    assert calls == 5
+
+test_composed_mappings()

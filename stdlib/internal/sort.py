@@ -1,0 +1,211 @@
+
+from algorithms.pdqsort import pdq_sort_inplace
+from algorithms.insertionsort import insertion_sort_inplace
+from algorithms.heapsort import heap_sort_inplace
+from algorithms.qsort import qsort_inplace
+from algorithms.timsort import tim_sort_inplace
+
+@nocapture
+@llvm_nocapture
+@llvm_nofree
+@C
+def cnp_sort_int16(buffer: cobj, size: int) -> None:
+    pass
+
+@nocapture
+@llvm_nocapture
+@llvm_nofree
+@C
+def cnp_sort_uint16(buffer: cobj, size: int) -> None:
+    pass
+
+@nocapture
+@llvm_nocapture
+@llvm_nofree
+@C
+def cnp_sort_int32(buffer: cobj, size: int) -> None:
+    pass
+
+@nocapture
+@llvm_nocapture
+@llvm_nofree
+@C
+def cnp_sort_uint32(buffer: cobj, size: int) -> None:
+    pass
+
+@nocapture
+@llvm_nocapture
+@llvm_nofree
+@C
+def cnp_sort_int64(buffer: cobj, size: int) -> None:
+    pass
+
+@nocapture
+@llvm_nocapture
+@llvm_nofree
+@C
+def cnp_sort_uint64(buffer: cobj, size: int) -> None:
+    pass
+
+@nocapture
+@llvm_nocapture
+@llvm_nofree
+@C
+def cnp_sort_uint128(buffer: cobj, size: int) -> None:
+    pass
+
+@nocapture
+@llvm_nocapture
+@llvm_nofree
+@C
+def cnp_sort_float32(buffer: cobj, size: int) -> None:
+    pass
+
+@nocapture
+@llvm_nocapture
+@llvm_nofree
+@C
+def cnp_sort_float64(buffer: cobj, size: int) -> None:
+    pass
+
+@nocapture
+@llvm_nocapture
+@llvm_nofree
+@C
+def cnp_sort_float32_nan_last(buffer: cobj, size: int) -> None:
+    pass
+
+@nocapture
+@llvm_nocapture
+@llvm_nofree
+@C
+def cnp_sort_float64_nan_last(buffer: cobj, size: int) -> None:
+    pass
+
+def _try_native_sort(start: Ptr[T], n: int, nan_last: Literal[bool] = False,
+                     T: type) -> bool:
+    """Try a native sort, returning False for unsupported types.
+
+    For floats, the default List policy preserves signed-zero counts and leaves
+    NaN placement unspecified. nan_last selects NumPy's NaN-last policy, which
+    leaves zero signs unspecified.
+    """
+    if T is int or T is i64:
+        cnp_sort_int64(start.as_byte(), n)
+    elif T is i16:
+        cnp_sort_int16(start.as_byte(), n)
+    elif T is u16:
+        cnp_sort_uint16(start.as_byte(), n)
+    elif T is i32:
+        cnp_sort_int32(start.as_byte(), n)
+    elif T is u32:
+        cnp_sort_uint32(start.as_byte(), n)
+    elif T is u64:
+        cnp_sort_uint64(start.as_byte(), n)
+    elif T is u128:
+        cnp_sort_uint128(start.as_byte(), n)
+    elif T is float32:
+        if nan_last:
+            cnp_sort_float32_nan_last(start.as_byte(), n)
+        else:
+            cnp_sort_float32(start.as_byte(), n)
+    elif T is float:
+        if nan_last:
+            cnp_sort_float64_nan_last(start.as_byte(), n)
+        else:
+            cnp_sort_float64(start.as_byte(), n)
+    else:
+        return False
+    return True
+
+def sorted(
+    v: Generator[T],
+    /,
+    *,
+    key=None,
+    reverse: bool = False,
+    algorithm: Literal[str] = "auto",
+    T: type,
+) -> List[T]:
+    newlist = [a for a in v]
+    newlist.sort(key=key, reverse=reverse, algorithm=algorithm)
+    return newlist
+
+@overload
+def sorted(
+    v: List[T],
+    /,
+    *,
+    key=None,
+    reverse: bool = False,
+    algorithm: Literal[str] = "auto",
+    T: type,
+) -> List[T]:
+    newlist = v.copy()
+    newlist.sort(key=key, reverse=reverse, algorithm=algorithm)
+    return newlist
+
+def _is_pdq_compatible(x):
+    if (isinstance(x, float) or
+        isinstance(x, bfloat16) or
+        isinstance(x, float16) or
+        isinstance(x, float32) or
+        isinstance(x, float128) or
+        isinstance(x, bool) or
+        isinstance(x, str) or
+        isinstance(x, Int) or
+        isinstance(x, UInt)):
+        return True
+    elif isinstance(x, Tuple):
+        for a in x:
+            if not _is_pdq_compatible(a):
+                return False
+        return True
+    else:
+        return False
+
+def _sort_list(
+    self: List[T], key: CallableTrait[[T], S], algorithm: Literal[str],
+    reverse: bool = False, T: type, S: type
+):
+    """Sort ascending, pre-reversing TimSort inputs for the caller's final reversal."""
+    if algorithm == "tim" or algorithm == "auto":
+        if reverse:
+            self.reverse()
+        tim_sort_inplace(self, key)
+    elif algorithm == "pdq":
+        pdq_sort_inplace(self, key)
+    elif algorithm == "insertion":
+        insertion_sort_inplace(self, key)
+    elif algorithm == "heap":
+        heap_sort_inplace(self, key)
+    elif algorithm == "quick":
+        qsort_inplace(self, key)
+    else:
+        compile_error("invalid sort algorithm")
+
+@extend
+class List:
+    def sort(
+        self,
+        /,
+        *,
+        key=None,
+        reverse: bool = False,
+        algorithm: Literal[str] = "auto",
+    ):
+        if key is None:
+            if algorithm == "auto":
+                if self:
+                    if _try_native_sort(self._ptr, self._len):
+                        pass
+                    elif _is_pdq_compatible(self[0]):
+                        pdq_sort_inplace(self, lambda x: x)
+                    else:
+                        _sort_list(self, lambda x: x, "tim", reverse)
+            else:
+                _sort_list(self, lambda x: x, algorithm, reverse)
+        else:
+            _sort_list(self, key, algorithm, reverse)
+        if reverse:
+            self.reverse()

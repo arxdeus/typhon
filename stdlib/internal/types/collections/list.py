@@ -1,0 +1,619 @@
+
+import internal.gc as gc
+import internal.static as static
+
+_DEFAULT_LIST_CAPACITY: Literal[int] = 10
+
+@tuple
+class _UnpackBuffer[T]:
+    """Owned iterable snapshot whose starred slice becomes the result list."""
+    values: T
+
+    def __getitem__(self, index: int):
+        return self.values[index]
+
+    def __getitem__(self, part: Slice):
+        start, stop, step, length = part.adjust_indices(len(self.values))
+        del self.values[stop:]
+        del self.values[:start]
+        return self.values
+
+@dataclass(init=False)
+class List:
+    _ptr: Ptr[T]
+    _len: int
+    _cap: int
+    T: type = NoneType
+
+    @staticmethod
+    def _as_list(x):
+        if isinstance(x, List):
+            return x
+        elif isinstance(x, Tuple):
+            return x
+        else:
+            return List(x)
+
+    @staticmethod
+    def _unpack_next(iterator):
+        """Read one required value without allocating an intermediate container."""
+        if not iterator._advance():
+            raise ValueError("not enough values to unpack")
+        return iterator._get()
+
+    @staticmethod
+    def _unpack(source, count: Literal[int], has_star: Literal[bool]):
+        """Check arity and snapshot mutable sources before assignment targets run.
+
+        Immutable records unpack their fields, regardless of an overridden __len__:
+        a two-field record still has two values even if len(record) returns zero.
+        Mutable tuple-backed sequences must use the snapshot paths instead, so
+        earlier assignment targets cannot change values still being unpacked.
+        """
+        if isinstance(source, Tuple):
+            if static.len(source) < count:
+                compile_error("not enough values to unpack")
+            if not has_star and static.len(source) > count:
+                compile_error("too many values to unpack")
+            return source
+        elif hasattr(type(source), '__tuplesize__') and not hasattr(type(source), '__setitem__'):
+            if static.len(source) < count:
+                raise ValueError("not enough values to unpack")
+            if not has_star and static.len(source) > count:
+                raise ValueError("too many values to unpack")
+            return source
+        elif isinstance(source, List):
+            if has_star:
+                if len(source) < count:
+                    raise ValueError("not enough values to unpack")
+                return source
+            else:
+                if len(source) != count:
+                    if len(source) < count:
+                        raise ValueError("not enough values to unpack")
+                    else:
+                        raise ValueError("too many values to unpack")
+                return tuple(source._get(index) for index in static.range(count))
+        elif not has_star:
+            iterator = (value for value in source)
+            values = tuple(List._unpack_next(iterator) for index in static.range(count))
+            if iterator._advance():
+                raise ValueError("too many values to unpack")
+            return values
+        else:
+            values = []
+            for value in source:
+                values.append(value)
+                if not has_star and len(values) > count:
+                    raise ValueError("too many values to unpack")
+            if len(values) < count:
+                raise ValueError("not enough values to unpack")
+            return _UnpackBuffer(values)
+
+    def __init__(self, /):
+        self._ptr = Ptr[T](_DEFAULT_LIST_CAPACITY)
+        self._len = 0
+        self._cap = _DEFAULT_LIST_CAPACITY
+
+    def __init__(self, /, capacity: int):
+        if capacity > 0:
+            self._ptr = Ptr[T](capacity)
+            self._len = 0
+            self._cap = capacity
+        else:
+            self._ptr = Ptr[T]()
+            self._len = 0
+            self._cap = 0
+
+    def __init__(self, it: Generator[T], /):
+        self.__init__()
+        for i in it:
+            self.append(i)
+
+    def __init__(self, other: List[T], /):
+        n = other._len
+        self._ptr = Ptr[T](n)
+        self._len = n
+        self._cap = n
+        str.memcpy(self._ptr.as_byte(), other._ptr.as_byte(),
+                   n * gc.sizeof(T))
+
+    def __init__(self, /, p: Ptr[T], n: int):
+        self._ptr = p
+        self._len = n
+        self._cap = n
+
+    def _get(self, idx: int):
+        return self._ptr[idx]
+
+    def _set(self, idx: int, val: T):
+        self._ptr[idx] = val
+
+    def __len__(self, /) -> int:
+        return self._len
+
+    def __bool__(self) -> bool:
+        return self.__len__() > 0
+
+    def __getitem__(self, idx: int, /) -> T:
+        if idx < 0:
+            idx += self.__len__()
+        self._idx_check(idx, "list index out of range")
+        return self._get(idx)
+
+    def __setitem__(self, idx: int, val: T, /):
+        if idx < 0:
+            idx += self.__len__()
+        self._idx_check(idx, "list assignment index out of range")
+        self._set(idx, val)
+
+    def _delete(self, idx: int):
+        while idx < self._len - 1:
+            self._set(idx, self._get(idx + 1))
+            idx += 1
+        self._len -= 1
+        if not T.__atomic__:
+            str.memset((self._ptr + self._len).as_byte(), u8(0), gc.sizeof(T))
+
+    def __delitem__(self, idx: int, /):
+        if idx < 0:
+            idx += self.__len__()
+        self._idx_check(idx, "list assignment index out of range")
+        self._delete(idx)
+
+    def __eq__(self, other: List[T], /) -> bool:
+        if self.__len__() != other.__len__():
+            return False
+        for i in range(self.__len__()):
+            if self._get(i) != other._get(i):
+                return False
+        return True
+
+    def __ne__(self, other: List[T], /) -> bool:
+        return not (self == other)
+
+    def __getitem__(self, s: Slice, /) -> List[T]:
+        if s.start is None and s.stop is None and s.step is None:
+            return self.__copy__()
+        if s.step is None:
+            start, stop, step, length = s.adjust_indices(self.__len__())
+            return List[T](self._copy_arr(start, stop, length), length)
+        else:
+            start, stop, step, length = s.adjust_indices(self.__len__())
+            other = List[T](length)
+            for i in range(start, stop, step):
+                other.append(self._get(i))
+            return other
+
+    def __setitem__(self, s: Slice, other: Generator[T], /):
+        return self.__setitem__(s, [a for a in other])
+
+    def __setitem__(self, s: Slice, other: List[T], /):
+        if s.start is None and s.stop is None and s.step is None:
+            self.clear()
+            for a in other:
+                self.append(a)
+            return
+
+        start, stop, step, length = s.adjust_indices(self.__len__())
+        if s.step is None or step == 1:
+            if other.__raw__() == self.__raw__():
+                other = other.__copy__()
+            self._assign_slice(start, stop, other._ptr, other.__len__())
+        else:
+            if (step < 0 and start < stop) or (step > 0 and start > stop):
+                stop = start
+
+            seq = other.__copy__() if (other is self) else other
+            seq_len = seq.__len__()
+            if seq_len != length:
+                raise ValueError(
+                    f"attempt to assign sequence of size {seq_len} to extended slice of size {length}"
+                )
+
+            if length == 0:
+                return
+
+            cur = start
+            i = 0
+            while i < length:
+                self._set(cur, seq._get(i))
+                cur += step
+                i += 1
+
+    def __delitem__(self, s: Slice, /):
+        if s.start is None and s.stop is None and s.step is None:
+            self.clear()
+        else:
+            start, stop, step, length = s.adjust_indices(self.__len__())
+            if s.step is None or step == 1:
+                self._assign_slice(start, stop, Ptr[T](), 0)
+            else:
+                if length < 0:
+                    return
+
+                if step < 0:
+                    stop = start + 1
+                    start = stop + step * (length - 1) - 1
+                    step = -step
+
+                cur = start
+                i = 0
+                while cur < stop:
+                    lim = step - 1
+                    if cur + step > self.__len__():
+                        lim = self.__len__() - cur - 1
+                    str.memmove(
+                        (self._ptr + (cur - i)).as_byte(),
+                        (self._ptr + (cur + 1)).as_byte(),
+                        lim * gc.sizeof(T),
+                    )
+                    cur += step
+                    i += 1
+
+                cur = start + length * step
+                if cur < self.__len__():
+                    str.memmove(
+                        (self._ptr + (cur - length)).as_byte(),
+                        (self._ptr + cur).as_byte(),
+                        (self.__len__() - cur) * gc.sizeof(T),
+                    )
+
+                self._len -= length
+                if not T.__atomic__:
+                    str.memset((self._ptr + self._len).as_byte(),
+                               u8(0), length * gc.sizeof(T))
+
+    def __contains__(self, x: T, /) -> bool:
+        for a in self:
+            if a == x:
+                return True
+        return False
+
+    def __copy__(self) -> List[T]:
+        return List[T](self)
+
+    def __deepcopy__(self) -> List[T]:
+        return [l.__deepcopy__() for l in self]
+
+    def __iter__(self, /) -> Generator[T]:
+        i = 0
+        N = self._len
+        p = self._ptr
+        while i < N:
+            yield p[i]
+            i += 1
+
+    def __reversed__(self, /) -> Generator[T]:
+        i = self._len - 1
+        while i >= 0:
+            yield self._get(i)
+            i -= 1
+
+    def __add__(self, other: List[T], /) -> List[T]:
+        n = self._len + other._len
+        v = List[T](n)
+        v._len = n
+        p = v._ptr
+        str.memcpy(p.as_byte(),
+                   self._ptr.as_byte(),
+                   self._len * gc.sizeof(T))
+        str.memcpy((p + self._len).as_byte(),
+                   other._ptr.as_byte(),
+                   other._len * gc.sizeof(T))
+        return v
+
+    def __iadd__(self, other: List[T], /) -> List[T]:
+        n = self._len + other._len
+        if self._len < n:
+            self._resize(n)
+        str.memcpy((self._ptr + self._len).as_byte(),
+                   other._ptr.as_byte(),
+                   other._len * gc.sizeof(T))
+        self._len = n
+        return self
+
+    def __mul__(self, n: int, /) -> List[T]:
+        if n <= 0 or self._len == 0:
+            return List[T]()
+
+        new_len = self._len * n
+        data = Ptr[T](new_len)
+        if self._len == 1:
+            value = self._get(0)
+            for index in range(n):
+                data[index] = value
+        else:
+            block_size = self._len * gc.sizeof(T)
+            for index in range(n):
+                str.memcpy((data + index * self._len).as_byte(),
+                           self._ptr.as_byte(), block_size)
+        return List[T](data, new_len)
+
+    def __rmul__(self, n: int, /) -> List[T]:
+        return self.__mul__(n)
+
+    def __imul__(self, n: int, /) -> List[T]:
+        if n == 1:
+            return self
+
+        if n <= 0:
+            self.clear()
+            return self
+
+        len0 = self.__len__()
+        new_cap = n * len0
+        if self._cap < new_cap:
+            p = Ptr[T](gc.realloc(self._ptr.as_byte(),
+                                  new_cap * gc.sizeof(T),
+                                  self._len * gc.sizeof(T)))
+            self._ptr = p
+            self._cap = new_cap
+
+        idx = len0
+        i = 0
+        while i < n - 1:
+            j = 0
+            while j < len0:
+                self._set(idx, self._get(j))
+                idx += 1
+                j += 1
+            i += 1
+
+        self._len = new_cap
+        return self
+
+    def __repr__(self, /) -> str:
+        n = self.__len__()
+        if n == 0:
+            return "[]"
+        else:
+            buf = _strbuf()
+            buf.append("[")
+            buf.append(self._get(0).__repr__())
+            for i in range(1, n):
+                buf.append(", ")
+                buf.append(self._get(i).__repr__())
+            buf.append("]")
+            return buf.__str__()
+
+    # Helper functions
+
+    def append(self, x: T, /):
+        self._resize_if_full()
+        self._set(self._len, x)
+        self._len += 1
+
+    def extend(self, itr: Generator[T], /):
+        for a in itr:
+            self.append(a)
+
+    def insert(self, idx: int, x: T, /):
+        n = self.__len__()
+        if idx < 0:
+            idx += n
+            if idx < 0:
+                idx = 0
+        if idx > n:
+            idx = n
+        self._resize_if_full()
+        i = n
+        while i > idx:
+            self._set(i, self._get(i - 1))
+            i -= 1
+        self._set(idx, x)
+        self._len += 1
+
+    def pop(self, idx: int = -1, /) -> T:
+        if self.__len__() == 0:
+            raise IndexError("pop from empty list")
+        if idx < 0:
+            idx += self.__len__()
+        self._idx_check(idx, "pop index out of range")
+        x = self._get(idx)
+        self._delete(idx)
+        return x
+
+    def remove(self, x: T, /) -> bool:
+        p = self._ptr
+        for i in range(self._len):
+            if p[i] == x:
+                self._delete(i)
+                return True
+        return False
+
+    def clear(self, /):
+        if not T.__atomic__:
+            str.memset(self._ptr.as_byte(),
+                       u8(0), self._len * gc.sizeof(T))
+        self._len = 0
+
+    def index(self, x: T, /) -> int:
+        i = 0
+        for a in self:
+            if a == x:
+                return i
+            i += 1
+        raise ValueError(f"{x} is not in list")
+
+    def find(self, x: T) -> int:
+        i = 0
+        for a in self:
+            if a == x:
+                return i
+            i += 1
+        return -1
+
+    def count(self, x: T, /) -> int:
+        count = 0
+        for a in self:
+            if a == x:
+                count += 1
+        return count
+
+    def reverse(self, /):
+        i = 0
+        while i < (self._len >> 1):
+            j = self._len - i - 1
+            x = self._get(i)
+            self._set(i, self._get(j))
+            self._set(j, x)
+            i += 1
+
+    def copy(self, /) -> List[T]:
+        return self.__copy__()
+
+    # Internal helpers
+
+    def _idx_check(self, idx: int, msg: str):
+        if idx >= self._len or idx < 0:
+            raise IndexError(msg)
+
+    def _resize(self, new_cap: int):
+        p = Ptr[T](gc.realloc(self._ptr.as_byte(),
+                              new_cap * gc.sizeof(T),
+                              self._cap * gc.sizeof(T)))
+        self._ptr = Ptr[T](p)
+        self._cap = new_cap
+
+    def _resize_if_full(self):
+        if self._len == self._cap:
+            new_cap = (1 + 3 * self._len) >> 1
+            if new_cap <= 0:
+                new_cap = 1
+            self._resize(new_cap)
+
+    def __hash__(self) -> int:
+        # https://www.boost.org/doc/libs/1_35_0/doc/html/boost/hash_combine_id241013.html
+        seed = 0
+        for v in self:
+            seed ^= v.__hash__() + 0x9E3779B9 + (seed << 6) + (seed >> 2)
+        return seed
+
+    def _assign_slice(self, ilow: int, ihigh: int, v: Ptr[T], n: int):
+        a = self
+        L = a._len
+
+        if ilow < 0:
+            ilow = 0
+        elif ilow > L:
+            ilow = L
+
+        if ihigh < ilow:
+            ihigh = ilow
+        elif ihigh > L:
+            ihigh = L
+
+        norig = ihigh - ilow
+        d = n - norig
+        if L + d == 0:
+            a.clear()
+            return
+
+        if d < 0:
+            tail = L - ihigh
+            str.memmove(
+                (a._ptr + (ihigh + d)).as_byte(),
+                (a._ptr + ihigh).as_byte(),
+                tail * gc.sizeof(T),
+            )
+            a._resize(L + d)
+        elif d > 0:
+            k = L
+            a._resize(k + d)
+            str.memmove(
+                (a._ptr + (ihigh + d)).as_byte(),
+                (a._ptr + ihigh).as_byte(),
+                (k - ihigh) * gc.sizeof(T),
+            )
+
+        k = 0
+        while k < n:
+            a._set(ilow, v[k])
+            k += 1
+            ilow += 1
+        a._len += d
+
+    def _copy_arr(self, start: int, stop: int, length: int) -> Ptr[T]:
+        if length <= 0:
+            return Ptr[T]()
+        p = Ptr[T](length)
+        str.memcpy(p.as_byte(), (self._ptr + start).as_byte(),
+                   length * gc.sizeof(T))
+        return p
+
+    def _cmp(self, other: List[T]):
+        n1 = self.__len__()
+        n2 = other.__len__()
+        nmin = n1 if n1 < n2 else n2
+        for i in range(nmin):
+            a = self._get(i)
+            b = other._get(i)
+
+            if a < b:
+                return -1
+            elif a == b:
+                continue
+            else:
+                return 1
+        if n1 < n2:
+            return -1
+        elif n1 == n2:
+            return 0
+        else:
+            return 1
+
+    def __lt__(self, other: List[T], /):
+        return self._cmp(other) < 0
+
+    def __gt__(self, other: List[T], /):
+        return self._cmp(other) > 0
+
+    def __le__(self, other: List[T], /):
+        return self._cmp(other) <= 0
+
+    def __ge__(self, other: List[T], /):
+        return self._cmp(other) >= 0
+
+    # list addition optimization helpers
+
+    def _list_add_opt_default_len(v: List[T]):
+        return v.__len__()
+
+    def _list_add_opt_default_append(ans: List[T], v: List[T]):
+        from internal.gc import sizeof
+        n = v.__len__()
+        str.memcpy((ans._ptr + ans._len).as_byte(), v._ptr.as_byte(), n * sizeof(T))
+        ans._len += n
+
+    def _list_add_opt_slice_len(v: List[T], s: Slice):
+        if s.start is None and s.stop is None and s.step is None:
+            return v.__len__()
+        start, stop, step, length = s.adjust_indices(v.__len__())
+        return length
+
+    def _list_add_opt_slice_append(ans: List[T], v: List[T], s: Slice):
+        from internal.gc import sizeof
+        if s.start is None and s.stop is None and s.step is None:
+            n = v.__len__()
+            str.memcpy((ans._ptr + ans._len).as_byte(), v._ptr.as_byte(), n * sizeof(T))
+            ans._len += n
+        elif s.step is None:
+            start, stop, step, length = s.adjust_indices(v.__len__())
+            n = stop - start
+            str.memcpy((ans._ptr + ans._len).as_byte(), (v._ptr + start).as_byte(), n * sizeof(T))
+            ans._len += n
+        else:
+            start, stop, step, length = s.adjust_indices(v.__len__())
+            for i in range(start, stop, step):
+                ans._ptr[ans._len] = v._get(i)
+                ans._len += 1
+
+    def _list_add_opt_literal_append(ans: List[T], elem: T):
+        ans._ptr[ans._len] = elem
+        ans._len += 1
+
+    def _list_add_opt_opt_new(capacity: int):
+        return List[T](capacity=capacity)
+
+list = List

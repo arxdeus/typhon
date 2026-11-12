@@ -188,7 +188,7 @@ impl<'a> DocVisitor<'a> {
         root.borrow_mut().set_filename(stdlib.path.clone());
         for name in [
             "int", "__py_numerics__", "__py_extension__", "__debug__", "__apple__", "__windows__",
-            "__dict_unordered__", "__codon_version_major__", "__codon_version_minor__", "__codon_version_micro__",
+            "__dict_unordered__", "__typhon_version_major__", "__typhon_version_minor__", "__typhon_version_micro__",
         ] {
             let id = shared.next_id();
             root.borrow_mut().add(name, id);

@@ -18,7 +18,8 @@ unsafe extern "C" {
 }
 
 pub fn oracle() -> Option<impl Fn(&str) -> Result<String, String>> {
-    let p = CString::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../build/libcodonc.dylib")).unwrap();
+    // Opt-in: path to the reference parser library via TYPHON_ORACLE_LIB.
+    let p = CString::new(std::env::var("TYPHON_ORACLE_LIB").ok()?).ok()?;
     // SAFETY: FFI to the C API declared in codon/parser/capi.h.
     let h = unsafe { dlopen(p.as_ptr(), 2) };
     if h.is_null() {
@@ -50,7 +51,7 @@ pub fn ours(code: &str) -> Result<String, String> {
 #[test]
 fn peg_oracle_simple() {
     let Some(cpp) = oracle() else {
-        eprintln!("libcodonc.dylib not available; skipping");
+        eprintln!("TYPHON_ORACLE_LIB not set or unusable; skipping");
         return;
     };
     let cases = [

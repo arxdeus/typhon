@@ -7,7 +7,7 @@ use typhon_parser::ast::AstArena;
 use typhon_parser::peg::{ParseOptions, parse_code};
 
 fn root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
 fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -17,7 +17,7 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     for p in v {
         if p.is_dir() {
             collect(&p, out);
-        } else if matches!(p.extension().and_then(|e| e.to_str()), Some("codon" | "py")) {
+        } else if matches!(p.extension().and_then(|e| e.to_str()), Some("py")) {
             out.push(p);
         }
     }

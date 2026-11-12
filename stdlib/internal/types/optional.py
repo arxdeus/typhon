@@ -1,0 +1,144 @@
+
+@extend
+class Optional:
+    @staticmethod
+    def _from_none(value: NoneType, T: type) -> Optional[T]:
+        return Optional[T]()
+
+    @pure
+    @llvm
+    def _tuple_new(T: type) -> Optional[T]:
+        ret { i1, {=T} } { i1 false, {=T} undef }
+
+    @pure
+    @llvm
+    def _ref_new(T: type) -> Optional[T]:
+        ret ptr null
+
+    def __new__() -> Optional[T]:
+        if isinstance(T, ByVal):
+            return Optional._tuple_new(T)
+        else:
+            return Optional._ref_new(T)
+
+    @pure
+    @derives
+    @llvm
+    def _tuple_new_arg(what: T, T: type) -> Optional[T]:
+        %0 = insertvalue { i1, {=T} } { i1 true, {=T} undef }, {=T} %what, 1
+        ret { i1, {=T} } %0
+
+    @pure
+    @derives
+    @llvm
+    def _ref_new_arg(what: T, T: type) -> Optional[T]:
+        ret ptr %what
+
+    @overload
+    def __new__(what: T) -> Optional[T]:
+        if isinstance(T, ByVal):
+            return Optional._tuple_new_arg(what, T)
+        else:
+            return Optional._ref_new_arg(what, T)
+
+    @pure
+    @llvm
+    def _tuple_bool(what: Optional[T], T: type) -> bool:
+        %0 = extractvalue { i1, {=T} } %what, 0
+        %1 = zext i1 %0 to i8
+        ret i8 %1
+
+    @pure
+    @llvm
+    def _ref_bool(what: Optional[T], T: type) -> bool:
+        %0 = icmp ne ptr %what, null
+        %1 = zext i1 %0 to i8
+        ret i8 %1
+
+    def __has__(self) -> bool:
+        if isinstance(T, ByVal):
+            return Optional._tuple_bool(self, T)
+        else:
+            return Optional._ref_bool(self, T)
+
+    @pure
+    @derives
+    @llvm
+    def _tuple_invert(what: Optional[T], T: type) -> T:
+        %0 = extractvalue { i1, {=T} } %what, 1
+        ret {=T} %0
+
+    @pure
+    @derives
+    @llvm
+    def _ref_invert(what: Optional[T], T: type) -> T:
+        ret ptr %what
+
+    def __val__(self) -> T:
+        if isinstance(T, ByVal):
+            return Optional._tuple_invert(self, T)
+        else:
+            return Optional._ref_invert(self, T)
+
+    def __val_or__(self, default: T):
+        if self.__has__():
+            return self.__val__()
+        return default
+
+    def __bool__(self) -> bool:
+        if not self.__has__():
+            return False
+        if hasattr(self.__val__(), "__bool__"):
+            return self.__val__().__bool__()
+        else:
+            return True
+
+    def __eq__(self, other: T) -> bool:
+        if self is None:
+            return False
+        return self.__val__() == other
+
+    @overload
+    def __eq__(self, other: Optional[T]) -> bool:
+        if (self is None) or (other is None):
+            return (self is None) and (other is None)
+        return self.__val__() == other.__val__()
+
+    def __ne__(self, other: T) -> bool:
+        if self is None:
+            return True
+        return self.__val__() != other
+
+    @overload
+    def __ne__(self, other: Optional[T]) -> bool:
+        if (self is None) or (other is None):
+            return not ((self is None) and (other is None))
+        return self.__val__() != other.__val__()
+
+    def __str__(self) -> str:
+        return "None" if self is None else str(self.__val__())
+
+    def __repr__(self) -> str:
+        return "None" if self is None else self.__val__().__repr__()
+
+    def __is_optional__(self, other: Optional[T]) -> bool:
+        self_has = self.__has__()
+        other_has = other.__has__()
+        if (not self_has) or (not other_has):
+            return (not self_has) and (not other_has)
+        return self.__val__() is other.__val__()
+
+    def __unwrap__(self) -> T:
+        if self.__has__():
+            return self.__val__()
+        raise ValueError(f"optional unpack failed: expected {T.__name__}, got None")
+
+optional = Optional
+
+def unwrap(opt, T: type = NoneType):
+    if isinstance(opt, Any):
+        return opt.__unwrap__(T)
+    elif isinstance(opt, Optional):
+        return opt.__unwrap__()
+    else:
+        return opt

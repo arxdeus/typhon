@@ -1,0 +1,10 @@
+
+class Error(Exception):
+    def __init__(self, message: str = "", /):
+        super().__init__(message)
+
+def copy(x):
+	return x.__copy__()
+
+def deepcopy(x):
+	return x.__deepcopy__()

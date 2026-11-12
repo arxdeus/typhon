@@ -1,0 +1,9 @@
+
+
+@extend
+class Import:
+    def _set_loaded(i: Ptr[Import]):
+        Ptr[bool](i.as_byte())[0] = True
+
+    def __repr__(self) -> str:
+        return f"<module '{self.name}' from '{self.file}'>"

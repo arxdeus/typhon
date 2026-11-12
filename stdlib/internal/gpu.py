@@ -1,0 +1,1033 @@
+
+from internal.gc import sizeof as _sizeof
+from internal.dlopen import *
+
+import internal.static as static
+
+CUDA_SUCCESS: Literal[int] = 0
+CUDA_ERROR_NOT_FOUND: Literal[int] = 500
+
+CUresult = i32
+CUdevice = i32
+CUdeviceptr = u64
+CUmodule = cobj
+CUcontext = cobj
+CUfunction = cobj
+
+modules: List[CUmodule] = []
+
+# We use 3020 (v2; 64-bit address space) CUDA API here
+cuCtxCreate = Function[[Ptr[cobj], u32, CUdevice], CUresult](cobj())
+cuMemAlloc = Function[[Ptr[CUdeviceptr], i64], CUresult](cobj())
+cuMemcpyDtoH = Function[[cobj, CUdeviceptr, u64], CUresult](cobj())
+cuMemcpyHtoD = Function[[CUdeviceptr, cobj, u64], CUresult](cobj())
+cuMemFree = Function[[CUdeviceptr], CUresult](cobj())
+
+cuDeviceComputeCapability = Function[[Ptr[i32], Ptr[i32], CUdevice], CUresult](cobj())
+cuDeviceGet = Function[[Ptr[CUdevice], i32], CUresult](cobj())
+cuDeviceGetCount = Function[[Ptr[i32]], CUresult](cobj())
+cuDeviceGetName = Function[[Ptr[u8], i32, CUdevice], CUresult](cobj())
+cuGetErrorName = Function[[CUresult, Ptr[cobj]], CUresult](cobj())
+cuGetErrorString = Function[[CUresult, Ptr[cobj]], CUresult](cobj())
+cuInit = Function[[u32], CUresult](cobj())
+cuLaunchKernel = Function[[CUfunction, u32, u32, u32, u32, u32, u32, u32, cobj, cobj, cobj], CUresult](cobj())
+cuModuleGetFunction = Function[[Ptr[CUfunction], CUmodule, cobj], CUresult](cobj())
+cuModuleLoadData = Function[[Ptr[CUmodule], cobj], CUresult](cobj())
+
+
+class CUDAError(Exception):
+    result: int
+    def __init__(self, result: int, message: str = ""):
+        super().__init__(message)
+        self.result = result
+
+
+@tuple
+class Device:
+    _device: i32
+
+    def __new__(idx: int):
+        device = CUdevice()
+        cuda_check(cuDeviceGet(__ptr__(device), i32(idx)))
+        return superf(device)
+
+    @staticmethod
+    def count():
+        count = 0i32
+        cuda_check(cuDeviceGetCount(__ptr__(count)))
+        return int(count)
+
+    def __str__(self):
+        name = Ptr[u8](128)
+        cuda_check(cuDeviceGetName(name, 127i32, self._device))
+        return str.from_ptr(name)
+
+    def __index__(self):
+        return int(self._device)
+
+    def __bool__(self):
+        return True
+
+    @property
+    def compute_capability(self):
+        devMajor, devMinor = 0i32, 0i32
+        cuda_check(cuDeviceComputeCapability(__ptr__(devMajor), __ptr__(devMinor), self._device))
+        return int(devMajor), int(devMinor)
+
+
+
+_CUDA_INITIALIZED = False
+
+def cuda_init_handles(cuda_handle: cobj):
+    global cuCtxCreate
+    global cuDeviceComputeCapability
+    global cuDeviceGet
+    global cuDeviceGetCount
+    global cuDeviceGetName
+    global cuGetErrorName
+    global cuGetErrorString
+    global cuInit
+    global cuLaunchKernel
+    global cuMemAlloc
+    global cuMemcpyDtoH
+    global cuMemcpyHtoD
+    global cuMemFree
+    global cuModuleGetFunction
+    global cuModuleLoadData
+
+    cuCtxCreate = dlsym(cuda_handle, "cuCtxCreate_v2")
+    cuMemAlloc = dlsym(cuda_handle, "cuMemAlloc_v2")
+    cuMemcpyDtoH = dlsym(cuda_handle, "cuMemcpyDtoH_v2")
+    cuMemcpyHtoD = dlsym(cuda_handle, "cuMemcpyHtoD_v2")
+    cuMemFree = dlsym(cuda_handle, "cuMemFree_v2")
+
+    cuDeviceComputeCapability = dlsym(cuda_handle, "cuDeviceComputeCapability")
+    cuDeviceGet = dlsym(cuda_handle, "cuDeviceGet")
+    cuDeviceGetCount = dlsym(cuda_handle, "cuDeviceGetCount")
+    cuDeviceGetName = dlsym(cuda_handle, "cuDeviceGetName")
+    cuGetErrorName = dlsym(cuda_handle, "cuGetErrorName")
+    cuGetErrorString = dlsym(cuda_handle, "cuGetErrorString")
+    cuInit = dlsym(cuda_handle, "cuInit")
+    cuLaunchKernel = dlsym(cuda_handle, "cuLaunchKernel")
+    cuModuleGetFunction = dlsym(cuda_handle, "cuModuleGetFunction")
+    cuModuleLoadData = dlsym(cuda_handle, "cuModuleLoadData")
+
+
+def cuda_check(err):
+    if err != i32(CUDA_SUCCESS):
+        msg = cobj()
+        cuGetErrorName(err, __ptr__(msg))
+        errname = str.from_ptr(msg)
+        cuGetErrorString(err, __ptr__(msg))
+        msg = str.from_ptr(msg)
+        raise CUDAError(int(err), f"{msg} ({errname})")
+
+
+def nvptx_init():
+    cuda_check(cuInit(0u32))
+    device = CUdevice()
+    cuda_check(cuDeviceGet(__ptr__(device), 0i32))
+    context = CUcontext()
+    cuda_check(cuCtxCreate(__ptr__(context), 0u32, device))
+    return device, context
+
+
+def nvptx_load_module():
+    from C import __typhon_ptx__() -> cobj
+    module = CUmodule()
+    # NOTE: 2nd argument to cuModuleLoadData() will
+    #       be replaced by Codon's GPU pass
+    ptx = __typhon_ptx__()
+    if ptx:
+        cuda_check(cuModuleLoadData(__ptr__(module), ptx))
+        modules.append(module)
+
+
+def cuda_init(debug: bool = False):
+    global _CUDA_INITIALIZED
+    if _CUDA_INITIALIZED:
+        return
+
+    import sys, os
+
+    cuda_handle = cobj()
+    LD = os.getenv("TYPHON_CUDA", default="libcuda." + dlext())
+
+    cuda_handle = dlopen(LD, RTLD_LOCAL | RTLD_LAZY)
+    cuda_init_handles(cuda_handle)
+
+    device, context = nvptx_init()
+    if debug:
+        cuCtxGetApiVersion: Function[[CUcontext, Ptr[u32]], CUresult] = dlsym(cuda_handle, "cuCtxGetApiVersion")
+        api_version: u32 = 0u32
+        cuCtxGetApiVersion(context, __ptr__(api_version))
+        print(f"[CUDA] Loaded API version {api_version}", file=sys.stderr)
+
+    nvptx_load_module()
+
+    if debug:
+        d = Device(0)
+        print(
+            "[CUDA] Initialized: library=", get_library_file_name(cuModuleLoadData.__raw__()),
+            ", device=", d, ", capability=", d.compute_capability,
+            sep='', file=sys.stderr
+        )
+
+    _CUDA_INITIALIZED = True
+
+
+@tuple
+class Memory[T]:
+    _ptr: CUdeviceptr
+
+    def __new__(ptr: cobj):
+        return Memory[T](CUdeviceptr(ptr.__int__()))
+
+    def _alloc(n: int, T: type):
+        if n == 0:
+            return Memory[T](0u64)
+        devp = CUdeviceptr()
+        cuda_check(cuMemAlloc(__ptr__(devp), n * _sizeof(T)))
+        return Memory[T](devp)
+
+    def _read(self, p: Ptr[T], n: int):
+        if n:
+            cuda_check(cuMemcpyDtoH(p.as_byte(), self._ptr, u64(n * _sizeof(T))))
+
+    def _write(self, p: Ptr[T], n: int):
+        if n:
+            cuda_check(cuMemcpyHtoD(self._ptr, p.as_byte(), u64(n * _sizeof(T))))
+
+    def _free(self):
+        if self._ptr:
+            cuda_check(cuMemFree(self._ptr))
+
+    @pure
+    @llvm
+    def to_ptr(p: CUdeviceptr) -> cobj:
+        %0 = inttoptr i64 %p to ptr
+        ret ptr %0
+
+    @property
+    def ptr(self) -> cobj:
+        return Memory.to_ptr(self._ptr)
+
+@llvm
+def syncthreads() -> None:
+    declare void @llvm.nvvm.barrier0()
+    call void @llvm.nvvm.barrier0()
+    ret {} {}
+
+@tuple
+class Dim3:
+    _x: u32
+    _y: u32
+    _z: u32
+
+    def __new__(x: int, y: int, z: int):
+        return Dim3(u32(x), u32(y), u32(z))
+
+    @property
+    def x(self):
+        return int(self._x)
+
+    @property
+    def y(self):
+        return int(self._y)
+
+    @property
+    def z(self):
+        return int(self._z)
+
+@tuple
+class Thread:
+    @property
+    def x(self):
+        @pure
+        @llvm
+        def get_x() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.tid.x()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.tid.x()
+            ret i32 %res
+
+        return int(get_x())
+
+    @property
+    def y(self):
+        @pure
+        @llvm
+        def get_y() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.tid.y()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.tid.y()
+            ret i32 %res
+
+        return int(get_y())
+
+    @property
+    def z(self):
+        @pure
+        @llvm
+        def get_z() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.tid.z()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.tid.z()
+            ret i32 %res
+
+        return int(get_z())
+
+@tuple
+class Block:
+    @property
+    def x(self):
+        @pure
+        @llvm
+        def get_x() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
+            ret i32 %res
+
+        return int(get_x())
+
+    @property
+    def y(self):
+        @pure
+        @llvm
+        def get_y() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.ctaid.y()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y()
+            ret i32 %res
+
+        return int(get_y())
+
+    @property
+    def z(self):
+        @pure
+        @llvm
+        def get_z() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.ctaid.z()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.ctaid.z()
+            ret i32 %res
+
+        return int(get_z())
+
+    @property
+    def dim(self):
+        @pure
+        @llvm
+        def get_x() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.ntid.x()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.ntid.x()
+            ret i32 %res
+
+        @pure
+        @llvm
+        def get_y() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.ntid.y()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.ntid.y()
+            ret i32 %res
+
+        @pure
+        @llvm
+        def get_z() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.ntid.z()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.ntid.z()
+            ret i32 %res
+
+        return Dim3(get_x(), get_y(), get_z())
+
+@tuple
+class Grid:
+    @property
+    def dim(self):
+        @pure
+        @llvm
+        def get_x() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.nctaid.x()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.nctaid.x()
+            ret i32 %res
+
+        @pure
+        @llvm
+        def get_y() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.nctaid.y()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.nctaid.y()
+            ret i32 %res
+
+        @pure
+        @llvm
+        def get_z() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.nctaid.z()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.nctaid.z()
+            ret i32 %res
+
+        return Dim3(get_x(), get_y(), get_z())
+
+@tuple
+class Warp:
+    def __len__(self):
+        @pure
+        @llvm
+        def get_warpsize() -> u32:
+            declare i32 @llvm.nvvm.read.ptx.sreg.warpsize()
+            %res = call i32 @llvm.nvvm.read.ptx.sreg.warpsize()
+            ret i32 %res
+
+        return int(get_warpsize())
+
+thread = Thread()
+block = Block()
+grid = Grid()
+warp = Warp()
+
+def _catch():
+    return (thread, block, grid, warp)
+
+_catch()
+
+@tuple
+class AllocCache:
+    v: List[Ptr[u8]]
+
+    def add(self, p: Ptr[u8]):
+        self.v.append(p)
+
+    def free(self):
+        for p in self.v:
+            Memory[u8](p)._free()
+
+
+def _tuple_from_gpu(args, gpu_args):
+    if static.len(args) > 0:
+        a = args[0]
+        g = gpu_args[0]
+        a.__from_gpu__(g)
+        _tuple_from_gpu(args[1:], gpu_args[1:])
+
+
+def nvptx_function(name: Literal[str]) -> CUfunction:
+    function = CUfunction()
+    result = CUresult()
+
+    if name.isalnum():
+        name_clean = name._ptr
+    else:
+        name_len = len(name)
+        name_clean = Ptr[u8](name_len + 1)
+        for i in range(name_len):
+            c = name[i]
+            name_clean[i] = c._ptr[0] if c.isalnum() else u8(95)  # '_'
+        name_clean[name_len] = u8(0)
+
+    for i in range(len(modules) - 1, -1, -1):
+        m = modules[i]
+        result = cuModuleGetFunction(__ptr__(function), m, name_clean)
+        if result == i32(CUDA_SUCCESS):
+            return function
+        elif result == i32(CUDA_ERROR_NOT_FOUND):
+            continue
+        else:
+            break
+
+    cuda_check(result)  # this will raise an error
+    return CUfunction()
+
+
+def canonical_dim(dim):
+    if isinstance(dim, NoneType):
+        return (1, 1, 1)
+    elif isinstance(dim, int):
+        return (dim, 1, 1)
+    elif isinstance(dim, Tuple[int,int]):
+        return (dim[0], dim[1], 1)
+    elif isinstance(dim, Tuple[int,int,int]):
+        return dim
+    elif isinstance(dim, Dim3):
+        return (dim.x, dim.y, dim.z)
+    else:
+        compile_error("bad dimension argument")
+
+
+def offsets(t):
+    @pure
+    @llvm
+    def offsetof(t: T, i: Literal[int], T: type, S: type) -> int:
+        %p = getelementptr {=T}, ptr null, i64 0, i32 {=i}
+        %s = ptrtoint ptr %p to i64
+        ret i64 %s
+
+    if static.len(t) == 0:
+        return ()
+    else:
+        T = type(t)
+        S = type(t[-1])
+        return (*offsets(t[:-1]), offsetof(t, static.len(t) - 1, T, S))
+
+
+def kernel_wrapper(*args, grid, block, fn):
+    grid = canonical_dim(grid)
+    block = canonical_dim(block)
+    cache = AllocCache([])
+    shared_mem = 0
+    gpu_args = tuple(arg.__to_gpu__(cache) for arg in args)
+    kernel_ptr = nvptx_function(static.function.realized(fn, *gpu_args).__llvm_name__)
+    p = __ptr__(gpu_args).as_byte()
+    arg_ptrs = tuple((p + offset) for offset in offsets(gpu_args))
+    cuda_check(cuLaunchKernel(kernel_ptr,
+                                u32(grid[0]), u32(grid[1]), u32(grid[2]),
+                                u32(block[0]), u32(block[1]), u32(block[2]),
+                                u32(shared_mem), cobj(),
+                                __ptr__(arg_ptrs).as_byte(), cobj()))
+    _tuple_from_gpu(args, gpu_args)
+    cache.free()
+
+
+def kernel(fn):
+    return kernel_wrapper(fn=fn, ...)
+
+
+def _ptr_to_gpu(p: Ptr[T], n: int, cache: AllocCache, index_filter = lambda i: True, T: type):
+    from internal.gc import atomic
+
+    if not atomic(T):
+        tmp = Ptr[T](n)
+        for i in range(n):
+            if index_filter(i):
+                tmp[i] = p[i].__to_gpu__(cache)
+        p = tmp
+
+    mem = Memory._alloc(n, T)
+    cache.add(mem.ptr)
+    mem._write(p, n)
+    return Ptr[T](mem.ptr)
+
+def _ptr_from_gpu(p: Ptr[T], q: Ptr[T], n: int, index_filter = lambda i: True, T: type):
+    from internal.gc import atomic
+
+    mem = Memory[T](q.as_byte())
+    if not atomic(T):
+        tmp = Ptr[T](n)
+        mem._read(tmp, n)
+        for i in range(n):
+            if index_filter(i):
+                p[i] = T.__from_gpu_new__(tmp[i])
+    else:
+        mem._read(p, n)
+
+@pure
+@llvm
+def _ptr_to_type(p: cobj, T: type) -> T:
+    ret ptr %p
+
+
+@pure
+@llvm
+def _type_to_ptr(p: cobj, T: type) -> T:
+    ret ptr %p
+
+
+def _object_to_gpu(obj: T, cache: AllocCache, T: type):
+    s = tuple(obj)
+    gpu_mem = Memory._alloc(1, type(s))
+    cache.add(gpu_mem.ptr)
+    gpu_mem._write(__ptr__(s), 1)
+    return _ptr_to_type(gpu_mem.ptr, T)
+
+def _object_from_gpu(obj):
+    T = type(obj)
+    S = type(tuple(obj))
+
+    tmp = T.__new__()
+    p = Ptr[S](tmp.__raw__())
+    q = Ptr[S](obj.__raw__())
+
+    mem = Memory[S](q.as_byte())
+    mem._read(p, 1)
+    return tmp
+
+@tuple
+class Pointer[T]:
+    _ptr: Ptr[T]
+    _len: int
+
+    def __to_gpu__(self, cache: AllocCache):
+        return _ptr_to_gpu(self._ptr, self._len, cache)
+
+    def __from_gpu__(self, other: Ptr[T]):
+        _ptr_from_gpu(self._ptr, other, self._len)
+
+    def __from_gpu_new__(other: Ptr[T]):
+        return other
+
+def raw(v):
+    from numpy import ndarray
+    if isinstance(v, List):
+        return Pointer(v._ptr, len(v))
+    elif isinstance(v, ndarray):
+        if not v._is_contig:
+            raise ValueError("gpu.raw() array argument must be contiguous")
+        return Pointer(v.data, v.size)
+    else:
+        compile_error("gpu.raw() argument must be an ndarray or a list")
+
+@extend
+class Ptr:
+    def __to_gpu__(self, cache: AllocCache):
+        return self
+
+    def __from_gpu__(self, other: Ptr[T]):
+        pass
+
+    def __from_gpu_new__(other: Ptr[T]):
+        return other
+
+@extend
+class NoneType:
+    def __to_gpu__(self, cache: AllocCache):
+        return self
+
+    def __from_gpu__(self, other: NoneType):
+        pass
+
+    def __from_gpu_new__(other: NoneType):
+        return other
+
+@extend
+class float:
+    def __to_gpu__(self, cache: AllocCache):
+        return self
+
+    def __from_gpu__(self, other: float):
+        pass
+
+    def __from_gpu_new__(other: float):
+        return other
+
+@extend
+class float32:
+    def __to_gpu__(self, cache: AllocCache):
+        return self
+
+    def __from_gpu__(self, other: float32):
+        pass
+
+    def __from_gpu_new__(other: float32):
+        return other
+
+@extend
+class float16:
+    def __to_gpu__(self, cache: AllocCache):
+        return self
+
+    def __from_gpu__(self, other: float16):
+        pass
+
+    def __from_gpu_new__(other: float16):
+        return other
+
+@extend
+class bfloat16:
+    def __to_gpu__(self, cache: AllocCache):
+        return self
+
+    def __from_gpu__(self, other: bfloat16):
+        pass
+
+    def __from_gpu_new__(other: bfloat16):
+        return other
+
+@extend
+class bool:
+    def __to_gpu__(self, cache: AllocCache):
+        return self
+
+    def __from_gpu__(self, other: bool):
+        pass
+
+    def __from_gpu_new__(other: bool):
+        return other
+
+@extend
+class Int:
+    def __to_gpu__(self, cache: AllocCache):
+        return self
+
+    def __from_gpu__(self, other: Int[N]):
+        pass
+
+    def __from_gpu_new__(other: Int[N]):
+        return other
+
+@extend
+class UInt:
+    def __to_gpu__(self, cache: AllocCache):
+        return self
+
+    def __from_gpu__(self, other: UInt[N]):
+        pass
+
+    def __from_gpu_new__(other: UInt[N]):
+        return other
+
+@extend
+class str:
+    def __to_gpu__(self, cache: AllocCache):
+        n = len(self) * self._width()
+        return str(_ptr_to_gpu(self._ptr, n, cache), self._meta)
+
+    def __from_gpu__(self, other: str):
+        pass
+
+    def __from_gpu_new__(other: str):
+        n = len(other) * other._width()
+        p = Ptr[u8](n)
+        _ptr_from_gpu(p, other._ptr, n)
+        return str(p, other._meta)
+
+@extend
+class bytes:
+    def __to_gpu__(self, cache: AllocCache):
+        n = self._len
+        return bytes(_ptr_to_gpu(self._ptr, n, cache), n)
+
+    def __from_gpu__(self, other: bytes):
+        pass
+
+    def __from_gpu_new__(other: bytes):
+        p = Ptr[u8](other._len)
+        _ptr_from_gpu(p, other._ptr, other._len)
+        return bytes(p, other._len)
+
+@extend
+class List:
+    @inline
+    def __to_gpu__(self, cache: AllocCache):
+        mem = List[T].__new__()
+        n = self._len
+        gpu_ptr = _ptr_to_gpu(self._ptr, n, cache)
+        mem._ptr = gpu_ptr
+        mem._len = n
+        mem._cap = n
+        return _object_to_gpu(mem, cache)
+
+    @inline
+    def __from_gpu__(self, other: List[T]):
+        mem = _object_from_gpu(other)
+        my_cap = self._cap
+        other_cap = mem._cap
+
+        if other_cap > my_cap:
+            self._resize(other_cap)
+
+        _ptr_from_gpu(self._ptr, mem._ptr, mem._len)
+        self._len = mem._len
+
+    @inline
+    def __from_gpu_new__(other: List[T]):
+        mem = _object_from_gpu(other)
+        arr = Ptr[T](mem._len)
+        _ptr_from_gpu(arr, mem._ptr, mem._len)
+        mem._ptr = arr
+        mem._cap = mem._len
+        return mem
+
+@extend
+class DynamicTuple:
+    @inline
+    def __to_gpu__(self, cache: AllocCache):
+        n = self._len
+        gpu_ptr = _ptr_to_gpu(self._ptr, n, cache)
+        return DynamicTuple(gpu_ptr, n)
+
+    @inline
+    def __from_gpu__(self, other: DynamicTuple[T]):
+        _ptr_from_gpu(self._ptr, other._ptr, self._len)
+
+    @inline
+    def __from_gpu_new__(other: DynamicTuple[T]):
+        n = other._len
+        p = Ptr[T](n)
+        _ptr_from_gpu(p, other._ptr, n)
+        return DynamicTuple(p, n)
+
+@extend
+class Dict:
+    def __to_gpu__(self, cache: AllocCache):
+        mem = Dict[K,V].__new__()
+
+        if __dict_unordered__:
+            from internal.khash import __ac_fsize
+            n = self._n_buckets
+            f = __ac_fsize(n) if n else 0
+
+            mem._n_buckets = n
+            mem._size = self._size
+            mem._n_occupied = self._n_occupied
+            mem._upper_bound = self._upper_bound
+            mem._flags = _ptr_to_gpu(self._flags, f, cache)
+            mem._keys = _ptr_to_gpu(self._keys, n, cache, lambda i: self._kh_exist(i))
+            mem._vals = _ptr_to_gpu(self._vals, n, cache, lambda i: self._kh_exist(i))
+        else:
+            mem._used = self._used
+            mem._usable = self._usable
+            mem._nentries = self._nentries
+            mem._log2_size = self._log2_size
+            mem._log2_index_bytes = self._log2_index_bytes
+            mem._indices = _ptr_to_gpu(self._indices,
+                                       mem._size * mem._index_bytes, cache)
+            mem._entries = _ptr_to_gpu(self._entries, mem._capacity, cache, self._is_active)
+            mem._active = _ptr_to_gpu(self._active, mem._active_bytes, cache)
+
+        return _object_to_gpu(mem, cache)
+
+    def __from_gpu__(self, other: Dict[K,V]):
+        mem = _object_from_gpu(other)
+
+        if __dict_unordered__:
+            from internal.khash import __ac_fsize
+            my_n = self._n_buckets
+            n = mem._n_buckets
+            f = __ac_fsize(n) if n else 0
+
+            if my_n != n:
+                self._flags = Ptr[u32](f)
+                self._keys = Ptr[K](n)
+                self._vals = Ptr[V](n)
+
+            _ptr_from_gpu(self._flags, mem._flags, f)
+            _ptr_from_gpu(self._keys, mem._keys, n, lambda i: self._kh_exist(i))
+            _ptr_from_gpu(self._vals, mem._vals, n, lambda i: self._kh_exist(i))
+
+            self._n_buckets = n
+            self._size = mem._size
+            self._n_occupied = mem._n_occupied
+            self._upper_bound = mem._upper_bound
+        else:
+            my_n = self._capacity
+            n = mem._capacity
+            size = mem._size
+            indices_size = size * mem._index_bytes
+            active_bytes = mem._active_bytes
+            capacity = mem._capacity
+
+            if my_n != n:
+                self._indices = cobj(indices_size)
+                self._active = Ptr[u8](active_bytes)
+                self._entries = Ptr[DictEntry[K, V]](capacity)
+
+            self._used = mem._used
+            self._usable = mem._usable
+            self._nentries = mem._nentries
+            self._log2_size = mem._log2_size
+            self._log2_index_bytes = mem._log2_index_bytes
+
+            _ptr_from_gpu(self._indices, mem._indices, indices_size)
+            _ptr_from_gpu(self._active, mem._active, active_bytes)
+            _ptr_from_gpu(self._entries, mem._entries, capacity, self._is_active)
+
+    def __from_gpu_new__(other: Dict[K,V]):
+        mem = _object_from_gpu(other)
+
+        if __dict_unordered__:
+            from internal.khash import __ac_fsize
+
+            n = mem._n_buckets
+            f = __ac_fsize(n) if n else 0
+            flags = Ptr[u32](f)
+            keys = Ptr[K](n)
+            vals = Ptr[V](n)
+
+            _ptr_from_gpu(flags, mem._flags, f)
+            mem._flags = flags
+            _ptr_from_gpu(keys, mem._keys, n, lambda i: mem._kh_exist(i))
+            mem._keys = keys
+            _ptr_from_gpu(vals, mem._vals, n, lambda i: mem._kh_exist(i))
+            mem._vals = vals
+        else:
+            size = mem._size
+            indices_size = size * mem._index_bytes
+            active_bytes = mem._active_bytes
+            capacity = mem._capacity
+
+            indices = cobj(indices_size)
+            active = Ptr[u8](active_bytes)
+            entries = Ptr[DictEntry[K, V]](capacity)
+
+            _ptr_from_gpu(indices, mem._indices, indices_size)
+            mem._indices = indices
+            _ptr_from_gpu(active, mem._active, active_bytes)
+            mem._active = active
+            _ptr_from_gpu(entries, mem._entries, capacity, mem._is_active)
+            mem._entries = entries
+
+        return mem
+
+@extend
+class Set:
+    def __to_gpu__(self, cache: AllocCache):
+        from internal.khash import __ac_fsize
+        mem = Set[K].__new__()
+        n = self._n_buckets
+        f = __ac_fsize(n) if n else 0
+
+        mem._n_buckets = n
+        mem._size = self._size
+        mem._n_occupied = self._n_occupied
+        mem._upper_bound = self._upper_bound
+        mem._flags = _ptr_to_gpu(self._flags, f, cache)
+        mem._keys = _ptr_to_gpu(self._keys, n, cache, lambda i: self._kh_exist(i))
+
+        return _object_to_gpu(mem, cache)
+
+    def __from_gpu__(self, other: Set[K]):
+        from internal.khash import __ac_fsize
+        mem = _object_from_gpu(other)
+
+        my_n = self._n_buckets
+        n = mem._n_buckets
+        f = __ac_fsize(n) if n else 0
+
+        if my_n != n:
+            self._flags = Ptr[u32](f)
+            self._keys = Ptr[K](n)
+
+        _ptr_from_gpu(self._flags, mem._flags, f)
+        _ptr_from_gpu(self._keys, mem._keys, n, lambda i: self._kh_exist(i))
+
+        self._n_buckets = n
+        self._size = mem._size
+        self._n_occupied = mem._n_occupied
+        self._upper_bound = mem._upper_bound
+
+    def __from_gpu_new__(other: Set[K]):
+        from internal.khash import __ac_fsize
+        mem = _object_from_gpu(other)
+
+        n = mem._n_buckets
+        f = __ac_fsize(n) if n else 0
+        flags = Ptr[u32](f)
+        keys = Ptr[K](n)
+
+        _ptr_from_gpu(flags, mem._flags, f)
+        mem._flags = flags
+        _ptr_from_gpu(keys, mem._keys, n, lambda i: mem._kh_exist(i))
+        mem._keys = keys
+        return mem
+
+@extend
+class Optional:
+    def __to_gpu__(self, cache: AllocCache):
+        if self is None:
+            return self
+        else:
+            return Optional[T](self.__val__().__to_gpu__(cache))
+
+    def __from_gpu__(self, other: Optional[T]):
+        if self is not None and other is not None:
+            self.__val__().__from_gpu__(other.__val__())
+
+    def __from_gpu_new__(other: Optional[T]):
+        if other is None:
+            return Optional[T]()
+        else:
+            return Optional[T](T.__from_gpu_new__(other.__val__()))
+
+@extend
+class type:
+    def _to_gpu(obj, cache: AllocCache):
+        if isinstance(obj, Tuple):
+            return tuple(a.__to_gpu__(cache) for a in obj)
+        elif isinstance(obj, ByVal):
+            T = type(obj)
+            return T(*tuple(a.__to_gpu__(cache) for a in tuple(obj)))
+        else:
+            T = type(obj)
+            S = type(tuple(obj))
+            mem = T.__new__()
+            Ptr[S](mem.__raw__())[0] = tuple(obj).__to_gpu__(cache)
+            return _object_to_gpu(mem, cache)
+
+    def _from_gpu(obj, other):
+        if isinstance(obj, Tuple):
+            _tuple_from_gpu(obj, other)
+        elif isinstance(obj, ByVal):
+            _tuple_from_gpu(tuple(obj), tuple(other))
+        else:
+            S = type(tuple(obj))
+            Ptr[S](obj.__raw__())[0] = S.__from_gpu_new__(tuple(_object_from_gpu(other)))
+
+    def _from_gpu_new(other):
+        if isinstance(other, Tuple):
+            return tuple(type(a).__from_gpu_new__(a) for a in other)
+        elif isinstance(other, ByVal):
+            T = type(other)
+            return T(*tuple(type(a).__from_gpu_new__(a) for a in tuple(other)))
+        else:
+            S = type(tuple(other))
+            mem = _object_from_gpu(other)
+            Ptr[S](mem.__raw__())[0] = S.__from_gpu_new__(tuple(mem))
+            return mem
+
+# @par(gpu=True) support
+
+@pure
+@llvm
+def _gpu_thread_x() -> u32:
+    declare i32 @llvm.nvvm.read.ptx.sreg.tid.x()
+    %res = call i32 @llvm.nvvm.read.ptx.sreg.tid.x()
+    ret i32 %res
+
+@pure
+@llvm
+def _gpu_block_x() -> u32:
+    declare i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
+    %res = call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
+    ret i32 %res
+
+@pure
+@llvm
+def _gpu_block_dim_x() -> u32:
+    declare i32 @llvm.nvvm.read.ptx.sreg.ntid.x()
+    %res = call i32 @llvm.nvvm.read.ptx.sreg.ntid.x()
+    ret i32 %res
+
+def _gpu_loop_outline_template(start, stop, args, instance: Literal[int]):
+    @nonpure
+    def _loop_step():
+        return 1
+
+    @kernel
+    def _kernel_stub(start: int, count: int, args):
+        @nonpure
+        def _gpu_loop_body_stub(idx, args):
+            pass
+
+        @nonpure
+        def _dummy_use(n):
+            pass
+
+        _dummy_use(instance)
+        idx = (int(_gpu_block_dim_x()) * int(_gpu_block_x())) + int(_gpu_thread_x())
+        step = _loop_step()
+        if idx < count:
+            _gpu_loop_body_stub(start + (idx * step), args)
+
+    step = _loop_step()
+    loop = range(start, stop, step)
+
+    MAX_BLOCK = 1024
+    MAX_GRID = 2147483647
+    G = MAX_BLOCK * MAX_GRID
+    n = len(loop)
+
+    if n == 0:
+        return
+    elif n > G:
+        raise ValueError(f'loop exceeds GPU iteration limit of {G}')
+
+    block = n
+    grid = 1
+    if n > MAX_BLOCK:
+        block = MAX_BLOCK
+        grid = n.cdiv(MAX_BLOCK) + (0 if n.cmod(MAX_BLOCK) == 0 else 1)
+
+    _kernel_stub(start, n, args, grid=grid, block=block)
+

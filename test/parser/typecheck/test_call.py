@@ -1,0 +1,2180 @@
+#%% explicit_none_iterator_result
+def forward(*iterables, key=None):
+    return iter(iterables[0])
+
+left = List[int]()
+right = List[int]()
+merged = forward(left, right, key=None)
+print(list(merged))  #: []
+absent = None
+merged = forward(left, right, key=absent)
+print(list(merged))  #: []
+assert list(forward(List[int](), key=None)) == List[int]()
+assert list(forward([1, 2], key=None)) == [1, 2]
+assert list(forward(["a", "b"], key=None)) == ["a", "b"]
+assert list(forward([1, 2])) == [1, 2]
+print("explicit None inference ok")  #: explicit None inference ok
+
+#%% stdlib_signature_keywords
+import math
+import json
+import random
+assert math.isclose(a=1.0, b=1.0, rel_tol=1e-8, abs_tol=0.0)
+assert math.prod([2, 3], start=4) == 24
+assert sum([1, 2], start=3) == 6
+assert sorted([3, 1, 2], reverse=True) == [3, 2, 1]
+values = [3, 1, 2]
+values.sort(key=lambda value: -value, reverse=True)
+assert values == [1, 2, 3]
+assert int("10", base=2) == 2
+assert "aaa".replace("a", "b", count=1) == "baa"
+assert "a,b,c".split(sep=",", maxsplit=1) == ["a", "b,c"]
+assert b"ab".hex(sep=":", bytes_per_sep=1) == "61:62"
+assert json.loads('"a\nb"', strict=False).as_str() == "a\nb"
+assert json.dumps({"value": 1}, separators=(",", ":")) == '{"value":1}'
+assert json.JSONDecoder(strict=False).decode('"a\nb"').as_str() == "a\nb"
+assert random.choices([7], cum_weights=[1], k=3) == [7, 7, 7]
+assert {"value": 1}.pop("missing", 2) == 2
+print("stdlib signatures ok")  #: stdlib signatures ok
+
+#%% stdlib_signature_len_keyword
+len(x=[1])
+#! 'x' is an invalid keyword argument for len
+
+#%% stdlib_signature_math_keyword
+import math
+math.sqrt(x=4.0)
+#! 'x' is an invalid keyword argument for sqrt
+
+#%% stdlib_signature_math_tolerance
+import math
+math.isclose(1.0, 1.0, 1e-8)
+#! isclose() takes 2 arguments (3 given)
+
+#%% stdlib_signature_prod_start
+import math
+math.prod([2, 3], 4)
+#! prod() takes 1 arguments (2 given)
+
+#%% stdlib_signature_operator_default
+import operator
+operator.length_hint([1], default=0)
+#! 'default' is an invalid keyword argument for length_hint
+
+#%% stdlib_signature_sorted_options
+sorted([2, 1], None)
+#! no function 'sorted'
+
+#%% stdlib_signature_dict_pop
+{"value": 1}.pop("missing", missing=2)
+#! no function 'OrderedDict.pop'
+
+#%% stdlib_signature_range_keyword
+range(stop=3)
+#! no function 'range.__new__'
+
+#%% stdlib_signature_json_loads
+import json
+json.loads("null", False)
+#! loads() takes 1 arguments (2 given)
+
+#%% stdlib_signature_json_dumps
+import json
+json.dumps([1], False)
+#! dumps() takes 1 arguments (2 given)
+
+#%% stdlib_signature_random_choices
+import random
+random.choices([1], None, None, 2)
+#! choices() takes 2 arguments (4 given)
+
+#%% stdlib_signature_module_keywords
+import datetime
+import itertools
+import os
+import pathlib
+import re
+import statistics
+assert list(itertools.accumulate([1, 2], initial=3)) == [3, 4, 6]
+assert list(itertools.repeat(object=7, times=2)) == [7, 7]
+assert len(statistics.quantiles([1, 2, 3, 4], n=4, method="inclusive")) == 3
+assert statistics.correlation([1, 2, 3], [2, 4, 6], method="linear") == 1.0
+assert datetime.date.fromisocalendar(year=2020, week=1, day=1) == datetime.date(2019, 12, 30)
+assert datetime.date(2020, 1, 1).replace(year=2021) == datetime.date(2021, 1, 1)
+assert datetime.time(hour=1).isoformat(timespec="minutes") == "01:00"
+assert re.compile("a").search(string="ba", pos=1).start() == 1
+assert pathlib.Path("a/b").relative_to("a", walk_up=True) == pathlib.Path("b")
+assert pathlib.Path("sample.py").match("*.PY", case_sensitive=False)
+assert os.path.realpath(".", strict=True) == os.path.realpath(os.getcwd(), strict=True)
+assert "{value}".format_map({"value": 7}) == "7"
+print("module signatures ok")  #: module signatures ok
+
+#%% stdlib_signature_statistics_options
+import statistics
+statistics.quantiles([1, 2, 3], 2)
+#! quantiles() takes 1 arguments (2 given)
+
+#%% stdlib_signature_itertools_initial
+import itertools
+itertools.accumulate([1, 2], lambda first, second: first + second, 3)
+#! no function 'accumulate'
+
+#%% stdlib_signature_os_stat
+import os
+os.stat(".", False)
+#! no function 'stat'
+
+#%% stdlib_signature_realpath
+import os
+os.path.realpath(".", True)
+#! realpath() takes 1 arguments (2 given)
+
+#%% stdlib_signature_asyncio_options
+import asyncio
+async def value():
+    return 1
+asyncio.run(value(), False)
+#! run() takes 1 arguments (2 given)
+
+#%% stdlib_signature_integer_constructor
+int(what=1)
+#! no function 'Int.__new__'
+
+#%% stdlib_signature_string_format_map
+"{value}".format_map(mapping={"value": 7})
+#! 'mapping' is an invalid keyword argument for format_map
+
+#%% stdlib_signature_exception_message
+ValueError(message="invalid")
+#! no function 'BaseException.__init__'
+#! during the realization of _dispatch
+#! during the realization of __init__
+#! during the realization of _dispatch
+#! during the realization of __init__
+
+#%% stdlib_signature_file_write
+with open("build/signature-output.txt", "w") as output:
+    output.write(s="value")
+#! 's' is an invalid keyword argument for write
+
+#%% stdlib_signature_operator_callable
+import operator
+operator.itemgetter(0)(o=[1, 2])
+#! 'o' is an invalid keyword argument
+
+#%% parameter_separators,barebones
+def mixed(first: int, /, second: int = 2, *, third: int, fourth: int = 4):
+    return first, second, third, fourth
+assert mixed(1, third=3) == (1, 2, 3, 4)
+assert mixed(1, 20, fourth=40, third=30) == (1, 20, 30, 40)
+assert mixed(1, second=20, third=30) == (1, 20, 30, 4)
+def unpack(**kwargs):
+    return mixed(*(1, 20), **kwargs)
+assert unpack(third=30, fourth=40) == (1, 20, 30, 40)
+
+def shadow(name, /, **kwargs):
+    return name, kwargs.name
+assert shadow(1, name=2) == (1, 2)
+def defaults(first=1, /, second=2, *, third=3, fourth):
+    return first, second, third, fourth
+assert defaults(fourth=4) == (1, 2, 3, 4)
+def variadic(first=1, /, *args, optional=2, required, **kwargs):
+    return first, args, optional, required, kwargs.extra
+assert variadic(10, 20, 30, required=40, extra=50) == (10, (20, 30), 2, 40, 50)
+
+f = lambda first, /, second=2, *, third: first + second + third
+assert f(1, third=3) == 6
+partial = mixed(1, ...)
+assert partial(third=3) == (1, 2, 3, 4)
+def closure(offset):
+    def inner(first, /, *, second):
+        return offset + first + second
+    return inner
+assert closure(10)(1, second=2) == 13
+
+class Example:
+    def method(self, /, first, *, second):
+        return first + second
+bound = Example().method
+assert bound(1, second=2) == 3
+
+def choose(first: int, /):
+    return 'positional'
+@overload
+def choose(*, first: int):
+    return 'keyword'
+assert choose(1) == 'positional'
+assert choose(first=1) == 'keyword'
+def generic[T](first: T, /, *, second: T):
+    return first + second
+assert generic(1, second=2) == 3
+print('parameter separators ok')  #: parameter separators ok
+
+#%% parameter_virtual_separators,barebones
+class Base:
+    def compute(self, /, value: int, *, offset: int = 1) -> int:
+        return value + offset
+class Derived(Base):
+    def compute(self, /, value: int, *, offset: int = 1) -> int:
+        return value + offset + 10
+base: Base = Derived()
+assert base.compute(2, offset=3) == 15
+assert base.compute(2) == 13
+bound = base.compute
+assert bound(2, offset=3) == 15
+
+# Force the adapter path with a covariant result.
+class Result:
+    value: int
+class DetailedResult(Result):
+    extra: int
+class Factory:
+    def create(self, /, *, value: int) -> Result:
+        return Result(value)
+class DetailedFactory(Factory):
+    def create(self, /, *, value) -> DetailedResult:
+        return DetailedResult(value=value, extra=1)
+factory: Factory = DetailedFactory()
+assert factory.create(value=42).value == 42
+assert isinstance(factory.create(value=42), DetailedResult)
+print('virtual parameter separators ok')  #: virtual parameter separators ok
+
+#%% parameter_positional_only_error,barebones
+def positional(value, /):
+    return value
+positional(value=1)
+#! 'value' is an invalid keyword argument for positional
+
+#%% parameter_keyword_only_error,barebones
+def keyword(*, value):
+    return value
+keyword(1)
+#! keyword() takes 0 arguments (1 given)
+
+#%% parameter_keyword_missing_error,barebones
+def keyword(*, value):
+    return value
+keyword()
+#! keyword() missing 1 required keyword-only argument: 'value'
+
+#%% parameter_keyword_after_kwargs_error,barebones
+def keyword(*, value, **kwargs):
+    return value
+keyword(1)
+#! keyword() takes 0 arguments (1 given)
+
+#%% parameter_positional_only_missing_error,barebones
+def positional(value, /, **kwargs):
+    return value
+positional(value=1)
+#! positional() missing 1 required positional argument: 'value'
+
+#%% parameter_slash_first_error,barebones
+def bad(/, value): pass
+#! '/' must follow positional parameters and precede '*'
+
+#%% parameter_slash_twice_error,barebones
+def bad(first, /, second, /): pass
+#! '/' must follow positional parameters and precede '*'
+
+#%% parameter_slash_after_star_error,barebones
+def bad(*args, /): pass
+#! '/' must follow positional parameters and precede '*'
+
+#%% parameter_bare_star_error,barebones
+def bad(value, *): pass
+#! named arguments must follow bare '*'
+
+#%% parameter_bare_star_kwargs_error,barebones
+def bad(*, **kwargs): pass
+#! named arguments must follow bare '*'
+
+#%% parameter_star_twice_error,barebones
+def bad(*, first, *, second): pass
+#! '*' may appear only once
+
+#%% parameter_star_vararg_error,barebones
+def bad(*, first, *args): pass
+#! '*' may appear only once
+
+#%% parameter_generic_bare_star_error,barebones
+def bad[T](*): pass
+#! named arguments must follow bare '*'
+
+#%% parameter_lambda_bare_star_error,barebones
+bad = lambda *: 1
+#! named arguments must follow bare '*'
+
+#%% call_ptr,barebones
+v = 5
+p = __ptr__(v)
+print p[0] #: 5
+
+def test_tuple():
+    @tuple
+    class Foo:
+        x: int
+
+    f = Foo(6)
+    pf = __ptr__(f.x)
+    print pf[0]  #: 6
+
+    def foo(x):
+        return Foo(x)
+
+    ff = foo(16)
+    pff = __ptr__(ff.x)
+    print pff[0]  #: 16
+test_tuple()
+
+def test_class():
+    class Foo:
+        x: int
+
+    f = Foo(6)
+    pf = __ptr__(f.x)
+    print pf[0]  #: 6
+    f.x = 7
+    print pf[0]  #: 7
+
+    def foo(x):
+        return Foo(x)
+    ff = foo(16)
+    pff = __ptr__(ff.x)
+    print pff[0]  #: 16
+    ff.x = 17
+    print pff[0]  #: 17
+test_class()
+
+
+@tuple
+class A:
+    n: int
+
+@tuple
+class B:
+    a: A
+
+@tuple
+class C:
+    b: B
+
+x = C(B(A(1)))
+p = __ptr__(x.b.a.n)
+p[0] = 55
+print(x)  #: (b: (a: (n: 55)))
+
+
+#%% call_ptr_error,barebones
+__ptr__(1) #! __ptr__() only takes identifiers or fields rooted in identifiers as arguments
+
+#%% call_ptr_error_3,barebones
+v = 1
+__ptr__(v, 1) #! __ptr__() takes 1 arguments (2 given)
+
+#%% call_ptr_reference_fields,barebones
+@tuple
+class A:
+    n: int
+
+class B:
+    a: A
+
+@tuple
+class C:
+    b: B
+
+x = C(B(A(1)))
+pointer = __ptr__(x.b.a.n)
+pointer[0] = 55
+print(x.b.a.n)  #: 55
+
+#%% call_ptr_error_5,barebones
+@tuple
+class A:
+    n: int
+
+class B:
+    a: A
+
+@tuple
+class C:
+    b: B
+
+x = C(B(A(1)))
+print(__ptr__(A(1).n))   #! __ptr__() only takes identifiers or fields rooted in identifiers as arguments
+
+
+#%% call_array,barebones
+a = __array__[int](2)
+a[0] = a[1] = 5
+print a[0], a[1] #: 5 5
+
+#%% call_array_error,barebones
+a = __array__[int](2, 3) #! __new__() takes 1 arguments (2 given)
+
+#%% call_err_1,barebones
+seq_print(1, name="56", 2) #! positional argument follows keyword argument
+
+#%% call_err_2,barebones
+x = (1, 2)
+seq_print(1, name=*x) #! syntax error, unexpected '*'
+
+#%% call_err_3,barebones
+x = (1, 2)
+seq_print(1, name=**x) #! syntax error, unexpected '*'
+
+#%% call_collections
+from collections import namedtuple as nt
+
+ee = nt('Foo', ('x', 'y'))
+f = ee(1, 2)
+print f #: (x: 1, y: 2)
+
+ee = nt('FooX', (('x', str), 'y'))
+fd = ee('s', 2)
+print fd #: (x: 's', y: 2)
+
+#%% call_partial_functools
+from functools import partial
+def foo(x, y, z):
+    print x,y,z
+f1 = partial(foo, 1, z=3)
+f1(2) #: 1 2 3
+f2 = partial(foo, y=2)
+f2(1, 2) #: 1 2 2
+
+def show_keywords(**kwargs):
+    print kwargs
+
+stored = show_keywords(z=1, a=2, ...)
+stored() #: (z: 1, a: 2)
+stored(z='updated', b=3) #: (z: 'updated', a: 2, b: 3)
+nested = stored(y=3, z=4, ...)
+nested(a=5, x=6) #: (z: 4, a: 5, y: 3, x: 6)
+wrapped = partial(show_keywords, z=1, a=2)
+wrapped(z=3, y=4) #: (z: 3, a: 2, y: 4)
+
+def traced_keyword(name, value):
+    print name
+    return value
+
+stored(b=traced_keyword('b', 3), z=traced_keyword('z', 4))
+#: b
+#: z
+#: (z: 4, a: 2, b: 3)
+
+#%% call,barebones
+def foo(a, b, c='hi'):
+    print 'foo', a, b, c
+    return 1
+class Foo:
+    def __init__(self):
+        print 'Foo.__init__'
+    def foo(self, a):
+        print 'Foo.foo', a
+        return 's'
+    def bar[T](self, a: T):
+        print 'Foo.bar', a
+        return a.__class__.__name__
+    def __call__(self, y):
+        print 'Foo.__call__'
+        return foo(2, y)
+
+foo(1, 2.2, True) #: foo 1 2.2 True
+foo(1, 2.2) #: foo 1 2.2 hi
+foo(b=2.2, a=1) #: foo 1 2.2 hi
+foo(b=2.2, c=12u, a=1) #: foo 1 2.2 12
+
+f = Foo() #: Foo.__init__
+print f.foo(a=5) #: Foo.foo 5
+#: s
+print f.bar(a=1, T=int) #: Foo.bar 1
+#: int
+print Foo.bar(Foo(), 1.1, T=float) #: Foo.__init__
+#: Foo.bar 1.1
+#: float
+print Foo.bar(Foo(), 's') #: Foo.__init__
+#: Foo.bar s
+#: str
+print f('hahaha') #: Foo.__call__
+#: foo 2 hahaha hi
+#: 1
+
+@tuple
+class Moo:
+    moo: int
+    def __new__(i: int) -> Moo:
+        print 'Moo.__new__'
+        return superf(i)
+print Moo(1) #: Moo.__new__
+#: (moo: 1)
+
+#%% call_err_6,barebones
+seq_print_full(1, name="56", name=2) #! keyword argument repeated: name
+
+#%% call_partial,barebones
+def foo(i, j, k):
+    return i + j + k
+print foo(1.1, 2.2, 3.3)  #: 6.6
+p = foo(6, ...)
+print p.__class__.__name__ #: foo(int,...,...)
+print p(2, 1)  #: 9
+print p(k=3, j=6) #: 15
+q = p(k=1, ...)
+print q(3)  #: 10
+qq = q(2, ...)
+print qq()  #: 9
+#
+add_two = foo(3, k=-1, ...)
+print add_two(42)  #: 44
+print 3 |> foo(1, 2)  #: 6
+print 42 |> add_two  #: 44
+#
+def moo(a, b, c=3):
+    print a, b, c
+m = moo(b=2, ...)
+print m.__class__.__name__ #: moo(...,int,...)
+m('s', 1.1) #: s 2 1.1
+# #
+n = m(c=2.2, ...)
+print n.__class__.__name__ #: moo(...,int,float)
+n('x') #: x 2 2.2
+print n('y').__class__.__name__ #: NoneType
+
+def ff(a, b, c):
+    return a, b, c
+print ff(1.1, 2, True).__class__.__name__ #: Tuple[float,int,bool]
+print ff(1.1, ...)(2, True).__class__.__name__ #: Tuple[float,int,bool]
+y = ff(1.1, ...)(c=True, ...)
+print y.__class__.__name__ #: ff(float,...,bool)
+print ff(1.1, ...)(2, ...)(True).__class__.__name__ #: Tuple[float,int,bool]
+print y('hei').__class__.__name__ #: Tuple[float,str,bool]
+z = ff(1.1, ...)(c='s', ...)
+print z.__class__.__name__ #: ff(float,...,str)
+
+def fx(*args, **kw):
+    print(args, kw)
+f1 = fx(1, x=1, ...)
+f2 = f1(2, y=2, ...)
+f3 = f2(3, z=3, ...)
+f3()
+#: (1, 2, 3) (x: 1, y: 2, z: 3)
+
+#%% call_arguments_partial,barebones
+def doo[R, T](a: CallableTrait[[T], R], b: Generator[T], c: Optional[T], d: T):
+    print R.__name__, T.__name__
+    print a.__class__.__name__[:8], b.__class__.__name__
+    for i in b:
+        print a(i)
+    print c, c.__class__.__name__
+    print d, d.__class__.__name__
+
+l = [1, 2, 3]
+doo(b=l, d=Optional(5), c=l[0], a=lambda x: x+1)
+#: int int
+#: %_lambda Generator[int]
+#: 2
+#: 3
+#: 4
+#: 1 Optional[int]
+#: 5 int
+
+l = [1]
+def adder(a, b): return a+b
+doo(b=l, d=Optional(5), c=l[0], a=adder(b=4, ...))
+#: int int
+#: adder(.. Generator[int]
+#: 5
+#: 1 Optional[int]
+#: 5 int
+
+#%% call_partial_star,barebones
+def foo(x, *args, **kwargs):
+    print x, args, kwargs
+p = foo(...)
+p(1, z=5) #: 1 () (z: 5)
+p('s', zh=65) #: s () (zh: 65)
+q = p(zh=43, ...)
+q(1) #: 1 () (zh: 43)
+r = q(5, 38, ...)
+r() #: 5 (38,) (zh: 43)
+r(1, a=1) #: 5 (38, 1) (zh: 43, a: 1)
+
+# kwarg overwrite!
+q(1, zh=99)  #: 1 () (zh: 99)
+r(zh=55)  #: 5 (38,) (zh: 55)
+
+#%% call_args_kwargs_type,barebones
+def foo(*args: float, **kwargs: int):
+    print(args, kwargs, args.__class__.__name__)
+
+foo(1, f=1)  #: (1.0,) (f: 1) Tuple[float]
+foo(1, 2.1, 3, z=2)  #: (1.0, 2.1, 3.0) (z: 2) Tuple[float,float,float]
+
+def sum(x: Generator[int]):
+    a = 0
+    for i in x:
+        a += i
+    return a
+
+def sum_gens(*x: Generator[int]) -> int:
+    a = 0
+    for i in x:
+        a += sum(i)
+    return a
+print sum_gens([1, 2, 3])  #: 6
+print sum_gens({1, 2, 3})  #: 6
+print sum_gens(iter([1, 2, 3]))  #: 6
+
+#%% call_kwargs,barebones
+def kwhatever(**kwargs):
+    print 'k', kwargs
+def whatever(*args):
+    print 'a', args
+def foo(a, b, c=1, *args, **kwargs):
+    print a, b, c, args, kwargs
+    whatever(a, b, *args, c)
+    kwhatever(x=1, **kwargs)
+foo(1, 2, 3, 4, 5, arg1='s', kwa=2)
+#: 1 2 3 (4, 5) (arg1: 's', kwa: 2)
+#: a (1, 2, 4, 5, 3)
+#: k (x: 1, arg1: 's', kwa: 2)
+foo(1, 2)
+#: 1 2 1 () ()
+#: a (1, 2, 1)
+#: k (x: 1)
+foo(1, 2, 3)
+#: 1 2 3 () ()
+#: a (1, 2, 3)
+#: k (x: 1)
+foo(1, 2, 3, 4)
+#: 1 2 3 (4,) ()
+#: a (1, 2, 4, 3)
+#: k (x: 1)
+foo(1, 2, zamboni=3)
+#: 1 2 1 () (zamboni: 3)
+#: a (1, 2, 1)
+#: k (x: 1, zamboni: 3)
+
+#%% call_kwargs_order,barebones
+def show(**kwargs):
+    print kwargs
+
+show(z=1, a=2) #: (z: 1, a: 2)
+show(a=2, z=1) #: (a: 2, z: 1)
+
+def forward(**kwargs):
+    show(**kwargs)
+
+forward(z='last', a=2.5) #: (z: 'last', a: 2.5)
+
+def collect(**kwargs):
+    return kwargs
+
+show(**collect(z=1, a=2), **collect(y=3, b=4)) #: (z: 1, a: 2, y: 3, b: 4)
+show(before=0, **collect(z=1, a=2), after=3) #: (before: 0, z: 1, a: 2, after: 3)
+
+def typed(**kwargs: int):
+    print kwargs
+
+typed(z=1, a=2) #: (z: 1, a: 2)
+
+def with_formals(required, *, option=0, **kwargs):
+    print required, option, kwargs
+
+def traced(name, value):
+    print name
+    return value
+
+with_formals(z=traced('z', 1), required=traced('required', 10),
+             a=traced('a', 2), option=traced('option', 20))
+#: z
+#: required
+#: a
+#: option
+#: 10 20 (z: 1, a: 2)
+
+#%% call_unpack,barebones
+def foo(*args, **kwargs):
+    print args, kwargs
+
+@tuple
+class Foo:
+    x: int = 5
+    y: bool = True
+
+t = (1, 's')
+f = Foo(6)
+foo(*t, **f) #: (1, 's') (x: 6, y: True)
+foo(*(1,2)) #: (1, 2) ()
+foo(3, f) #: (3, (x: 6, y: True)) ()
+foo(k = 3, **f) #: () (k: 3, x: 6, y: True)
+
+#%% call_partial_args_kwargs,barebones
+def foo(*args):
+    print(args)
+a = foo(1, 2, ...)
+b = a(3, 4, ...)
+c = b(5, ...)
+c('zooooo')
+#: (1, 2, 3, 4, 5, 'zooooo')
+
+def fox(*args, **kwargs):
+    print(args, kwargs)
+xa = fox(1, 2, x=5, ...)
+xb = xa(3, 4, q=6, ...)
+xc = xb(5, ...)
+xd = xc(z=5.1, ...)
+xd('zooooo', w='lele')
+#: (1, 2, 3, 4, 5, 'zooooo') (x: 5, q: 6, z: 5.1, w: 'lele')
+
+class Foo:
+    i: int
+    def __str__(self):
+        return f'#{self.i}'
+    def foo(self, a):
+        return f'{self}:generic'
+    def foo(self, a: float):
+        return f'{self}:float'
+    def foo(self, a: int):
+        return f'{self}:int'
+f = Foo(4)
+
+def pacman(x, f):
+    print f(x, '5')
+    print f(x, 2.1)
+    print f(x, 4)
+pacman(f, Foo.foo)
+#: #4:generic
+#: #4:float
+#: #4:int
+
+def macman(f):
+    print f('5')
+    print f(2.1)
+    print f(4)
+macman(f.foo)
+#: #4:generic
+#: #4:float
+#: #4:int
+
+class Fox:
+    i: int
+    def __str__(self):
+        return f'#{self.i}'
+    def foo(self, a, b):
+        return f'{self}:generic b={b}'
+    def foo(self, a: float, c):
+        return f'{self}:float, c={c}'
+    def foo(self, a: int):
+        return f'{self}:int'
+    def foo(self, a: int, z, q):
+        return f'{self}:int z={z} q={q}'
+ff = Fox(5)
+def maxman(f):
+    print f('5', b=1)
+    print f(2.1, 3)
+    print f(4)
+    print f(5, 1, q=3)
+maxman(ff.foo)
+#: #5:generic b=1
+#: #5:float, c=3
+#: #5:int
+#: #5:int z=1 q=3
+
+
+#%% call_static,barebones
+print isinstance(1, int), isinstance(2.2, float), isinstance(3, bool)
+#: True True False
+print isinstance((1, 2), Tuple), isinstance((1, 2), Tuple[int, int]), isinstance((1, 2), Tuple[float, int])
+#: True True False
+print isinstance([1, 2], List), isinstance([1, 2], List[int]), isinstance([1, 2], List[float])
+#: True True False
+print isinstance({1, 2}, List), isinstance({1, 2}, Set[float])
+#: False False
+print isinstance(Optional(5), Optional[int]), isinstance(Optional(), Optional)
+#: True True
+print isinstance(Optional(), Optional[int]), isinstance(Optional('s'), Optional[int])
+#: False False
+print isinstance(None, Optional), isinstance(None, Optional[int])
+#: True False
+print isinstance(None, Optional[NoneType])
+#: True
+print isinstance({1, 2}, List)
+#: False
+
+print static.len((1, 2, 3)), static.len((1, )), static.len('hehe')
+#: 3 1 4
+
+print hasattr([1, 2], "__getitem__")
+#: True
+print hasattr(type([1, 2]), "__getitem__")
+#: True
+print hasattr(int, "__getitem__")
+#: False
+print hasattr([1, 2], "__getitem__") #: True
+print hasattr([1, 2], "__getitem__", int) #: True
+print hasattr([1, 2], "__getitem__", str) #: False
+print hasattr([1, 2], "__getitem__", idx=int) #: False
+print hasattr([1, 2], "__getitem__", idx=str) #: False
+
+def kw(**kwargs):
+    print hasattr(kwargs, "yes"), hasattr(kwargs, "no")
+kw(yes=1)  #: True False
+kw()  #: False False
+kw(no=1)  #: False True
+kw(no=1, yes=1)  #: True True
+
+#%% static_wrap_args,barebones
+def unary(value: int):
+    assert False, 'wrapped function executed'
+    return value
+
+print static.function.wrap_args(unary, 7)  #: (7,)
+
+def target(value: float, offset: int = 3):
+    assert False, 'wrapped function executed'
+    return value + offset
+
+print static.function.wrap_args(target, 7)  #: (7.0, 3)
+print static.function.wrap_args(target, 7, offset=4)  #: (7.0, 4)
+wrapped = static.function.wrap_args(target, offset=5, value=8)
+assert isinstance(wrapped, Tuple[float, int])
+print wrapped  #: (8.0, 5)
+
+effects = []
+def argument(value: int):
+    effects.append(value)
+    return value
+
+print static.function.wrap_args(target, offset=argument(4), value=argument(9))
+#: (9.0, 4)
+print effects  #: [4, 9]
+partial = target(argument(12), ...)
+print static.function.wrap_args(partial, offset=argument(6))  #: (12.0, 6)
+print effects  #: [4, 9, 12, 6]
+
+def generic_default(Element: type, value: int = 13):
+    return value
+
+print static.function.args(generic_default)  #: ('value',)
+assert static.function.has_type(generic_default, 0)
+assert static.function.get_type(generic_default, 0) is int
+assert static.function.has_default(generic_default, 0)
+print static.function.get_default(generic_default, 0)  #: 13
+
+#%% static_method_metadata,barebones
+@dataclass(init=False)
+class WrappedMethod:
+    value: int
+
+    def __init__(self, value: int = 5):
+        self.value = value
+
+instance = WrappedMethod()
+for method in static.function.overloads(WrappedMethod, '__init__'):
+    print static.function.args(method)  #: ('self', 'value')
+    assert static.function.has_type(method, 0)
+    assert static.function.get_type(method, 0) is WrappedMethod
+    assert static.function.has_default(method, 1)
+    print static.function.get_default(method, 1)  #: 5
+    wrapped = static.function.wrap_args(method, instance)
+    assert wrapped[0] is instance
+    print wrapped[1]  #: 5
+
+#%% isinstance_inheritance,barebones
+class AX[T]:
+    a: T
+    def __init__(self, a: T):
+        self.a = a
+class Side:
+    def __init__(self):
+        pass
+class BX[T,U](AX[T], Side):
+    b: U
+    def __init__(self, a: T, b: U):
+        super().__init__(a)
+        self.b = b
+class CX[T,U](BX[T,U]):
+    c: int
+    def __init__(self, a: T, b: U):
+        super().__init__(a, b)
+        self.c = 1
+c = CX('a', False)
+print isinstance(c, CX), isinstance(c, BX), isinstance(c, AX), isinstance(c, Side)
+#: True True True True
+print isinstance(c, BX[str, bool]), isinstance(c, BX[str, str]), isinstance(c, AX[int])
+#: True False False
+
+#%% staticlen_err,barebones
+print static.len([1, 2]) #! expected tuple type
+
+#%% compile_error,barebones
+compile_error("woo-hoo") #! woo-hoo
+
+#%% argparse_unknown_keyword
+import argparse
+argparse.ArgumentParser().add_argument("--value", type=int, misspelled=True) #! unexpected keyword argument
+#! during the realization of _add_argument
+#! during the realization of add_argument
+
+#%% argparse_registered_action_keyword
+import argparse
+parser = argparse.ArgumentParser()
+parser.register("action", "custom", argparse.Action)
+parser.add_argument("--value", action="custom", extra=True) #! unexpected keyword argument
+#! during the realization of _add_argument
+#! during the realization of add_argument
+
+#%% argparse_custom_constructor_signature
+import argparse
+class NarrowAction(argparse.Action):
+    def __init__(self, option_strings, dest: str, default=None):
+        super().__init__(option_strings, dest, default=default)
+argparse.ArgumentParser().add_argument("--value", action=NarrowAction, default=None, unexpected=True) #! custom action constructor does not accept the supplied arguments
+#! during the realization of _construct_action
+#! during the realization of _custom_action
+#! during the realization of _add_argument
+#! during the realization of add_argument
+
+#%% argparse_custom_factory_signature
+import argparse
+def factory(option_strings, dest: str, default=None):
+    return argparse.Action(option_strings, dest, default=default)
+argparse.ArgumentParser().add_argument("--value", action=factory, default=None, unexpected=True) #! custom action factory does not accept the supplied arguments
+#! during the realization of _construct_action
+#! during the realization of _custom_action
+#! during the realization of _add_argument
+#! during the realization of add_argument
+
+#%% argparse_custom_constructor_missing_argument
+import argparse
+class RequiredAction(argparse.Action):
+    def __init__(self, option_strings, dest: str, default=None, *, scale: int):
+        super().__init__(option_strings, dest, default=default)
+argparse.ArgumentParser().add_argument("--value", action=RequiredAction, default=None) #! custom action constructor does not accept the supplied arguments
+#! during the realization of _construct_action
+#! during the realization of _custom_action
+#! during the realization of _add_argument
+#! during the realization of add_argument
+
+#%% stack_alloc,barebones
+a = __array__[int](2)
+print a.__class__.__name__ #: Ptr[int]
+
+#%% typeof,barebones
+a = 5
+z = []
+z.append(6)
+print z.__class__.__name__, z, type(1.1).__name__  #: List[int] [6] float
+
+#%% ptr,barebones
+v = 5
+c = __ptr__(v)
+print c.__class__.__name__ #: Ptr[int]
+
+#%% tuple_fn,barebones
+@tuple
+class unpackable_plain:
+  a: int
+  b: str
+
+u = unpackable_plain(1, 'str')
+a, b = tuple(u)
+print a, b #: 1 str
+
+@tuple
+class unpackable_gen:
+  a: int
+  b: T
+  T: type
+
+u2 = unpackable_gen(1, 'str')
+a2, b2 = tuple(u2)
+print a2,b2  #: 1 str
+
+class plain:
+  a: int
+  b: str
+
+c = plain(3, 'heh')
+z = tuple(c)
+print z, z.__class__.__name__  #: (3, 'heh') Tuple[int,str]
+
+#%% super,barebones
+class A[T]:
+    a: T
+    def __init__(self, t: T):
+        self.a = t
+    def foo(self):
+        return f'A:{self.a}'
+class B(A[str]):
+    b: int
+    def __init__(self):
+        super().__init__('s')
+        self.b = 6
+    def baz(self):
+        return f'{super().foo()}::{self.b}'
+b = B()
+print b.foo() #: A:s
+print b.baz() #: A:s::6
+
+class AX[T]:
+    a: T
+    def __init__(self, a: T):
+        print super().__class__.__name__
+        self.a = a
+    def foo(self):
+        return f'[AX:{self.a}]'
+class BX[T,U](AX[T]):
+    b: U
+    def __init__(self, a: T, b: U):
+        print super().__class__.__name__
+        super().__init__(a)
+        self.b = b
+    def foo(self):
+        return f'[BX:{super().foo()}:{self.b}]'
+class CX[T,U](BX[T,U]):
+    c: int
+    def __init__(self, a: T, b: U):
+        print super().__class__.__name__
+        super().__init__(a, b)
+        self.c = 1
+    def foo(self):
+        return f'CX:{super().foo()}:{self.c}'
+c = CX('a', False)
+print c.__class__.__name__, c.foo()
+#: Super[CX[str,bool]]
+#: Super[BX[str,bool]]
+#: Super[AX[str]]
+#: CX[str,bool] CX:[BX:[AX:a]:False]:1
+
+#%% super_vtable_2
+class Base:
+    def test(self):
+        print('base.test')
+class A(Base):
+    def test(self):
+        super().test()
+        Base.test(self)
+        print('a.test')
+a = A()
+a.test()
+def moo(x: Base):
+    x.test()
+moo(a)
+Base.test(a)
+#: base.test
+#: base.test
+#: a.test
+#: base.test
+#: base.test
+#: a.test
+#: base.test
+
+class A:
+    n: int
+    def __init__(self, n: int):
+        print(f"A init, set {n}")
+        self.n = n
+
+class B(A):
+    def __init__(self, n: int):
+        print(f"B init, set {n}")
+        super().__init__(n)
+
+class C(B):
+    def __init__(self, n: int):
+        print(f"C init, set {n}")
+        super().__init__(n)
+
+print(B(42).n)
+#: B init, set 42
+#: A init, set 42
+#: 42
+print(C(42).n)
+#: C init, set 42
+#: B init, set 42
+#: A init, set 42
+#: 42
+
+#%% super_error,barebones
+class A:
+    def __init__(self):
+        super().__init__()
+a = A()
+#! classes are not polymorphic
+#! during the realization
+#! during the realization
+
+#%% super_error_2,barebones
+super().foo(1) #! no super methods found
+
+#%% superf,barebones
+class Foo:
+    def foo(a):
+        # superf(a)
+        print 'foo-1', a
+    def foo(a: int):
+        superf(a)
+        print 'foo-2', a
+    def foo(a: str):
+        superf(a)
+        print 'foo-3', a
+    def foo(a):
+        superf(a)
+        print 'foo-4', a
+Foo.foo(1)
+#: foo-1 1
+#: foo-2 1
+#: foo-4 1
+
+class Bear:
+    def woof(x):
+        return f'bear woof {x}'
+@extend
+class Bear:
+    def woof(x):
+        return superf(x) + f' bear w--f {x}'
+print Bear.woof('!')
+#: bear woof ! bear w--f !
+
+#%% superf_error,barebones
+class Foo:
+    def foo(a):
+        superf(a)
+        print 'foo-1', a
+Foo.foo(1)
+#! no superf methods found
+#! during the realization of foo(a: int)
+
+#%% static_getitem
+print Int[static.len("ee")].__name__ #: Int[2]
+
+y = [1, 2]
+print getattr(y, "_len") #: 2
+print y._len #: 2
+getattr(y, 'append')(1)
+print y #: [1, 2, 1]
+
+@extend
+class Dict:
+    def __getitem2__(self, attr: Literal[str]):
+        if hasattr(self, attr):
+            return getattr(self, attr)
+        else:
+            return self[attr]
+    def __getitem1__(self, attr: Literal[int]):
+        return self[attr]
+
+d = {'s': 3.19}
+print d.__getitem2__('s') #: 3.19
+e = {1: 3.33}
+print e.__getitem1__(1) #: 3.33
+
+#%% forward,barebones
+def foo(f, x):
+    f(x, type(x))
+    print f.__class__.__name__
+def bar[T](x):
+    print x, T.__name__
+foo(bar, 1)
+#: 1 int
+#: bar(...,...)
+foo(bar(...), 's')
+#: s str
+#: bar(...,...)
+z = bar
+z('s', int)
+#: s int
+z(1, T=str)
+#: 1 str
+
+zz = bar(T=int,...)
+zz(1)
+#: 1 int
+
+#%% forward_error,barebones
+def foo(f, x):
+    f(x, type(x))
+    print f.__class__.__name__
+def bar[T](x):
+    print x, T.__name__
+foo(bar(T=int,...), 1)
+#! bar() takes 2 arguments (2 given)
+#! during the realization of foo(f: bar(...,int), x: int)
+# TODO fix this error message
+
+#%% sort_partial
+def foo(x, y):
+    return y**x
+print sorted([1,2,3,4,5], key=foo(y=2, ...))
+print sorted([1,2,3,4,5], key=foo(y=-2, ...))
+#: [1, 2, 3, 4, 5]
+#: [5, 3, 1, 2, 4]
+
+#%% type_loc,barebones
+a = 1
+T = type(a)
+print T.__name__  #: int
+
+#%% methodcaller,barebones
+def foo():
+    def bar(a, b):
+        print 'bar', a, b
+    return bar
+foo()(1, 2) #: bar 1 2
+
+def methodcaller(foo: Literal[str]):
+    def caller(foo: Literal[str], obj, *args, **kwargs):
+        if isinstance(getattr(obj, foo)(*args, **kwargs), None):
+            getattr(obj, foo)(*args, **kwargs)
+        else:
+            return getattr(obj, foo)(*args, **kwargs)
+    return caller(foo=foo, ...)
+v = [1]
+methodcaller('append')(v, 42)
+print v #: [1, 42]
+print methodcaller('index')(v, 42) #: 1
+
+#%% constructor_passing
+class A:
+    s: str
+    def __init__(self, x):
+        self.s = str(x)[::-1]
+    def __lt__(self, o): return self.s < o.s
+    def __eq__(self, o): return self.s == o.s
+    def __ge__(self, o): return self.s >= o.s
+foo = [1,2,11,30]
+print(sorted(foo, key=str))
+#: [1, 11, 2, 30]
+print(sorted(foo, key=A))
+#: [30, 1, 11, 2]
+
+@tuple
+class AT:
+    s: str
+    def __new__(i: int) -> AT: return AT(str(i))
+print(sorted(foo, key=AT))
+#: [1, 11, 2, 30]
+
+#%% polymorphism,barebones
+class A:
+    a: int
+    def foo(self, a: int): return (f'A({self.a})', a)
+    def bar(self): return 'A.bar'
+    def aaz(self): return 'A.aaz'
+class B(A):
+    b: int
+    def foo(self, a): return (f'B({self.a},{self.b})', a + self.b)
+    def bar(self): return 'B.bar'
+    def baz(self): return 'B.baz'
+class M[T]:
+    m: T
+    def moo(self): return (f'M_{T.__name__}', self.m)
+class X(B,M[int]):
+    def foo(self, a): return (f'X({self.a},{self.b},{self.m})', a + self.b + self.m)
+    def bar(self): return 'X.bar'
+
+def foo(i):
+    x = i.foo(1)
+    y = i.bar()
+    z = i.aaz()
+    print(*x, y, z)
+a = A(1)
+l = [a, B(2,3), X(2,3,-1)]
+for i in l: foo(i)
+#: A(1) 1 A.bar A.aaz
+#: B(3,2) 3 B.bar A.aaz
+#: X(3,2,-1) 2 X.bar A.aaz
+
+def moo(m: M):
+    print(m.moo())
+moo(M[float](5.5))
+moo(X(1,2,3))
+#: ('M_float', 5.5)
+#: ('M_int', 3)
+
+
+class A[T]:
+    def __init__(self):
+        print("init A", T.__name__)
+class Ho:
+    def __init__(self):
+        print("init Ho")
+# TODO: this throws and error: B[U](U)
+class B[U](A[U], Ho):
+    def __init__(self):
+        super().__init__()
+        print("init B", U.__name__)
+B[Ho]()
+#: init A Ho
+#: init B Ho
+
+
+class Vehicle:
+    def drive(self):
+        return "I'm driving a vehicle"
+
+class Car(Vehicle):
+    def drive(self):
+        return "I'm driving a car"
+
+class Truck(Vehicle):
+    def drive(self):
+        return "I'm driving a truck"
+
+class SUV(Car, Truck):
+    def drive(self):
+        return "I'm driving an SUV"
+
+suv = SUV()
+def moo(s):
+    print(s.drive())
+moo(suv)
+moo(Truck())
+moo(Car())
+moo(Vehicle())
+#: I'm driving an SUV
+#: I'm driving a truck
+#: I'm driving a car
+#: I'm driving a vehicle
+
+class YugoSUV(SUV):
+    def drive(self):
+        return "I'm driving a Yugo SUV"
+
+l: List[Vehicle] = [Car(), Truck(), suv, Vehicle(), YugoSUV()]
+for i in l:
+    print(i.drive(),
+          isinstance(i, Vehicle),
+          isinstance(i, Car),
+          isinstance(i, Truck),
+          isinstance(i, SUV),
+          isinstance(i, YugoSUV))
+#: I'm driving a car True True False False False
+#: I'm driving a truck True False True False False
+#: I'm driving an SUV True True True True False
+#: I'm driving a vehicle True False False False False
+#: I'm driving a Yugo SUV True True True True True
+
+
+#%% polymorphism_object,barebones
+class M[T]:
+    m: T
+class X(M[int]):
+    pass
+l = [M[float](1.1), X(2)]
+print(l.__class__.__name__)  #: List[object]
+
+
+
+'''
+Root1   Root2
+|    \    /
+P1    \  /
+|      P3
+P2    /
+|    /
+Middle
+|     \
+P4    P5
+|     |
+End---+
+'''
+
+class Root1:
+    r1: int
+
+class Root2:
+    r2: int
+
+class P1(Root1):
+    p1: int
+
+class P2(P1):
+    p2: int
+
+class P3(Root1, Root2):
+    p3: int
+
+class Middle(P2, P3):
+    middle: int
+
+m = Middle(1, 2, 3, 4, 5, 6)
+print(Middle.__mro__)
+print(tuple(m))
+#: (<class 'Middle'>, <class 'P2'>, <class 'P1'>, <class 'P3'>, <class 'Root1'>, <class 'Root2'>, <class 'object'>)
+#: (1, 2, 3, 4, 5, 6)
+
+
+class P4(Middle):
+    p4: int
+
+class P5(Middle):
+    p5: int
+
+class End(P4, P5):
+    end: int
+
+e = End(1, 2, 3, 4, 5, 6, 7, 8, 9)
+print(End.__mro__)
+print(tuple(e))
+#: (<class 'End'>, <class 'P4'>, <class 'P5'>, <class 'Middle'>, <class 'P2'>, <class 'P1'>, <class 'P3'>, <class 'Root1'>, <class 'Root2'>, <class 'object'>)
+#: (1, 2, 3, 4, 5, 6, 7, 8, 9)
+
+
+
+#%% polymorphism_2
+class Expr:
+    def __init__(self):
+        pass
+    def eval(self):
+        raise ValueError('invalid expr')
+        return 0.0
+    def __str__(self):
+        return "Expr"
+class Const(Expr):
+    x: float
+    def __init__(self, x):
+        self.x=x
+    def __str__(self):
+        return f"{self.x}"
+    def eval(self):
+        return self.x
+class Add(Expr):
+    lhs: Expr
+    rhs: Expr
+    def __init__(self, lhs, rhs):
+        self.lhs=lhs
+        self.rhs=rhs
+        # print(f'ctr: {self}')
+    def eval(self):
+        return self.lhs.eval()+self.rhs.eval()
+    def __str__(self):
+        return f"({self.lhs}) + ({self.rhs})"
+class Mul(Expr):
+    lhs: Expr
+    rhs: Expr
+    def __init__(self, lhs, rhs):
+        self.lhs=lhs
+        self.rhs=rhs
+    def eval(self):
+        return self.lhs.eval()*self.rhs.eval()
+    def __str__(self):
+        return f"({self.lhs}) * ({self.rhs})"
+
+c1 = Const(5)
+c2 = Const(4)
+m = Add(c1, c2)
+c3 = Const(2)
+a : Expr = Mul(m, c3)
+print(f'{a} = {a.eval()}')
+#: ((5.0) + (4.0)) * (2.0) = 18.0
+
+from random import random, seed
+seed(137)
+def random_expr(depth) -> Expr:
+    if depth<=0:
+        return Const(int(random()*42.0))
+    else:
+        lhs=random_expr(depth-1)
+        rhs=random_expr(depth-1)
+        ctorid = int(random()*3)
+        if ctorid==0:
+            return Mul(lhs,rhs)
+        else:
+            return Add(lhs,rhs)
+for i in range(11):
+    print(random_expr(i).eval())
+#: 3.0
+#: 697.0
+#: 109.0
+#: 73568.0
+#: 1546895.0
+#: 2892.0
+#: 151957796367.0
+#: 7949505675733567.0
+#: 3.705131828609201e+20
+#: 3.097679034076037e+28
+#: 1.31089785077958e+40
+
+#%% polymorphism_3
+import operator
+
+class Expr:
+    def eval(self):
+        return 0
+
+class Const(Expr):
+    value: int
+
+    def __init__(self, value):
+        self.value = value
+
+    def eval(self):
+        return self.value
+
+class BinOp(Expr):
+    lhs: Expr
+    rhs: Expr
+
+    def __init__(self, lhs, rhs):
+        self.lhs = lhs
+        self.rhs = rhs
+
+    def eval_from_fn(self, fn):
+        return fn(self.lhs.eval(), self.rhs.eval())
+
+class Add(BinOp):
+    def eval(self):
+        return self.eval_from_fn(operator.add)
+
+class Sub(BinOp):
+    def eval(self):
+        return self.eval_from_fn(operator.sub)
+
+class Mul(BinOp):
+    def eval(self):
+        return self.eval_from_fn(operator.mul)
+
+class Div(BinOp):
+    def eval(self):
+        return self.eval_from_fn(operator.floordiv)
+
+# TODO: remove Expr requirement
+expr : Expr = Mul(Const(3), Add(Const(10), Const(5)))
+print(expr.eval()) #: 45
+
+#%% polymorphism_4
+class A(object):
+    a: int
+    def __init__(self, a: int):
+        self.a = a
+
+    def test_a(self, n: int):
+        print("test_a:A", n)
+
+    def test(self, n: int):
+        print("test:A", n)
+
+    def test2(self, n: int):
+        print("test2:A", n)
+
+class B(A):
+    b: int
+    def __init__(self, a: int, b: int):
+        super().__init__(a)
+        self.b = b
+
+    def test(self, n: int):
+        print("test:B", n)
+
+    def test2(self, n: int):
+        print("test2:B", n)
+
+class C(B):
+    pass
+
+b = B(1, 2)
+b.test_a(1)
+b.test(1)
+#: test_a:A 1
+#: test:B 1
+
+a: A = b
+a.test(1)
+a.test2(2)
+#: test:B 1
+#: test2:B 2
+
+
+
+class AX(object):
+    value: u64
+
+    def __init__(self):
+        print('init/AX')
+        self.value = 15u64
+
+    def get_value(self) -> u64:
+        return self.value
+
+class BX(object):
+    a: AX
+    def __init__(self):
+        print('init/BX')
+        self.a = AX()
+    def hai(self):
+        return f"hai/BX: {self.a.value}"
+    def inc(self, y):
+        self.a.value += u64(y)
+
+class CX(BX):
+    def __init__(self):
+        print('init/CX')
+        super().__init__()
+    def getsuper(self):
+        return super()
+    def test(self):
+        print('test/CX:', self.a.value)
+        return self.a.get_value()
+    def hai(self):
+        return f"hai/CX: {self.a.value}"
+
+table = CX()
+#: init/CX
+#: init/BX
+#: init/AX
+print table.test()
+#: test/CX: 15
+#: 15
+
+s = table.getsuper()
+print(s.hai())
+#: hai/BX: 15
+s.inc(1)
+print(s.hai())
+#: hai/BX: 16
+table.inc(1)
+print(s.hai())
+#: hai/BX: 17
+table.test()
+#: test/CX: 17
+
+c: List[BX] = [BX(), s._obj, table]
+#: init/BX
+#: init/AX
+print(c[0].hai())  #: hai/BX: 15
+print(c[1].hai())  #: hai/CX: 17
+print(s.hai())     #: hai/BX: 17
+print(c[2].hai())  #: hai/CX: 17
+
+
+#%% polymorphism_5_super
+class B:
+    def __init__(self): pass
+    def foo(self): return "B_" + self.bar()
+    def bar(self): return "bB"
+
+class X(B):
+    def __init__(self): super().__init__()
+    def foo(self): return "X_" + self.bar()
+    def bar(self): return "bX" + super().bar()
+
+class Y(X):
+    def __init__(self): super().__init__()
+    def foo(self): return "Y_" + self.bar()
+    def bar(self): return "bY" + super().bar()
+    def s(self): return super()
+
+l: list[B] = [B(), Y(), X()]
+for i in l:
+    print(type(i), i.foo(), i.bar())
+#: <class 'B'> B_bB bB
+#: <class 'B'> Y_bYbXbB bYbXbB
+#: <class 'B'> X_bXbB bXbB
+
+o = Y()
+print(o.foo())      #: Y_bYbXbB
+print(o.s().foo())  #: X_bYbXbB
+
+
+class Shape:
+    def area(self): return 0.0
+    def describe(self): return "This is a shape."
+
+class Circle(Shape):
+    radius: float
+
+    def __init__(self, radius): self.radius = radius
+    def area(self): return 3.1416 * self.radius**2
+    def describe(self): return f"A circle with radius {self.radius}"
+
+class Rectangle(Shape):
+    width: float
+    height: float
+
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+    def area(self): return self.width * self.height
+    def describe(self): return f"A rectangle with width {self.width} and height {self.height}"
+
+class Square(Rectangle):
+    def __init__(self, width): super().__init__(width, width)
+    def describe(self): return super().describe().replace('rectangle', 'square')
+
+def print_area(shape: Shape):
+    print(shape.describe())
+    print(shape.area())
+
+shapes: list[Shape] = []
+shapes.append(Circle(5))
+shapes.append(Rectangle(4, 6))
+shapes.append(Square(3))
+
+for s in shapes:
+    print_area(s)
+#: A circle with radius 5.0
+#: 78.53999999999999
+#: A rectangle with width 4.0 and height 6.0
+#: 24.0
+#: A square with width 3.0 and height 3.0
+#: 9.0
+
+#%% polymorphism_6_isinstance_cast
+class Vehicle(object):
+    def drive(self): return "vehicle"
+class Car(Vehicle):
+    make: str
+    def drive(self): return "car"
+class Truck(Vehicle):
+    def drive(self): return "truck"
+class SUV(Car, Truck):
+    color: int
+    def drive(self): return "SUV"
+    def suv(self): return True
+class YugoSUV(SUV):
+    def drive(self): return "YugoSUV"
+y = YugoSUV(5, "niva")
+t = Truck("ford")
+v: Vehicle = y
+l = [v, t]
+
+for i, o in enumerate(l):
+    if isinstance(o, SUV):
+        print(i, "suv", o.drive(), o.make, o.color, o.suv())
+    else: print(i, o.drive())
+#: 0 suv YugoSUV niva 5 True
+#: 1 truck
+
+la = [Any(v), Any(t)]
+for i, o in enumerate(la):
+    if isinstance(o, SUV):
+        print(i, "suv", str(o)[:11], cast(Vehicle, o).drive(), o.make, o.color, o.suv())
+    else: print(i, cast(Vehicle, o).drive())
+#: 0 suv <SUV object YugoSUV niva 5 True
+#: 1 truck
+
+#%% side_effects,barebones
+def foo(a, b, T: type, N: Literal[int]):
+    print(a, b, N, T.__name__)
+def side(x):
+    print('side', x)
+    return x
+def side_T(T: type) -> type:
+    print('side_T', T.__name__)
+    return List[T]
+def side_N(N: Literal[int]) -> Literal[int]:
+    print('side_N', N)
+    return N*N
+
+foo(a=side('a'), b=side('b'), T=int, N=0)
+#: side a
+#: side b
+#: a b 0 int
+foo(b=side('b'), a=side('a'), T=side_T(int), N=0)
+#: side b
+#: side a
+#: side_T int
+#: a b 0 List[int]
+foo(b=side('b'), T=side_T(float), a=side('a'), N=side_N(5))
+#: side b
+#: side_T float
+#: side a
+#: side_N 5
+#: a b 25 List[float]
+foo(N=side_N(3), T=side_T(str), b=side('b'), a=side('a'))
+#: side_N 3
+#: side_T str
+#: side b
+#: side a
+#: a b 9 List[str]
+
+def foo(a, b, *args, T: type, N: Literal[int], **kwargs):
+    print(a, b, args, kwargs, T, N)
+
+foo(side('a'), side('b'), side('3'), side('4'), T=side_T(int), N=side_N(5))
+#: side a
+#: side b
+#: side 3
+#: side 4
+#: side_T int
+#: side_N 5
+#: a b ('3', '4') () <class 'List[int]'> 25
+
+foo(z=side('z'), T=side_T(int), k=side('k'), b=side('b'), a=side('a'), N=side_N(5))
+#: side z
+#: side_T int
+#: side k
+#: side b
+#: side a
+#: side_N 5
+#: a b () (z: 'z', k: 'k') <class 'List[int]'> 25
+
+t = List[side_T(int)]
+#: side_T int
+print(t, t().__class__.__name__)
+#: <class 'List[List[int]]'> List[List[int]]
+
+a: Literal[int] = - side_N(5)
+print(Int[a])
+#: side_N 5
+#: <class 'Int[-25]'>
+a: Literal[int] = side_N(3) + 50 - side_N(5)
+# Important: should be again side_N(5) to test caching of literal fns
+print(Int[a])
+#: side_N 3
+#: side_N 5
+#: <class 'Int[34]'>
+
+#%% generator_overload_element_types,barebones
+# core_containers_codon: iterable-to-generator conversion must use the actual
+# yielded type when choosing between scalar and key/value overloads.
+def consume(values: Generator[int]):
+    return "ints"
+@overload
+def consume(values: Generator[Tuple[int, int]]):
+    return "pairs"
+print(consume([1, 2]), consume([(1, 2), (3, 4)]))  #: ints pairs
+
+#%% union_argument_specialization
+def identity(value: int | str = 1):
+    return value
+
+assert type(identity(42)) is int
+assert type(identity('hello')) is str
+assert identity(42) == 42 and identity('hello') == 'hello'
+assert type(identity()) is int
+assert type(identity(value='named')) is str
+partial = identity(...)
+assert type(partial(2)) is int
+assert type(partial('partial')) is str
+alias = identity
+assert type(alias(3)) is int
+assert type(alias('alias')) is str
+
+# Binding T to a union must retain its storage layout.
+def constrained(value: T, T: type): return value
+assert type(constrained(42, T=int | str)) is (int | str)
+
+@llvm
+def fixed(value: int | str) -> int | str:
+    ret {=int | str} %value
+assert type(fixed(42)) is (int | str)
+
+def argument_type(value: int | str):
+    return type(value).__name__
+
+assert argument_type(42) == 'int'
+assert argument_type('hello') == 'str'
+value: int | str = 42
+assert type(identity(value)) is (int | str)
+assert argument_type(value) == 'Union[int|str]'
+assert type(identity(7)) is int
+
+def boxed(value: int | str) -> int | str:
+    return value
+assert type(boxed(42)) is (int | str)
+
+class Methods:
+    def member(self, value: int | str): return value
+    @staticmethod
+    def static(value: int | str): return value
+assert type(Methods().member(42)) is int
+assert type(Methods.static('static')) is str
+bound = Methods().member
+assert type(bound('bound')) is str
+
+try:
+    identity(1.5)
+    assert False
+except TypeError:
+    pass
+
+def normalize(value: int | str, replace: bool):
+    if replace:
+        value = 'changed'
+    return str(value)
+assert normalize(7, False) == '7'
+assert normalize(7, True) == 'changed'
+assert normalize('original', False) == 'original'
+normalize_alias = normalize
+assert normalize_alias(7, True) == 'changed'
+normalize_partial = normalize(replace=True, ...)
+assert normalize_partial(7) == 'changed'
+
+def normalize_number(value: int | str, replace: bool):
+    if replace:
+        value = 42
+    return str(value)
+assert normalize_number('original', False) == 'original'
+assert normalize_number('original', True) == '42'
+
+class Normalized:
+    value: int | str
+    def __init__(self, value: int | str):
+        if isinstance(value, int) and value == 0:
+            value = 'default'
+        self.value = value
+assert Normalized(0).value == 'default'
+assert Normalized(7).value == 7
+assert Normalized('text').value == 'text'
+
+def loop_rebind(value: int | str):
+    for replacement in ['loop']:
+        value = replacement
+    return str(value)
+assert loop_rebind(7) == 'loop'
+
+def unpack_rebind(value: int | str, replace: bool):
+    if replace:
+        value, other = ('unpacked', 1)
+    return str(value)
+assert unpack_rebind(7, True) == 'unpacked'
+assert unpack_rebind(7, False) == '7'
+
+def captured_rebind(value: int | str):
+    def replace():
+        nonlocal value
+        value = 'captured'
+    replace()
+    return str(value)
+assert captured_rebind(7) == 'captured'
+
+print('union specialization ok')  #: union specialization ok
+
+#%% bound_callable_trait_generics
+# itertools_test passes Set.__contains__ to filter's CallableTrait. The implicit
+# Self generic must not make the last value parameter look like *args/**kwargs.
+assert list(filter({1, 2}.__contains__, [1, 3, 2])) == [1, 2]
+contains = {'a', 'b'}.__contains__
+assert list(filter(contains, ['c', 'b', 'a'])) == ['b', 'a']
+
+class Box[T]:
+    value: T
+    def matches(self, value: T) -> bool:
+        return self.value == value
+
+assert list(filter(Box(2).matches, [1, 2, 3])) == [2]
+print('bound callable traits ok')  #: bound callable traits ok
+
+#%% callable_matching_defaults_variadics
+# Trait constraints and can_call must bind the same defaults, captured arguments,
+# and typed variadics as a normal call, including implicit Self/type parameters.
+import internal.static as static
+
+def apply(fn: CallableTrait[[int], R], R: type):
+    return fn(5)
+
+def defaulted(value: int, amount: int = 2):
+    return value + amount
+assert apply(defaulted) == 7
+assert apply(defaulted(amount=9, ...)) == 14
+
+def positional(value: int, /, *, amount: int = 3):
+    return value + amount
+assert apply(positional) == 8
+assert static.function.can_call(positional, 5)
+assert not static.function.can_call(positional, value=5)
+
+def convert(value: int, T: type = float):
+    return T(value)
+assert apply(convert) == 5.0
+assert apply(convert(T=int, ...)) == 5
+
+def variadic(*values: float, **kw: float):
+    return sum(values) + sum(kw.args)
+assert static.function.can_call(variadic, 1, extra=2)
+assert not static.function.can_call(variadic, 'bad')
+assert not static.function.can_call(variadic, extra='bad')
+assert apply(variadic) == 5.0
+partial = variadic(1, extra=2, ...)
+assert apply(partial) == 8.0
+assert static.function.can_call(partial, 5, extra=4)
+assert not static.function.can_call(partial, extra='bad')
+assert partial(5, extra=4) == 10.0
+
+class Box[T]:
+    value: T
+    def add(self, value: T, *rest: int, extra: int = 2):
+        return self.value + value + sum(rest) + extra
+assert apply(Box(10).add) == 17
+assert static.function.can_call(Box(10).add, 5, 1, 2)
+assert not static.function.can_call(Box(10).add, 5, 'bad')
+print('callable defaults and variadics ok')  #: callable defaults and variadics ok
+
+#%% callable_matching_probes
+# A probe needs correlated type variables, but must undo its temporary bindings
+# after both successful and failed matches and must not typecheck function bodies.
+import internal.static as static
+
+def same[T](first: T, second: T):
+    return first
+assert static.function.can_call(same, 1, 2)
+assert not static.function.can_call(same, 1, 's')
+assert static.function.can_call(same, 'a', 'b')
+assert same('a', 'b') == 'a'
+
+def uncalled(value):
+    compile_error('can_call must not realize this body')
+assert static.function.can_call(uncalled, 1)
+assert static.function.can_call(uncalled, 's')
+assert not static.function.can_call(uncalled)
+
+def receives_callback(fn: CallableTrait[[int], int]):
+    compile_error('a nested callable constraint must not realize this body')
+assert static.function.can_call(receives_callback, uncalled)
+
+def required_keyword(value: int, *, amount: int):
+    return value + amount
+assert not static.function.can_call(required_keyword, 5)
+assert static.function.can_call(required_keyword, 5, amount=2)
+
+def increment(value: int) -> int:
+    return value + 2
+pointer: Function[[int], int] = increment
+assert static.function.can_call(pointer, 1)
+assert not static.function.can_call(pointer, 'bad')
+assert not static.function.can_call(pointer, 1, 2)
+from internal.attributes import no_argument_wrap
+@no_argument_wrap
+def unwrapped(value: int) -> int:
+    return value
+assert static.function.can_call(unwrapped, 1)
+assert not static.function.can_call(unwrapped, 'bad')
+print('callable probes ok')  #: callable probes ok
+
+#%% callable_matching_adapters
+# Callable adapters use the same matcher as traits, including default parameters
+# and bound methods. Different adaptations of a template need distinct proxies.
+def defaulted(value: int, amount: int = 2):
+    return value + amount
+
+def apply(fn: Callable[[int], int]):
+    return fn(5)
+assert apply(defaulted) == 7
+
+class Box:
+    value: int
+    def add(self, value: int, *, amount: int = 2):
+        return self.value + value + amount
+assert apply(Box(10).add) == 17
+
+def identity(value):
+    return value
+integer = Callable[[int], int](identity)
+string = Callable[[str], str](identity)
+assert integer(7) == 7
+assert string('s') == 's'
+print('callable adapters ok')  #: callable adapters ok
+
+#%% callable_matching_pointer_argument_error,barebones
+# A raw Function has no AST; its argument types must still satisfy the trait.
+def increment(value: int) -> int:
+    return value + 1
+pointer: Function[[int], int] = increment
+
+def accept(fn: CallableTrait[[str], int]):
+    pass
+accept(pointer)  #! 'Function[Tuple[int],int]' does not match expected type
+
+#%% callable_matching_pointer_return_error,barebones
+# Raw Function return types must also be checked even when accept never calls it.
+def increment(value: int) -> int:
+    return value + 1
+pointer: Function[[int], int] = increment
+
+def accept(fn: CallableTrait[[int], str]):
+    pass
+accept(pointer)  #! 'Function[Tuple[int],int]' does not match expected type
+
+#%% callable_matching_keyword_only_error,barebones
+# A positional callable signature cannot supply a required keyword-only argument.
+def required_keyword(value: int, *, amount: int) -> int:
+    return value + amount
+fn: CallableTrait[[int], int] = required_keyword  #! 'CallableTrait[[int],int]' does not match expected type
+
+#%% callable_matching_factory_generics
+# Checking raw factory return types can alias method and enclosing class generics.
+# Preparing a factory overload must leave the class parameters available to later ones.
+from collections import defaultdict
+
+lists = defaultdict(list)
+lists['first'].append(1)
+assert lists['first'] == [1]
+assert lists['second'] == []
+counts = defaultdict(int)
+counts['first'] += 2
+assert counts['first'] == 2 and counts['second'] == 0
+print('callable factory generics ok')  #: callable factory generics ok
+
+#%% partial_global_defaults,barebones
+# Issue 4: reference stable definition-time slots without storing them in partials.
+events = List[str]()
+def make_default():
+    events.append('default')
+    return List[int]()
+def append(value, bucket=make_default()):
+    bucket.append(value)
+    return bucket
+p = append(1, ...)
+assert len(p.args) == 2  # Captured value and the trailing *args tuple only.
+assert events == ['default']
+assert p() == [1]
+assert append(2) == [1, 2]
+q = p(...)
+assert len(q.args) == 2
+assert q() == [1, 2, 1]
+other = List[int]()
+assert p(bucket=other) is other
+assert other == [1]
+assert events == ['default']
+
+# A callback with only global defaults needs no captured values. Keep evaluation
+# of the expression producing it even when its partial storage becomes empty.
+def whole(bucket=make_default()):
+    bucket.append(9)
+    return bucket
+empty = whole(...)
+assert len(empty.args) == 1
+assert empty() == [9]
+def get_callback():
+    events.append('lookup')
+    return whole
+assert get_callback()() == [9, 9]
+assert events == ['default', 'default', 'lookup']
+
+# Local defaults belong to each factory invocation and must remain captured.
+def factory(seed):
+    def collect(value, bucket=[seed]):
+        bucket.append(value)
+        return bucket
+    return collect
+first, second = factory(10), factory(20)
+assert first(1) == [10, 1]
+assert second(2) == [20, 2]
+assert first(3) == [10, 1, 3]
+
+# A user global is not a stable compiler-owned slot; keep its captured value.
+original = [10]
+def user_default(value, bucket=original):
+    bucket.append(value)
+    return bucket
+saved = user_default(1, ...)
+original = [20]
+assert saved() == [10, 1]
+print('partial defaults ok')  #: partial defaults ok
+
+#%% partial_conditional_defaults,barebones
+# Issue 4: a default slot written by a repeated definition is not stable.
+callbacks = []
+for seed in range(2):
+    def append(value, bucket=[seed]):
+        bucket.append(value)
+        return bucket
+    callbacks.append(append(7, ...))
+assert callbacks[0]() == [0, 7]
+assert callbacks[1]() == [1, 7]

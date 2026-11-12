@@ -1,0 +1,77 @@
+
+class strbuf:
+    data: Ptr[u8]
+    n: int
+    m: int
+    kind: int
+
+    def __init__(self, capacity: int = 16, kind: int = 0):
+        from internal.types.str import _kind_width
+
+        self.data = Ptr[u8](capacity * _kind_width(kind))
+        self.n = 0
+        self.m = capacity
+        self.kind = kind
+
+    def append(self, s: str):
+        from internal.gc import realloc
+        from internal.types.str import _kind_width, _make_meta, _unicode_copy_range
+
+        adding = s.__len__()
+        needed = self.n + adding
+        new_kind = self.kind if self.kind >= s._kind() else s._kind()
+
+        if needed > self.m or new_kind != self.kind:
+            capacity = self.m
+            if capacity == 0:
+                capacity = 1
+            while capacity < needed:
+                capacity *= 2
+
+            if new_kind == self.kind:
+                width = _kind_width(self.kind)
+                self.data = realloc(
+                    self.data,
+                    capacity * width,
+                    self.m * width,
+                )
+            else:
+                expanded = Ptr[u8](capacity * _kind_width(new_kind))
+                source = str(self.data, _make_meta(self.n, self.kind))
+                destination = str(expanded, _make_meta(capacity, new_kind))
+                _unicode_copy_range(destination, source, 0, 0, self.n)
+                self.data = expanded
+                self.kind = new_kind
+
+            self.m = capacity
+
+        destination = str(self.data, _make_meta(self.m, self.kind))
+        _unicode_copy_range(destination, s, self.n, 0, adding)
+        self.n = needed
+
+    def reverse(self):
+        from internal.types.str import _make_meta
+
+        a = 0
+        b = self.n - 1
+        value = str(self.data, _make_meta(self.m, self.kind))
+        while a < b:
+            left = value._load_codepoint(a)
+            value._store_codepoint(a, value._load_codepoint(b))
+            value._store_codepoint(b, left)
+            a += 1
+            b -= 1
+
+    def trim(self):
+        from internal.gc import realloc
+        from internal.types.str import _kind_width
+
+        if self.n != self.m:
+            width = _kind_width(self.kind)
+            self.data = realloc(self.data, self.n * width, self.m * width)
+            self.m = self.n
+
+    def __str__(self):
+        from internal.types.str import _make_meta
+
+        return str(self.data, _make_meta(self.n, self.kind))

@@ -1,0 +1,60 @@
+
+# Core library
+# from internal.core import *  # done automatically by compiler
+from internal.attributes import *
+import internal.static as static
+from internal.static import print as __print__
+
+from internal.ops import *
+from internal.types.int import *
+from internal.types.ptr import *
+from internal.types.bool import *
+from internal.types.error import *
+from internal.types.float import *
+
+from internal.types.slice import *
+from internal.types.collections.list import *
+from internal.types.bytes import *
+from internal.types.collections.bytearray import *
+
+from internal.types.type import *
+from internal.types.tuple import *
+from internal.types.rtti import *
+from internal.types.function import *
+from internal.types.union import *
+from internal.types.any import *
+from internal.types.ellipsis import *
+from internal.types.import_ import *
+from internal.types.generator import *
+from internal.types.optional import *
+import internal.c_stubs as _C
+from internal.internal import *
+from internal.types.range import *
+from internal.types.complex import *
+
+__argv__ = Ptr[str]()
+__argc__ = 0
+
+from internal.types.strbuf import strbuf as _strbuf
+from internal.types.collections.set import *
+from internal.types.collections.dict import *
+from internal.types.collections.tuple import *
+
+from internal.builtin import *
+from internal.builtin import _jit_display
+from internal.types.str import *
+from internal.format import *
+
+from internal.sort import sorted
+
+from openmp import Ident as __OMPIdent, for_par, for_par as par
+from internal.file import File, gzFile, open, gzopen
+from internal.gpu import _gpu_loop_outline_template
+from pickle import pickle, unpickle
+from internal.dlopen import dlsym as _dlsym, dlsym_c as _dlsym_c
+import internal.python
+from internal.python import PyError
+from asyncio import Future as _Future
+
+if __py_extension__:
+    internal.python.ensure_initialized()

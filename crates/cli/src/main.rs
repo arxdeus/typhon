@@ -13,7 +13,7 @@ use typhon_compiler::Compiler;
 use typhon_compiler::typhon_llvm::inkwell::context::Context;
 use typhon_compiler::typhon_llvm::{EngineConfig, LlvmVisitor};
 
-const SUPPORTED_EXTENSIONS: [&str; 3] = [".codon", ".py", ".seq"];
+const SUPPORTED_EXTENSIONS: [&str; 1] = [".py"];
 
 fn make_output_filename(filename: &str, extension: &str) -> String {
     for ext in SUPPORTED_EXTENSIONS {
@@ -62,7 +62,7 @@ fn report(err: &CompilerError) {
 
 fn init_log_flags(log: &str) {
     logger().parse(log);
-    if let Ok(d) = std::env::var("CODON_DEBUG") {
+    if let Ok(d) = std::env::var("TYPHON_DEBUG") {
         logger().parse(&d);
     }
 }
@@ -112,14 +112,8 @@ fn process_source(cli: &mut Cli, standalone: bool) -> Option<Compiler> {
     }
 
     let mut compiler = Compiler::new(cli.options.clone(), None);
-    for plugin in cli.options.plugins.clone() {
-        if let Err(e) = compiler.load(&plugin) {
-            compilation_error(&e.to_string(), "", 0, 0, 0, -1, false, MessageGroupPos::None);
-            return None;
-        }
-    }
 
-    let test_flags: i32 = std::env::var("CODON_TEST_FLAGS").ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+    let test_flags: i32 = std::env::var("TYPHON_TEST_FLAGS").ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
     if let Err(e) = compiler.parse_file(&cli.input, test_flags, &defmap) {
         report(&e);
         return None;
@@ -156,11 +150,6 @@ fn run_mode(argv0: &str, args: &[String]) -> i32 {
     let mut prog_args = vec![compiler.input().to_string()];
     prog_args.extend(cli.prog_args.iter().cloned());
     v.set_jit_symbols(typhon_compiler::runtime::builtin_symbols());
-    // C++ `LLVMVisitor::run`: `plugins->loadRuntimeLibraries()` before JIT'ing.
-    if let Err(e) = compiler.load_plugin_runtime_libraries() {
-        report(&e);
-        return 1;
-    }
     let config = EngineConfig { gc_roots: rt.gc_roots, ..Default::default() };
     let r = v.run(&prog_args, &cli.libs, config);
     flush_c_stdio();
@@ -289,7 +278,7 @@ fn collect_files(dir: &Path, out: &mut Vec<String>) {
         let p = e.path();
         if p.is_dir() {
             collect_files(&p, out);
-        } else if p.is_file() && !p.to_string_lossy().ends_with("__init_test__.codon") {
+        } else if p.is_file() && !p.to_string_lossy().ends_with("__init_test__.py") {
             out.push(p.to_string_lossy().into_owned());
         }
     }
@@ -313,7 +302,7 @@ fn main() {
         "build" => build_mode(&argv0, &exe, rest),
         "doc" => doc_mode(&exe, rest),
         "version" | "--version" | "-version" => {
-            println!("{}", typhon_common::config::CODON_VERSION);
+            println!("{}", typhon_common::config::VERSION);
             0
         }
         "jit" | "jupyter" => fatal(&format!("'{mode}' mode is not supported in typhon (only run, build and doc)")),

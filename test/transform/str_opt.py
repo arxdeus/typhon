@@ -1,0 +1,140 @@
+import internal.static as static
+from internal.types.str import KIND_ASCII, KIND_LATIN1, KIND_UCS2, KIND_UCS4, \
+  _unicode_new_uninit, _unicode_maxchar, _unicode_copy_range
+
+cat_count = 0
+
+# c/p from str.py
+
+def old_cat(*args) -> str:
+    total = 0
+    maxchar = 0
+
+    if (
+        static.len(args) == 1
+        and hasattr(args[0], "__iter__")
+        and hasattr(args[0], "__len__")
+    ):
+        for value in args[0]:
+            if not isinstance(value, str):
+                compile_error("not a string")
+            total += len(value)
+            value_maxchar = _unicode_maxchar(value)
+            if value_maxchar > maxchar:
+                maxchar = value_maxchar
+
+        result = _unicode_new_uninit(total, maxchar)
+        output = 0
+
+        for value in args[0]:
+            _unicode_copy_range(result, value, output, 0, len(value))
+            output += len(value)
+
+        return result
+    elif static.len(args) == 1 and hasattr(args[0], "__iter__"):
+        capacity = 10
+        data = Ptr[u8](capacity)
+        kind = KIND_ASCII
+
+        for value in args[0]:
+            if not isinstance(value, str):
+                compile_error("not a string")
+
+            required = total + len(value)
+            width = _kind_width(kind)
+            value_width = value._width()
+
+            if required > capacity or value_width > width:
+                if required > capacity:
+                    capacity = 1 + 3 * required.cdiv(2)
+
+                new_kind = kind
+                if value_width > width:
+                    new_kind = value._kind()
+
+                expanded = Ptr[u8](
+                    capacity * _kind_width(new_kind)
+                )
+
+                if new_kind == kind:
+                    str.memcpy(
+                        expanded,
+                        data,
+                        total * width,
+                    )
+                else:
+                    source = str(data, _make_meta(total, kind))
+                    destination = str(
+                        expanded,
+                        _make_meta(capacity, new_kind),
+                    )
+                    _unicode_copy_range(
+                        destination,
+                        source,
+                        0,
+                        0,
+                        total,
+                    )
+
+                data = expanded
+                kind = new_kind
+
+            buffer = str(data, _make_meta(capacity, kind))
+            _unicode_copy_range(buffer, value, total, 0, len(value))
+
+            total = required
+            value_maxchar = _unicode_maxchar(value)
+            if value_maxchar > maxchar:
+                maxchar = value_maxchar
+
+        result = _unicode_new_uninit(total, maxchar)
+        for i in range(total):
+            result._store_codepoint(i, int(data[i]))
+
+        return result
+    else:
+        for i in static.range(static.len(args)):
+            value = args[i]
+            if not isinstance(value, str):
+                compile_error("not a string")
+            total += len(value)
+            value_maxchar = _unicode_maxchar(value)
+            if value_maxchar > maxchar:
+                maxchar = value_maxchar
+
+        result = _unicode_new_uninit(total, maxchar)
+        output = 0
+
+        for i in static.range(static.len(args)):
+            value = args[i]
+            _unicode_copy_range(result, value, output, 0, len(value))
+            output += len(value)
+
+        return result
+
+@extend
+class str:
+    def cat(*args):
+        global cat_count
+        cat_count += 1
+        return old_cat(*args)
+
+@test
+def test_str_optimization():
+    assert 'hello ' + 'world' == "hello world"  # no opt: just adding 2 strs
+    assert cat_count == 0
+    # assert 'a' + 'b' + 'c' == 'abc' # superseded by string statics
+    # assert cat_count == 1
+    assert 'a' * 2 == 'aa'  # no opt: mul instead of add
+    assert cat_count == 0
+    # assert 'a' + ('b' + 'c') == 'abc'
+    # assert cat_count == 2
+    # assert 'a' + ('b' + ('c' + 'd')) == 'abcd'
+    # assert cat_count == 3
+
+    a = 'a'
+    b = 'b'
+    c = 'c'
+    assert (a*2 + b*3 + c*4) == 'aabbbcccc'
+    assert cat_count == 1
+test_str_optimization()

@@ -1,0 +1,164 @@
+
+import internal.static as static
+
+
+def __type_repr__(T: type):
+    return f"<class '{T.__name__}'>"
+
+
+@extend
+class type:
+    @pure
+    @derives
+    @__internal__
+    def _force_cast(p, T: type) -> T:
+        """
+        Reinterprets p as T without changing its pointer representation.
+
+        Both types must lower to pointers; nullable class references are supported.
+        This internal operation does not check the runtime object type and is unsafe.
+        """
+        pass
+
+    @pure
+    @derives
+    @__internal__
+    def _force_value_cast(t, U: type) -> U:
+        """
+        Reinterprets t as U without changing its LLVM representation.
+
+        Used for casting tuples into named tuple types. The source and destination
+        must have identical LLVM types; equal size alone is insufficient. This
+        internal operation performs no conversion or runtime type check and is unsafe.
+        """
+        pass
+
+    @pure
+    @derives
+    @__internal__
+    def _ref_raw(obj) -> Ptr[u8]:
+        """
+        Casts the reference type to a pointer.
+        """
+        pass
+
+    @__internal__
+    def _ref_alloc(T: type) -> T:
+        pass
+
+    @__internal__
+    def _ref_size(T: type) -> int:
+        pass
+
+    def _ref_new(T: type) -> T:
+        """
+        Allocates a new reference (class) object.
+        """
+        from internal.gc import register_finalizer
+
+        obj = type._ref_alloc(T)
+        register_finalizer(obj)
+        return obj
+
+    def _construct(T: type, *args, **kwargs) -> T:
+        """
+        Shorthand for `t = T.__new__(); t.__init__(*args, **kwargs); t`
+        """
+        return T(*args, **kwargs)
+
+    @pure
+    @derives
+    @inline
+    @llvm
+    def _get_element_offset(T: type, i: Literal[int]) -> int:
+        """
+        Gets offset of i-th element in a Tuple. Respects aliasing rules.
+        """
+        %1 = getelementptr {=T}, ptr null, i32 0, i32 {=i}
+        %2 = ptrtoint ptr %1 to i64
+        ret i64 %2
+
+    @pure
+    @derives
+    @inline
+    def _get_class_offset(T: type, i: Literal[int]) -> int:
+        """
+        Gets offset of i-th element in a class. Respects aliasing rules.
+        Returns the size of class if i is >= the number of fields.
+        """
+        if isinstance(T, ByVal):
+            TT: type = tuple(T)
+            if i >= static.len(TT):
+                return TT.__elemsize__
+            else:
+                return type._get_element_offset(TT, i)
+        else:
+            info = TypeInfo.cache(T)
+            if i >= info.n_slots:
+                return type._ref_size(T)
+            return info.slots[i][2]
+
+    @inline
+    def _cls_ptr(obj):
+        return obj.__raw__()
+
+    @inline
+    def _is(obj: T, other: U, T: type, U: type) -> bool:
+        return type._cls_ptr(obj) == type._cls_ptr(other)
+
+@extend
+class TypeWrap:
+    def __new__(T: type) -> TypeWrap[T]:
+        return type._force_value_cast((), TypeWrap[T])
+
+    def __call_no_self__(*args, **kwargs) -> T:
+        return T(*args, **kwargs)
+
+    def __call__(self, *args, **kwargs) -> T:
+        return T(*args, **kwargs)
+
+    def __repr__(self):
+        return __type_repr__(T)
+
+    @property
+    def __name__(self):
+        return T.__name__
+
+
+class __cast__:
+    def cast(obj: T, T: type) -> Generator[T]:
+        return obj.__iter__()
+
+    @overload
+    def cast(obj: int) -> float:
+        return float(obj)
+
+    @overload
+    def cast(obj: T, T: type) -> Optional[T]:
+        return Optional[T](obj)
+
+    @overload
+    def cast(obj: Optional[T], T: type) -> T:
+        return obj.unwrap()
+
+    @overload
+    def cast(obj: T, T: type) -> pyobj:
+        return obj.__to_py__()
+
+    @overload
+    def cast(obj: pyobj, T: type) -> T:
+        return T.__from_py__(obj)
+
+    # Function[[T...], R]
+        # ExternFunction[[T...], R]
+        # CodonFunction[[T...], R]
+        # Partial[foo, [T...], R]
+
+    # function into partial (if not Function) / fn(foo) -> fn(foo(...))
+    # empty partial (!!) into Function[]
+    # union extract
+    # any into Union[]
+    # derived to base
+
+    def conv_float(obj: float) -> int:
+        return int(obj)
