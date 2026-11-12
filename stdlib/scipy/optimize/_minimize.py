@@ -7,6 +7,7 @@ import numpy as np
 from ._common import *
 from ._common import (_ScalarFunction, _approx_grad, _approx_jac, _bound_val, _call_scalar, _call_vec, _e1, _e2, _eps_for_method, _epsilon, _fd_steps, _has_opt, _norm2, _norm_inf, _old_bound_to_new, _opt_bool, _opt_float, _opt_int, _prepare_bounds_pair, _scalar_eps, _sign, _sqrt, _standardize_bounds, _status_message_maxfev, _status_message_maxiter, _status_message_nan, _status_message_oob, _status_message_pr_loss, _status_message_success, _vec)
 from ._linesearch import _line_search_wolfe12
+from ._callback import _cb_halt, _STOP_MSG
 from ._scalar import _minimize_scalar_brent_impl, _minimize_scalar_bounded_impl
 
 class _MaxFuncCallError(RuntimeError):
@@ -37,7 +38,9 @@ def _no_bounds():
 # -------------------------------------------------------------- Nelder-Mead
 
 def _minimize_neldermead(func, x0: np.ndarray[float, 1], args, options,
-                         bnds: Optional[Tuple[np.ndarray[float, 1], np.ndarray[float, 1]]]):
+                         bnds: Optional[Tuple[np.ndarray[float, 1], np.ndarray[float, 1]]],
+                         callback = None,
+                         initial_simplex: np.ndarray[float, 2] = np.empty((0, 0), float)):
     xatol = _opt_float(options, 'xatol', 1e-4)
     fatol = _opt_float(options, 'fatol', 1e-4)
     adaptive = _opt_bool(options, 'adaptive', False)
@@ -64,16 +67,22 @@ def _minimize_neldermead(func, x0: np.ndarray[float, 1], args, options,
         x0 = np.clip(x0, lower_bound, upper_bound)
 
     sim = np.empty((N + 1, N), float)
-    if _has_opt(options, 'initial_simplex'):
-        raise ValueError("initial_simplex option is not supported by this port")
-    sim[0] = x0
-    for k in range(N):
-        y = x0.copy()
-        if y[k] != 0:
-            y[k] = (1 + nonzdelt) * y[k]
-        else:
-            y[k] = zdelt
-        sim[k + 1] = y
+    if initial_simplex.size == 0:
+        sim[0] = x0
+        for k in range(N):
+            y = x0.copy()
+            if y[k] != 0:
+                y[k] = (1 + nonzdelt) * y[k]
+            else:
+                y[k] = zdelt
+            sim[k + 1] = y
+    else:
+        s0 = initial_simplex
+        if s0.shape[0] != s0.shape[1] + 1:
+            raise ValueError('`initial_simplex` should be an array of shape (N+1,N)')
+        if N != s0.shape[1]:
+            raise ValueError('Size of `initial_simplex` is not consistent with `x0`')
+        sim = s0.copy()
 
     has_mi = _has_opt(options, 'maxiter')
     has_mf = _has_opt(options, 'maxfev')
@@ -114,6 +123,7 @@ def _minimize_neldermead(func, x0: np.ndarray[float, 1], args, options,
     sim = np.take(sim, ind, 0)
 
     iterations = 1
+    stopped = False
     while float(fc.ncalls) < maxfun and float(iterations) < maxiter:
         try:
             if (np.max(np.ravel(np.abs(sim[1:] - sim[0]))) <= xatol and
@@ -173,6 +183,9 @@ def _minimize_neldermead(func, x0: np.ndarray[float, 1], args, options,
         ind = np.argsort(fsim, kind='stable')
         sim = np.take(sim, ind, 0)
         fsim = np.take(fsim, ind, 0)
+        if _cb_halt(callback, sim[0], fsim[0]):
+            stopped = True
+            break
 
     x = sim[0].copy()
     fval = float(np.min(fsim))
@@ -184,16 +197,21 @@ def _minimize_neldermead(func, x0: np.ndarray[float, 1], args, options,
     elif float(iterations) >= maxiter:
         warnflag = 2
         msg = _status_message_maxiter
-    return OptimizeResult(x, fval, _e1(), nit=iterations, nfev=fc.ncalls,
-                          status=warnflag, success=(warnflag == 0),
-                          message=msg)
+    r = OptimizeResult(x, fval, _e1(), nit=iterations, nfev=fc.ncalls,
+                       status=warnflag, success=(warnflag == 0),
+                       message=msg)
+    if stopped:
+        r.success = False
+        r.status = 99
+        r.message = _STOP_MSG
+    return r
 
 # --------------------------------------------------------------------- BFGS
 
 def _true4(a: float, x: np.ndarray[float, 1], f: float, g: np.ndarray[float, 1]) -> bool:
     return True
 
-def _minimize_bfgs(fun, x0: np.ndarray[float, 1], args, jac, options):
+def _minimize_bfgs(fun, x0: np.ndarray[float, 1], args, jac, options, callback = None):
     gtol = _opt_float(options, 'gtol', 1e-05)
     norm = _opt_float(options, 'norm', INF)
     eps = _opt_float(options, 'eps', _epsilon)
@@ -233,6 +251,9 @@ def _minimize_bfgs(fun, x0: np.ndarray[float, 1], args, jac, options):
         yk = gfkp1 - gfk
         gfk = gfkp1
         k += 1
+        if _cb_halt(callback, xk, old_fval):
+            warnflag = 99
+            break
         gnorm = vecnorm(gfk, norm)
         if gnorm <= gtol:
             break
@@ -250,7 +271,9 @@ def _minimize_bfgs(fun, x0: np.ndarray[float, 1], args, jac, options):
         Hk = np.dot(A1, np.dot(Hk, A2)) + (rhok * sk[:, None] * sk[None, :])
     fval = old_fval
     msg = _status_message_success
-    if warnflag == 2:
+    if warnflag == 99:
+        msg = _STOP_MSG
+    elif warnflag == 2:
         msg = _status_message_pr_loss
     elif k >= maxiter:
         warnflag = 1
@@ -318,7 +341,7 @@ class _PRPStep:
             return True
         return float(np.dot(pp, gg)) <= -self.sigma_3 * float(np.dot(gg, gg))
 
-def _minimize_cg(fun, x0: np.ndarray[float, 1], args, jac, options):
+def _minimize_cg(fun, x0: np.ndarray[float, 1], args, jac, options, callback = None):
     gtol = _opt_float(options, 'gtol', 1e-05)
     norm = _opt_float(options, 'norm', INF)
     eps = _opt_float(options, 'eps', _epsilon)
@@ -362,9 +385,14 @@ def _minimize_cg(fun, x0: np.ndarray[float, 1], args, jac, options):
             gfk = gg
             gnorm = gn
         k += 1
+        if _cb_halt(callback, xk, old_fval):
+            warnflag = 99
+            break
     fval = old_fval
     msg = _status_message_success
-    if warnflag == 2:
+    if warnflag == 99:
+        msg = _STOP_MSG
+    elif warnflag == 2:
         msg = _status_message_pr_loss
     elif k >= maxiter:
         warnflag = 1
@@ -446,7 +474,8 @@ def _linesearch_powell(func, p: np.ndarray[float, 1], xi: np.ndarray[float, 1],
         return res.fun, p + xi2, xi2
 
 def _minimize_powell(func, x0: np.ndarray[float, 1], args, options,
-                     bnds: Optional[Tuple[np.ndarray[float, 1], np.ndarray[float, 1]]]):
+                     bnds: Optional[Tuple[np.ndarray[float, 1], np.ndarray[float, 1]]],
+                     callback = None):
     xtol = _opt_float(options, 'xtol', 1e-4)
     ftol = _opt_float(options, 'ftol', 1e-4)
     x = x0.copy()
@@ -479,6 +508,7 @@ def _minimize_powell(func, x0: np.ndarray[float, 1], args, options,
     fval = f(x)
     x1 = x.copy()
     iter = 0
+    stopped = False
     while True:
         try:
             fx = fval
@@ -494,6 +524,9 @@ def _minimize_powell(func, x0: np.ndarray[float, 1], args, options,
                     delta = fx2 - fval
                     bigind = i
             iter += 1
+            if _cb_halt(callback, x, fval):
+                stopped = True
+                break
             bnd = ftol * (abs(fx) + abs(fval)) + 1e-20
             if 2.0 * (fx - fval) <= bnd:
                 break
@@ -548,6 +581,11 @@ def _minimize_powell(func, x0: np.ndarray[float, 1], args, options,
     elif fval != fval or np.isnan(x).any():
         warnflag = 3
         msg = _status_message_nan
-    return OptimizeResult(x, fval, _e1(), nit=iter, nfev=fc.ncalls,
-                          status=warnflag, success=(warnflag == 0),
-                          message=msg, hess_inv=direc)
+    r = OptimizeResult(x, fval, _e1(), nit=iter, nfev=fc.ncalls,
+                       status=warnflag, success=(warnflag == 0),
+                       message=msg, hess_inv=direc)
+    if stopped:
+        r.success = False
+        r.status = 99
+        r.message = _STOP_MSG
+    return r

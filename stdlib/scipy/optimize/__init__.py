@@ -126,6 +126,15 @@ class _Opts[O]:
                 return self.tol
         raise KeyError(key)
 
+def _opt_simplex(options) -> np.ndarray[float, 2]:
+    # initial_simplex option, empty array when absent
+    if options is None:
+        return np.empty((0, 0), float)
+    else:
+        if 'initial_simplex' in options:
+            return np.atleast_2d(np.asarray(options['initial_simplex'], float))
+        return np.empty((0, 0), float)
+
 def minimize(fun, x0, args = (), method: Optional[str] = None, jac = None,
              hess = None, hessp = None, bounds = None, constraints = (),
              tol: Optional[float] = None, callback = None, options = None):
@@ -154,15 +163,16 @@ def minimize(fun, x0, args = (), method: Optional[str] = None, jac = None,
                 raise ValueError("An upper bound is less than the corresponding lower bound.")
         bnds = (lb, ub)
     if meth == 'nelder-mead':
-        return _minimize_neldermead(fun, x, args, opts, bnds)
+        return _minimize_neldermead(fun, x, args, opts, bnds, callback,
+                                    _opt_simplex(options))
     elif meth == 'powell':
-        return _minimize_powell(fun, x, args, opts, bnds)
+        return _minimize_powell(fun, x, args, opts, bnds, callback)
     elif meth == 'cg':
-        return _minimize_cg(fun, x, args, jac, opts)
+        return _minimize_cg(fun, x, args, jac, opts, callback)
     elif meth == 'bfgs':
-        return _minimize_bfgs(fun, x, args, jac, opts)
+        return _minimize_bfgs(fun, x, args, jac, opts, callback)
     elif meth == 'l-bfgs-b':
-        return _minimize_lbfgsb(fun, x, args, jac, bnds, opts)
+        return _minimize_lbfgsb(fun, x, args, jac, bnds, opts, callback)
     elif meth == 'newton-cg':
         return _minimize_newtoncg(fun, x, args, jac, hess, hessp, callback, opts)
     elif meth == 'trust-ncg':
@@ -179,3 +189,6 @@ def minimize(fun, x0, args = (), method: Optional[str] = None, jac = None,
 
 # --- global optimizers / LP (sabertooth)
 from ._differentialevolution import differential_evolution
+from ._basinhopping import basinhopping, MinimizerKwargs, RandomDisplacement, \
+                           AdaptiveStepsize, Metropolis
+from ._dual_annealing import dual_annealing

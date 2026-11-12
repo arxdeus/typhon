@@ -9,6 +9,7 @@ import numpy as np
 from ._common import *
 from ._common import (_ScalarFunction, _approx_grad, _approx_jac, _bound_val, _call_scalar, _call_vec, _e1, _e2, _eps_for_method, _epsilon, _fd_steps, _has_opt, _norm2, _norm_inf, _old_bound_to_new, _opt_bool, _opt_float, _opt_int, _prepare_bounds_pair, _scalar_eps, _sign, _sqrt, _standardize_bounds, _status_message_maxfev, _status_message_maxiter, _status_message_nan, _status_message_oob, _status_message_pr_loss, _status_message_success, _vec)
 from ._linesearch import _DCSRCH
+from ._callback import _cb_halt, _STOP_MSG
 
 _EPSMCH = 2.220446049250313e-016
 
@@ -864,7 +865,7 @@ def _lbfgs_inv_hess(s: _LB, n_corrs: int) -> np.ndarray[float, 2]:
 
 def _minimize_lbfgsb(fun, x0: np.ndarray[float, 1], args, jac,
                      bnds: Optional[Tuple[np.ndarray[float, 1], np.ndarray[float, 1]]],
-                     options):
+                     options, callback = None):
     m = _opt_int(options, 'maxcor', 10)
     ftol = _opt_float(options, 'ftol', 2.2204460492503131e-09)
     gtol = _opt_float(options, 'gtol', 1e-5)
@@ -1040,6 +1041,9 @@ def _minimize_lbfgsb(fun, x0: np.ndarray[float, 1], args, jac,
         iter += 1
         sbgnrm = _projgr(n, s.l, s.u, s.nbd, x, s.g)
         n_iterations += 1
+        if _cb_halt(callback, x, s.f):
+            task = 'callback'
+            break
         if n_iterations >= maxiter:
             task = 'stop_iter'
             break
@@ -1087,12 +1091,19 @@ def _minimize_lbfgsb(fun, x0: np.ndarray[float, 1], args, jac,
         msg = 'STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT'
     elif task == 'stop_fev':
         msg = 'STOP: TOTAL NO. OF F,G EVALUATIONS EXCEEDS LIMIT'
+    elif task == 'callback':
+        msg = 'STOP: CALLBACK REQUESTED STOP'
     else:
         msg = 'ABNORMAL: '
     if warnflag != 0 and (sf.nfev > maxfun or n_iterations >= maxiter):
         warnflag = 1
     n_corrs = min(s.iupdat, m)
     H = _lbfgs_inv_hess(s, n_corrs)
-    return OptimizeResult(x.copy(), s.f, s.g.copy(), nit=n_iterations,
-                          nfev=sf.nfev, njev=sf.ngev, status=warnflag,
-                          success=(warnflag == 0), message=msg, hess_inv=H)
+    r = OptimizeResult(x.copy(), s.f, s.g.copy(), nit=n_iterations,
+                       nfev=sf.nfev, njev=sf.ngev, status=warnflag,
+                       success=(warnflag == 0), message=msg, hess_inv=H)
+    if task == 'callback':
+        r.success = False
+        r.status = 99
+        r.message = _STOP_MSG
+    return r
