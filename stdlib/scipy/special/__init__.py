@@ -10,6 +10,7 @@ from . import _cdf as C
 from . import _bessel as B
 from . import _gamma2 as G2
 from . import _noncentral as NC
+from . import _kolmogorov as KS
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -205,6 +206,18 @@ def _map4(f, a, b, c, d):
         return f(float(a), float(b), float(c), float(d))
 def ncfdtr(dfn, dfd, nc, f): return _map4(NC.ncfdtr, dfn, dfd, nc, f)
 def ncfdtri(dfn, dfd, nc, p): return _map4(NC.ncfdtri, dfn, dfd, nc, p)
+
+# Kolmogorov-Smirnov (_kolmogorov)
+def kolmogorov(y): return _map1(KS.kolmogorov, y)
+def kolmogi(p): return _map1(KS.kolmogi, p)
+def smirnov(n, d): return _map2(KS.smirnov, n, d)
+def smirnovi(n, p): return _map2(KS.smirnovi, n, p)
+def _kolmogc(x): return _map1(KS.kolmogc, x)
+def _kolmogci(p): return _map1(KS.kolmogci, p)
+def _kolmogp(x): return _map1(KS.kolmogp, x)
+def _smirnovc(n, d): return _map2(KS.smirnovc, n, d)
+def _smirnovci(n, p): return _map2(KS.smirnovci, n, p)
+def _smirnovp(n, d): return _map2(KS.smirnovp, n, d)
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:
