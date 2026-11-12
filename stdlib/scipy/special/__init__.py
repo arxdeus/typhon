@@ -13,6 +13,7 @@ from . import _noncentral as NC
 from . import _kolmogorov as KS
 from . import _hyp as H
 from . import _misc as M
+from . import _ellip as E
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -254,6 +255,26 @@ def exp10(x): return _map1(M.exp10, x)
 def cbrt(x): return _map1(M.cbrt, x)
 def huber(delta, r): return _map2(M.huber, delta, r)
 def pseudo_huber(delta, r): return _map2(M.pseudo_huber, delta, r)
+
+# elliptic (_ellip)
+def ellipk(m): return _map1(E.ellipk, m)
+def ellipkm1(p): return _map1(E.ellipkm1, p)
+def ellipe(m): return _map1(E.ellipe, m)
+def ellipkinc(phi, m): return _map2(E.ellipkinc, phi, m)
+def ellipeinc(phi, m): return _map2(E.ellipeinc, phi, m)
+def _ej0(u: float, m: float) -> float: return E.ellipj(u, m)[0]
+def _ej1(u: float, m: float) -> float: return E.ellipj(u, m)[1]
+def _ej2(u: float, m: float) -> float: return E.ellipj(u, m)[2]
+def _ej3(u: float, m: float) -> float: return E.ellipj(u, m)[3]
+def ellipj(u, m):
+    """Jacobi elliptic functions: (sn, cn, dn, ph)."""
+    return (_map2(_ej0, u, m), _map2(_ej1, u, m), _map2(_ej2, u, m), _map2(_ej3, u, m))
+def agm(a, b): return _map2(E.agm, a, b)
+def elliprc(x, y): return _map2(E.elliprc, x, y)
+def elliprd(x, y, z): return _map3(E.elliprd, x, y, z)
+def elliprf(x, y, z): return _map3(E.elliprf, x, y, z)
+def elliprg(x, y, z): return _map3(E.elliprg, x, y, z)
+def elliprj(x, y, z, p): return _map4(E.elliprj, x, y, z, p)
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:
