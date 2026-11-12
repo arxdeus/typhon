@@ -1,0 +1,11 @@
+set(CMAKE_SYSTEM_NAME WASI)
+set(CMAKE_SYSTEM_PROCESSOR wasm32)
+# cc-wasi = clang --target=wasm32-wasip1 --sysroot=<wasi-libc> -resource-dir=<dir with
+# lib/wasm32-unknown-wasip1/libclang_rt.builtins.a> "$@"  (see docs/wasm.md)
+set(CMAKE_C_COMPILER $ENV{TYPHON_WASI_CC})
+set(CMAKE_C_COMPILER_TARGET wasm32-wasip1)
+set(CMAKE_SYSROOT /opt/homebrew/opt/wasi-libc/share/wasi-sysroot)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+set(CMAKE_AR /opt/homebrew/opt/llvm/bin/llvm-ar)
+set(CMAKE_RANLIB /opt/homebrew/opt/llvm/bin/llvm-ranlib)
+set(enable_threads OFF CACHE BOOL "")

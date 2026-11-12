@@ -1,0 +1,24 @@
+diff --git a/crates/runtime/Cargo.toml b/crates/runtime/Cargo.toml
+index 0e3f429..c50d551 100644
+--- a/crates/runtime/Cargo.toml
++++ b/crates/runtime/Cargo.toml
+@@ -34,13 +34,18 @@ backtrace = "0.3.69"
+ # they are not used by the stdlib and are omitted.
+ libz-rs-sys = { version = "0.6.8", features = ["gz", "export-symbols"] }
+ libbz2-rs-sys = { version = "0.2.6", features = ["export-symbols"] }
+-liblzma-sys = { version = "0.4.9", default-features = false, features = ["static", "parallel"] }
+ fast-float2 = "0.2.4"
+ glidesort = "0.1.2"
+ num-complex = "0.4.6"
+ libm = "0.2.16"
+ parking_lot = "0.12.5"
+ 
++[target.'cfg(not(target_os = "wasi"))'.dependencies]
++liblzma-sys = { version = "0.4.9", default-features = false, features = ["static", "parallel"] }
++
++[target.'cfg(target_os = "wasi")'.dependencies]
++liblzma-sys = { version = "0.4.9", default-features = false, features = ["static"] }
++
+ [build-dependencies]
+ cc.workspace = true
+ openblas-build = { version = "0.10.16", default-features = false, features = ["rustls"] }
