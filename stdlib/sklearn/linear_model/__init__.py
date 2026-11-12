@@ -263,3 +263,4 @@ class LogisticRegression:
 
     def score(self, X, y, sample_weight = None):
         return _accuracy(y, self.predict(X))
+from ._bayes import BayesianRidge

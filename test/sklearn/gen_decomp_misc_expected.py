@@ -130,5 +130,41 @@ def feature_selection():
     sfs = SequentialFeatureSelector(LinearDiscriminantAnalysis(), n_features_to_select=5, direction="backward", cv=3).fit(X, y)
     L("sfs_b", sfs.get_support())
 
+def nan_data():
+    X, y = data(25, 5, 3)
+    for i in range(25):
+        for j in range(5):
+            if (i * 3 + j * 7) % 6 == 0:
+                X[i, j] = np.nan
+    X[2, 4] = 1.5; X[7, 4] = 1.5
+    return X, y
+
+def impute():
+    from sklearn.experimental import enable_iterative_imputer  # noqa
+    from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer, MissingIndicator
+    from sklearn.linear_model import BayesianRidge
+    X, y = nan_data()
+    Xr = np.round(X)
+    for st in ["mean", "median", "most_frequent", "constant"]:
+        im = SimpleImputer(strategy=st, fill_value=-1.0)
+        L(f"si_{st}", im.fit_transform(Xr if st == "most_frequent" else X)); L(f"si_{st}_st", im.statistics_)
+    im = SimpleImputer(add_indicator=True).fit(X); L("si_ind", im.transform(X[:6]))
+    L("mi", MissingIndicator().fit_transform(X)); L("mi_all", MissingIndicator(features="all").fit(X).transform(X[:4]))
+    L("knn", KNNImputer(n_neighbors=3).fit_transform(X))
+    L("knn_d", KNNImputer(n_neighbors=4, weights="distance").fit(X).transform(X[:8]))
+    Xc = X[:, :4].copy(); Xc[np.isnan(Xc)] = 0.0
+    yb = Xc @ np.array([1.0, -2.0, 0.5, 0.3]) + 0.1 * np.sin(np.arange(25))
+    br = BayesianRidge(compute_score=True).fit(Xc, yb)
+    L("br_coef", br.coef_); S("br_int", br.intercept_); S("br_alpha", br.alpha_); S("br_lambda", br.lambda_)
+    S("br_it", br.n_iter_); L("br_scores", br.scores_)
+    m, sd = br.predict(Xc[:4], return_std=True); L("br_m", m); L("br_sd", sd)
+    br2 = BayesianRidge().fit(Xc[:3], yb[:3]); L("br2_coef", br2.coef_)
+    it = IterativeImputer(random_state=0)
+    L("it", it.fit_transform(X)); S("it_n", it.n_iter_); L("it_tr", it.transform(X[:5] + 0.5))
+    it2 = IterativeImputer(random_state=0, n_nearest_features=2, imputation_order="random", max_iter=5)
+    L("it2", it2.fit_transform(X))
+    it3 = IterativeImputer(initial_strategy="median", imputation_order="descending", min_value=-1.0, max_value=2.0, add_indicator=True)
+    L("it3", it3.fit_transform(X))
+
 for sec in sys.argv[1:]:
     globals()[sec]()
