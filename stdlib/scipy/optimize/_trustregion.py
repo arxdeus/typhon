@@ -199,7 +199,10 @@ class _QuadModel[SF, HP]:
         self.lambda_current = 0.0
         self.tol_rel_i = tol_rel_i
         self.tol_rel_b = tol_rel_b
-        self.kstate = _TrlibState(x.size)
+        self.kstate = _TrlibState(x.size if kind == _TR_KRYLOV else 0)
+        if kind == _TR_KRYLOV:
+            # TRLIBQuadraticSubproblem.__init__ reads self.jac.shape
+            self.jac()
         if kind == _TR_EXACT:
             if maxiter < 0:
                 raise ValueError('maxiter must not be set to a negative number, use np.inf to mean infinite.')
@@ -458,16 +461,17 @@ def _minimize_trust_region(kind: int, fun, x0: np.ndarray[float, 1], args, jac,
         raise ValueError('the initial trust radius must be less than the max trust radius')
     sf = _ScalarFunctionH(fun, x0, args, jac, hess)
     has_hess = _hess_is_callable(hess)
-    use_user = not has_hess and hessp is not None
+    use_user = hessp is not None
     if not has_hess and hessp is None and hess is None:
         raise ValueError('Either the Hessian or the Hessian-vector product is currently required for trust-region methods')
     hp = _HessP(sf, hessp, args, use_user)
+    dense_hp = has_hess and not use_user
     tri = -2.0 if inexact else 1e-8
     trb = -3.0 if inexact else 1e-6
     warnflag = 0
     trust_radius = initial_trust_radius
     x = x0
-    m = _QuadModel(kind, x, sf, hp, has_hess, sub_maxiter, tri, trb)
+    m = _QuadModel(kind, x, sf, hp, dense_hp, sub_maxiter, tri, trb)
     k = 0
     stopped = False
     while m.jac_mag() >= gtol:
@@ -480,7 +484,7 @@ def _minimize_trust_region(kind: int, fun, x0: np.ndarray[float, 1], args, jac,
             break
         predicted_value = m(p)
         x_proposed = x + p
-        m_proposed = _QuadModel(kind, x_proposed, sf, hp, has_hess,
+        m_proposed = _QuadModel(kind, x_proposed, sf, hp, dense_hp,
                                 sub_maxiter, tri, trb)
         actual_reduction = m.fun() - m_proposed.fun()
         predicted_reduction = m.fun() - predicted_value
