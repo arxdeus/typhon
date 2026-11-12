@@ -19,6 +19,17 @@ unsafe fn binary_loop<T: Copy>(
             for ((o, &x), &y) in core::slice::from_raw_parts_mut(out, n).iter_mut().zip(a).zip(b) {
                 *o = f(x, y);
             }
+        } else if is1 == sz && is2 == sz && os == sz && out as *const T == in1 && apart(in2) {
+            // In-place into the first operand (fused temporaries): still vectorizable.
+            let b = core::slice::from_raw_parts(in2, n);
+            for (o, &y) in core::slice::from_raw_parts_mut(out, n).iter_mut().zip(b) {
+                *o = f(*o, y);
+            }
+        } else if is1 == sz && is2 == sz && os == sz && out as *const T == in2 && apart(in1) {
+            let a = core::slice::from_raw_parts(in1, n);
+            for (o, &x) in core::slice::from_raw_parts_mut(out, n).iter_mut().zip(a) {
+                *o = f(x, *o);
+            }
         } else if is1 == sz && is2 == sz && os == sz {
             for i in 0..n {
                 out.add(i).write_unaligned(f(in1.add(i).read_unaligned(), in2.add(i).read_unaligned()));
@@ -67,6 +78,25 @@ fn contiguous<T: Copy>(x: &[T], y: &mut [T], v: &impl Fn(T) -> T, ok: &impl Fn(T
     n
 }
 
+/// In-place variant of `contiguous` (`input == out`, as emitted by the numpy
+/// fusion pass): no stack round trip. Element `k` is read before it is written.
+#[inline(never)]
+fn contiguous_inplace<T: Copy>(y: &mut [T], v: &impl Fn(T) -> T, ok: &impl Fn(T) -> bool, lib: fn(T) -> T) -> usize {
+    let g = 16 / core::mem::size_of::<T>();
+    let n = y.len() / W * W;
+    for ys in y[..n].chunks_exact_mut(W) {
+        if ys.iter().fold(true, |a, &e| a & ok(e)) {
+            for o in ys.iter_mut() {
+                *o = v(*o);
+            }
+        } else {
+            let p = ys.as_mut_ptr();
+            fallback(p, p, g, ok, v, lib);
+        }
+    }
+    n
+}
+
 #[cold]
 #[inline(never)]
 fn fallback<T: Copy>(p: *const T, o: *mut T, g: usize, ok: &impl Fn(T) -> bool, v: &impl Fn(T) -> T, lib: fn(T) -> T) {
@@ -98,6 +128,9 @@ unsafe fn hwy_unary<T: Copy + Default>(
         // Disjoint slices give LLVM noalias: no runtime alias check / scalar copy.
         let (x, y) = unsafe { (core::slice::from_raw_parts(input, n), core::slice::from_raw_parts_mut(out, n)) };
         i = contiguous(x, y, &v, &ok, lib);
+    } else if is == sz && os == sz && input == out as *const T {
+        let y = unsafe { core::slice::from_raw_parts_mut(out, n) };
+        i = contiguous_inplace(y, &v, &ok, lib);
     } else {
         let mut buf = [T::default(); W];
         while i + W <= n {
