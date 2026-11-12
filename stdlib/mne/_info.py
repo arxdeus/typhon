@@ -39,6 +39,13 @@ class Info:
     highpass: float
     lowpass: float
     description: Optional[str]
+    cals: List[float]
+    ranges: List[float]
+    locs: List[List[float]]
+    coil_types: List[int]
+    units: List[int]
+    line_freq: Optional[float]
+    experimenter: Optional[str]
 
     def __init__(self, ch_names: List[str], sfreq: float, ch_types: List[str]):
         self.ch_names = ch_names
@@ -48,6 +55,32 @@ class Info:
         self.highpass = 0.0
         self.lowpass = sfreq / 2.0
         self.description = None
+        n = len(ch_names)
+        self.cals = [1.0 for _ in range(n)]
+        self.ranges = [1.0 for _ in range(n)]
+        self.locs = [[np.nan for _ in range(12)] for _ in range(n)]
+        self.coil_types = [_default_coil(t) for t in ch_types]
+        self.units = [_default_unit(t) for t in ch_types]
+        self.line_freq = None
+        self.experimenter = None
+
+    def _copy_extra_from(self, other: Info, sel: List[int]):
+        self.cals = [other.cals[i] for i in sel]
+        self.ranges = [other.ranges[i] for i in sel]
+        self.locs = [list(other.locs[i]) for i in sel]
+        self.coil_types = [other.coil_types[i] for i in sel]
+        self.units = [other.units[i] for i in sel]
+        self.line_freq = other.line_freq
+        self.experimenter = other.experimenter
+
+    def _append_ch(self, other: Info, i: int):
+        self.ch_names.append(other.ch_names[i])
+        self.ch_types.append(other.ch_types[i])
+        self.cals.append(other.cals[i])
+        self.ranges.append(other.ranges[i])
+        self.locs.append(list(other.locs[i]))
+        self.coil_types.append(other.coil_types[i])
+        self.units.append(other.units[i])
 
     @property
     def nchan(self) -> int:
@@ -104,6 +137,7 @@ class Info:
         n.highpass = self.highpass
         n.lowpass = self.lowpass
         n.description = self.description
+        n._copy_extra_from(self, list(range(self.nchan)))
         return n
 
     def __repr__(self) -> str:
@@ -115,7 +149,75 @@ class Info:
         n.highpass = self.highpass
         n.lowpass = self.lowpass
         n.description = self.description
+        n._copy_extra_from(self, sel)
         return n
+
+    def set_channel_types(self, mapping: Dict[str, str]):
+        for k, v in mapping.items():
+            if k not in self.ch_names:
+                raise ValueError(f"This channel name ({k}) doesn't exist in info.")
+            if v not in _VALID_CH_TYPES:
+                raise ValueError(f"This function cannot change to this channel type: {v}.")
+            i = self.ch_names.index(k)
+            self.ch_types[i] = v
+            self.coil_types[i] = _default_coil(v)
+            self.units[i] = _default_unit(v)
+        return self
+
+    def rename_channels(self, mapping: Dict[str, str]):
+        for k, v in mapping.items():
+            if k not in self.ch_names:
+                raise ValueError(f"Invalid channel name(s) {k} is not present in info")
+        new = [mapping[c] if c in mapping else c for c in self.ch_names]
+        if len(set(new)) != len(new):
+            raise ValueError("New channel names are not unique, renaming failed")
+        self.bads = [mapping[c] if c in mapping else c for c in self.bads]
+        self.ch_names = new
+        return self
+
+
+def _default_coil(t: str) -> int:
+    # FIFFV_COIL_EEG for EEG-like electrodes, else FIFFV_COIL_NONE
+    if t in ("eeg", "seeg", "dbs", "ecog"):
+        return 1
+    if t == "mag":
+        return 3024
+    if t == "grad":
+        return 3012
+    return 0
+
+
+def _default_unit(t: str) -> int:
+    if t == "mag":
+        return 112  # T
+    if t == "grad":
+        return 201  # T/m
+    if t in ("stim", "ref_meg", "exci", "syst", "ias", "gof", "dipole", "chpi"):
+        return -1
+    return 107  # V
+
+
+_KIND_OF_TYPE = (("mag", 1), ("grad", 1), ("eeg", 2), ("stim", 3), ("bio", 102),
+                 ("eog", 202), ("ref_meg", 301), ("emg", 302), ("ecg", 402),
+                 ("misc", 502), ("resp", 602), ("seeg", 802), ("dbs", 803),
+                 ("syst", 900), ("ecog", 902), ("ias", 910), ("exci", 920),
+                 ("temperature", 1200), ("gsr", 1300))
+
+
+def _type_to_kind(t: str) -> int:
+    for p in _KIND_OF_TYPE:
+        if p[0] == t:
+            return p[1]
+    return 502
+
+
+def _kind_to_type(kind: int, unit: int) -> str:
+    if kind == 1:
+        return "grad" if unit == 201 else "mag"
+    for p in _KIND_OF_TYPE:
+        if p[1] == kind:
+            return p[0]
+    return "misc"
 
 
 def create_info(ch_names, sfreq: float, ch_types = "misc", verbose = None) -> Info:
