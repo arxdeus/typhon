@@ -63,6 +63,11 @@ pub const STDLIB: &[&str] = &[
     "stdlib/functools_test.py", "stdlib/hashlib_test.py", "stdlib/future_test.py",
     "stdlib/contextlib_test.py", "stdlib/dataclasses_test.py", "stdlib/logging_test.py",
     "stdlib/warnings_test.py", "stdlib/abc_test.py", "stdlib/io_exit_flush_test.py",
+    "stdlib/textwrap_test.py", "stdlib/fnmatch_test.py", "stdlib/fractions_test.py",
+    "stdlib/struct_test.py", "stdlib/csv_test.py", "stdlib/urllib_parse_test.py",
+    "stdlib/uuid_test.py", "stdlib/difflib_test.py", "stdlib/pprint_test.py",
+    "stdlib/io_mod_test.py", "stdlib/glob_test.py", "stdlib/shutil_test.py",
+    "stdlib/tempfile_test.py", "stdlib/types_test.py",
 ];
 
 pub const CNUMERICS: &[&str] = &[
@@ -107,6 +112,7 @@ pub const NUMPY: &[&str] = &[
     "numpy/test_ndmath.py", "numpy/test_npdatetime.py",
     "numpy/test_reductions.py", "numpy/test_routines.py", "numpy/test_sorting.py",
     "numpy/test_statistics.py", "numpy/test_ufunc.py", "numpy/test_window.py",
+    "numpy/test_polynomial.py", "numpy/test_testing.py",
 ];
 
 pub const SCIPY: &[&str] = &[
@@ -117,6 +123,16 @@ pub const SCIPY: &[&str] = &[
     "pandas/test_reductions.py", "pandas/test_groupby.py", "pandas/test_rolling.py",
     "pandas/test_frame.py", "pandas/test_io.py", "pandas/test_repr.py",
     "pandas/test_fixes.py",
+    "scipy/test_spatial.py", "scipy/test_interpolate.py", "scipy/test_cluster.py",
+    "scipy/test_ndimage.py", "scipy/test_ndimage_interp.py", "scipy/test_sparse.py",
+    "scipy/test_sparse_linalg.py", "scipy/test_csgraph.py", "scipy/test_sparse_formats.py",
+    "scipy/test_sparse_lu.py", "scipy/test_sparse_eigen.py", "scipy/test_sparse_linalg2.py",
+    "scipy/test_csgraph2.py", "scipy/test_optimize.py", "scipy/test_optimize_global.py",
+    "scipy/test_linprog.py", "sklearn/test_neighbors.py", "sklearn/test_naive_bayes.py",
+    "sklearn/test_cluster.py", "sklearn/test_tree.py", "sklearn/test_ensemble.py",
+    "sklearn/test_decomposition.py", "sklearn/test_mixture.py", "sklearn/test_mixture_bayes.py",
+    "sklearn/test_feature_selection.py", "sklearn/test_impute.py",
+    "sklearn/test_manifold_tsne.py", "sklearn/test_manifold.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
