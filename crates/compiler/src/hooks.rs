@@ -10,7 +10,7 @@ use typhon_common::{CompilerError, Result, SrcInfo};
 use typhon_parser::ast::FormatSpec;
 use typhon_parser::cache::{Cache, ImportModule};
 use typhon_parser::ids::ExprId;
-use typhon_parser::peg::{self, ParseOptions};
+use typhon_parser::peg;
 
 /// Install all parser-lane hooks into `cache`.
 pub fn install(cache: &mut Cache) {
@@ -19,26 +19,18 @@ pub fn install(cache: &mut Cache) {
     typhon_parser::visitors::translate::install_hooks(cache);
 }
 
-/// Grammar parse options.
-fn parse_options(_cache: &Cache) -> ParseOptions {
-    ParseOptions {}
-}
-
 fn parse_expr_hook(cache: &mut Cache, code: &str, offset: &SrcInfo) -> Result<(ExprId, FormatSpec)> {
-    let opts = parse_options(cache);
-    peg::parse_expr(&mut cache.ast, &opts, code, offset)
+    peg::parse_expr(&mut cache.ast, code, offset)
 }
 
 fn install_grammar(cache: &mut Cache) {
     cache.hooks.parse_code = Some(Rc::new(|cache: &mut Cache, file: &str, code: &str, line: i32| {
-        let opts = parse_options(cache);
-        peg::parse_code(&mut cache.ast, &opts, file, code, line)
+            peg::parse_code(&mut cache.ast, file, code, line)
     }));
     cache.hooks.parse_file = Some(Rc::new(|cache: &mut Cache, file: &str| {
-        let opts = parse_options(cache);
-        let fs = cache.fs.clone().ok_or_else(|| CompilerError::Io("no filesystem".into()))?;
+            let fs = cache.fs.clone().ok_or_else(|| CompilerError::Io("no filesystem".into()))?;
         let fsb = fs.borrow();
-        let (stmt, lines) = peg::parse_file(&mut cache.ast, &opts, &*fsb, file)?;
+        let (stmt, lines) = peg::parse_file(&mut cache.ast, &*fsb, file)?;
         cache.imports.entry(file.to_string()).or_insert_with(ImportModule::new).content = lines;
         Ok(stmt)
     }));

@@ -1,7 +1,7 @@
 //! .
 //!
 //! the reference implementation uses exceptions (`exc::ParserException`) plus `llvm::Error` wrappers
-//! (`ParserErrorInfo`, `RuntimeErrorInfo`, `PluginErrorInfo`, `IOErrorInfo`).
+//! (`ParserErrorInfo`, `RuntimeErrorInfo`, `IOErrorInfo`).
 //! Rust uses a single `thiserror` enum [`CompilerError`] carried in `Result`.
 
 use crate::srcinfo::SrcInfo;
@@ -281,7 +281,7 @@ impl Display for ParserErrors {
 }
 
 /// Unified compiler error (replaces `exc::ParserException` and the `llvm::ErrorInfo`
-/// subclasses `ParserErrorInfo`, `RuntimeErrorInfo`, `PluginErrorInfo`, `IOErrorInfo`).
+/// subclasses `ParserErrorInfo`, `RuntimeErrorInfo`, `IOErrorInfo`).
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum CompilerError {
     #[error("{0}")]
@@ -293,8 +293,6 @@ pub enum CompilerError {
         message: ErrorMessage,
         backtrace: Vec<String>,
     },
-    #[error("{0}")]
-    Plugin(String),
     #[error("{0}")]
     Io(String),
     #[error("LLVM error: {0}")]

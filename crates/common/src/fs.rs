@@ -102,7 +102,7 @@ impl DiskFileSystem {
         }
         if let Ok(exe) = std::env::current_exe() {
             if let Some(root) = exe.parent() {
-                for loci in ["../lib/typhon/stdlib", "../stdlib", "stdlib", "../lib/typhon/plugins", "../plugins"] {
+                for loci in ["../lib/typhon/stdlib", "../stdlib", "stdlib"] {
                     fs.add_search_path(&root.join(loci).to_string_lossy());
                 }
             }

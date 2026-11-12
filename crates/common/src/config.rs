@@ -18,12 +18,6 @@ const fn parse_u32(s: &str) -> u32 {
 
 #[deprecated(note = "use VERSION")]
 pub const CODON_VERSION: &str = VERSION;
-#[deprecated(note = "use VERSION_MAJOR")]
-pub const CODON_VERSION_MAJOR: u32 = VERSION_MAJOR;
-#[deprecated(note = "use VERSION_MINOR")]
-pub const CODON_VERSION_MINOR: u32 = VERSION_MINOR;
-#[deprecated(note = "use VERSION_PATCH")]
-pub const CODON_VERSION_PATCH: u32 = VERSION_PATCH;
 
 /// Typhon's own crate version.
 pub const TYPHON_VERSION: &str = env!("CARGO_PKG_VERSION");

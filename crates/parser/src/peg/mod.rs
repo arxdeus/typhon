@@ -18,7 +18,6 @@ use std::path::Path;
 use typhon_common::{CompilerError, ErrorMessage, ParserErrors, Result, SrcInfo};
 
 use crate::ast::*;
-pub use state::ParseOptions;
 use state::ParseState;
 
 fn finish<T>(
@@ -35,13 +34,12 @@ fn finish<T>(
 /// `parseCode(cache, file, code, line_offset)`: parses a code block (rule `program`).
 pub fn parse_code(
     arena: &mut AstArena,
-    opts: &ParseOptions,
     file: &str,
     code: &str,
     line_offset: i32,
 ) -> Result<StmtId> {
     let code = format!("{code}\n");
-    let st = ParseState::new(arena, opts, file, &code, line_offset, 0);
+    let st = ParseState::new(arena, file, &code, line_offset, 0);
     let r = grammar::python::program(&code, &st);
     finish(&st, r, file)
 }
@@ -50,13 +48,12 @@ pub fn parse_code(
 /// `=`, `!conversion` and `:format_spec` (rule `fstring`).
 pub fn parse_expr(
     arena: &mut AstArena,
-    opts: &ParseOptions,
     code: &str,
     offset: &SrcInfo,
 ) -> Result<(ExprId, FormatSpec)> {
     let code = code.trim_start_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c']).to_string();
     let file = offset.file.as_str().to_string();
-    let st = ParseState::new(arena, opts, &file, &code, offset.line, offset.col);
+    let st = ParseState::new(arena, &file, &code, offset.line, offset.col);
     let r = grammar::python::fstring(&code, &st);
     finish(&st, r, &file)
 }
@@ -65,14 +62,13 @@ pub fn parse_expr(
 /// `cache->imports[file].content`; the caller does that here).
 pub fn parse_file(
     arena: &mut AstArena,
-    opts: &ParseOptions,
     fs: &dyn typhon_common::fs::FileSystem,
     file: &str,
 ) -> Result<(StmtId, Vec<String>)> {
     let lines = fs.read_lines(Path::new(file))?;
     let mut code = lines.join("\n");
     code.push('\n');
-    let st = ParseState::new(arena, opts, file, &code, 0, 0);
+    let st = ParseState::new(arena, file, &code, 0, 0);
     let r = grammar::python::program(&code, &st);
     let s = finish(&st, r, file)?;
     Ok((s, lines))
@@ -81,11 +77,10 @@ pub fn parse_file(
 /// `parseOpenMP(cache, code, loc)`.
 pub fn parse_openmp(
     arena: &mut AstArena,
-    opts: &ParseOptions,
     code: &str,
     loc: &SrcInfo,
 ) -> Result<Vec<CallArg>> {
-    let st = ParseState::new(arena, opts, "", code, 0, 0);
+    let st = ParseState::new(arena, "", code, 0, 0);
     match openmp::omp::pragma(code, &st) {
         Ok(v) => Ok(v),
         Err(e) => {

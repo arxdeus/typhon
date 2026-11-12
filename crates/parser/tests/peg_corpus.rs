@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use typhon_parser::ast::AstArena;
-use typhon_parser::peg::{ParseOptions, parse_code};
+use typhon_parser::peg::{parse_code};
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -67,7 +67,6 @@ fn peg_corpus() {
     let mut files = vec![];
     collect(&root().join("stdlib"), &mut files);
     collect(&root().join("test"), &mut files);
-    let opts = ParseOptions::default();
     let (mut parsed, mut failed, mut skipped, mut rt_ok, mut rt_bad) = (0, 0, 0, 0, 0);
     let mut failures = vec![];
     for f in &files {
@@ -76,13 +75,13 @@ fn peg_corpus() {
             if expects_syntax_error(&code) {
                 skipped += 1;
                 let mut a = AstArena::new();
-                if parse_code(&mut a, &opts, "", &code, 0).is_ok() {
+                if parse_code(&mut a, "", &code, 0).is_ok() {
                     eprintln!("NOTE: expected-error unit parsed fine (error is semantic or in a sibling stmt): {}:{line}", f.display());
                 }
                 continue;
             }
             let mut arena = AstArena::new();
-            match parse_code(&mut arena, &opts, &f.to_string_lossy(), &code, line as i32) {
+            match parse_code(&mut arena, &f.to_string_lossy(), &code, line as i32) {
                 Ok(s) => {
                     parsed += 1;
                     // Note: `stmt_to_debug` (debug dump) is an AST dump, not
@@ -90,7 +89,7 @@ fn peg_corpus() {
                     // both the S-expression and the Typhon dump (determinism + printers).
                     let d1 = (arena.stmt_to_string(s, 0), arena.stmt_to_debug(s, false, -1, 0));
                     let mut a2 = AstArena::new();
-                    match parse_code(&mut a2, &opts, &f.to_string_lossy(), &code, line as i32) {
+                    match parse_code(&mut a2, &f.to_string_lossy(), &code, line as i32) {
                         Ok(s2) if (a2.stmt_to_string(s2, 0), a2.stmt_to_debug(s2, false, -1, 0)) == d1 => rt_ok += 1,
                         _ => {
                             rt_bad += 1;

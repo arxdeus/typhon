@@ -1,20 +1,17 @@
-//! Unit tests for the PEG parser .
+//! Unit tests for the PEG parser.
 
 use typhon_common::SrcInfo;
 use typhon_parser::ast::*;
-use typhon_parser::peg::{ParseOptions, parse_code, parse_expr, parse_openmp};
+use typhon_parser::peg::{parse_code, parse_expr, parse_openmp};
 
 fn sx(code: &str) -> String {
-    sx_opts(code, &ParseOptions::default())
-}
-fn sx_opts(code: &str, o: &ParseOptions) -> String {
     let mut a = AstArena::new();
-    let s = parse_code(&mut a, o, "t.py", code, 0).unwrap_or_else(|e| panic!("{code}: {e}"));
+    let s = parse_code(&mut a, "t.py", code, 0).unwrap_or_else(|e| panic!("{code}: {e}"));
     a.stmt_to_string(s, 0).split_whitespace().collect::<Vec<_>>().join(" ")
 }
 fn err(code: &str) -> String {
     let mut a = AstArena::new();
-    match parse_code(&mut a, &ParseOptions::default(), "t.py", code, 0) {
+    match parse_code(&mut a, "t.py", code, 0) {
         Ok(s) => panic!("expected error, got {}", a.stmt_to_string(s, 0)),
         Err(e) => e.to_string().trim().to_string(),
     }
@@ -117,7 +114,7 @@ fn peg_line_continuation_and_comments() {
 #[test]
 fn peg_srcinfo() {
     let mut a = AstArena::new();
-    let s = parse_code(&mut a, &ParseOptions::default(), "f", "\nx = foo", 10).unwrap();
+    let s = parse_code(&mut a, "f", "\nx = foo", 10).unwrap();
     let st = a.first_in_block(s).unwrap();
     let src = a[st].src;
     assert_eq!((src.line, src.col, src.len), (12, 1, 7));
@@ -138,21 +135,19 @@ fn peg_errors() {
 #[test]
 fn peg_fstring_expr() {
     let mut a = AstArena::new();
-    let o = ParseOptions::default();
     let src = SrcInfo::new("f", 3, 4, 0);
-    let (e, fs) = parse_expr(&mut a, &o, " x + 1 = !r:>10", &src).unwrap();
+    let (e, fs) = parse_expr(&mut a, " x + 1 = !r:>10", &src).unwrap();
     assert_eq!(a.expr_to_string(e, -1), "(binary \"+\" 'x (int 1))");
     assert_eq!((fs.text.as_str(), fs.conversion.as_str(), fs.spec.as_str()), ("x + 1 = ", "r", ">10"));
-    let (_, fs) = parse_expr(&mut a, &o, "y:.2f", &src).unwrap();
+    let (_, fs) = parse_expr(&mut a, "y:.2f", &src).unwrap();
     assert_eq!(fs.spec, ".2f");
 }
 
 #[test]
 fn peg_openmp() {
     let mut a = AstArena::new();
-    let o = ParseOptions::default();
-    let v = parse_openmp(&mut a, &o, "omp parallel schedule(dynamic, 4) num_threads(8) ordered", &SrcInfo::default()).unwrap();
+    let v = parse_openmp(&mut a, "omp parallel schedule(dynamic, 4) num_threads(8) ordered", &SrcInfo::default()).unwrap();
     let names: Vec<_> = v.iter().map(|x| x.name.as_str()).collect();
     assert_eq!(names, ["schedule", "chunk_size", "num_threads", "ordered"]);
-    assert!(parse_openmp(&mut a, &o, "bogus", &SrcInfo::default()).unwrap_err().to_string().contains("openmp: syntax error"));
+    assert!(parse_openmp(&mut a, "bogus", &SrcInfo::default()).unwrap_err().to_string().contains("openmp: syntax error"));
 }

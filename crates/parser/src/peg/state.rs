@@ -11,15 +11,9 @@ use typhon_common::{CompilerError, ErrorMessage, ParserErrors, SrcInfo};
 
 use crate::ast::*;
 
-/// Parse options (currently none).
-#[derive(Clone, Debug, Default)]
-pub struct ParseOptions {}
-
 /// `ParseContext`: indentation stack, parens counter, offsets, plus the AST builder.
 pub struct ParseState<'a> {
     arena: RefCell<&'a mut AstArena>,
-    #[allow(dead_code)]
-    opts: &'a ParseOptions,
     pub file: String,
     pub line_offset: i32,
     pub col_offset: i32,
@@ -46,7 +40,6 @@ pub fn cond<T>(v: Option<T>) -> impl FnOnce(&str, usize) -> RuleResult<T> {
 impl<'a> ParseState<'a> {
     pub fn new(
         arena: &'a mut AstArena,
-        opts: &'a ParseOptions,
         file: &str,
         src: &'a str,
         line_offset: i32,
@@ -60,7 +53,6 @@ impl<'a> ParseState<'a> {
         }
         Self {
             arena: RefCell::new(arena),
-            opts,
             file: file.to_string(),
             line_offset,
             col_offset,

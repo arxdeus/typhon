@@ -1167,8 +1167,7 @@ impl<'a> TypecheckVisitor<'a> {
                 let expr_code = String::from_utf8_lossy(&code[brace_start..i]).into_owned();
                 let mut offset = self.src;
                 offset.col += i as i32;
-                let opts = crate::peg::ParseOptions {};
-                let (expr, _) = crate::peg::parse_expr(&mut self.cache.ast, &opts, &expr_code, &offset)?;
+                let (expr, _) = crate::peg::parse_expr(&mut self.cache.ast, &expr_code, &offset)?;
                 items.push(self.n_stmt(ExprStmt { expr: Some(expr) }));
                 brace_start = i + 1;
                 final_code.push('}');
