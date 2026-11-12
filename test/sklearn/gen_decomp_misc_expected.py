@@ -17,6 +17,10 @@ def L(name, a):
     print(f"{name} = [" + ", ".join(repr(float(v)) for v in a) + "]")
 
 def S(name, v):
+    if isinstance(v, np.ndarray):
+        v = float(v.ravel()[0])  # e.g. tied BayesianGaussianMixture lower bound has shape (1,)
+    elif isinstance(v, (np.floating, np.integer)):
+        v = v.item()
     print(f"{name} = {v!r}")
 
 def decomposition():
@@ -61,6 +65,29 @@ def decomposition():
     L("fa_tr", fa.transform(X[:3])); L("fa_ss", fa.score_samples(X[:4]))
     fa = FactorAnalysis(2, rotation="varimax").fit(X)
     L("fav_comp", fa.components_)
+
+def mixture():
+    from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
+    X, y = data(60, 3, 3)
+    for ct in ["full", "tied", "diag", "spherical"]:
+        for ini in ["kmeans", "k-means++", "random", "random_from_data"]:
+            g = GaussianMixture(3, covariance_type=ct, init_params=ini, random_state=0, max_iter=200).fit(X)
+            tag = f"gm_{ct}_{ini.replace('-', '').replace('+', 'p')}"
+            L(tag + "_w", g.weights_); L(tag + "_m", g.means_); L(tag + "_c", g.covariances_)
+            L(tag + "_p", g.precisions_); S(tag + "_it", g.n_iter_); S(tag + "_lb", g.lower_bound_)
+            L(tag + "_ss", g.score_samples(X[:5])); L(tag + "_pp", g.predict_proba(X[:3]))
+            S(tag + "_bic", g.bic(X)); S(tag + "_aic", g.aic(X))
+    g = GaussianMixture(2, means_init=[[0, 0, 0], [1, 1, 1]], weights_init=[0.3, 0.7], random_state=1, n_init=2).fit(X)
+    L("gm_mi_m", g.means_); L("gm_mi_w", g.weights_); L("gm_mi_pred", g.predict(X[:10]))
+    Xs, ys = g.sample(7)
+    L("gm_sample_X", Xs); L("gm_sample_y", ys)
+    for ct in ["full", "tied", "diag", "spherical"]:
+        for wt in ["dirichlet_process", "dirichlet_distribution"]:
+            b = BayesianGaussianMixture(n_components=4, covariance_type=ct, weight_concentration_prior_type=wt, random_state=0, max_iter=300).fit(X)
+            tag = f"bgm_{ct}_{wt[10:]}"
+            L(tag + "_w", b.weights_); L(tag + "_m", b.means_); L(tag + "_c", b.covariances_)
+            S(tag + "_it", b.n_iter_); S(tag + "_lb", b.lower_bound_); L(tag + "_ss", b.score_samples(X[:4]))
+            L(tag + "_dof", b.degrees_of_freedom_)
 
 for sec in sys.argv[1:]:
     globals()[sec]()
