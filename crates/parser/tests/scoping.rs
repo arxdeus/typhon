@@ -65,7 +65,7 @@ fn global_and_nonlocal() {
 }
 
 #[test]
-fn errors_match_cpp() {
+fn error_messages() {
     let mut c = Cache::new(None);
     let g = global(&mut c, "x", false, 1);
     let top = suite(&mut c, vec![g]);

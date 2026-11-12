@@ -17,7 +17,7 @@ fn arr(dtype: TypeCode, ndim: i64) -> NumPyType {
 }
 
 #[test]
-fn keys_match_cpp() {
+fn pass_keys() {
     assert_eq!(NumPyExpressionAnalysis::KEY, "core-numpy-expressions");
     assert_eq!(NumPyFusionPass::KEY, "core-numpy-fusion");
     assert_eq!(NumPyInlinePass::KEY, "core-numpy-inline");
