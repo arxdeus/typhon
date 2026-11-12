@@ -1,3 +1,4 @@
+# Copyright (C) 2026 the Typhon authors
 
 from internal.types.optional import unwrap
 

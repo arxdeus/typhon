@@ -29,8 +29,22 @@ def print(*args, sep: str = " ", end: str = "\n", file=None, flush: bool = False
     fp = cobj()
     if isinstance(file, cobj):
         fp = file
-    else:
+    elif hasattr(file, "_state"):
         fp = file._state._fp
+    else:
+        # Any object with a write(str) method (e.g. io.StringIO).
+        parts = List[str](2 * len(args) + 1)
+        j = 0
+        for a in args:
+            if j and sep:
+                parts.append(sep)
+            parts.append(str(a))
+            j += 1
+        parts.append(end)
+        file.write("".join(parts))
+        if flush and hasattr(file, "flush"):
+            file.flush()
+        return
 
     i = 0
     for a in args:
