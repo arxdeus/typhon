@@ -1,0 +1,6 @@
+# iOS / iOS-simulator toolchain for bdwgc via cmake-rs (set up by tools/build-runtime.sh).
+set(CMAKE_SYSTEM_NAME iOS)
+set(CMAKE_OSX_SYSROOT "$ENV{TYPHON_IOS_SYSROOT}")
+set(CMAKE_OSX_ARCHITECTURES "$ENV{TYPHON_IOS_ARCH}")
+set(CMAKE_OSX_DEPLOYMENT_TARGET "$ENV{TYPHON_IOS_MIN}")
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)

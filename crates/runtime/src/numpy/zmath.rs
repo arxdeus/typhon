@@ -30,9 +30,22 @@ macro_rules! cfunc {
 
 // PORT-NOTE: C99 libm complex functions are used (instead of a Rust complex crate) so
 // branch cuts honour signed zeros like libc++ `std::complex`, which C++ wraps.
+// bionic only has clogf from API 26 (minimum is 24): log|z| + i*arg(z) (atan2 keeps the
+// signed-zero branch cut; hypot avoids overflow).
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cnp_clogf(r: f32, i: f32, z: *mut f32) {
+    let (rd, id) = (r as f64, i as f64);
+    unsafe {
+        *z = libm::log(libm::hypot(rd, id)) as f32;
+        *z.add(1) = libm::atan2(id, rd) as f32;
+    }
+}
+#[cfg(not(target_os = "android"))]
+cfunc! { cnp_clogf => clogf }
+
 cfunc! {
     cnp_cexpf => cexpf,
-    cnp_clogf => clogf,
     cnp_csqrtf => csqrtf,
     cnp_ccoshf => ccoshf,
     cnp_csinhf => csinhf,

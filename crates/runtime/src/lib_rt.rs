@@ -157,8 +157,51 @@ pub fn gc_init() {
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_init(flags: c_int) {
     gc_init();
+    // Libraries (`-lib`) may be entered from foreign threads (e.g. Dart isolates):
+    // allow those to register themselves via `seq_register_current_thread`.
+    seq_allow_register_threads();
     crate::exc::seq_exc_init(flags);
     seq_flags.store(flags, Ordering::Relaxed);
+}
+
+/// Register the calling thread with the collector if it is not yet known
+/// (idempotent; cheap when already registered). Initializes the runtime if needed.
+/// Called at the entry of every exported function in `-lib` builds.
+#[unsafe(no_mangle)]
+pub extern "C" fn seq_register_current_thread() {
+    if !GC_INIT.is_completed() {
+        seq_init(0);
+    }
+    unsafe {
+        if gc::GC_thread_is_registered() != 0 {
+            return;
+        }
+        seq_allow_register_threads();
+        let mut sb = gc::GC_stack_base { mem_base: core::ptr::null_mut() };
+        if gc::GC_get_stack_base(&mut sb) == 0 && gc::GC_register_my_thread(&sb) == 0 {
+            // A foreign thread that exits while registered leaves a dead entry the
+            // collector would signal (pthread_kill on a stale pthread_t aborts on
+            // bionic): unregister from a TLS destructor at thread exit.
+            FOREIGN_THREAD_GUARD.with(|g| g.set(true));
+        }
+    }
+}
+
+struct ForeignThreadGuard(core::cell::Cell<bool>);
+impl ForeignThreadGuard {
+    fn set(&self, v: bool) {
+        self.0.set(v)
+    }
+}
+impl Drop for ForeignThreadGuard {
+    fn drop(&mut self) {
+        if self.0.get() {
+            unsafe { gc::GC_unregister_my_thread() };
+        }
+    }
+}
+thread_local! {
+    static FOREIGN_THREAD_GUARD: ForeignThreadGuard = const { ForeignThreadGuard(core::cell::Cell::new(false)) };
 }
 
 #[unsafe(no_mangle)]
@@ -273,19 +316,19 @@ pub extern "C" fn seq_sleep(secs: f64) {
 }
 
 unsafe extern "C" {
-    #[cfg(target_os = "macos")]
+    #[cfg(target_vendor = "apple")]
     fn _NSGetEnviron() -> *mut *mut *mut c_char;
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(target_vendor = "apple"))]
     static mut environ: *mut *mut c_char;
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_env() -> *mut *mut c_char {
-    #[cfg(target_os = "macos")]
+    #[cfg(target_vendor = "apple")]
     unsafe {
         *_NSGetEnviron()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(target_vendor = "apple"))]
     unsafe {
         environ
     }
@@ -337,13 +380,17 @@ pub unsafe extern "C" fn seq_os_stat(
 }
 
 fn set_errno(v: c_int) {
-    #[cfg(target_os = "macos")]
+    #[cfg(target_vendor = "apple")]
     unsafe {
         *libc::__error() = v
     };
     #[cfg(target_os = "linux")]
     unsafe {
-        *libc::__errno_location() = v
+        *libc::__errno_location()
+    };
+    #[cfg(target_os = "android")]
+    unsafe {
+        *libc::__errno() = v
     };
 }
 
@@ -541,22 +588,22 @@ pub extern "C" fn seq_check_errno() -> SeqStr {
 }
 
 unsafe extern "C" {
-    #[cfg(target_os = "macos")]
+    #[cfg(target_vendor = "apple")]
     #[link_name = "__stdinp"]
     static mut c_stdin: *mut libc::FILE;
-    #[cfg(target_os = "macos")]
+    #[cfg(target_vendor = "apple")]
     #[link_name = "__stdoutp"]
     static mut c_stdout: *mut libc::FILE;
-    #[cfg(target_os = "macos")]
+    #[cfg(target_vendor = "apple")]
     #[link_name = "__stderrp"]
     static mut c_stderr: *mut libc::FILE;
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(target_vendor = "apple"))]
     #[link_name = "stdin"]
     static mut c_stdin: *mut libc::FILE;
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(target_vendor = "apple"))]
     #[link_name = "stdout"]
     static mut c_stdout: *mut libc::FILE;
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(target_vendor = "apple"))]
     #[link_name = "stderr"]
     static mut c_stderr: *mut libc::FILE;
 }

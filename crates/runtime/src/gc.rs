@@ -42,6 +42,8 @@ unsafe extern "C" {
     pub fn GC_get_stack_base(sb: *mut GC_stack_base) -> c_int;
     pub fn GC_register_my_thread(sb: *const GC_stack_base) -> c_int;
     pub fn GC_allow_register_threads();
+    pub fn GC_thread_is_registered() -> c_int;
+    pub fn GC_unregister_my_thread() -> c_int;
     pub fn GC_set_finalize_on_demand(v: c_int);
     pub fn GC_set_warn_proc(p: GC_warn_proc);
     pub fn GC_ignore_warn_proc(msg: *mut c_char, arg: GC_word);

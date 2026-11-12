@@ -21,7 +21,8 @@ fn main() {
         }
     }
 
-    if env::var_os("CARGO_FEATURE_BLAS").is_some() && target_os == "macos" {
+    if env::var_os("CARGO_FEATURE_BLAS").is_some() && (target_os == "macos" || target_os == "ios") {
+        // Android has no system BLAS: numpy linalg (cblas_*/LAPACK) is unavailable there.
         println!("cargo:rustc-link-lib=framework=Accelerate");
     }
 

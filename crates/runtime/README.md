@@ -85,3 +85,26 @@ Measured 2026-11-12 (M-series, AOT `-release`, 5 runs, median):
 
 Peak RSS is the same as the baseline on float (492 MB) and slightly higher on
 binary_trees (56 vs 45 MB).
+
+## Mobile targets (Android, iOS)
+
+`tools/build-runtime.sh <rust-triple>...` cross-builds `libtyphonrt.a` to
+`$CARGO_TARGET_DIR/<triple>/release/` for `aarch64-linux-android`, `x86_64-linux-android`
+(NDK from `ANDROID_NDK_HOME` or the newest `$ANDROID_HOME/ndk/*`, API 24),
+`aarch64-apple-ios` and `aarch64-apple-ios-sim` (iOS 13.0). It exports the per-target
+`CC_/AR_/CFLAGS_` (with `-DLARGE_CONFIG`), the bindgen sysroot, and a cmake toolchain file
+for bdwgc (`tools/cmake/`). It uses rustup's cargo, because Homebrew rust has no cross std.
+
+Native libs needed to link the archive:
+- Android: `-ldl -llog -lunwind -lm -lc` (NDK clang adds them, so pass `-ldl -llog -lm`).
+- iOS / simulator: `-liconv -lSystem -lc -lm -framework Accelerate`.
+
+`blas` links Accelerate on macOS/iOS. Android has no system BLAS, so numpy linalg
+(`cblas_*`/LAPACK) is unavailable there. `cnp_clogf` is implemented in Rust on Android
+because bionic only has `clogf` from API 26.
+
+Libraries: `seq_register_current_thread()` registers the calling thread with the GC. It is
+idempotent and calls `seq_init(0)` if needed. The thread is unregistered when it exits.
+`-lib` builds call it at the entry of every exported function, because foreign threads
+(e.g. Dart isolates) can call in. bdwgc finds the static data of the `.so`/dylib itself
+(dl_iterate_phdr / dyld image callbacks).
