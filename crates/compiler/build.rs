@@ -1,8 +1,7 @@
 //! Unpack the generated stdlib modules (Unicode tables, float dtoa tables) from the
 //! bundled archive `tools/unicode/tables-*.tar.gz` into `$OUT_DIR/stdlib`, verifying
-//! the SHA-256 hashes listed in `tools/unicode/manifest.json`. Archive members named
-//! `*.codon` are written as `*.py`. The driver adds that directory as an extra stdlib
-//! search root (`TYPHON_GENERATED_STDLIB`).
+//! the SHA-256 hashes listed in `tools/unicode/manifest.json`. The driver adds that
+//! directory as an extra stdlib search root (`TYPHON_GENERATED_STDLIB`).
 
 use sha2::{Digest, Sha256};
 use std::io::Read;
@@ -10,13 +9,6 @@ use std::path::{Path, PathBuf};
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
-}
-
-fn py_name(name: &str) -> String {
-    match name.strip_suffix(".codon") {
-        Some(stem) => format!("{stem}.py"),
-        None => name.to_string(),
-    }
 }
 
 fn main() {
@@ -51,7 +43,7 @@ fn main() {
         entry.read_to_end(&mut buf).expect("read entry");
         assert_eq!(hex(&Sha256::digest(&buf)), meta["sha256"].as_str().unwrap_or(""), "checksum mismatch: {name}");
         assert!(!Path::new(&name).is_absolute() && !name.contains(".."), "bad member path {name}");
-        let dest = out.join(py_name(&name));
+        let dest = out.join(&name);
         if std::fs::read(&dest).ok().as_deref() != Some(&buf[..]) {
             std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
             std::fs::write(&dest, &buf).unwrap();

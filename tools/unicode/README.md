@@ -1,11 +1,13 @@
 # Standard-library table bundle
 
-Normal builds need Python 3.8+ but do not need network access, UCD input files,
-or a specific Python Unicode database. CMake verifies and unpacks
-`tables-16.0.0.tar.gz` into the build tree, embeds the generated modules, and
-installs them alongside the handwritten standard library. The archive is a
-checked-in, offline bootstrap artifact; expanded generated sources are not tracked.
-This reduces future source-tree growth without rewriting existing Git history.
+`tables-16.0.0.tar.gz` holds the generated standard-library modules (Unicode 16.0.0
+tables and floating-point conversion tables). It is a checked-in, offline artifact:
+builds need no network access, no UCD input files and no Python interpreter.
+
+`crates/compiler/build.rs` verifies the archive and every member against
+`manifest.json` (SHA-256), then unpacks them into `$OUT_DIR/stdlib`. The compiler adds
+that directory as an extra stdlib search root (`TYPHON_GENERATED_STDLIB`).
+Expanded generated sources are not tracked in git.
 
 ## Layout
 
@@ -15,7 +17,7 @@ Handwritten algorithms:
 - `stdlib/internal/unicode/names.py`: name search, decoding, and algorithmic names.
 - `stdlib/internal/numeric/float_dtoa.py`: floating-point conversion, unrelated to Unicode.
 
-Generated modules, relative to `build/stdlib` or the installed stdlib:
+Generated modules, relative to the generated stdlib root:
 
 - `internal/unicode/generated/properties.py`: character predicates and case mappings.
 - `internal/unicode/generated/single_byte_codecs.py`: single-byte codec tables.
@@ -30,41 +32,12 @@ derived from the pinned database. Other names use a shared-word dictionary, and
 byte pools use compact LLVM string constants. There is no runtime archive or
 dictionary decompression.
 
-## Maintenance
+`inputs.json` pins the Unicode Character Database files (URLs and SHA-256) the tables
+were generated from.
 
-Regeneration uses CPython 3.14.3 (Unicode 16.0.0), also pinned in CI. The tool checks
-the host Unicode version and the SHA-256 hashes of all external inputs. Ordinary
-builds only consume the bundle. Only the explicit `fetch` command accesses the
-network; it verifies downloads before accepting them.
+## Updating
 
-From the repository root:
-
-```sh
-python3 scripts/unicode_tables.py fetch --ucd-dir build/unicode-16.0.0
-python3 scripts/unicode_tables.py regenerate --ucd-dir build/unicode-16.0.0 --output-dir build/stdlib
-python3 scripts/unicode_tables.py pack --input-dir build/stdlib
-python3 scripts/unicode_tables.py verify
-```
-
-Review and commit generator changes together with the updated archive and
-`manifest.json`. Generator hashes make stale bundles fail the build. Do not edit
-expanded tables manually. To check regeneration without changing the bundle:
-
-```sh
-python3 scripts/unicode_tables.py regenerate --ucd-dir build/unicode-16.0.0 --output-dir build/unicode-check
-python3 scripts/unicode_tables.py check --input-dir build/unicode-check
-python3 scripts/unicode/test_tables.py
-```
-
-CMake targets `unicode_data`, `unicode_data_verify`, and `unicode_data_regenerate`
-respectively extract, verify, and explicitly regenerate/repack the bundle.
-Regeneration requires the matching Python interpreter selected by CMake and the
-inputs in `TYPHON_UNICODE_UCD_DIR`; it updates the source archive and manifest.
-`TYPHON_UNICODE_ARCHIVE` may point to another local copy of the same archive, but
-its checksum must still match the checked-in manifest. Missing build outputs are
-re-extracted, and bundle, manifest, or generator changes invalidate extraction.
-
-For a Unicode upgrade, update the version in the bundle tool and CMake, pin the
-new UCD URLs and checksums in `inputs.json`, select the corresponding CPython
-release in CI, and regenerate. Review changed data and run the Unicode stdlib
-tests, including normalization conformance and exhaustive name round trips.
+Do not edit generated tables by hand. To update them, regenerate the six modules from
+the pinned UCD inputs, pack them into a reproducible `tar.gz` (sorted members, zero
+mtimes/uids), and update the archive `sha256` plus each file's `sha256`/`size` in
+`manifest.json` in the same commit. A stale or modified bundle fails the build.

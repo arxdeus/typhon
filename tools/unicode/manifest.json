@@ -2,15 +2,7 @@
   "schema": 1,
   "unicode_version": "16.0.0",
   "archive": "tables-16.0.0.tar.gz",
-  "sha256": "28c67851b80e5728893786830a03e4023067e143e97c3d1b825adfe59f2712cd",
-  "generators": {
-    "scripts/unicode/inputs.json": "4f994e6e8d6d0ff508e36708f6da60423ee97494489b544986a5753d17eb217a",
-    "scripts/unicode_tables.py": "45d7f62328a8724ebc6833328e54b43dea7ff413b3177b7e7b79b5edd3346513",
-    "scripts/generate_unicode_data.py": "d061ef033019df4eee455222cecc88575c21876461e3dd14891520d9dbf79bb6",
-    "scripts/generate_unicode_normalization_data.py": "124ea31a3c493e4eeaea01e658553860b258585e3615ba1950a86edadfc1f3f2",
-    "scripts/generate_single_byte_codecs.py": "a282b2d6bf4cba43f275efcd85aaa905cc18b4bd7215c04b236d2c7c4e77825e",
-    "scripts/generate_float_dtoa_tables.py": "284afa4ac4a2c631ec0a5fa268476d693ec44db82e4fa4bea93295ca5131d45a"
-  },
+  "sha256": "2686f2524147105b04743583bf21aa82c22d6822d470eb08bd2a5b6fe5f4e89f",
   "files": {
     "internal/unicode/generated/properties.py": {
       "sha256": "efd83c99643c1626dc96849e21523a89c61c478e720d869d68090ad35244f8ef",
