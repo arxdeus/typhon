@@ -105,7 +105,6 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
             && !arg.starts_with("-lib")
             && !arg.starts_with("-linker")
             && !arg.starts_with("-llvm")
-            && !arg.starts_with("-linalg")
         {
             if rest.is_empty() {
                 let Some(v) = args.get(i) else { usage_error("-l requires a value") };
@@ -163,14 +162,6 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
             }
             "target" => o.target = typhon_common::target::resolve_target_alias(&take(val)),
             "sysroot" => o.sysroot = take(val),
-            "linalg" => {
-                o.linalg = match take(val).as_str() {
-                    "auto" => typhon_common::options::LinalgBackend::Auto,
-                    "system" => typhon_common::options::LinalgBackend::System,
-                    "rust" => typhon_common::options::LinalgBackend::Rust,
-                    other => usage_error(&format!("Cannot find option named '{other}' for -linalg")),
-                }
-            }
             "relocation-model" => cli.relocation_model = take(val),
             "linker-flags" if build => cli.lflags = take(val),
             "pie" if build => cli.pie = parse_bool(val),
@@ -242,7 +233,7 @@ pub fn apply_target_defaults(o: &mut Options) {
 pub fn print_help(build: bool) {
     println!("USAGE: typhon {} [options] <input file>{}", if build { "build" } else { "run" }, if build { "" } else { " <program arguments>..." });
     println!(
-        "\nOPTIONS:\n  -debug / -release        optimization mode (default: debug)\n  -numerics=c|py           numerical semantics (default: py)\n  -D<name>=<value>         static definitions\n  -disable-opt=<pass>      disable an IR pass\n  -log=<streams>           enable log streams\n  -fast-math, -disable-exceptions, -disable-native, -unordered-dict\n  -march/-mcpu/-mattr      target selection\n  -target <triple|alias>   cross target (aarch64-linux-android24, x86_64-linux-android24,\n                           arm64-apple-ios13.0[-simulator]; aliases android-arm64,\n                           android-x64, ios-arm64, ios-sim-arm64)\n  -sysroot <dir>           sysroot / SDK for cross linking\n  -linalg=auto|system|rust numpy.linalg BLAS/LAPACK: system=Accelerate/OpenBLAS,\n                           rust=built-in faer backend (auto: system on Apple, else rust)\n  -libdevice/-gpu-name/-gpu-features/-ptx  GPU options\n  -l<lib>                  load/link library"
+        "\nOPTIONS:\n  -debug / -release        optimization mode (default: debug)\n  -numerics=c|py           numerical semantics (default: py)\n  -D<name>=<value>         static definitions\n  -disable-opt=<pass>      disable an IR pass\n  -log=<streams>           enable log streams\n  -fast-math, -disable-exceptions, -disable-native, -unordered-dict\n  -march/-mcpu/-mattr      target selection\n  -target <triple|alias>   cross target (aarch64-linux-android24, x86_64-linux-android24,\n                           arm64-apple-ios13.0[-simulator]; aliases android-arm64,\n                           android-x64, ios-arm64, ios-sim-arm64)\n  -sysroot <dir>           sysroot / SDK for cross linking\n  -libdevice/-gpu-name/-gpu-features/-ptx  GPU options\n  -l<lib>                  load/link library"
     );
     if build {
         println!("  -llvm|-bc|-obj|-asm|-exe|-lib|-cir   output kind\n  -o <file>                output file\n  -linker-flags=<flags>    pass flags to the linker\n  -pie                     position-independent executable");

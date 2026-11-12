@@ -95,23 +95,6 @@ Strings and memory ownership:
 `"android"` or `"ios"` on mobile (as in CPython 3.13+), and otherwise `"darwin"`,
 `"linux"` or `"win32"`.
 
-### numpy.linalg (BLAS/LAPACK)
-
-`numpy.linalg`, `@`/`dot` and the torch/sklearn kernels that call BLAS work on every
-target. The backend is chosen at compile time with `-linalg=auto|system|rust`:
-
-- `auto` (default): Accelerate on Apple (macOS, iOS, simulator), the built-in Rust
-  backend everywhere else (Android, Linux).
-- `system`: Accelerate on Apple, OpenBLAS (runtime feature `openblas`) on Linux.
-- `rust`: `typhon-linalg` (`crates/linalg`, pure Rust on faer), which is linked into
-  `libtyphonrt.a` for every target and exports unsuffixed `cblas_*` and Fortran
-  `xxxxx_` LAPACK with ILP64 integers. Unused symbols are dead-stripped.
-
-The compile-time define `__typhon_linalg_rust__` reflects the choice. The Rust backend
-is sequential by default (to avoid oversubscription with `@par`), unless built with its
-`rayon` feature and run with `TYPHON_LINALG_THREADS=n`. On Apple silicon Accelerate's
-gemm is about 5-9x faster (AMX), so keep `auto` there.
-
 ## Flutter
 
 Bundle the `.so` files under `android/app/src/main/jniLibs/<abi>/` (`arm64-v8a`,
@@ -123,7 +106,7 @@ and use `lookupFunction<Int64 Function(Int64, Int64), int Function(int, int)>('a
 
 The e2e suites run on an arm64 emulator (API 35) with
 `TYPHON_TEST_TARGET=android-arm64` (see `crates/testsuite/README.md`). Every case is built on
-the host, pushed with adb, and run in `/data/local/tmp`. numpy.linalg uses the Rust backend.
+the host, pushed with adb, and run in `/data/local/tmp`.
 
 | suite | passed | failed | notes |
 |---|---|---|---|
@@ -133,7 +116,7 @@ the host, pushed with adb, and run in `/data/local/tmp`. numpy.linalg uses the R
 | `opt/` | 26/26 | 0 | needed 64-byte TLS alignment (bionic loader requirement) |
 | `cnumerics/` | 8/8 | 0 | |
 | `numpy/` | 120/120 | 0 | includes linalg, dot/matmul, random legacy (SVD signs emulate LAPACK) |
-| `scipy/` | 28/38 | 10 | `dsyevr_`/`dsygvd_` are not yet in the Rust LAPACK (scipy.linalg, mne CSP); `test_signal` tf2sos is off by 1e-4 on an ill-conditioned root |
+| `scipy/` | 28/38 | 10 | `test_signal` tf2sos is off by 1e-4 on an ill-conditioned root |
 
 Android fixes so far: `@thread_local` globals are aligned to 64 bytes, links pass
 `--allow-multiple-definition` so a program `@export` can override a runtime hook (as on ld64),

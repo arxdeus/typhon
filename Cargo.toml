@@ -9,7 +9,6 @@ members = [
     "crates/llvm",
     "crates/runtime",
     "crates/omp",
-    "crates/linalg",
     "crates/compiler",
     "crates/cli",
     "crates/testsuite",
@@ -23,7 +22,6 @@ default-members = [
     "crates/llvm",
     "crates/runtime",
     "crates/omp",
-    "crates/linalg",
     "crates/compiler",
     "crates/cli",
     "crates/testsuite",
@@ -47,7 +45,6 @@ typhon-parser = { path = "crates/parser" }
 typhon-llvm = { path = "crates/llvm" }
 typhon-runtime = { path = "crates/runtime" }
 typhon-omp = { path = "crates/omp" }
-typhon-linalg = { path = "crates/linalg" }
 typhon-compiler = { path = "crates/compiler" }
 
 # ---- core data structures ----
@@ -113,7 +110,6 @@ liblzma-sys = { version = "0.4", features = ["static"] }               # xz / lz
 num-complex = "0.4"
 libm = "0.2"
 mimalloc = { version = "0.1", default-features = false }
-openblas-src = { version = "0.10", features = ["static"] }
 accelerate-src = "0.3"
 cblas-sys = "0.3"
 blas-src = { version = "0.14", default-features = false }

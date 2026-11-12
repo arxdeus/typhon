@@ -12,23 +12,19 @@ name = "typhonrt"
 crate-type = ["rlib", "staticlib"]
 
 [features]
-default = ["omp-rust", "blas", "linalg-rust"]
+default = ["omp-rust", "blas"]
 # OpenMP runtime ABI (__kmpc_* / omp_* / __kmpc_set_gc_callbacks) from the Rust
 # typhon-omp crate, linked into and exported from libtyphonrt.
 omp-rust = ["dep:typhon-omp"]
 # Fallback: link the external GC-patched LLVM libomp instead (do not combine with omp-rust).
 openmp-libomp = []
-# Link a BLAS/LAPACK: Accelerate on macOS, OpenBLAS (ILP64, `64_` suffix) on Linux.
+# Link a BLAS/LAPACK: Accelerate on macOS/iOS; elsewhere OpenBLAS 0.3.32 built from
+# source by build.rs (ILP64, plain `cblas_*` / `xxxx_` names, C LAPACK, static).
 blas = []
-openblas = ["dep:openblas-src"]
-# Pure-Rust CBLAS/LAPACK subset (typhon-linalg on faer), exported unsuffixed
-# (`cblas_dgemm`, `dgetrf_`, ILP64). Selected by `-linalg=rust` (default off Apple).
-linalg-rust = ["dep:typhon-linalg"]
 
 [dependencies]
 libc.workspace = true
 typhon-omp = { workspace = true, optional = true }
-typhon-linalg = { workspace = true, optional = true }
 bdwgc-alloc-sys = { version = "0.6.16", default-features = false, features = ["cmake"] }
 regex = "1.13.1"
 regex-automata = "0.4.18"
@@ -44,5 +40,7 @@ glidesort = "0.1.2"
 num-complex = "0.4.6"
 libm = "0.2.16"
 parking_lot = "0.12.5"
-openblas-src = { version = "0.10", optional = true, default-features = false, features = ["static", "cblas", "lapacke"] }
 
+[build-dependencies]
+cc.workspace = true
+openblas-build = { version = "0.10.16", default-features = false, features = ["rustls"] }

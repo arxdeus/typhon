@@ -99,10 +99,7 @@ Native libs needed to link the archive:
 - Android: `-ldl -llog -lunwind -lm -lc` (NDK clang adds them, so pass `-ldl -llog -lm`).
 - iOS / simulator: `-liconv -lSystem -lc -lm -framework Accelerate`.
 
-`blas` links Accelerate on macOS/iOS. Feature `linalg-rust` (default) links
-`typhon-linalg` (pure-Rust CBLAS/LAPACK subset on faer, ILP64, unsuffixed `cblas_*` and
-`xxxxx_`) into the archive on every target. numpy.linalg calls it when compiled with
-`-linalg=rust` (the default off Apple, so Android has numpy.linalg too). `cnp_clogf` is implemented in Rust on Android
+`blas` links Accelerate on macOS/iOS. `cnp_clogf` is implemented in Rust on Android
 because bionic only has `clogf` from API 26.
 
 Libraries: `seq_register_current_thread()` registers the calling thread with the GC. It is
