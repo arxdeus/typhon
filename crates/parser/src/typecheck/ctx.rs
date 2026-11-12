@@ -1,8 +1,8 @@
 //! `TypecheckItem`, `TypeContext`.
 //!
 //! Contexts are shared (`Rc<RefCell<TypeContext>>` = [`CtxRef`]); items are shared and
-//! mutable (`Rc<RefCell<TypecheckItem>>` = [`ItemRef`]), exactly like the C++
-//! `shared_ptr`s. Operations that in the reference implementation reach `ctx->cache` (stdlib lookup, the root
+//! mutable (`Rc<RefCell<TypecheckItem>>` = [`ItemRef`]), exactly like shared pointers
+//! `shared_ptr`s. Operations that in the reference reach `ctx->cache` (stdlib lookup, the root
 //! `typeCtx`, reverse identifier lookup) are associated functions taking the cache and
 //! the context handle explicitly (`TypeContext::find_in`, `add_always_visible`, ...).
 //! Never hold a `RefCell` borrow of a context across a call that may touch other contexts.

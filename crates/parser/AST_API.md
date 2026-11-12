@@ -1,24 +1,24 @@
-# typhon-parser AST API (port of `codon/parser/ast/**`, `visitors/visitor.h`, `visitors/format/*`, `match.h`)
+# typhon-parser AST API
 
 Status: implemented. This file is the contract for the grammar (peg), scoping, typecheck,
-translate and doc lanes. Keep it in sync with `src/ast/**`.
+translate and doc modules. Keep it in sync with `src/ast/**`.
 
 ## Modules
 
-| Rust module | C++ source |
-|---|---|
-| `ast::ids` (`ExprId`, `StmtId`) | raw `Expr*` / `Stmt*` |
-| `ast::attr` (`Attr`, `AttrValue`, `Attrs`, `BindingsAttr`) | `ast/attr.h`, `ir::Attribute` subclasses used by the AST, `scoping.h::BindingsAttribute` |
-| `ast::expr` (`Expr`, `ExprKind`, `*Expr`, `Param`, `CallArg`, `Pipe`, `StringPart`, `FormatSpec`) | `ast/expr.h` |
-| `ast::stmt` (`Stmt`, `StmtKind`, `*Stmt`, `MatchCase`, `CallLayout`) | `ast/stmt.h` |
-| `ast::arena` (`AstArena`, constructors, clone, generator helpers, misc methods) | `Cache::N<T>`, copy ctors `T(const T&, bool clean)`, `ast/{expr,stmt}.cpp` logic |
-| `ast::sexpr` (`AstArena::expr_to_string/stmt_to_string`) | `toString(int)` |
-| `ast::python_string` (`AstArena::expr_to_python/stmt_to_python`, `py_quote`, ...) | `toPythonString`, `pyNode`, `pyList`, ... |
-| `ast::debug_string` (`AstArena::expr_to_debug/stmt_to_debug`, `format_float`) | `ast/debug_string.cpp` |
-| `ast::serial` (`AstArena::serialize_*`/`deserialize`) | `util/serialize.h`, `tser.h` |
-| `visitors::visitor` (`AstCtx`, `Visitor`, `walk_*`, `IdMapper`) | `ASTVisitor`, `CallbackASTVisitor`, `ReplacingCallbackASTVisitor` |
-| `visitors::format` (`FormatVisitor`, `FormatCacheHooks`) | `visitors/format/format.{h,cpp}` |
-| `matching` (`M`, `match_expr`, `match_stmt`) | `match.{h,cpp}` |
+| Rust module |
+|---|
+| `ast::ids` (`ExprId`, `StmtId`) |
+| `ast::attr` (`Attr`, `AttrValue`, `Attrs`, `BindingsAttr`) |
+| `ast::expr` (`Expr`, `ExprKind`, `*Expr`, `Param`, `CallArg`, `Pipe`, `StringPart`, `FormatSpec`) |
+| `ast::stmt` (`Stmt`, `StmtKind`, `*Stmt`, `MatchCase`, `CallLayout`) |
+| `ast::arena` (`AstArena`, constructors, clone, generator helpers, misc methods) |
+| `ast::sexpr` (`AstArena::expr_to_string/stmt_to_string`) |
+| `ast::python_string` (`AstArena::expr_to_python/stmt_to_python`, `py_quote`, ...) |
+| `ast::debug_string` (`AstArena::expr_to_debug/stmt_to_debug`, `format_float`) |
+| `ast::serial` (`AstArena::serialize_*`/`deserialize`) |
+| `visitors::visitor` (`AstCtx`, `Visitor`, `walk_*`, `IdMapper`) |
+| `visitors::format` (`FormatVisitor`, `FormatCacheHooks`) |
+| `matching` (`M`, `match_expr`, `match_stmt`) |
 
 ## Memory model
 
@@ -28,7 +28,7 @@ pub struct StmtId(Idx<Stmt>);
 pub struct AstArena { exprs: Arena<Expr>, stmts: Arena<Stmt>, pub type_fmt: Option<Rc<dyn TypeFormatter>> }
 arena[expr_id] / arena[stmt_id]           // Index/IndexMut -> &Expr / &Stmt
 arena.new_expr(kind: impl Into<ExprKind>, src) -> ExprId
-arena.new_stmt(kind: impl Into<StmtKind>, src) -> StmtId   // normalizes like C++ ctors:
+arena.new_stmt(kind: impl Into<StmtKind>, src) -> StmtId   // normalizes ctors:
      // suite slots wrapped via wrap_suite, PipeExpr ellipses -> Pipe mode
 arena.wrap_suite(Option<StmtId>) -> Option<StmtId>          // SuiteStmt::wrap
 arena.new_param(src, name, ty, default, status_hint /*0,1,2*/, ParamKind) -> Param // status inference
@@ -37,7 +37,7 @@ arena.new_function(src, name, ret, params, suite, decorators, async) -> Result<S
 arena.new_lambda(src, params, body) -> Result<ExprId>
 arena.new_generator(src, GeneratorKind, expr, loops: Vec<StmtId>) -> ExprId
 arena.new_dict_generator(src, key, expr, loops) -> ExprId
-arena.clone_expr(id, clean) / clone_stmt(id, clean)        // deep copy (C++ clone(bool))
+arena.clone_expr(id, clean) / clone_stmt(id, clean)        // deep copy
 arena.import_expr(&other, id) / import_stmt(&other, id)    // deep copy across arenas
 ```
 Every `Expr` / `Stmt` carries `src: SrcInfo` and `attrs: Attrs`.
@@ -48,7 +48,7 @@ pub struct Expr { pub kind: ExprKind, pub src: SrcInfo, pub attrs: Attrs,
                   pub orig_expr: Option<ExprId>, pub expected_type: Option<TypeId> }
 pub struct Stmt { pub kind: StmtKind, pub src: SrcInfo, pub attrs: Attrs, pub done: bool }
 ```
-Types are owned by the types lane (`crate::ids::TypeId`). Printing of types goes through
+Types are owned by the `types` module (`crate::ids::TypeId`). Printing of types goes through
 `trait TypeFormatter { fn debug_string(&self, TypeId, i32) -> String; fn realized_name(&self, TypeId) -> String; fn is_func(&self, TypeId) -> bool; }`
 installed in `AstArena::type_fmt` (fallback prints `T<n>`).
 
@@ -57,7 +57,7 @@ kind (`as_<snake>`), plus `ExprKind::tag() -> ExprTag`, `StmtKind::tag() -> Stmt
 
 ## Expression kinds (`ExprKind::<Variant>(<Struct>)`) — fields
 
-| C++ | Rust variant / struct | fields |
+| Node | Rust variant / struct | fields |
 |---|---|---|
 | NoneExpr | `None(NoneExpr)` | – |
 | BoolExpr | `Bool(BoolExpr)` | `value: bool` |
@@ -88,11 +88,11 @@ kind (`as_<snake>`), plus `ExprKind::tag() -> ExprTag`, `StmtKind::tag() -> Stmt
 
 `Param { name, ty: Option<ExprId>, default_value: Option<ExprId>, kind: ParamKind{Normal,PositionalOnly,KeywordOnly}, status: ParamStatus{Value,Generic,HiddenGeneric}, src }`
 (`is_value/is_generic/is_hidden_generic/name_with_stars`). Single-expr child slots are `Option<ExprId>`
-(C++ nullable pointers).
+.
 
 ## Statement kinds (`StmtKind::<Variant>(<Struct>)`)
 
-| C++ | Rust | fields |
+| Node | Rust | fields |
 |---|---|---|
 | SuiteStmt | `Suite` | `items: Vec<StmtId>` (`flatten`, `add_stmt`, `first_in_block`) |
 | BreakStmt / ContinueStmt | `Break` / `Continue` | – |
@@ -127,7 +127,7 @@ kind (`as_<snake>`), plus `ExprKind::tag() -> ExprTag`, `StmtKind::tag() -> Stmt
 
 ## Attributes (`ast::attr`)
 
-`Attr` = enum of every `Attr::X` (discriminants 201.. as C++). `Attrs` is an insertion-ordered
+`Attr` = enum of every `Attr::X` (discriminants 201..). `Attrs` is an insertion-ordered
 small map `Attr -> AttrValue`:
 `AttrValue::{Flag, Int(i64), Str(String), StrList(Vec<String>), KeyValue(BTreeMap<String,String>), Bindings(BindingsAttr)}`.
 Methods: `set(a)`, `set_int`, `set_str`, `set_value(a, AttrValue)`, `has`, `get`, `get_int`, `get_str`,
@@ -136,12 +136,12 @@ Methods: `set(a)`, `set_int`, `set_str`, `set_value(a, AttrValue)`, `has`, `get`
 
 ## Printing
 
-* `arena.expr_to_string(id, indent)`, `arena.stmt_to_string(id, indent)` — S-expressions, exact C++ format (`indent=-1` = one line).
-* `arena.expr_to_debug(id, attributes, indent, level)`, `stmt_to_debug` — `toCodonString`.
+* `arena.expr_to_string(id, indent)`, `arena.stmt_to_string(id, indent)` — S-expressions, exact format (`indent=-1` = one line).
+* `arena.expr_to_debug(id, attributes, indent, level)`, `stmt_to_debug` — debug dump.
 * `arena.expr_to_python(id, attrs, indent, level)`, `stmt_to_python` — `toPythonString`.
 * `debug_string::format_float(f64)` — Python `repr(float)`.
 * `FormatVisitor::apply_stmt(&arena, id, Option<&dyn FormatCacheHooks>, html)` / `apply_expr` — source-like
-  text / HTML. `FormatCacheHooks` (cache lane implements) supplies function/class realizations.
+  text / HTML. `FormatCacheHooks` supplies function/class realizations.
 
 ## Visitors (`visitors::visitor`)
 
@@ -161,17 +161,17 @@ pub trait Visitor: AstCtx {
     // visit_suite, visit_break, visit_continue, visit_expr_stmt, visit_assign, visit_assign_member,
     // visit_del, visit_print, visit_return, visit_yield, visit_assert, visit_while, visit_for,
     // visit_if, visit_match, visit_import, visit_try, visit_except, visit_global, visit_throw,
-    // visit_function, visit_class, visit_yield_from, visit_with, visit_custom, visit_directive,
+    // visit_function, visit_class, visit_yield_from, visit_with, visit_directive,
     // visit_comment
 }
 pub fn walk_expr<V: Visitor + ?Sized>(v: &mut V, id: ExprId)   // CallbackASTVisitor / Replacing default
 pub fn walk_stmt<V: Visitor + ?Sized>(v: &mut V, id: StmtId)
 ```
-Default `visit_*` calls `default_visit_expr/stmt`, which defaults to `walk_*`: walk children in C++
+Default `visit_*` calls `default_visit_expr/stmt`, which defaults to `walk_*`: walk children in declaration
 order, calling `transform_*` and **writing back** the returned ids (ReplacingCallbackASTVisitor
 semantics; suite slots are re-wrapped with `wrap_suite`). A non-replacing visitor just returns the
-same id. For C++ `ASTVisitor` no-op defaults, override `default_visit_expr/stmt` with `{}`.
-Like C++, f-string part expressions of `StringExpr` are not visited. `expr_children/stmt_children`
+same id. For no-op defaults, override `default_visit_expr/stmt` with `{}`.
+F-string part expressions of `StringExpr` are not visited. `expr_children/stmt_children`
 list children; `IdMapper` + `ExprKind::map_ids/StmtKind::map_ids` give generic traversal.
 `impl AstCtx for AstArena` exists for standalone visitors.
 
@@ -181,7 +181,7 @@ list children; `IdMapper` + `ExprKind::map_ids/StmtKind::map_ids` give generic t
 `M::Int(i)`, `M::Bool(b)`, `M::Float(f)`, `M::or(vec)`, `M::expr(ExprTag::Id, vec![...])`
 (`M<IdExpr>(...)`, empty vec = any node of that kind), `M::stmt(StmtTag::Expr, ...)`,
 `.bind_expr(&Rc<Cell<Option<ExprId>>>)` / `.bind_stmt` (`MVar`), `.call_expr(|id| ..)` / `.call_stmt` (`MCall`).
-`match_expr(arena, Option<ExprId>, &M) -> bool`, `match_stmt`. Members per node follow C++
+`match_expr(arena, Option<ExprId>, &M) -> bool`, `match_stmt`. Members per node follow the declaration order
 `match_members()` order (`expr_members` / `stmt_members`); vector/enum members are opaque (only `M_` matches).
 `StringExpr` exposes its simple value as the single member.
 
@@ -191,29 +191,5 @@ All node structs derive `serde::{Serialize, Deserialize}`. `arena.serialize_stmt
 `serialize_expr` (postcard, subtree copied into a compact arena), `AstArena::deserialize_stmt(&[u8]) ->
 Result<(AstArena, StmtId)>` / `deserialize_expr`, then `arena.import_stmt(&loaded, root)` to merge.
 `ty`, `expected_type`, `PipeExpr::in_types`, `AwaitExpr::transformed`, FunctionStmt caches are not
-serialized (as in C++). `orig_expr` is dropped by `import_*`.
+serialized `orig_expr` is dropped by `import_*`.
 
-## C++ -> Rust name table
-
-| C++ | Rust |
-|---|---|
-| `cache->N<T>(args)` / `NS<T>(src, args)` | `arena.new_expr(T{..}, src)` / `new_stmt` |
-| `ast::clone(e, clean)` | `arena.clone_expr(e, clean)` |
-| `cast<CallExpr>(e)` | `arena[e].kind.as_call()` |
-| `e->getType()/setType` | `arena[e].ty` |
-| `e->isDone()/setDone()` | `arena[e].done` |
-| `getOrigExpr/setOrigExpr` | `arena[e].orig_expr` |
-| `getExpectedType/setExpectedType` | `arena[e].expected_type` |
-| `e->toString(indent)` | `arena.expr_to_string(e, indent)` |
-| `toCodonString(a, i, l)` | `arena.expr_to_debug(e, a, i, l)` |
-| `toPythonString(a, i, l)` | `arena.expr_to_python(e, a, i, l)` |
-| `setAttribute(Attr::X)` | `arena[e].attrs.set(Attr::X)` |
-| `getAttribute<ir::StringValueAttribute>(k)->value` | `attrs.get_str(k)` |
-| `SuiteStmt::wrap(s)` | `arena.wrap_suite(s)` |
-| `stmt->firstInBlock()` | `arena.first_in_block(s)` |
-| `SuiteStmt::flatten/addStmt` | `arena.suite_flatten(s)/suite_add_stmt(s, x)` |
-| `ASTVisitor::visit(XExpr*)` | `Visitor::visit_x(&mut self, ExprId)` |
-| `CallbackASTVisitor::transform(e)` | `Visitor::transform_expr` |
-| `isId(e, s)` | `is_id(arena, e, s)` |
-| `getStaticGeneric(e)` | `arena.get_static_generic(e)` |
-| `types::LiteralKind` | `ast::LiteralKind` (re-export from types lane later) |

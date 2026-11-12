@@ -1,4 +1,3 @@
-//!
 //! Proves exact runtime types with reaching definitions and bounded interprocedural
 //! specialization, then annotates field accesses and resolves AOT virtual calls.
 //! Preserves dynamic JIT dispatch and leaves inlining to LLVM.
@@ -597,7 +596,7 @@ impl Pass for DevirtualizationPass {
         Self::KEY.to_string()
     }
     fn run(&mut self, m: &mut Module, ctx: &dyn PassContext) {
-        // Note: the reference implementation dereferences a missing result; here the pass is a no-op.
+        // Note: the reference dereferences a missing result; here the pass is a no-op.
         let Some(result) = ctx.get_analysis::<RDResult>(&self.reaching_key) else { return };
         let jit = ctx.options().map(|o| o.jit).unwrap_or(false);
         let mut s = Specializer {

@@ -5,12 +5,12 @@ use std::fmt;
 use std::sync::atomic::{AtomicI32, Ordering as AtomicOrdering};
 
 /// Interned file name (`InternedString` / `SourceFile`). Backed by the `ustr` crate,
-/// which gives process-lifetime, pointer-comparable strings exactly like the the reference implementation version.
+/// which gives process-lifetime, pointer-comparable strings exactly like the reference version.
 pub type SourceFile = ustr::Ustr;
 
 static NEXT_ID: AtomicI32 = AtomicI32::new(0);
 
-/// A source location. Equality is by unique `id` (as in C++), ordering is by
+/// A source location. Equality is by unique `id`, ordering is by
 /// `(file, line, col)`.
 #[derive(Clone, Copy, Debug)]
 pub struct SrcInfo {

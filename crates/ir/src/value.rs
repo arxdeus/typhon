@@ -1,5 +1,4 @@
-//! And `VarValue`/`PointerValue`
-//! from `var.h`: value node payloads.
+//! Value node payloads (consts, flows, instructions, `VarValue`/`PointerValue`).
 
 use crate::base::NodeBase;
 use crate::ids::{Id, TypeId, ValueId, VarId};
@@ -205,7 +204,7 @@ pub struct FlowInstr {
     pub val: ValueId,
 }
 
-/// Port of the `Value` class hierarchy.
+/// the `Value` class hierarchy.
 #[derive(Clone, Debug)]
 pub enum ValueKind {
     IntConst(IntConst),
@@ -329,7 +328,7 @@ impl ValueKind {
         }
     }
 
-    /// Port of `doGetUsedValues()` (order matches C++).
+    /// `doGetUsedValues()` .
     pub fn used_values(&self) -> Vec<ValueId> {
         match self {
             ValueKind::SeriesFlow(f) => f.series.clone(),

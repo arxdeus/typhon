@@ -13,7 +13,7 @@ pub struct Expr {
     #[serde(with = "src_serde")]
     pub src: SrcInfo,
     pub attrs: Attrs,
-    /// Type of the expression (`nullptr` by default). Not serialized (as in C++).
+    /// Type of the expression (`nullptr` by default). Not serialized.
     #[serde(skip)]
     pub ty: Option<TypeId>,
     /// True if all types in the expression are inferred.
@@ -56,7 +56,7 @@ pub enum ParamStatus {
 }
 
 /// Function/lambda/class parameter (`ast::Param`). Build with
-/// [`super::AstArena::new_param`] to get the reference implementation generic-status inference.
+/// [`super::AstArena::new_param`] to get the reference generic-status inference.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Param {
     pub name: String,
@@ -119,7 +119,7 @@ impl IntExpr {
     pub fn parse(value: &str, suffix: impl Into<String>) -> Self {
         let value: String = value.chars().filter(|&c| c != '_').collect();
         let lower = value.to_ascii_lowercase();
-        // the reference implementation uses std::stoull (unsigned, out_of_range -> no value); the result is then
+        // the reference uses std::stoull (unsigned, out_of_range -> no value); the result is then
         // stored into int64 (wrapping).
         let parsed = if let Some(r) = lower.strip_prefix("0b") {
             u64::from_str_radix(r, 2).ok()
@@ -383,7 +383,7 @@ pub struct CallArg {
 }
 impl CallArg {
     /// Positional argument (`CallArg(Expr*)`). Use [`super::AstArena::call_arg`] to copy the
-    /// value's source location like C++.
+    /// value's source location.
     pub fn new(name: impl Into<String>, value: Option<ExprId>) -> Self {
         Self { name: name.into(), value, src: SrcInfo::default() }
     }
@@ -446,7 +446,7 @@ pub struct YieldExpr;
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct AwaitExpr {
     pub expr: Option<ExprId>,
-    /// True if transformed during type checking (not serialized, as in C++).
+    /// True if transformed during type checking (not serialized).
     #[serde(skip)]
     pub transformed: bool,
 }
@@ -473,7 +473,7 @@ pub struct InstantiateExpr {
 
 macro_rules! expr_kinds {
     ($($variant:ident($ty:ident) => $as:ident, $as_mut:ident;)*) => {
-        /// Expression node kinds (one per the reference implementation `*Expr` class).
+        /// Expression node kinds (one per `*Expr` class).
         #[derive(Clone, Debug, Serialize, Deserialize)]
         pub enum ExprKind { $($variant($ty)),* }
 

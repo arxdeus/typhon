@@ -34,10 +34,10 @@ impl fmt::Debug for AstTypeRef {
     }
 }
 
-/// Everything `cir/module.cpp` and `cir/type.cpp` need from `ast::Cache`.
+/// Everything the IR module and types need from `ast::Cache`.
 ///
-/// Errors returned as `Err` correspond to the reference implementation `exc::ParserException`; the module logs
-/// them (`LOG_IR`) and returns `None`, exactly like the the reference implementation `try/catch`.
+/// Errors returned as `Err` correspond to the reference `exc::ParserException`; the module logs
+/// them (`LOG_IR`) and returns `None`, exactly like the reference `try/catch`.
 pub trait TypeRealizer {
     /// `cache->findClass(name)`.
     fn find_class(&mut self, name: &str) -> Option<AstTypeRef>;

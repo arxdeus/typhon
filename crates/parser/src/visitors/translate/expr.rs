@@ -261,7 +261,7 @@ impl TranslateVisitor<'_> {
             }
             f
         };
-        // Note: the reference implementation iterates an unordered_set; a sorted set is used for determinism.
+        // Note: the reference iterates an unordered_set; a sorted set is used for determinism.
         let mut ids = BTreeSet::new();
         self.collect_ids(e, &mut ids);
         let mut names = vec![];
@@ -428,7 +428,7 @@ impl TranslateVisitor<'_> {
         }
     }
 
-    /// Note: the reference implementation pushes a non-trivial `PipelineFlow` into the current series and
+    /// Note: the reference pushes a non-trivial `PipelineFlow` into the current series and
     /// yields a null result; here the flow is returned and the enclosing statement pushes it.
     fn visit_pipe(&mut self, e: ExprId) -> Result<ValueId> {
         let src = self.src;

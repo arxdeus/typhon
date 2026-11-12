@@ -9,7 +9,7 @@ use crate::util::operator::{Operator, OperatorState};
 use crate::value::*;
 use crate::var::FuncKind;
 
-/// Port of anonymous `GatherLocals` (collects non-global variables used in a value tree).
+/// anonymous `GatherLocals` (collects non-global variables used in a value tree).
 struct GatherLocals {
     state: OperatorState,
     locals: Vec<VarId>,
@@ -25,7 +25,7 @@ impl Operator for GatherLocals {
     }
     fn pre_hook(&mut self, m: &mut Module, n: NodeRef) {
         for v in m.used_variables(n) {
-            // Note: the reference implementation collects duplicates and creates one clone per occurrence
+            // Note: the reference collects duplicates and creates one clone per occurrence
             // (only the last remap survives); duplicates are skipped here so that no
             // unused clones are added to the target function.
             if !m.is_global(v) && self.seen.insert(m.var_uid(v)) {

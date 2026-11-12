@@ -1,4 +1,3 @@
-//!
 //! Split into submodules (all `impl TypecheckVisitor` blocks):
 //! * [`vtables`]: `vTableSignature`, `valueMethodId`, `prepareVTables`;
 //! * [`generate`]: `generateSpecialAst` and the `generate*AST` helpers;

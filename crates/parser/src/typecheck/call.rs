@@ -16,7 +16,7 @@ use crate::types::class::partial_flag;
 
 thread_local! {
     /// `(callee, call)` pairs of calls whose callee is being transformed.
-    /// Note: the reference implementation reads `ctx->getParentNode()` in `visit(DotExpr*)`; the Rust node stack
+    /// Note: the reference reads `ctx->getParentNode()` in `visit(DotExpr*)`; the Rust node stack
     /// only stores source locations, so `visit_call` registers the parent call here.
     static PARENT_CALLS: RefCell<Vec<(ExprId, ExprId)>> = const { RefCell::new(Vec::new()) };
 }
@@ -339,7 +339,7 @@ impl<'a> TypecheckVisitor<'a> {
         Ok(())
     }
 
-    /// `validateCall(expr)` (static in C++).
+    /// `validateCall(expr)` (static).
     pub fn validate_call(&mut self, e: ExprId) -> Result<()> {
         if self.ast()[e].attrs.has(Attr::Validated) {
             return Ok(());
@@ -1073,7 +1073,7 @@ impl<'a> TypecheckVisitor<'a> {
             let c = self.call_n(nt, vec![tu, ki]);
             let kwe = self.tr(c)?;
             self.ast_mut()[kwe].attrs.set(Attr::ExprKwStarArgument);
-            // Note: the reference implementation assigns an `Expr*` to the whole `CallArg` (implicit
+            // Note: the reference assigns an `Expr*` to the whole `CallArg` (implicit
             // conversion drops the name); the name is cleared to match.
             if st.partial {
                 part.kw_args = Some(kwe);

@@ -1,7 +1,6 @@
-//!
-//! Note: the reference implementation `NumPyExpr` is a tree of `unique_ptr`s and maps are keyed by
+//! Note: the reference `NumPyExpr` is a tree of `unique_ptr`s and maps are keyed by
 //! `NumPyExpr*`. Here all nodes of one function live in an [`ExprArena`] and are
-//! referenced by [`ExprId`] (stable identity, like the the reference implementation pointers). `replace`
+//! referenced by [`ExprId`] (stable identity, like the reference pointers). `replace`
 //! copies the node fields (including child ids) and resets the source node.
 
 use rustc_hash::FxHashMap;
@@ -129,7 +128,7 @@ pub enum BroadcastInfo {
     Maybe,
 }
 
-/// Port of `NumPyExpr` (node data; children are arena ids).
+/// `NumPyExpr` (node data; children are arena ids).
 #[derive(Clone, Debug)]
 pub struct NumPyExpr {
     pub ty: NumPyType,

@@ -418,7 +418,7 @@ impl Pass for NumPyBoundsCheckElisionPass {
     }
     fn run(&mut self, m: &mut Module, ctx: &dyn PassContext) {
         // Collect (loop, parent function) pairs first, then rewrite.
-        // Note: the reference implementation rewrites during the operator walk; replacements made here
+        // Note: the reference rewrites during the operator walk; replacements made here
         // only touch the loop body's index calls, so deferring is equivalent.
         let mut loops = vec![];
         Walk::new().run_module(m, &mut |w, m, v| {

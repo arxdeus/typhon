@@ -1,7 +1,7 @@
 //! Import-path resolution filesystem. Port of `IFilesystem`, `Filesystem`,
 //! `ResourceFilesystem`, `ImportFile` and `library_path`.
 //!
-//! The the reference implementation `ResourceFilesystem` embeds the stdlib with `cmrc`; the Rust port uses
+//! The the reference `ResourceFilesystem` embeds the stdlib with `cmrc`; the Rust port uses
 //! `include_dir` via [`EmbeddedStdlib`] (the embedding itself is done by the crate
 //! that owns the `include_dir!` call, usually `typhon-compiler`).
 
@@ -34,7 +34,7 @@ pub trait FileSystem: Send + Sync {
         weakly_canonical(p)
     }
 
-    /// the reference implementation `IFilesystem::get_root`.
+    /// the reference `IFilesystem::get_root`.
     fn root_of(&self, sp: &Path) -> ImportFile {
         let s = sp.to_string_lossy().replace('\\', "/");
         let mut root = String::new();
@@ -86,7 +86,7 @@ pub fn weakly_canonical(p: &Path) -> PathBuf {
     out
 }
 
-/// Port of `Filesystem` (real disk + `TYPHON_PATH` + paths relative to the executable).
+/// `Filesystem` (real disk + `TYPHON_PATH` + paths relative to the executable).
 #[derive(Clone, Debug, Default)]
 pub struct DiskFileSystem {
     pub argv0: String,

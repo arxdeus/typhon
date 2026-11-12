@@ -400,7 +400,7 @@ impl<'a> CaptureContext<'a> {
         }
         self.set(m, func, make_all_capture_info(m, func));
         let Some(mut ct) = CaptureTracker::for_func(self, m, func) else {
-            // Note: the reference implementation asserts that every bodied function has a CFG; functions that
+            // Note: the reference asserts that every bodied function has a CFG; functions that
             // are not listed in the module get conservative (unknown) results instead.
             return make_all_capture_info(m, func);
         };
@@ -444,7 +444,7 @@ fn extract_vars(cc: &CaptureContext<'_>, m: &Module, v: ValueId) -> (Vec<VarId>,
                     if let Some(func) = get_func(m, c.callee) {
                         let cap = self.cc.get(m, func);
                         for (i, arg) in args.into_iter().enumerate() {
-                            // Note: the reference implementation reads `capInfo[i]` here even past the end (vararg
+                            // Note: the reference reads `capInfo[i]` here even past the end (vararg
                             // C functions); the bounds-checked `info` is used instead.
                             let info = cap.get(i).cloned().unwrap_or_else(|| {
                                 CaptureInfo::unknown(m, func, Some(m.value_type(arg)))

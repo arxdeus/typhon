@@ -147,7 +147,7 @@ impl<'a> TypecheckVisitor<'a> {
         let is = self.cache.ast[s].kind.as_if().unwrap().clone();
         let b = self.get_stdlib_type(&st.bool_)?;
         self.cache.ast[is.cond.unwrap()].expected_type = Some(b);
-        // Note: the reference implementation reads `(*ci)[1]` after call reordering dropped the generic `T`
+        // Note: the reference reads `(*ci)[1]` after call reordering dropped the generic `T`
         // slot from `items` (stale read past `size()` that yields the original type arg);
         // keep that original argument explicitly.
         let orig_type_arg = self.cache.ast[is.cond.unwrap()].kind.as_call().and_then(|c| c.items.get(1)).and_then(|a| a.value);

@@ -1,6 +1,6 @@
 //! Control-flow graph construction.
 //!
-//! the reference implementation blocks hold `const Value*` pointers that are either real IR values or synthetic
+//! the reference blocks hold `const Value*` pointers that are either real IR values or synthetic
 //! instructions owned by the graph (`SyntheticAssignInstr`, `SyntheticPhiInstr`, plus the
 //! temporary `CallInstr`/`VarValue`/`ForFlow`/`SeriesFlow` nodes created when converting
 //! pipelines to loops). Here they are [`CfValue::Real`] / [`CfValue::Synth`]; synthetic
@@ -274,7 +274,7 @@ impl CFGraph {
         self.blocks[b].values.insert(idx, v);
         self.reg(m, b, v);
     }
-    /// `CFBlock::erase` (the value location is kept, like C++).
+    /// `CFBlock::erase` (the value location is kept).
     pub fn erase(&mut self, b: BlockId, idx: usize) {
         self.blocks[b].values.remove(idx);
     }
@@ -776,7 +776,7 @@ impl<'a> CFVisitor<'a> {
                 self.process(i.false_value);
                 let cur = self.graph.current_block();
                 self.graph.successors_insert(cur, end);
-                // Note: like C++, predecessors are the branch entry blocks.
+                // Note:, predecessors are the branch entry blocks.
                 let phi = self.graph.add_synthetic(
                     Some(NodeRef::Value(v)),
                     SyntheticKind::Phi(SyntheticPhiInstr {
@@ -877,7 +877,7 @@ impl<'a> CFVisitor<'a> {
         match loop_ {
             Some(l) => {
                 let id = self.m.value_uid(l);
-                // Note: the reference implementation dereferences `end()` if the loop is not found; fall back
+                // Note: the reference dereferences `end()` if the loop is not found; fall back
                 // to the innermost loop instead.
                 self.loop_stack.iter().find(|x| x.loop_id == id).or(self.loop_stack.last()).copied()
             }

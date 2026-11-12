@@ -1,9 +1,9 @@
 //! AST pattern matching helpers
 //! (`M<T>(...)`, `MOr`, `MVar`, `MCall`, `M_`, `MAny`, `MStarts`, `MEnds`, `MContains`).
 //!
-//! Note: the reference implementation builds patterns with variadic templates checked against each node's
+//! Note: the reference builds patterns with variadic templates checked against each node's
 //! `match_members()` tuple. Rust uses a runtime pattern tree; the member list of each node
-//! kind is produced by [`expr_members`] / [`stmt_members`] in the same order as C++.
+//! kind is produced by [`expr_members`] / [`stmt_members`] in the same order.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -109,7 +109,7 @@ pub fn expr_members(a: &AstArena, id: ExprId) -> Vec<Val> {
         ExprKind::Bool(b) => vec![Bool(b.value)],
         ExprKind::Int(i) => vec![s(&i.value), s(&i.suffix), i.int_value.map(Int).unwrap_or(Opaque)],
         ExprKind::Float(i) => vec![s(&i.value), s(&i.suffix), i.float_value.map(Float).unwrap_or(Opaque)],
-        // the reference implementation matches StringExpr against its `strings` vector; we expose the simple value so
+        // the reference matches StringExpr against its `strings` vector; we expose the simple value so
         // `M<StringExpr>("x")` is usable.
         ExprKind::String(x) => vec![if x.is_simple() { Str(x.strings[0].value.clone()) } else { Opaque }],
         ExprKind::Id(i) => vec![s(&i.value)],
@@ -190,7 +190,7 @@ fn match_members(a: &AstArena, members: &[Val], args: &[M]) -> bool {
             return false;
         }
     }
-    // C++: all members must be covered unless no pattern args are given.
+    // all members must be covered unless no pattern args are given.
     args.is_empty() || args.len() == members.len()
 }
 

@@ -1,4 +1,3 @@
-//!
 //! `util::Operator` is a pre/post-order walker over the IR with per-kind `handle`
 //! callbacks, a parent stack and series-flow insertion support. In Rust the walker
 //! state lives in [`OperatorState`] (embedded in the implementor and exposed through
@@ -188,7 +187,7 @@ pub trait Operator {
     #[doc(hidden)]
     fn process_children(&mut self, m: &mut Module, v: ValueId) {
         self.state_mut().node_stack.push(v.into());
-        // CallInstr: snapshot of args followed by callee (matches the reference implementation explicit branch).
+        // CallInstr: snapshot of args followed by callee (matches the reference explicit branch).
         let children: Vec<ValueId> = match m.as_call_instr(v) {
             Some(call) => {
                 let mut c = call.args.clone();

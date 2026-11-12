@@ -1,7 +1,7 @@
 //! `ASTVisitor`, `CallbackASTVisitor` and
 //! `ReplacingCallbackASTVisitor`.
 //!
-//! Note: the three the reference implementation classes collapse into one trait. Default `visit_*` methods walk
+//! Note: the three the reference classes collapse into one trait. Default `visit_*` methods walk
 //! children (in original order) through `transform_expr`/`transform_stmt` and write the returned
 //! ids back, so:
 //! * a plain callback visitor overrides `visit_*` and leaves `transform_*` as identity-walk;
@@ -92,14 +92,14 @@ visitor_trait! {
     }
 }
 
-/// Children of an expression in the reference implementation visitor order (f-string parts excluded).
+/// Children of an expression in the reference visitor order (f-string parts excluded).
 pub fn expr_children(a: &AstArena, id: ExprId) -> Vec<Child> {
     let mut c = ChildCollector { children: vec![], include_string_parts: false };
     a[id].kind.clone().map_ids(&mut c);
     c.children
 }
 
-/// Children of a statement in the reference implementation visitor order.
+/// Children of a statement in the reference visitor order.
 pub fn stmt_children(a: &AstArena, id: StmtId) -> Vec<Child> {
     let mut c = ChildCollector { children: vec![], include_string_parts: false };
     a[id].kind.clone().map_ids(&mut c);

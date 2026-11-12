@@ -1,4 +1,3 @@
-//!
 //! `PassManager` owns the passes, the analyses and their cached results. Passes reach
 //! the manager through the [`PassContext`] trait object handed to `Pass::run`
 //! (`Pass::manager` back-pointer).
@@ -67,7 +66,7 @@ impl PassContext for ManagerContext<'_> {
 /// Utility class to run a series of passes (port of `transform::PassManager`).
 pub struct PassManager {
     /// compiler options
-    // Note: the reference implementation stores an `Options*` shared with the compiler; here the manager
+    // Note: the reference stores an `Options*` shared with the compiler; here the manager
     // owns a copy, mutable through `options_mut()` (`isDisabled` reads it live).
     options: Options,
     /// key manager to handle duplicate keys (i.e. passes being added twice)
@@ -143,7 +142,7 @@ impl PassManager {
             d.push(key.clone());
         }
 
-        // the reference implementation `setManager` is replaced by passing a `PassContext` at run time.
+        // the reference `setManager` is replaced by passing a `PassContext` at run time.
         self.passes.insert(key.clone(), PassMetadata { pass, reqs, invalidates });
         if insert_before.is_empty() {
             self.execution_order.push(key.clone());
@@ -386,7 +385,7 @@ mod lanes {
     }
 
     /// Passes owned by the numpy and parallel modules (kept as small factories so the
-    /// pipeline above reads like the the reference implementation `registerStandardPasses`).
+    /// pipeline above reads like the reference `registerStandardPasses`).
     mod gated {
         use typhon_ir::pass::{Analysis, Pass};
 

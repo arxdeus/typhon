@@ -7,7 +7,7 @@ use super::const_prop::ConstPropPass;
 use crate::cleanup::{CanonicalizationPass, DeadCodeCleanupPass, GlobalDemotionPass};
 
 /// Group of constant folding passes.
-// Note: the reference implementation derives from `PassGroup` and keeps raw pointers to the members to
+// Note: the reference derives from `PassGroup` and keeps raw pointers to the members to
 // query their replacement counters; here the members are typed fields run in the
 // same order (global demotion, const prop, canonicalization, folding, DCE).
 pub struct FoldingPassGroup {

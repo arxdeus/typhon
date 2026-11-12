@@ -47,7 +47,7 @@ pub trait TypeFormatter {
     fn is_func(&self, ty: TypeId) -> bool;
 }
 
-/// Owner of all AST nodes. the reference implementation never frees individual nodes; neither does this arena.
+/// Owner of all AST nodes. the reference never frees individual nodes; neither does this arena.
 #[derive(Default)]
 pub struct AstArena {
     exprs: Arena<Expr>,
@@ -537,7 +537,7 @@ impl AstArena {
         self[f].attrs.get_key_value(Attr::FunctionAttributes).is_some_and(|m| m.contains_key(attr))
     }
 
-    /// True if an `IdExpr` named `what` occurs in the subtree (the reference implementation `IdSearchVisitor`,
+    /// True if an `IdExpr` named `what` occurs in the subtree (the reference `IdSearchVisitor`,
     /// which does not look inside f-string parts).
     pub fn contains_id(&self, e: ExprId, what: &str) -> bool {
         use super::children::{Child, ChildCollector};
@@ -603,7 +603,7 @@ impl AstArena {
         }
         e.kind.map_ids(&mut M { a: self, clean });
         if let ExprKind::String(s) = &mut e.kind {
-            // the reference implementation StringExpr copy ctor clones part expressions with clean=false.
+            // the reference StringExpr copy ctor clones part expressions with clean=false.
             for p in &mut s.strings {
                 if let Some(x) = p.expr {
                     p.expr = Some(self.clone_expr(x, false));
@@ -642,7 +642,7 @@ impl AstArena {
             f.non_inferrable_generics = None;
             f.call_layout = None;
         }
-        // Note: the reference implementation ExceptStmt's copy constructor does not reset `done` on clean.
+        // Note: the reference ExceptStmt's copy constructor does not reset `done` on clean.
         if clean && s.kind.as_except().is_none() {
             s.done = false;
         }
@@ -653,7 +653,7 @@ impl AstArena {
         id.map(|i| self.clone_stmt(i, clean))
     }
 
-    /// Clone a parameter (`Param::clone`): re-runs status inference like C++.
+    /// Clone a parameter (`Param::clone`): re-runs status inference.
     pub fn clone_param(&mut self, p: &Param, clean: bool) -> Param {
         let ty = self.clone_expr_opt(p.ty, clean);
         let d = self.clone_expr_opt(p.default_value, clean);
@@ -662,7 +662,7 @@ impl AstArena {
             ParamStatus::Generic => 1,
             ParamStatus::HiddenGeneric => 2,
         };
-        // Note: the reference implementation Param::clone does not copy the source location.
+        // Note: the reference Param::clone does not copy the source location.
         self.new_param(SrcInfo::default(), p.name.clone(), ty, d, hint, p.kind)
     }
 

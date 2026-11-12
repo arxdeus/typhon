@@ -138,7 +138,7 @@ impl ScopingVisitor<'_> {
             last_good = n - 1;
             let lg = &items[last_good];
             let mut p = common_scope.min(lg.scope.len());
-            // Note: the reference implementation reads `scope[p - 1]` with p == 0 (UB); stop at 0 instead.
+            // Note: the reference reads `scope[p - 1]` with p == 0 (UB); stop at 0 instead.
             while p > 0 && lg.scope[p - 1] != self.ctx.scope[p - 1].id {
                 p -= 1;
             }
@@ -155,7 +155,7 @@ impl ScopingVisitor<'_> {
             let new_scope: Vec<i32> = self.ctx.get_scope()[..common_scope].to_vec();
             // Make sure to prepend a binding declaration: `var` and `var__used__ = False`
             // to the dominating scope.
-            // Note: the the reference implementation loop `for (si = cs; si-- > 0; si--)` steps by two; kept.
+            // Note: the reference loop `for (si = cs; si-- > 0; si--)` steps by two; kept.
             let mut si = common_scope as isize - 1;
             while si >= 0 {
                 let Some(suite) = self.ctx.scope[si as usize].suite else {

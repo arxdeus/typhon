@@ -1,8 +1,7 @@
-//! Name mangling. Port of `getMangledClass/Func/Method/Var`
-//! and the `StdlibTypes` table.
+//! Name mangling (`mangled_class/func/method/var`) and the `StdlibTypes` table.
 //!
-//! Placed in `typhon-common` because CIR passes (`cir/util/side_effect.cpp`,
-//! `cir/transform/numpy/*`, `cir/transform/lowering/*`) use these names and must not
+//! Placed in `typhon-common` because IR passes (side effects, numpy,
+//! lowering) use these names and must not
 //! depend on the parser crate.
 
 use once_cell::sync::Lazy;
@@ -42,7 +41,7 @@ pub fn mangled_var(module: &str, var: &str, id: usize) -> String {
     format!("{prefix}{var}{num}")
 }
 
-/// Shorthands with the reference implementation default arguments (`overload = 0`, `id = 0`, `noCore = false`).
+/// Shorthands with the reference default arguments (`overload = 0`, `id = 0`, `noCore = false`).
 pub fn class(module: &str, cls: &str) -> String {
     mangled_class(module, cls, 0)
 }

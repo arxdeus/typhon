@@ -21,7 +21,7 @@ pub struct ParseState<'a> {
     pub parens: Cell<i32>,
     /// cpp-peglib `error_info.message_pos` / `message` (predicate messages).
     pub message: RefCell<Option<(usize, String)>>,
-    /// First exception thrown by an AST constructor inside an action (the reference implementation throws
+    /// First exception thrown by an AST constructor inside an action (the reference throws
     /// `ParserException` straight out of the parser).
     pub fatal: RefCell<Option<CompilerError>>,
     line_starts: Vec<usize>,
@@ -83,7 +83,7 @@ impl<'a> ParseState<'a> {
         (li + 1, col)
     }
 
-    /// the reference implementation `LOC`.
+    /// the reference `LOC`.
     pub fn loc(&self, sp: (usize, usize)) -> SrcInfo {
         let (l, c) = self.line_info(sp.0);
         SrcInfo::new(
@@ -315,7 +315,7 @@ impl<'a> ParseState<'a> {
     }
 }
 
-/// Note: the reference implementation keeps unescaped (bytes) literals as raw `std::string` bytes. Rust
+/// Note: the reference keeps unescaped (bytes) literals as raw `std::string` bytes. Rust
 /// `String` must be UTF-8: valid UTF-8 is kept as is, other byte strings are mapped
 /// byte-for-char (Latin-1) so no information is lost.
 pub fn bytes_to_string(b: Vec<u8>) -> String {

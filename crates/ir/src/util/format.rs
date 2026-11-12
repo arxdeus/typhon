@@ -31,7 +31,7 @@ pub fn escape_string(s: &str) -> String {
     out
 }
 
-/// Formats a the reference implementation `double` the way `fmt::format("{}", d)` does (shortest round-trip).
+/// Formats a the reference `double` the way `fmt::format("{}", d)` does (shortest round-trip).
 pub fn format_float(f: f64) -> String {
     if f.is_nan() {
         return "nan".into();

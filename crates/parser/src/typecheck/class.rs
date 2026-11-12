@@ -530,7 +530,7 @@ impl<'a> TypecheckVisitor<'a> {
 }
 
 // ---------------------------------------------------------------------------------------
-// Field initialization analysis (anonymous namespace in class.cpp)
+// Field initialization analysis (anonymous namespace )
 // ---------------------------------------------------------------------------------------
 
 /// Initialization facts for the tracked receiver on a modeled control-flow path.
@@ -1206,7 +1206,7 @@ impl<'a> TypecheckVisitor<'a> {
                 }
                 let sk = self.cache.ast.get_static_generic(a.ty);
                 if sk != LiteralKind::Runtime {
-                    // Note: the reference implementation checks `st == LiteralKind::Runtime` inside `if (st)`,
+                    // Note: the reference checks `st == LiteralKind::Runtime` inside `if (st)`,
                     // which is unreachable; kept as a no-op.
                     types.with_link_mut(generic, |l| l.static_kind = sk);
                     let val = TypeContext::add_var(self.cache, &self.ctx, &a.name, &var_name, generic, 0, Default::default());
@@ -1402,7 +1402,7 @@ impl<'a> TypecheckVisitor<'a> {
                 if is_setter && nvalues == 2 {
                     let f = self.cache.ast[sp].kind.as_function_mut().unwrap();
                     f.name = format!("{}{}", FN_SETTER_SUFFIX, fp.name);
-                    // Note: the reference implementation nulls the decorator slot; Rust decorators are non-null ids.
+                    // Note: the reference nulls the decorator slot; Rust decorators are non-null ids.
                     f.decorators.remove(di);
                     break;
                 }

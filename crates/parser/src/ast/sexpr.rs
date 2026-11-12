@@ -1,4 +1,4 @@
-//! Port of the `toString(int indent)` S-expression printers in
+//! the `toString(int indent)` S-expression printers in
 
 use typhon_common::strings::{escape, find_star};
 
@@ -12,13 +12,13 @@ const NULL: &str = "<null>";
 
 impl AstArena {
     fn es(&self, e: Option<ExprId>, indent: i32) -> String {
-        // Note: the reference implementation dereferences null children here (UB); we print a marker.
+        // Note: the reference dereferences null children here (UB); we print a marker.
         e.map(|e| self.expr_to_string(e, indent)).unwrap_or_else(|| NULL.into())
     }
     fn ss(&self, s: Option<StmtId>, indent: i32) -> String {
         s.map(|s| self.stmt_to_string(s, indent)).unwrap_or_else(|| NULL.into())
     }
-    /// the reference implementation `combine(items)` (delimiter " ", indent -1).
+    /// the reference `combine(items)` (delimiter " ", indent -1).
     fn combine(&self, items: &[ExprId]) -> String {
         let mut s = String::new();
         for (i, &it) in items.iter().enumerate() {
@@ -96,7 +96,7 @@ impl AstArena {
                 format!("string ({})", v.join(" "))
             }
             ExprKind::Id(i) => {
-                // C++: untyped ids are printed bare (even when `done`).
+                // untyped ids are printed bare (even when `done`).
                 if self[id].ty.is_none() {
                     return format!("'{}", i.value);
                 }
@@ -111,7 +111,7 @@ impl AstArena {
             ExprKind::Set(e) => {
                 if e.items.is_empty() { "set".into() } else { format!("set {}", self.combine(&e.items)) }
             }
-            // the reference implementation prints "set" for an empty dict.
+            // the reference prints "set" for an empty dict.
             ExprKind::Dict(e) => {
                 if e.items.is_empty() { "set".into() } else { format!("dict {}", self.combine(&e.items)) }
             }
@@ -180,7 +180,7 @@ impl AstArena {
                 let v: Vec<String> = e.items.iter().map(|p| self.param_to_string(p, indent)).collect();
                 format!("lambda ({}) {}", v.join(" "), self.es(e.expr, indent))
             }
-            // the reference implementation does not wrap YieldExpr.
+            // the reference does not wrap YieldExpr.
             ExprKind::Yield(_) => return "yield-expr".into(),
             ExprKind::Await(e) => format!("await {}", self.es(e.expr, indent)),
             ExprKind::Assign(e) => format!("assign-expr '{} {}", self.es(e.var, indent), self.es(e.expr, indent)),

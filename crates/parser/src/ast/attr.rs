@@ -1,14 +1,14 @@
 //! AST attributes: (the `ir::Attribute` subclasses that the AST stores
-//! and `BindingsAttribute` from visitors/scoping/scoping.h).
+//! and `BindingsAttribute`).
 //!
-//! Note: the reference implementation AST nodes inherit `ir::Node` and store `ir::Attribute` objects. The Rust
+//! Note: the reference AST nodes inherit `ir::Node` and store `ir::Attribute` objects. The Rust
 //! AST does not depend on `typhon-ir`; it keeps its own typed attribute map instead.
 
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-/// `INDENT_SIZE` from attr.h.
+/// `INDENT_SIZE`.
 pub const INDENT_SIZE: i32 = 2;
 
 macro_rules! attrs_enum {
@@ -93,7 +93,7 @@ attrs_enum!(
 );
 
 impl Attr {
-    /// the reference implementation `attrName`: names shown by `toPythonString`; empty for hidden keys.
+    /// the reference `attrName`: names shown by `toPythonString`; empty for hidden keys.
     pub fn py_name(self) -> &'static str {
         use Attr::*;
         match self {
@@ -103,7 +103,7 @@ impl Attr {
             a => a.name(),
         }
     }
-    /// the reference implementation `attributeName`: names shown by `debug dump`.
+    /// the reference `attributeName`: names shown by `debug dump`.
     pub fn display_name(self) -> Option<&'static str> {
         match self {
             Attr::ExprVirtual | Attr::MaybeLiteral => None,
@@ -154,7 +154,7 @@ pub enum AttrValue {
 }
 
 impl AttrValue {
-    /// the reference implementation `operator<<(ostream, Attribute)` (`doFormat`).
+    /// the reference `operator<<(ostream, Attribute)` (`doFormat`).
     pub fn display(&self) -> String {
         match self {
             AttrValue::Flag => String::new(),

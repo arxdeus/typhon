@@ -1,6 +1,6 @@
 //! Part 1: `apply`,
 //! `loadStdLibrary`, `transform*`, node dispatch and the statements owned by
-//! typecheck.cpp (`SuiteStmt`, `ExprStmt`, `StmtExpr`, `CommentStmt`,
+//! (`SuiteStmt`, `ExprStmt`, `StmtExpr`, `CommentStmt`,
 //! `DirectiveStmt`). Helpers are in [`super::helpers`].
 
 use std::collections::HashMap;

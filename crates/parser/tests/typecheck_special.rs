@@ -1,4 +1,4 @@
-//! Unit tests for typecheck special.cpp port (stdlib-free parts).
+//! Unit tests for typecheck special-call handlers (stdlib-free parts).
 
 use typhon_parser::ast::IdExpr;
 use typhon_parser::cache::Cache;

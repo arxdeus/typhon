@@ -1,4 +1,3 @@
-//!
 //! Note: units are referenced by their index in the function's unit vector
 //! (`NumPyOptimizationUnit*`), expression nodes by [`ExprId`]. DAGs are
 //! `IndexMap`s so iteration order is deterministic (uses `unordered_map`).
@@ -26,7 +25,7 @@ pub struct Forwarding {
     pub src_id: i64,
 }
 
-/// Port of `ForwardingDAG` (unit index -> forwardings into that unit).
+/// `ForwardingDAG` (unit index -> forwardings into that unit).
 pub type ForwardingDAG = IndexMap<usize, Vec<Forwarding>>;
 
 /// `GetVars`: non-function variables used anywhere under `v`.
@@ -93,7 +92,7 @@ fn block_of(cfg: &CFGraph, m: &Module, v: ValueId) -> Option<BlockId> {
 }
 
 /// Synthetic CFG values: an assignment to a tracked variable blocks forwarding.
-/// Note: the reference implementation runs the operator on synthetic instructions; they carry no
+/// Note: the reference runs the operator on synthetic instructions; they carry no
 /// side-effect result, so only their (real) assigned variable is checked here.
 fn ok_synthetic(cfg: &CFGraph, m: &Module, v: CfValue, vids: &FxHashSet<Id>) -> bool {
     if let CfValue::Synth(s) = v

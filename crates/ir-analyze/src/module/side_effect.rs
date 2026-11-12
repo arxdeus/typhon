@@ -296,7 +296,7 @@ impl Analyzer<'_> {
                             Some(info) => {
                                 !info.iter().any(|i| i.extern_captures || i.modified || !i.arg_captures.is_empty())
                             }
-                            // Note: the reference implementation asserts the function is in the capture results.
+                            // Note: the reference asserts the function is in the capture results.
                             None => false,
                         };
                         if pure {

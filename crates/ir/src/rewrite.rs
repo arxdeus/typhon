@@ -17,7 +17,7 @@ impl<F: FnMut(&mut Module, ValueId) -> Option<ValueId>> RewriteRule for F {
 
 #[derive(Default)]
 pub struct Rewriter {
-    // Note: the reference implementation uses an `unordered_map` (unspecified order); insertion order is
+    // Note: the reference uses an `unordered_map` (unspecified order); insertion order is
     // used here for determinism.
     rules: IndexMap<String, Box<dyn RewriteRule>>,
     num_replacements: i32,

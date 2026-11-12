@@ -1,11 +1,10 @@
-//!
 //! `typhon doc`: walks the given files (plus the stdlib prelude) and produces a JSON
 //! documentation database `{ "<id>": item, ... }`.
 //!
-//! Note: the the reference implementation `json` helper (string / list / object over an `unordered_map`) is
-//! replaced by `serde_json::Value`; [`json_to_string`] reproduces the the reference implementation `toString()`
+//! Note: the reference `json` helper (string / list / object over an `unordered_map`) is
+//! replaced by `serde_json::Value`; [`json_to_string`] reproduces the reference `toString()`
 //! layout (`{ "k": v }`, `[ a, b ]`) with keys in sorted order instead of hash order.
-//! The the reference implementation visitor is an `ASTVisitor`; this port dispatches with a `match` since only
+//! The the reference visitor is an `ASTVisitor`; this port dispatches with a `match` since only
 //! seven node kinds are handled.
 
 mod items;
@@ -25,7 +24,7 @@ use crate::ids::{ExprId, StmtId};
 use crate::visitors::FormatVisitor;
 use crate::visitors::scoping::ScopingVisitor;
 
-/// the reference implementation `json_escape`.
+/// the reference `json_escape`.
 pub fn json_escape(s: &str) -> String {
     let mut r = String::with_capacity(s.len());
     for c in s.chars() {
@@ -43,7 +42,7 @@ pub fn json_escape(s: &str) -> String {
     r
 }
 
-/// the reference implementation `json::toString()`.
+/// the reference `json::toString()`.
 pub fn json_to_string(v: &Value) -> String {
     match v {
         Value::String(s) => format!("\"{}\"", json_escape(s)),
@@ -260,7 +259,7 @@ impl<'a> DocVisitor<'a> {
                         for e in l.items {
                             v.push(self.tr_index(e)?);
                         }
-                        // Note: the reference implementation indexes `(*tp)[1]` unconditionally.
+                        // Note: the reference indexes `(*tp)[1]` unconditionally.
                         if let Some(&x) = tp.items.get(1) {
                             v.push(self.tr_index(x)?);
                         }
@@ -295,7 +294,7 @@ impl<'a> DocVisitor<'a> {
             crate::ast::StmtTag::Assign => self.visit_assign(s),
             crate::ast::StmtTag::Import => self.visit_import(s),
             _ => {
-                // the reference implementation DocVisitor is a CallbackASTVisitor: unhandled statements (if/while/
+                // the reference DocVisitor is a CallbackASTVisitor: unhandled statements (if/while/
                 // suite/...) still visit their child statements, so names bound inside them
                 // (e.g. `if __dict_unordered__: dict = ...`) are registered. The child
                 // result is discarded (`resultStmt` of the outer visitor stays "").

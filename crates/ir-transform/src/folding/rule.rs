@@ -1,5 +1,4 @@
-//!
-//! Generic rewrite rules used by the constant folder. the reference implementation templates over the
+//! Generic rewrite rules used by the constant folder. the reference templates over the
 //! constant type become generics over [`FoldConst`].
 
 use typhon_ir::rewrite::RewriteRule;

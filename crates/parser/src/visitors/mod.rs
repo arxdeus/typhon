@@ -1,8 +1,5 @@
-//!
-//! - `visitor` : visitors/visitor.{h,cpp} (AST lane)
-//! - `format`  : visitors/format/format.{h,cpp} (AST lane)
-//! - `scoping`, `doc` : visitors/scoping/*, visitors/doc/*
-//! - `translate` : visitors/translate/*
+//! AST visitors: `visitor` (traversal traits), `format` (source-like printer), `scoping`,
+//! `doc` (documentation generator) and `translate` (AST -> IR).
 
 pub mod doc;
 pub mod format;

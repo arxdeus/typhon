@@ -299,7 +299,7 @@ impl<'a> TypecheckVisitor<'a> {
             typhon_common::bail_e!(ErrorKind::LOOP_DECORATOR, src);
         }
         let mut args: Vec<CallArg> = vec![];
-        let openmp = String::new(); // Note: never assigned in the reference implementation either
+        let openmp = String::new(); // Note: never assigned in the reference either
         let mut omp: Vec<CallArg> = vec![];
         if let Some(c) = &call {
             for a in &c.items {
@@ -333,7 +333,7 @@ impl<'a> TypecheckVisitor<'a> {
 
     /// `parseOpenMP(cache, code, loc)` (openmp.peg).
     /// Note: hand-written recursive-descent equivalent of `openmp.peg` (the grammar
-    /// lane's `crate::peg` has no OpenMP entry point yet). `collapse` takes `(n)` (the C++
+    /// lane's `crate::peg` has no OpenMP entry point yet). `collapse` takes `(n)` (
     /// grammar rule reads a missing value).
     fn parse_openmp_pragma(&mut self, code: &str, loc: SrcInfo) -> Result<Vec<CallArg>> {
         let b = code.as_bytes();
@@ -425,7 +425,7 @@ impl<'a> TypecheckVisitor<'a> {
         Ok(out)
     }
 
-    /// `transformStaticForLoop(stmt)`: `(delay, replacement)`. See loops.cpp: each static
+    /// `transformStaticForLoop(stmt)`: `(delay, replacement)`. each static
     /// iteration becomes `while loop: (assigns; suite; break)` unless the loop is flat.
     pub fn transform_static_for_loop(&mut self, s: StmtId) -> Result<(bool, Option<StmtId>)> {
         let loop_var = self.get_temporary_var("loop");

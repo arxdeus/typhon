@@ -1,9 +1,7 @@
-//!
-//! File -> module map (one `impl TypecheckVisitor` block per the reference implementation file):
-//! `typecheck.cpp` -> [`typecheck`] (transform/apply/dispatch) + [`helpers`] (the rest),
-//! `infer.cpp` -> [`infer`], `basic.cpp` -> [`basic`], `ctx.{h,cpp}` -> [`ctx`],
-//! `access/assign/call/class/collections/cond/error/function/import/loops/op/special.cpp`
-//! -> same-named modules (phase-3 lanes). See `../../TYPECHECK_API.md`.
+//! File -> module map (one `impl TypecheckVisitor` block per source file):
+//! [`typecheck`] (transform/apply/dispatch) + [`helpers`] (the rest), [`infer`], [`basic`],
+//! [`ctx`], and one module each for access, assign, call, class, collections, cond, error,
+//! function, import, loops, op and special. See `../../TYPECHECK_API.md`.
 
 pub mod access;
 pub mod assign;
@@ -231,9 +229,4 @@ impl TypeHost for TypecheckVisitor<'_> {
             None => self.instantiate_type(t, None),
         }
     }
-}
-
-/// Error returned by not-yet-ported methods (`// STUB(<file>.cpp)` bodies).
-pub(crate) fn not_ported(what: &str, src: SrcInfo) -> typhon_common::CompilerError {
-    typhon_common::CompilerError::custom(format!("typecheck::{what} not ported yet"), src)
 }

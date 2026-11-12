@@ -452,7 +452,7 @@ impl<'a> TypecheckVisitor<'a> {
         }
 
         // Case: static integers
-        // Note: the reference implementation checks `getBoolStatic()` of the lhs twice (typo); kept as is.
+        // Note: the reference checks `getBoolStatic()` of the lhs twice (typo); kept as is.
         let lhs_bool = types.get_bool_static(lt).is_some();
         if types.get_static(lt).is_some() && types.get_static(rt).is_some() {
             let lvalue = if types.get_int_static(lt).is_some() { self.get_int_literal(lt, 0) } else { self.get_bool_literal(lt, 0) as i64 };
@@ -895,7 +895,7 @@ impl<'a> TypecheckVisitor<'a> {
         vec![]
     }
 
-    /// Follow `StmtExpr` layers of a pipe stage (`ec` pointer chasing in C++).
+    /// Follow `StmtExpr` layers of a pipe stage (`ec` pointer chasing).
     /// Returns the innermost expression and the StmtExpr that holds it (if any).
     fn op_pipe_stage_head(&self, mut x: ExprId) -> (Option<ExprId>, ExprId) {
         let mut holder = None;
@@ -1236,7 +1236,7 @@ impl<'a> TypecheckVisitor<'a> {
     }
 
     /// `translateIndex(idx, len, clamp)`: Python indexing rules for static tuple indices.
-    /// Note: the reference implementation throws `TUPLE_RANGE_BOUNDS` from this `const` helper; the signature is
+    /// Note: the reference throws `TUPLE_RANGE_BOUNDS` from this `const` helper; the signature is
     /// infallible here, so out-of-range indices are returned unchanged and callers check
     /// bounds (see [`translate_index_raw`]).
     pub fn translate_index(&self, idx: i64, len: i64, clamp: bool) -> i64 {

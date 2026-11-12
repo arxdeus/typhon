@@ -293,7 +293,7 @@ impl<'a> TypecheckVisitor<'a> {
     /// Realizations of `base`'s descendants that do not have vtable slot `id` yet
     /// (`for_each_descendant`).
     ///
-    /// Note: the reference implementation iterates the live (sorted) maps; we take a snapshot. Realizations added
+    /// Note: the reference iterates the live (sorted) maps; we take a snapshot. Realizations added
     /// meanwhile are handled by the next iteration of the `prepareVTables` fixpoint loop.
     fn sp_descendant_realizations(&self, base: TypeId, id: usize) -> Vec<ClassRealizationRef> {
         let mut out = vec![];

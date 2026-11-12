@@ -1,7 +1,7 @@
 //! Diagnostics printing. Port of `compilationError` / `compilationWarning` /
 //! `MessageGroupPos`.
 //!
-//! Output format is byte-compatible with the the reference implementation implementation (ANSI bold header,
+//! Output format is byte-compatible with the reference implementation (ANSI bold header,
 //! `file:line (col-end): error: msg (see https://upstream.io/error/NNNN)`), so the
 //! test-suite expectations on stderr carry over. `codespan-reporting` is available
 //! for richer rendering via [`render_codespan`].

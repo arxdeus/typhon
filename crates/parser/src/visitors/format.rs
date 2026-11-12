@@ -1,7 +1,7 @@
 //! `FormatVisitor` (AST -> source-like
 //! text or HTML).
 //!
-//! Note: the reference implementation reads `cache->functions` / `cache->classes` realizations directly to
+//! Note: the reference reads `cache->functions` / `cache->classes` realizations directly to
 //! render `FunctionStmt` / `ClassStmt`. Here this information comes from the
 //! [`FormatCacheHooks`] trait, implemented by the cache lane.
 
@@ -27,7 +27,7 @@ pub struct FormatClassRealization {
     /// Realized name (`real.first`).
     pub name: String,
     /// Fields to print: `(name, realized type name)` (already cut to the generics count
-    /// for tuples, as the reference implementation does).
+    /// for tuples, as the reference does).
     pub fields: Vec<(String, String)>,
 }
 
@@ -159,7 +159,7 @@ impl<'a> FormatVisitor<'a> {
             Some(t) if self.render_type || self.st.render_html => {
                 format!("{}{}{}", self.st.type_start, self.anchor(&self.type_name(t)), self.st.type_end)
             }
-            // Note: the reference implementation renders the type whenever it is set; with empty markers in
+            // Note: the reference renders the type whenever it is set; with empty markers in
             // text mode that still appends the bare type name. Kept for fidelity.
             Some(t) => self.anchor(&self.type_name(t)),
             None => String::new(),
@@ -247,7 +247,7 @@ impl<'a> FormatVisitor<'a> {
             ExprKind::Unary(e) => format!("{}{}", e.op, t(e.expr)),
             ExprKind::Binary(e) => format!("({} {} {})", t(e.lexpr), e.op, t(e.rexpr)),
             ExprKind::ChainBinary(_) => {
-                // Note: the reference implementation FormatVisitor has no ChainBinaryExpr overload and asserts in
+                // Note: the reference FormatVisitor has no ChainBinaryExpr overload and asserts in
                 // defaultVisit; we render the S-expression instead.
                 a.expr_to_string(id, -1)
             }
@@ -303,7 +303,7 @@ impl<'a> FormatVisitor<'a> {
             }
             ExprKind::Assign(e) => format!("({} := {})", t(e.var), t(e.expr)),
             ExprKind::Range(_) => {
-                // Note: no the reference implementation overload (asserts); render the S-expression.
+                // Note: no matching overload upstream (asserts); render the S-expression.
                 a.expr_to_string(id, -1)
             }
         };

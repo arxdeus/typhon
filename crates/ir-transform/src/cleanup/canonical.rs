@@ -119,7 +119,7 @@ impl CanonOpChain {
     fn order_operands(m: &mut Module, operands: &mut Vec<ValueId>) {
         let mut ranked: Vec<(Rank, usize, ValueId)> =
             operands.iter().enumerate().map(|(i, v)| (get_rank(m, *v), i, *v)).collect();
-        // Note: the reference implementation sorts (rank, pointer) pairs; ties are broken by original position.
+        // Note: the reference sorts (rank, pointer) pairs; ties are broken by original position.
         ranked.sort();
         *operands = ranked.into_iter().map(|x| x.2).collect();
     }

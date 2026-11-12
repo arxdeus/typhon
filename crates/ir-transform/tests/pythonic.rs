@@ -1,5 +1,5 @@
 //! Tests for `typhon_ir_transform::pythonic`.
-//! Note: test/cir/transform/{enumerate,format}.cpp compile full Typhon programs;
+//! Note: the enumerate and format pass tests compile full Typhon programs;
 //! without a TypeRealizer here we port the format-string parser checks and the
 //! structural (realizer-free) behaviour; the end-to-end versions belong to typhon-testsuite.
 

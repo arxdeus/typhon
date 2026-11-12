@@ -128,7 +128,7 @@ impl ElementHandler {
                     .expect("could not find literal list append helper");
                 let mut first = true;
                 for var in &self.vars {
-                    // Note: the reference implementation reuses the same `result` node for every call; we
+                    // Note: the reference reuses the same `result` node for every call; we
                     // create a fresh VarValue per call after the first (same semantics).
                     let r = if first {
                         first = false;
@@ -180,7 +180,7 @@ fn optimize(m: &mut Module, parent: Option<FuncId>, r: &InspectionResult) -> Opt
     let mut handlers = Vec::new();
     for v in &r.args {
         let c = cv.clone_value(m, *v);
-        // Note: the reference implementation stores a null handler on type mismatch and would crash
+        // Note: the reference stores a null handler on type mismatch and would crash
         // later; we bail out instead.
         handlers.push(ElementHandler::get(m, c, ty)?);
     }

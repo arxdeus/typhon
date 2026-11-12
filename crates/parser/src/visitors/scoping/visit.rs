@@ -120,7 +120,7 @@ impl Visitor for ScopingVisitor<'_> {
         }
         let src = self.cache.ast[id].src.clone();
         let adding = self.ctx.root.is_some();
-        // C++: `visitName(value, ctx->root != nullptr, expr, ...)`: the binding node is the
+        // `visitName(value, ctx->root != nullptr, expr, ...)`: the binding node is the
         // IdExpr itself, so domination attributes land on the assignment lhs.
         self.visit_name(&value, adding, Some(Node::Expr(id)), &src);
     }
@@ -150,7 +150,7 @@ impl Visitor for ScopingVisitor<'_> {
         self.ctx.renames.push(FxHashMap::default());
         let s = self.cache.ast.generator_final_suite(id);
         let ok = self.transform_s(s);
-        // Note: the reference implementation `CHECK` skips the restore on failure (the SetInScope destructor still
+        // Note: the reference `CHECK` skips the restore on failure (the SetInScope destructor still
         // restores `tempScope`); renames are popped unconditionally here.
         self.ctx.renames.pop();
         self.ctx.temp_scope = o;
@@ -191,7 +191,7 @@ impl Visitor for ScopingVisitor<'_> {
 
     fn visit_lambda(&mut self, id: ExprId) {
         let l = self.cache.ast[id].kind.as_lambda().unwrap().clone();
-        // Note: the reference implementation uses stack-allocated dummy `FunctionStmt("lambda")` and `SuiteStmt`;
+        // Note: the reference uses stack-allocated dummy `FunctionStmt("lambda")` and `SuiteStmt`;
         // here they are allocated (and then abandoned) in the arena.
         let src = self.src.clone();
         let f = self.cache.ast.alloc_stmt(crate::ast::Stmt::new(
@@ -350,7 +350,7 @@ impl Visitor for ScopingVisitor<'_> {
                 m.insert(e.var.clone(), new_name.clone());
                 self.ctx.renames.push(m);
                 self.cache.ast[a].kind.as_except_mut().unwrap().var = new_name.clone();
-                // Note: the reference implementation dereferences `getException()` unconditionally.
+                // Note: the reference dereferences `getException()` unconditionally.
                 let src = e.exc.map(|x| self.cache.ast[x].src.clone()).unwrap_or_else(|| self.cache.ast[a].src.clone());
                 self.visit_name(&new_name, true, Some(Node::Stmt(a)), &src);
             }

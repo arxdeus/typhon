@@ -15,7 +15,7 @@ pub use logger::{Logger, LoggerFlags, Timer, logger};
 pub use options::Options;
 pub use srcinfo::{SourceFile, SrcInfo, SrcObject};
 
-/// Port of `seqassert` / `seqassertn`: debug-only internal invariant check.
+/// `seqassert` / `seqassertn`: debug-only internal invariant check.
 #[macro_export]
 macro_rules! seqassert {
     ($cond:expr, $($arg:tt)+) => {
@@ -23,10 +23,10 @@ macro_rules! seqassert {
     };
 }
 
-/// Port of `E(error::Error, SrcInfo, args...)`: build a parser error and return it
+/// `E(error::Error, SrcInfo, args...)`: build a parser error and return it
 /// as `Err(CompilerError::Parser(..))` from the current function.
 ///
-/// the reference implementation throws `exc::ParserException`; Rust code returns `Result<T, CompilerError>`.
+/// the reference throws `exc::ParserException`; Rust code returns `Result<T, CompilerError>`.
 #[macro_export]
 macro_rules! bail_e {
     ($kind:expr, $src:expr $(, $arg:expr)* $(,)?) => {
@@ -34,7 +34,7 @@ macro_rules! bail_e {
     };
 }
 
-/// Port of `LOG_TIME`, `LOG_REALIZE`, `LOG_TYPECHECK`, `LOG_IR`, `LOG_USER`.
+/// `LOG_TIME`, `LOG_REALIZE`, `LOG_TYPECHECK`, `LOG_IR`, `LOG_USER`.
 #[macro_export]
 macro_rules! log_flag {
     ($flag:ident, $($arg:tt)+) => {

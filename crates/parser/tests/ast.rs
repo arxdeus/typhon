@@ -1,5 +1,5 @@
 //! AST tests: construction, cloning, S-expression / Typhon / Python printing,
-//! serialization. Includes `ASTFormattingTest` from test/types.cpp.
+//! serialization. Includes `ASTFormattingTest`.
 
 use typhon_common::SrcInfo;
 use typhon_parser::ast::*;

@@ -1,12 +1,11 @@
 # typhon-ir-analyze public API
 
-Port of `codon/cir/analyze/{dataflow,module}/*` and `codon/cir/util/{inlining,outlining}`.
 All analyses implement `typhon_ir::pass::Analysis`; results implement `AnalysisResult` and are
-looked up by the C++ `KEY` strings: `ctx.get_analysis::<RDResult>(rd_key)`.
+looked up by their `KEY` strings: `ctx.get_analysis::<RDResult>(rd_key)`.
 
-| Module | C++ | Analysis (key) | Result |
+| Module | Description | Analysis (key) | Result |
 |---|---|---|---|
-| `dataflow::cfg` | `cfg.{h,cpp}` | `CFAnalysis` (`"core-analyses-cfg"`) | `CFResult { graphs: FxHashMap<Id, Rc<CFGraph>> }` |
+| `dataflow::cfg` | | `CFAnalysis` (`"core-analyses-cfg"`) | `CFResult { graphs: FxHashMap<Id, Rc<CFGraph>> }` |
 | `dataflow::dominator` | `dominator.*` | `DominatorAnalysis::new(cf_key)` (`"core-analyses-dominator"`) | `DominatorResult { cfg_result: CFResult, results: FxHashMap<Id, Rc<DominatorInspector>> }` |
 | `dataflow::reaching` | `reaching.*` | `RDAnalysis::new(cf_key)` (`"core-analyses-rd"`) | `RDResult { cfg_result: CFResult, results: FxHashMap<Id, Rc<RDInspector>> }` |
 | `dataflow::capture` | `capture.*` | `CaptureAnalysis::new(rd_key, dom_key)` (`"core-analyses-capture"`) | `CaptureResult { rd_result, dom_result, results: FxHashMap<Id, Vec<CaptureInfo>> }` |
@@ -16,13 +15,13 @@ looked up by the C++ `KEY` strings: `ctx.get_analysis::<RDResult>(rd_key)`.
 | `util::outlining` | `util/outlining.*` | - | `outline_region(m, parent, series, begin, end, allow_outflows, outline_globals, all_by_value) -> OutlineResult`, `outline_series(..)` |
 | `util::side_effect` | `util/side_effect.*` | re-export of `typhon_ir::util::side_effect` | |
 
-Function result maps are keyed by the function uid (`m.var_uid(f)`), exactly like C++ `getId()`.
-Results are cheap to clone (`Rc` inside) so dependent results can keep their inputs (C++ raw `cfgResult` pointers).
-If a dependency key is missing from the `PassContext`, the analysis computes the dependency itself (PORT-NOTE).
+Function result maps are keyed by the function uid (`m.var_uid(f)`)()`.
+Results are cheap to clone (`Rc` inside) so dependent results can keep their inputs.
+If a dependency key is missing from the `PassContext`, the analysis computes the dependency itself (Note).
 
 ## CFG (`dataflow::cfg`)
 
-CFG values are `CfValue::{Real(ValueId), Synth(SynthId)}` (C++ `const Value*` incl. synthetic
+CFG values are `CfValue::{Real(ValueId), Synth(SynthId)}` (real values plus synthetic
 instructions owned by the graph). Synthetic variables (pipeline loops) are `CfVar::Synth(idx)`;
 real ones `CfVar::Real(VarId)`. `impl From<ValueId> for CfValue`.
 
@@ -55,11 +54,10 @@ CFGraph::as_synthetic_assign(v: CfValue) -> Option<&SyntheticAssignInstr>   // c
 CFGraph::as_synthetic_phi(v) -> Option<&SyntheticPhiInstr>
 pub fn build_cf_graph(m: &Module, f: FuncId) -> CFGraph;      // buildCFGraph
 pub struct CFVisitor<'a> { .. }  // process(v), default_insert(v), default_jump(Option<BlockId>, i32), graph_mut(), module()
-pub fn register_cf_builder::<T: CustomValue + 'static>(f: fn(&T, ValueId, &mut CFVisitor))  // dsl CFBuilder
 ```
 `SyntheticValue.source` is the node that gave rise to it (`getSource()`): the `BodiedFunc` (args),
-`ForFlow`/`ImperativeForFlow`, `TryCatchFlow`, `TernaryInstr`, or the `PipelineFlow` (PORT-NOTE:
-C++ uses the synthetic `ForFlow` built from the pipeline).
+`ForFlow`/`ImperativeForFlow`, `TryCatchFlow`, `TernaryInstr`, or the `PipelineFlow` (Note:
+the analysis uses the synthetic `ForFlow` built from the pipeline).
 
 ## Dominators
 
@@ -111,6 +109,6 @@ Outlining with modified vars / outflows needs a `TypeRealizer` (`ptr_load/ptr_st
   `GlobalVarsAnalyses::compute(m)` run analyses without a `PassContext`.
 * `outline_region(m, parent, series, begin: usize, end: usize, ...)` outlines `series[begin..end]`.
 * `util::walk::ConstWalker`: read-only walk in `Operator` order; `util::bitset::BitSet`.
-* PORT-NOTEs: dominators use the C++ iterative bitset algorithm (no petgraph dependency);
-  DSL custom flows/instrs need `register_cf_builder`; missing dependency analyses are recomputed;
-  C++ null-deref / assert paths become conservative results.
+* Notes: dominators use the iterative bitset algorithm (no petgraph dependency);
+  missing dependency analyses are recomputed;
+  null-deref / assert paths become conservative results.

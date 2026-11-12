@@ -1,4 +1,4 @@
-//! .
+//!.
 //!
 //! `PassManager` lives in `typhon-ir-transform`; passes access it through the
 //! [`PassContext`] trait object passed to `run` (replaces `Pass::manager`).

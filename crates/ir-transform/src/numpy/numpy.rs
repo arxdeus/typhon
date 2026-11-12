@@ -1,4 +1,3 @@
-//!
 //! Pipeline: expose small array helpers, extract expressions, forward eligible
 //! temporaries, then lower to fused loops or specialized runtime helpers.
 //! forward.rs handles cross-assignment lifetimes; expr.rs emits expression
@@ -978,7 +977,7 @@ fn has_owned_result_with(m: Option<&Module>, a: &ExprArena, e: ExprId) -> bool {
     }
 }
 
-/// `hasOwnedResult(expr)` with access to the module (exact the reference implementation semantics for casts).
+/// `hasOwnedResult(expr)` with access to the module (exact the reference semantics for casts).
 pub fn has_owned_result_m(m: &Module, a: &ExprArena, e: ExprId) -> bool {
     has_owned_result_with(Some(m), a, e)
 }
@@ -1563,7 +1562,7 @@ impl NumPyFunctionExpressions {
 ///
 /// Note: extraction needs `&mut Module` while analysis results are shared, so
 /// the per-function cache uses interior mutability and is filled lazily by the
-/// passes (`get`/`take`), like the the reference implementation lazy `get`.
+/// passes (`get`/`take`), like the reference lazy `get`.
 pub struct NumPyExpressionResult {
     pub reaching: RDResult,
     pub side_effects: Rc<SideEffectResult>,
@@ -1932,7 +1931,7 @@ impl NumPyLifetimePass {
 
         let types = NumPyPrimitiveTypes::new(m);
         let mut lt = LocalLifetime { types, candidates: vec![], replacements: Default::default(), uses: FxHashMap::default() };
-        // Note: the reference implementation handle(AssignInstr) runs after preHook; AssignInstr nodes are
+        // Note: the reference handle(AssignInstr) runs after preHook; AssignInstr nodes are
         // skipped by preHook, so dispatching both from one hook is equivalent.
         Walk::new().run_func(m, func, &mut |w, m, v| lt.pre_hook(w, m, v));
 

@@ -1,4 +1,4 @@
-//! `generateSpecialAst` and the simple `generate*AST` helpers of special.cpp.
+//! `generateSpecialAst` and the simple `generate*AST` helpers.
 
 use typhon_common::mangle::{self, stdlib};
 use typhon_common::{ErrorKind, Result};

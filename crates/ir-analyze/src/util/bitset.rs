@@ -1,4 +1,4 @@
-//! Small fixed-size bit set (`llvm::BitVector` / the `BitSet` helper in reaching.cpp).
+//! Small fixed-size bit set (`llvm::BitVector` / the `BitSet` helper ).
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BitSet {

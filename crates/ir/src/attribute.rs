@@ -20,7 +20,7 @@ pub mod attr_id {
     pub const SRC_INFO: i32 = 107;
     pub const DOCSTRING: i32 = 108;
     pub const TUPLE_LITERAL: i32 = 109;
-    // NB: the reference implementation assigns 111 to both list and set literal attributes; preserved.
+    // NB: the reference assigns 111 to both list and set literal attributes; preserved.
     pub const LIST_LITERAL: i32 = 111;
     pub const SET_LITERAL: i32 = 111;
     pub const DICT_LITERAL: i32 = 112;
@@ -151,7 +151,7 @@ impl Attribute {
     }
 
     /// Whether this attribute references values (and therefore must be cloned through a
-    /// `CloneVisitor`; the reference implementation asserts on plain `clone()` for these).
+    /// `CloneVisitor`; the reference asserts on plain `clone()` for these).
     pub fn holds_values(&self) -> bool {
         matches!(
             self,

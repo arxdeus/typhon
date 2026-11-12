@@ -16,7 +16,7 @@ use crate::types::{Generic, InstantiationCache, LinkKind, LiteralKind, string_fr
 
 /// `getImportFile(cache, what, relativeTo, forceStdlib)`.
 pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_stdlib: bool) -> Option<ImportFile> {
-    // the reference implementation `path.replace_extension(ext)`: `Path::with_extension` is a no-op on paths ending
+    // the reference `path.replace_extension(ext)`: `Path::with_extension` is a no-op on paths ending
     // in `..` (`from .. import x`), which would then match the parent *directory*.
     fn replace_ext(p: PathBuf, ext: &str) -> PathBuf {
         if p.file_name().is_some() {

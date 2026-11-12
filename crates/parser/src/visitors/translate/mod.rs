@@ -1,4 +1,3 @@
-//!
 //! `TranslateVisitor` lowers the typechecked AST into `typhon_ir` nodes. Entry points:
 //! * [`TranslateVisitor::apply`]: build `main` + globals from the fully typechecked program;
 //! * [`TranslateVisitor::translate_stmts`]: translate pending realizations (`Cache` hooks);

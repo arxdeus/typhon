@@ -1,4 +1,4 @@
-//! Port of `Logger`, `getLogger`, `pushLogger`, `popLogger`, `Timer`.
+//! `Logger`, `getLogger`, `pushLogger`, `popLogger`, `Timer`.
 
 use bitflags::bitflags;
 use parking_lot::{Mutex, MutexGuard};
@@ -67,7 +67,7 @@ pub fn pop_logger() -> bool {
     true
 }
 
-/// Write a debug line to the log stream .
+/// Write a debug line to the log stream.
 pub fn log_line(msg: &str) {
     let _ = writeln!(std::io::stderr(), "{msg}");
 }

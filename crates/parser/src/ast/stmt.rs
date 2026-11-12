@@ -284,7 +284,7 @@ pub struct CommentStmt {
 
 macro_rules! stmt_kinds {
     ($($variant:ident($ty:ident) => $as:ident, $as_mut:ident;)*) => {
-        /// Statement node kinds (one per the reference implementation `*Stmt` class).
+        /// Statement node kinds (one per the reference `*Stmt` class).
         #[derive(Clone, Debug, Serialize, Deserialize)]
         pub enum StmtKind { $($variant($ty)),* }
 

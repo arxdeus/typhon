@@ -33,7 +33,7 @@ fn analyze_get(m: &Module, call: ValueId) -> Option<GetCall> {
         return None;
     }
     if unmangled == "get" && c.args.len() == 3 {
-        // Note: the reference implementation `cast<Const>` may yield null (non-const default), which then
+        // Note: the reference `cast<Const>` may yield null (non-const default), which then
         // behaves like the no-default case; preserved.
         let d = c.args[2];
         let dflt = if m.kind(d).is_const() { Some(d) } else { None };

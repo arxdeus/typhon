@@ -1,19 +1,19 @@
-//! Generic child traversal of AST nodes (the field order of C++
+//! Generic child traversal of AST nodes (the field order of the
 //! `CallbackASTVisitor::visit` / `ReplacingCallbackASTVisitor::visit`).
 
 use super::expr::ExprKind;
 use super::stmt::StmtKind;
 use crate::ids::{ExprId, StmtId};
 
-/// Maps every child id of a node (in the reference implementation visitor order) to a new id.
+/// Maps every child id of a node (in the reference visitor order) to a new id.
 pub trait IdMapper {
     fn expr(&mut self, id: ExprId) -> ExprId;
     fn stmt(&mut self, id: StmtId) -> StmtId;
-    /// Slots that the reference implementation keeps as `SuiteStmt *` (re-wrapped by the replacing visitor).
+    /// Slots that the reference keeps as `SuiteStmt *` (re-wrapped by the replacing visitor).
     fn suite(&mut self, id: StmtId) -> StmtId {
         self.stmt(id)
     }
-    /// Whether `StringExpr` f-string part expressions are children. the reference implementation visitors skip them
+    /// Whether `StringExpr` f-string part expressions are children. the reference visitors skip them
     /// (`visit(StringExpr*) {}`); deep clone includes them.
     fn string_parts(&self) -> bool {
         false

@@ -16,7 +16,7 @@ use crate::cache::{Function, VAR_CLASS_TOPLEVEL};
 use crate::ids::{ExprId, StmtId, TypeId};
 use crate::types::{Generic, LinkKind, string_from_literal};
 
-/// the reference implementation `Param(name, type, default, status, kind)` status argument.
+/// the reference `Param(name, type, default, status, kind)` status argument.
 fn status_hint(s: ParamStatus) -> i32 {
     match s {
         ParamStatus::Value => 0,
@@ -561,7 +561,7 @@ impl<'a> TypecheckVisitor<'a> {
                             } else {
                                 self.cache.ast.new_param(src, cc, None, None, 0, ParamKind::Normal)
                             };
-                            // Note: the reference implementation `Param(name, type)` has no source location.
+                            // Note: the reference `Param(name, type)` has no source location.
                             let mut p = p;
                             p.src = SrcInfo::default();
                             insert(self, p, &mut insert_size);
@@ -641,7 +641,7 @@ impl<'a> TypecheckVisitor<'a> {
             let mut np = Param::with_status(format!("{}{}", "*".repeat(stars), name), a.ty, default_value, a.status);
             np.kind = a.kind;
             np.status = a.status;
-            // Note: the reference implementation `Param(name, type, default, status, kind)` re-infers the status
+            // Note: the reference `Param(name, type, default, status, kind)` re-infers the status
             // only for status 0; mirror it through new_param.
             let np = {
                 let hint = status_hint(np.status);
@@ -1223,7 +1223,7 @@ impl<'a> TypecheckVisitor<'a> {
                     }
                 }
                 let Some(f_ast) = f_ast.filter(|_| found) else {
-                    // Note: the reference implementation dereferences a null `f` here (UB); treat as not found.
+                    // Note: the reference dereferences a null `f` here (UB); treat as not found.
                     return Ok((false, String::new(), String::new()));
                 };
                 let is_attr = self.cache.ast[f_ast].attrs.has(Attr::Attribute);

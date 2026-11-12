@@ -1,6 +1,5 @@
-//! Plus the behaviour of `Node`, `Value`, `Var`,
-//! `Func`, `Type` (`base.cpp`, `value.cpp`, `var.cpp`, `func.cpp`, `type.cpp`,
-//! `const.cpp`, `flow.cpp`, `instr.cpp`) expressed as `Module` methods over ids.
+//! The IR module: owner of every node, with the behaviour of `Node`, `Value`, `Var`, `Func`
+//! and `Type` expressed as `Module` methods over ids.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -242,7 +241,7 @@ impl Module {
         });
         m.vars[argc].base.replaceable = false;
         m.argc_var = argc;
-        // Note: the reference implementation realizes NoneType lazily through the cache; here the structural
+        // Note: the reference realizes NoneType lazily through the cache; here the structural
         // fallback is created eagerly so that `value_type(&self)` works on flows/instrs.
         // A parser-realized `NoneType` registered later under the same name supersedes it.
         m.get_none_type();
@@ -309,7 +308,7 @@ impl Module {
         let id = self.types.alloc(data);
         self.type_listed.push(true);
         if let Some(old) = self.type_map.insert(name.clone(), id) {
-            // the reference implementation keeps the old list entry; only the map is overwritten.
+            // the reference keeps the old list entry; only the map is overwritten.
             let _ = old;
         }
         if let Some(a) = self.arenas.last_mut() {
@@ -829,7 +828,7 @@ impl Module {
     pub fn set_attribute_key(&mut self, n: NodeRef, a: Attribute, key: i32) {
         self.attributes_mut(n).insert(key, a);
     }
-    /// `eraseAttribute(key)`. Note: the reference implementation erases on the node itself (not the actual);
+    /// `eraseAttribute(key)`. Note: the reference erases on the node itself (not the actual);
     /// here the actual node is used for consistency with the other attribute accessors.
     pub fn erase_attribute(&mut self, n: NodeRef, key: i32) {
         self.attributes_mut(n).erase(key);
@@ -1098,7 +1097,7 @@ impl Module {
     /// `replaceUsedValue(id_t id, Value *new)`.
     ///
     /// Panics (after leaving the node untouched for that slot) if a flow-typed slot
-    /// would receive a non-flow value, like the the reference implementation `seqassert`.
+    /// would receive a non-flow value, like the reference `seqassert`.
     pub fn replace_used_value_uid(&mut self, n: NodeRef, id: Id, new: Option<ValueId>) -> i32 {
         let new_is_flow = new.map(|v| self.is_flow(v)).unwrap_or(false);
         let failed = std::cell::Cell::new(false);
@@ -2159,7 +2158,7 @@ impl Module {
     pub fn to_bool(&mut self, v: ValueId) -> Option<ValueId> {
         self.unary_op(v, magic::BOOL)
     }
-    /// `Value::toStr()` (uses `__repr__`, like C++).
+    /// `Value::toStr()` (uses `__repr__`).
     pub fn to_str(&mut self, v: ValueId) -> Option<ValueId> {
         self.unary_op(v, magic::REPR)
     }

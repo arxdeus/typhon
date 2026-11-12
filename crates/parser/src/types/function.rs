@@ -211,7 +211,7 @@ impl TypeArena {
     }
 
     /// `FuncType::isInstantiated`.
-    /// Note: the reference implementation temporarily nulls `retType->funcParent` if it points back to `this`;
+    /// Note: the reference temporarily nulls `retType->funcParent` if it points back to `this`;
     /// here the back edge is skipped through `skip_parent_of`.
     pub(crate) fn func_is_instantiated(&self, this: TypeId, skip_parent_of: Option<TypeId>) -> bool {
         let f = self.func_data(this);

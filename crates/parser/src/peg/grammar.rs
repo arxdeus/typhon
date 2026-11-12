@@ -1,4 +1,3 @@
-//!
 //! Every cpp-peglib rule maps to one rust-peg rule with the same name. Semantic
 //! actions build the AST through [`ParseState`] (`ParseContext`). `LOC` (the
 //! source span of the whole rule match) is taken with `p:position!() ... q:position!()`

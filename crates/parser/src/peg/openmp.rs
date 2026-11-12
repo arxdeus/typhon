@@ -20,7 +20,7 @@ rule clause() -> Vec<CallArg>
     / p:position!() "ordered" q:position!() {
         vec![st.narg("ordered", Some(st.e(BoolExpr { value: true }, (p, q))))]
     }
-    // Note: the reference implementation `collapse` action reads `V0` with no semantic value (would throw
+    // Note: the reference `collapse` action reads `V0` with no semantic value (would throw
     // `bad_any_cast`); we keep the grammar and fail the clause instead.
     / "collapse" x:#{|_, _| peg::RuleResult::<Vec<CallArg>>::Failed} {x}
     / p:position!() "gpu" q:position!() {

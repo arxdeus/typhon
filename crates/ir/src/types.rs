@@ -91,7 +91,7 @@ impl Field {
     }
 }
 
-/// Port of the `Type` class hierarchy.
+/// the `Type` class hierarchy.
 #[derive(Clone, Debug)]
 pub enum TypeKind {
     Int { len: u32, sign: bool },

@@ -1,4 +1,4 @@
-//! debug_string.cpp}.
+//! AST node definitions, arena, printers and serialization.
 //!
 //! See `../../AST_API.md` for the API contract and the original -> Rust name table.
 

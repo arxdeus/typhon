@@ -1,4 +1,4 @@
-//! .
+//!.
 pub mod bitset;
 pub mod inlining;
 pub mod outlining;

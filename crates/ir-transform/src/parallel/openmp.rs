@@ -1,4 +1,3 @@
-//!
 //! `OpenMPPass` lowers parallel `ForFlow`s / `ImperativeForFlow`s (those carrying an
 //! `OMPSched`) into outlined bodies plus calls into the `std.openmp` (and
 //! `std.internal.gpu`) loop templates, wiring up shared/private captures, reductions,
@@ -215,7 +214,7 @@ impl Reduction {
                     K::Add | K::Sub => 0.0,
                     K::Mul => 1.0,
                     K::Min => f64::MAX,
-                    // Note: the reference implementation uses numeric_limits<double>::min() (smallest positive); preserved.
+                    // Note: the reference uses numeric_limits<double>::min() (smallest positive); preserved.
                     K::Max => f64::MIN_POSITIVE,
                     _ => return None,
                 };
@@ -256,7 +255,7 @@ impl Reduction {
         use ReductionKind as K;
         let lhs = util::ptr_load(m, ptr);
         let result = match self.kind {
-            // Note: the reference implementation uses `+` for SUB as well (partial sums are added); preserved.
+            // Note: the reference uses `+` for SUB as well (partial sums are added); preserved.
             K::Add | K::Sub => bin(m, lhs, magic::ADD, arg),
             K::Mul => bin(m, lhs, magic::MUL, arg),
             K::And => bin(m, lhs, magic::AND, arg),
@@ -306,7 +305,7 @@ impl Reduction {
             }
         } else {
             match (m.type_kind(ty), self.kind) {
-                // Note: the reference implementation has no float SUB atomic (falls through to method lookup); preserved.
+                // Note: the reference has no float SUB atomic (falls through to method lookup); preserved.
                 (TypeKind::Float, K::Add) => "_atomic_float_add",
                 (TypeKind::Float, K::Mul) => "_atomic_float_mul",
                 (TypeKind::Float, K::Min) => "_atomic_float_min",

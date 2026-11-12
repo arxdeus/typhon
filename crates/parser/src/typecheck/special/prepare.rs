@@ -1,4 +1,4 @@
-//! `prepareVTables` (fixpoint driver and value-method installation) of special.cpp.
+//! `prepareVTables` (fixpoint driver and value-method installation).
 
 use std::collections::BTreeSet;
 

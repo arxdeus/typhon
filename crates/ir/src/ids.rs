@@ -67,7 +67,7 @@ impl NodeRef {
 }
 
 thread_local! {
-    // Note: the reference implementation `IdMixin::currentId` is a process-wide static. It is thread-local here
+    // Note: the reference `IdMixin::currentId` is a process-wide static. It is thread-local here
     // so that independent modules compiled on different threads (and parallel unit
     // tests) do not interfere; ids are only compared within one module.
     static CURRENT_ID: Cell<Id> = const { Cell::new(0) };

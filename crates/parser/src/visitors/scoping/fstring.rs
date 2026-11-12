@@ -1,5 +1,4 @@
-//!
-//! Note: the reference implementation calls `ast::parseExpr(cache, code, offset)` (peg.cpp, rule `fstring`)
+//! Note: the reference calls `ast::parseExpr(cache, code, offset)` (rule `fstring`)
 //! directly. The grammar lane lives in `crate::peg`; to keep this module independent of
 //! its landing order the parser is reached through a process-wide hook installed with
 //! [`set_parse_expr_hook`] (the grammar lane / compiler driver installs
@@ -140,7 +139,7 @@ impl ScopingVisitor<'_> {
     }
 
     /// Body of the `{...}` branch of `unpackFString` after a successful parse.
-    /// Returns false on the the reference implementation early `return items`.
+    /// Returns false on the reference early `return items`.
     fn finish_fstring_item(
         &mut self,
         item: &mut StringPart,

@@ -190,7 +190,7 @@ pub struct Function {
 }
 
 /// Hooks into other front-end lanes that the cache needs (parser, scoping, translation).
-/// the reference implementation calls these functions directly; Rust breaks the module cycle through hooks
+/// the reference calls these functions directly; Rust breaks the module cycle through hooks
 /// installed by the compiler driver.
 #[derive(Clone, Default)]
 pub struct CacheHooks {
@@ -727,7 +727,7 @@ impl Cache {
 
     /// Run `f` with `self.module` temporarily pointing at `m` (used when the IR module
     /// calls back into the cache through [`TypeRealizer`] while it is itself borrowed).
-    /// Note: the reference implementation simply shares raw pointers; here the borrowed module is moved into a
+    /// Note: the reference simply shares raw pointers; here the borrowed module is moved into a
     /// temporary `Rc<RefCell<..>>` for the duration of the call and moved back afterwards.
     pub fn with_module<R>(&mut self, m: &mut IrModule, f: impl FnOnce(&mut Cache) -> R) -> R {
         let placeholder = IrModule::new("");
@@ -754,7 +754,7 @@ impl AstType {
     }
 }
 
-/// [`TypeRealizer`] implementation over a shared cache .
+/// [`TypeRealizer`] implementation over a shared cache.
 pub struct CacheRealizer(pub Rc<RefCell<Cache>>);
 
 impl CacheRealizer {

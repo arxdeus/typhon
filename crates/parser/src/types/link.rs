@@ -235,7 +235,7 @@ impl TypeArena {
                     }
                 }
                 TypeKind::Trait(tk) => {
-                    // the reference implementation `typ->getClass()` is null for traits -> false; but the trait's
+                    // the reference `typ->getClass()` is null for traits -> false; but the trait's
                     // own unbound args are not visited either.
                     let _ = tk;
                 }

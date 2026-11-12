@@ -1,7 +1,6 @@
-//!
 //! Lives in `typhon-common` (not `typhon-compiler`) because IR passes, the LLVM
 //! backend and the parser all read options, and Rust forbids the include cycles
-//! the the reference implementation code relies on.
+//! the reference code relies on.
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum GlobalCtorMode {

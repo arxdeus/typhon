@@ -1,4 +1,4 @@
-//! Special-call handlers of special.cpp (`transformNamedTuple`, `transformSuperF`,
+//! Special-call handlers  (`transformNamedTuple`, `transformSuperF`,
 //! `transformSuper`, `transformPtr`, `transformArray`, `transformIsInstance`,
 //! `transformStaticLen`, `transformHasAttr`, `transformGetAttr`, `transformSetAttr`,
 //! `transformCompileError`, `transformTupleFn`, `transformTypeFn`, `transformRealizedFn`,

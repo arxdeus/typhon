@@ -1,11 +1,10 @@
-//!
 //! File map:
-//! - `mod.rs`      : numpy.h shared declarations (`NumPyType`, `NumPyPrimitiveTypes`,
+//! - `mod.rs`      : shared declarations (`NumPyType`, `NumPyPrimitiveTypes`,
 //!                   `NumPyOptimizationUnit`, options, type predicates)
-//! - `expr.rs`     : expr.cpp (`NumPyExpr` arena, cost model, codegen)
-//! - `numpy.rs`    : numpy.cpp (parser, analysis, fusion/inline/lifetime passes)
-//! - `forward.rs`  : forward.cpp (forwarding DAGs)
-//! - `indexing.rs` : indexing.{h,cpp} (bounds check elision)
+//! - `expr.rs`     : (`NumPyExpr` arena, cost model, codegen)
+//! - `numpy.rs`    : (parser, analysis, fusion/inline/lifetime passes)
+//! - `forward.rs`  : (forwarding DAGs)
+//! - `indexing.rs` : (bounds check elision)
 
 pub mod expr;
 pub mod forward;
@@ -32,10 +31,10 @@ pub use numpy::{
 /// `FUSION_MODULE`.
 pub const FUSION_MODULE: &str = "std.numpy.fusion";
 
-/// The `llvm::cl` options of numpy.cpp (`-npfuse-always`, `-npfuse-never`,
+/// The `llvm::cl` options  (`-npfuse-always`, `-npfuse-never`,
 /// `-npfuse-matmul`, `-npfree-threshold`, `-npfuse-verbose`).
 ///
-/// Note: the reference implementation reads these from LLVM's global command line. Here they are a
+/// Note: the reference reads these from LLVM's global command line. Here they are a
 /// thread-local configuration (defaults identical) that the driver may override with
 /// [`set_numpy_options`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -138,7 +137,7 @@ pub struct NumPyPrimitiveTypes {
     pub f16: TypeId,
     pub f32: TypeId,
     pub f64: TypeId,
-    /// Note: `M->getType(...)` may return null in the reference implementation too; kept optional.
+    /// Note: `M->getType(...)` may return null in the reference too; kept optional.
     pub c64: Option<TypeId>,
     pub c128: Option<TypeId>,
 }
@@ -291,7 +290,7 @@ impl NumPyType {
 
     /// `NumPyType::get(t, T)`.
     ///
-    /// Note: the reference implementation asserts on malformed ndarray generics; here such a type maps to
+    /// Note: the reference asserts on malformed ndarray generics; here such a type maps to
     /// the "none" NumPy type (not optimizable) since generics need a `TypeRealizer`.
     pub fn get(m: &mut Module, t: TypeId, types: &NumPyPrimitiveTypes) -> NumPyType {
         let elems = Self::element_types(types);

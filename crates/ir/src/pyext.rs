@@ -21,7 +21,7 @@ pub struct PyFunction {
     pub coexist: bool,
 }
 
-/// Port of `PyMember::Type` (values match CPython's `T_*` constants).
+/// `PyMember::Type` (values match CPython's `T_*` constants).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(i32)]
 pub enum PyMemberType {
@@ -65,7 +65,7 @@ pub struct PyGetSet {
 }
 
 /// `base` is an index into `PyModule::types`
-/// (Note: the reference implementation stores a `PyType*` into the same vector).
+/// (Note: the reference stores a `PyType*` into the same vector).
 #[derive(Clone, Debug, Default)]
 pub struct PyType {
     pub name: String,

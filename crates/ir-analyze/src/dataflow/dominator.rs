@@ -1,5 +1,4 @@
-//!
-//! Note: the the reference implementation iterative bit-vector algorithm is ported directly (it also gives
+//! Note: the reference iterative bit-vector algorithm is ported directly (it also gives
 //! unreachable blocks a defined dominator set, which `petgraph::algo::dominators` does not).
 
 use std::rc::Rc;
@@ -74,7 +73,7 @@ impl DominatorInspector {
         let (v, dominator) = (v.into(), dominator.into());
         let cfg = &self.cfg;
         let (Some(vb), Some(db)) = (cfg.get_block(m, v), cfg.get_block(m, dominator)) else {
-            // Note: the reference implementation dereferences null blocks here.
+            // Note: the reference dereferences null blocks here.
             return false;
         };
         if vb == db {

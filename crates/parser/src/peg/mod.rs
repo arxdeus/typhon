@@ -1,5 +1,4 @@
-//!
-//! Driver functions mirroring `peg.h`: [`parse_code`], [`parse_expr`], [`parse_file`],
+//! Driver functions : [`parse_code`], [`parse_expr`], [`parse_file`],
 //! [`parse_openmp`].
 //!
 //! Indentation handling: like cpp-peglib, INDENT/SAMEDENT/DEDENT are zero-width-ish
@@ -58,7 +57,7 @@ pub fn parse_expr(
     finish(&st, r, &file)
 }
 
-/// `parseFile(cache, file)`. Returns the AST and the file lines (the reference implementation stores them into
+/// `parseFile(cache, file)`. Returns the AST and the file lines (the reference stores them into
 /// `cache->imports[file].content`; the caller does that here).
 pub fn parse_file(
     arena: &mut AstArena,

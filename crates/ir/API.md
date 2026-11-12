@@ -1,28 +1,25 @@
 # typhon-ir public API
 
-Port of `codon/cir/*` core, `cir/util/{visitor,operator,format,cloning,matching,irtools,side_effect,context}`,
-`cir/dsl/nodes`, `transform/pass.h`, `analyze/analysis.h`, `transform/parallel/schedule.h`,
-`transform/rewrite.h`, `pyextension.h`.
 
 ## Memory model in one paragraph
 
 `Module` owns three `la_arena` arenas: values (`ValueData`), vars (`VarData`, functions are
 vars with `func: Some(FuncData)`), types (`TypeData`). Handles are `Copy` newtypes
 `ValueId`, `VarId` (`FuncId` is an alias of `VarId`), `TypeId`. `NodeRef` is the
-"any node" handle (`Value|Var|Type|Module`) used where C++ takes `Node*`.
-C++ `IdMixin` ids (`getId()`) are `Id = i64`, exposed by `m.value_uid(v)` / `m.var_uid(v)`
-(both resolve replacement like C++). Every accessor resolves `replaceAll` forwarding
-(`actual_*`), so storing unresolved ids in nodes is fine (same as C++ pointers).
+"any node" handle (`Value|Var|Type|Module`) used where a generic node is taken.
+`IdMixin` ids (`getId()`) are `Id = i64`, exposed by `m.value_uid(v)` / `m.var_uid(v)`
+(both resolve replacement). Every accessor resolves `replaceAll` forwarding
+(`actual_*`), so storing unresolved ids in nodes is fine (same).
 Nodes are never freed: `remove_*` / `pop_arena` mark them dead and unlink them from
 the module lists/maps (`get_value(uid)`, `vars()`, `types()`...).
 
 ## Ids (`ids.rs`)
 
-| Rust | C++ |
+| Rust | Responsibility |
 |---|---|
 | `ValueId`, `VarId`, `FuncId = VarId`, `TypeId` | `Value*`, `Var*`, `Func*`, `Type*` |
 | `NodeRef::{Value, Var, Type, Module}` (`From` impls for each id) | `Node*` |
-| `Id = i64`, `ids::reset_id()` | `id_t`, `IdMixin::resetId()` (thread-local counter, PORT-NOTE) |
+| `Id = i64`, `ids::reset_id()` | `id_t`, `IdMixin::resetId()` (thread-local counter, Note) |
 
 ## Node data
 
@@ -35,15 +32,14 @@ pub struct TypeData  { pub base: NodeBase, pub kind: TypeKind, pub ast_type: Opt
                        pub runtime_info: Option<Box<RuntimeInfo>> }
 ```
 
-`ValueKind` (flat; each variant wraps a struct with `pub` fields named like the C++ getters):
+`ValueKind` (flat; each variant wraps a struct with `pub` fields named like the getters):
 
-| Variant / struct | C++ | category |
+| Variant / struct | Description | category |
 |---|---|---|
 | `IntConst(TemplatedConst<i64>)`, `FloatConst(..<f64>)`, `BoolConst(..<bool>)`, `StringConst(..<String>)`, `BytesConst(..<String>)` (`val`, `ty`) | `IntConst`... | const |
 | `VarValue{var}`, `PointerValue{var, fields}` | same | value |
 | `SeriesFlow{series: Vec<ValueId>}`, `IfFlow{cond, true_branch, false_branch: Option}`, `WhileFlow{cond, body}`, `ForFlow{iter, body, var, schedule: Option<Box<OMPSched>>, is_async}`, `ImperativeForFlow{start, step, end, body, var, schedule}`, `TryCatchFlow{body, else_, finally, catches: Vec<Catch{handler, ty: Option, var: Option}>}`, `PipelineFlow{stages: Vec<Stage{callee, args: Vec<Option<ValueId>>, generator, parallel}>}` | flows | flow |
 | `AssignInstr{lhs: VarId, rhs}`, `ExtractInstr{val, field, polymorphic}`, `InsertInstr{lhs, field, rhs, polymorphic}`, `CallInstr{callee, args}`, `StackAllocInstr{ptr_type, count}`, `YieldInInstr{ty, suspend}`, `TernaryInstr{cond, true_value, false_value}`, `BreakInstr{loop_: Option}`, `ContinueInstr{loop_: Option}`, `ReturnInstr{value: Option}`, `YieldInstr{value: Option, final_}`, `AwaitInstr{value, ty, generator}`, `ThrowInstr{value: Option, fallback: Option}`, `FlowInstr{flow, val}` | instrs | instr |
-| `Custom(CustomNode)` (`category: CustomCategory::{Const,Flow,Instr}`, `node: Rc<RefCell<Box<dyn CustomValue>>>`) | `dsl::CustomConst/Flow/Instr` | per category |
 | `Any{flow: bool}` | `util::AnyValue/AnyFlow` | matching only |
 
 Predicates on `ValueKind`: `is_const()`, `is_flow()`, `is_instr()`, `is_control_flow_instr()`;
@@ -71,7 +67,7 @@ with `is_primitive()`, `is_membered()`, `is_derived()`; name helpers `int_type_n
   `nr_try_catch_flow(body, finally, else_)`, `nr_pipeline_flow(stages)`, `nr_assign(lhs, rhs)`,
   `nr_extract(val, field)`, `nr_insert(lhs, field, rhs)`, `nr_call(callee, args)`, `nr_stack_alloc(ty, n)`,
   `nr_yield_in(ty, suspend)`, `nr_ternary(c,t,f)`, `nr_break(loop)`, `nr_continue(loop)`, `nr_return(v)`,
-  `nr_yield(v, final)`, `nr_await(v, ty, gen)`, `nr_throw(v)`, `nr_flow_instr(flow, v)`, `nr_custom(CustomNode)`;
+  `nr_yield(v, final)`, `nr_await(v, ty, gen)`, `nr_throw(v)`, `nr_flow_instr(flow, v)`;
   vars: `nr_var(ty, global, name)`, `nr_var_full(src, ty, global, external, tls, name)`,
   `nr_func(name, FuncKind)`, `nr_bodied_func(name)`, `nr_external_func`, `nr_internal_func`, `nr_llvm_func`;
   types: `add_type(name, kind) -> TypeId` (`Nr<SomeType>`), `nr_record_type(name, types, names)`, `nr_ref_type(name, contents)`, `nr_func_type(name, ret, args, variadic)`.
@@ -107,7 +103,7 @@ with `is_primitive()`, `is_membered()`, `is_derived()`; name helpers `int_type_n
   Magic names: `module::magic::{EQ, NE, ..., NEW, INIT}` (`Module::EQ_MAGIC_NAME` ...).
 * `push_arena()`, `pop_arena()`.
 
-PORT-NOTE: without a `TypeRealizer` (tests), stdlib-backed factories (`get_pointer_type`,
+Note: without a `TypeRealizer` (tests), stdlib-backed factories (`get_pointer_type`,
 `get_none_type`, `get_tuple_type`, ...) fall back to the `unsafe_get_*` structural types.
 
 ## TypeRealizer (`realize.rs`)
@@ -149,14 +145,13 @@ TUPLE_LITERAL=109, LIST_LITERAL=111, SET_LITERAL=111, DICT_LITERAL=112, PARTIAL_
 (`visit_module`, `visit_var`, `visit_bodied_func`, `visit_external_func`, `visit_internal_func`,
 `visit_llvm_func`, `visit_var_value`, `visit_pointer_value`, `visit_series_flow`, `visit_if_flow`,
 `visit_while_flow`, `visit_for_flow`, `visit_imperative_for_flow`, `visit_try_catch_flow`,
-`visit_pipeline_flow`, `visit_custom_flow`, `visit_int_const`, `visit_float_const`,
-`visit_bool_const`, `visit_string_const`, `visit_bytes_const`, `visit_custom_const`,
+`visit_pipeline_flow`, `visit_int_const`, `visit_float_const`,
+`visit_bool_const`, `visit_string_const`, `visit_bytes_const`,
 `visit_assign_instr`, `visit_extract_instr`, `visit_insert_instr`, `visit_call_instr`,
 `visit_stack_alloc_instr`, `visit_yield_in_instr`, `visit_ternary_instr`, `visit_break_instr`,
 `visit_continue_instr`, `visit_return_instr`, `visit_yield_instr`, `visit_await_instr`,
-`visit_throw_instr`, `visit_flow_instr`, `visit_custom_instr`, `visit_any_value`, and per type kind
-`visit_int_type` ... `visit_custom_type`). Default = `default_visit(node)` (no-op; PORT-NOTE:
-C++ throws). Dispatch: `util::visitor::{accept, accept_value, accept_var, accept_type}` (and
+`visit_throw_instr`, `visit_flow_instr`, `visit_any_value`, and per type kind
+`visit_int_type` ... `visit_union_type`). Default = `default_visit(node)` (no-op). Dispatch: `util::visitor::{accept, accept_value, accept_var, accept_type}` (and
 `const_accept*`), resolving replacements like `Node::accept`.
 
 ## Operator (`util::operator`)
@@ -194,7 +189,7 @@ Other provided methods: `parent_series(m)`, `parents()`, `process_value`, `visit
 * `util::side_effect::{SideEffectStatus, NON_PURE_ATTR, PURE_ATTR, ...}`.
 * `util::context::CirContext<Frame>`.
 
-## Passes (`pass.rs`), schedule, rewrite, dsl, pyext
+## Passes (`pass.rs`), schedule, rewrite, pyext
 
 ```rust
 pub trait PassContext { fn analysis_result(&self, key: &str) -> Option<&dyn AnalysisResult>;
@@ -223,35 +218,14 @@ pub struct NullPassContext;   // no analyses, no options
 `m.set_throw_fallback`, `m.func_push_symbol(f, v)`, `m.set_func_body(f, b)`, `m.func_body(f)`, `m.func_args(f)`,
 `m.set_intrinsic(f, kind, ty)`. Payload structs are directly mutable via `as_*_mut`.
 
-## Semantics notes (PORT-NOTEs)
+## Semantics notes (Notes)
 * `replace_used_value*` panics (`"X is not a flow"`) when a flow slot gets a non-flow value or a required slot gets
   `None`; the node is left consistent.
 * `Module::new` eagerly creates the structural `NoneType` record so `value_type(&self)` works for flows/instrs.
 * No realizer: `get_pointer_type`/`get_int_type_n`/`get_optional_type`/`get_tuple_type`/... use structural types.
 * `IdMixin` counter is thread-local.
-* Visitor `default_visit` is a no-op (C++ throws).
-* `util::match` ignores `var_id_match` exactly like C++ (bug preserved); `match_nodes_strict_ids` honours it.
-  `TryCatchFlow`s never match (C++ bug preserved).
+* Visitor `default_visit` is a no-op.
+* `util::match` ignores `var_id_match` (bug preserved); `match_nodes_strict_ids` honours it.
+  `TryCatchFlow`s never match.
 * `Rewriter` rules apply in registration order.
 
-## C++ -> Rust name table (selection)
-
-| C++ | Rust |
-|---|---|
-| `module->Nr<IntConst>(1, t)` | `m.nr_int_const(1, t)` |
-| `module->N<CallInstr>(src, f, args)` | `m.n(src, ValueKind::CallInstr(CallInstr{callee:f, args}))` |
-| `cast<CallInstr>(v)` | `m.as_call_instr(v)` |
-| `isA<Flow>(v)` | `m.kind(v).is_flow()` |
-| `v->getType()` | `m.value_type(v)` |
-| `v->getId()` | `m.value_uid(v)` |
-| `v->replaceAll(w)` | `m.replace_all_value(v, w)` |
-| `n->getUsedValues()` | `m.used_values(n.into())` |
-| `f->getBody()` | `m.func(f).unwrap().body()` / `m.as_bodied(f)` |
-| `f->realize(t, names)` | `m.realize_func(f, t, &names)` |
-| `t->getMemberType("x")` | `m.member_type(t, "x")` |
-| `util::format(n)` | `util::format::format(m, n)` |
-| `cv.clone(v)` | `cv.clone_value(m, v)` |
-| `util::match(a, b)` | `util::matching::match_values(m, a, b)` / `match_vars` |
-| `node->setAttribute(make_unique<KeyValueAttribute>())` | `m.set_attribute(n, Attribute::KeyValue(..))` |
-| `node->getAttribute<SrcInfoAttribute>()` | `m.get_attribute(n, attr_id::SRC_INFO)` / `m.src_info(n)` |
-| `Pass::getAnalysisResult<T>(key)` | `ctx.get_analysis::<T>(key)` |

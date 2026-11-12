@@ -10,7 +10,7 @@ use crate::typecheck::ctx::TypeContext;
 use crate::typecheck::TypecheckVisitor;
 
 /// `TranslateItem`: an identifier bound to an IR function, type or variable.
-/// Note: the the reference implementation `base` pointer is never read by the translator; it is dropped.
+/// Note: the reference `base` pointer is never read by the translator; it is dropped.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TranslateItem {
     Func(FuncId),

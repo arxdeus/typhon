@@ -420,7 +420,7 @@ impl<'a> TypecheckVisitor<'a> {
             }
             let les = self.xm_expr_stmt(legacy_exit);
             let lfin = self.xm_suite(&[Some(les)]);
-            // Note: the reference implementation shares the `body` node between both branches (AST is a DAG
+            // Note: the reference shares the `body` node between both branches (AST is a DAG
             // there); Rust shares the same StmtId as well.
             let legacy_cleanup = self.n_stmt(TryStmt { items: vec![], suite: Some(body), else_suite: None, finally: Some(lfin) });
             let f = self.xm_id(&em("_context_exit_is_legacy_none"));

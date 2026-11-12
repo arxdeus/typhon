@@ -1,6 +1,6 @@
 //! String helpers. Port of the free functions.
 //!
-//! Many the reference implementation helpers (`split`, `join`, `in`, `startswith`, `ltrim`, `tolower`, ...) map
+//! Many the reference helpers (`split`, `join`, `in`, `startswith`, `ltrim`, `tolower`, ...) map
 //! directly onto `std` methods; only the non-trivial ones are reimplemented here.
 
 use std::fmt::Write as _;
@@ -10,7 +10,7 @@ use std::fmt::Write as _;
 #[error("{0}")]
 pub struct UnescapeError(pub String);
 
-/// Python-style escape of a byte string (`escape` in C++).
+/// Python-style escape of a byte string.
 pub fn escape(s: &str) -> String {
     let mut r = String::with_capacity(s.len());
     for &c in s.as_bytes() {
@@ -37,7 +37,7 @@ fn push_cp(out: &mut Vec<u8>, cp: u32) {
     let mut buf = [0u8; 4];
     match char::from_u32(cp) {
         Some(ch) => out.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes()),
-        // Surrogates: encode like the the reference implementation `utf8_append` (3-byte form) for fidelity.
+        // Surrogates: encode like the reference `utf8_append` (3-byte form) for fidelity.
         None => {
             out.push((0xE0 | (cp >> 12)) as u8);
             out.push((0x80 | ((cp >> 6) & 0x3F)) as u8);
@@ -46,7 +46,7 @@ fn push_cp(out: &mut Vec<u8>, cp: u32) {
     }
 }
 
-/// Python-style unescape (`unescape(str, utf8)` in C++). With `utf8 == false`
+/// Python-style unescape. With `utf8 == false`
 /// (bytes literals) non-ASCII input is rejected and `\x` yields a raw byte.
 /// Returns raw bytes because bytes literals may be non-UTF-8.
 pub fn unescape(s: &str, utf8: bool) -> Result<Vec<u8>, UnescapeError> {
@@ -120,7 +120,7 @@ pub fn unescape(s: &str, utf8: bool) -> Result<Vec<u8>, UnescapeError> {
     Ok(r)
 }
 
-/// Double `{` and `}` in `s[start..start+len]` .
+/// Double `{` and `}` in `s[start..start+len]`.
 pub fn escape_fstring_braces(s: &str, start: usize, len: usize) -> String {
     let mut t = String::with_capacity(len);
     for c in s[start..start + len].chars() {
@@ -133,7 +133,7 @@ pub fn escape_fstring_braces(s: &str, start: usize, len: usize) -> String {
     t
 }
 
-/// the reference implementation `findStar`: index after an opening paren or of the first non-space char.
+/// the reference `findStar`: index after an opening paren or of the first non-space char.
 pub fn find_star(s: &str) -> usize {
     for (i, c) in s.bytes().enumerate() {
         if c == b'(' {
@@ -176,12 +176,12 @@ pub fn utf8_substr(s: &str, start: usize, stop: usize, step: isize) -> String {
     out
 }
 
-/// Replace the first occurrence .
+/// Replace the first occurrence.
 pub fn replace_first(text: &str, pat: &str, with: &str) -> String {
     text.replacen(pat, with, 1)
 }
 
-/// the reference implementation `isdigit(const std::string&)`: all ASCII digits (true for empty, like C++).
+/// `isdigit`: all ASCII digits (true for empty).
 pub fn is_all_digits(s: &str) -> bool {
     s.bytes().all(|c| c.is_ascii_digit())
 }

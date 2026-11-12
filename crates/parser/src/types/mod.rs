@@ -1,24 +1,16 @@
-//!
-//! the reference implementation uses `std::shared_ptr<Type>` with in-place mutation (binding of `LinkType`s,
+//! the reference uses `std::shared_ptr<Type>` with in-place mutation (binding of `LinkType`s,
 //! `ClassType::generics[i].type = ...`, `_rn` caches). Here every type is a slot in a
 //! [`TypeArena`] addressed by a `Copy` [`TypeId`]; slots are mutable through interior
 //! mutability (`RefCell`) and never freed. All arena methods take `&self` and only hold
 //! the internal borrow for the duration of a single slot access, so type operations may
 //! freely re-enter the type checker (see [`TypeHost`]).
 //!
-//! Identity: the reference implementation `shared_from_this()` == the same `TypeId`; `std::make_shared<X>(...)`
+//! Identity: the reference `shared_from_this()` == the same `TypeId`; `std::make_shared<X>(...)`
 //! == a fresh slot (`TypeArena::new_*`).
 //!
-//! Module map:
-//! | the reference implementation | Rust |
-//! |---|---|
-//! | `type.{h,cpp}` (Type, Unification, LiteralKind helpers) | this file |
-//! | `link.{h,cpp}` (LinkType) | [`link`] |
-//! | `class.{h,cpp}` (ClassType, Generic) | [`class`] |
-//! | `function.{h,cpp}` (FuncType) | [`function`] |
-//! | `static.{h,cpp}` (Int/Str/BoolStaticType) | [`static_`] |
-//! | `union.{h,cpp}` (UnionType) | [`union`] |
-//! | `traits.{h,cpp}` (CallableTrait, TypeTrait) | [`traits`] |
+//! Module map: this file (Type, Unification, LiteralKind helpers), [`link`] (LinkType),
+//! [`class`] (ClassType, Generic), [`function`] (FuncType), [`static_`] (Int/Str/BoolStaticType),
+//! [`union`] (UnionType), [`traits`] (CallableTrait, TypeTrait).
 
 pub mod class;
 pub mod function;
@@ -39,7 +31,7 @@ pub use crate::ast::LiteralKind;
 use crate::ids::StmtId;
 pub use crate::ids::TypeId;
 
-/// the reference implementation `InstantiationCache` (generic id -> instantiated type).
+/// the reference `InstantiationCache` (generic id -> instantiated type).
 pub type InstantiationCache = FxHashMap<i32, TypeId>;
 
 /// `LinkType::Kind`.
@@ -89,7 +81,7 @@ impl Generic {
     pub fn new(name: impl AsRef<str>, ty: Option<TypeId>, id: i32, static_kind: LiteralKind) -> Self {
         Self { name: Ustr::from(name.as_ref()), id, ty, static_kind }
     }
-    /// `getType()` (panics if null, which the reference implementation would dereference anyway).
+    /// `getType()` (panics if null, which the reference would dereference anyway).
     pub fn ty(&self) -> TypeId {
         self.ty.expect("generic without type")
     }
@@ -227,7 +219,7 @@ impl Unification {
         Self::default()
     }
     /// `Unification::undo()`.
-    /// Note: the journal is drained (the reference implementation keeps it; replaying it twice is a no-op there
+    /// Note: the journal is drained (the reference keeps it; replaying it twice is a no-op there
     /// in practice).
     pub fn undo(&mut self, arena: &TypeArena) {
         for t in self.linked.drain(..).rev() {
@@ -251,7 +243,7 @@ impl Unification {
     }
 }
 
-/// Callbacks into the type checker that some type operations need (the reference implementation types construct a
+/// Callbacks into the type checker that some type operations need (the reference types construct a
 /// `TypecheckVisitor(cache->typeCtx)` internally).
 pub trait TypeHost {
     /// `CallableTrait::unify` -> `TypecheckVisitor::matchCallable(typ, args, ret, us)`;
@@ -373,7 +365,7 @@ impl TypeArena {
         v
     }
 
-    /// `cache->rev(s)` (empty string if unknown, the reference implementation asserts).
+    /// `cache->rev(s)` (empty string if unknown, the reference asserts).
     pub fn rev(&self, s: &str) -> String {
         match self.reverse_lookup.borrow().get(s) {
             Some(r) => r.clone(),

@@ -1,4 +1,4 @@
-//! `PassManagerTest.HonorsDisabledPassesAtRegistration` from test/types.cpp.
+//! `PassManagerTest.HonorsDisabledPassesAtRegistration`.
 
 use std::cell::Cell;
 use std::rc::Rc;

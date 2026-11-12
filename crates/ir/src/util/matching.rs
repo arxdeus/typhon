@@ -148,7 +148,7 @@ impl<'a> Matcher<'a> {
                     && a.step == b.step
                     && self.value(a.end, b.end)
             }
-            // Note: the reference implementation starts from `result && ...` where `result` is still false, so
+            // Note: the reference starts from `result && ...` where `result` is still false, so
             // two try-catch flows never match. That bug is preserved for fidelity.
             (ValueKind::TryCatchFlow(_), ValueKind::TryCatchFlow(_)) => false,
             (ValueKind::PipelineFlow(a), ValueKind::PipelineFlow(b)) => {
@@ -221,10 +221,10 @@ impl<'a> Matcher<'a> {
 
 /// `util::match(a, b, checkNames, varIdMatch)`.
 ///
-/// Note: like C++, `check_names == false` means names *are* compared (the C++
+/// Note:, `check_names == false` means names *are* compared (
 /// visitor's `checkName` flag skips the name comparison when true), and nested
 /// comparisons are built with `MatchVisitor(checkName)` so `var_id_match` is
-/// effectively ignored by the reference implementation (`match` itself calls `MatchVisitor(checkNames)`).
+/// effectively ignored by the reference (`match` itself calls `MatchVisitor(checkNames)`).
 /// Preserved: `var_id_match` is accepted but has no effect.
 pub fn match_nodes(m: &Module, a: Option<NodeRef>, b: Option<NodeRef>, check_names: bool, var_id_match: bool) -> bool {
     let _ = var_id_match;
@@ -236,7 +236,7 @@ pub fn match_nodes(m: &Module, a: Option<NodeRef>, b: Option<NodeRef>, check_nam
 }
 
 /// Like [`match_nodes`] but actually enforcing equal variable ids (the evident intent
-/// of the the reference implementation `varIdMatch` flag).
+/// of the reference `varIdMatch` flag).
 pub fn match_nodes_strict_ids(m: &Module, a: NodeRef, b: NodeRef, check_names: bool) -> bool {
     Matcher { m, check_name: check_names, var_id_match: true }.node(a, b)
 }
