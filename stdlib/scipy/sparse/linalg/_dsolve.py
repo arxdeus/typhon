@@ -264,9 +264,28 @@ def spsolve(A, b, permc_spec = None, use_umfpack: bool = True):
         if bv.shape[0] != n:
             raise ValueError(f"matrix - rhs dimension mismatch ({C.shape} - {bv.shape[0]})")
         F = _lu_factor(C.astype(T), T)
-        if bv.ndim == 2 and bv.shape[1] == 1:
-            return F.solve(bv.astype(T).ravel())
+        # note: scipy returns a 1-D result for b of shape (n, 1); the result
+        # rank must be static here, so a 2-D b always gives a 2-D result
         return F.solve(bv.astype(T))
+
+def _tri_solve1(R, x, lower: bool, unit_diagonal: bool, T: type):
+    n = R.shape[0]
+    for t in range(n):
+        i = t if lower else n - 1 - t
+        s = x[i]
+        diag = T()
+        for p in range(R.indptr[i], R.indptr[i + 1]):
+            j = R.indices[p]
+            if j == i:
+                diag += T(R.data[p])
+            elif (j < i) if lower else (j > i):
+                s -= T(R.data[p]) * x[j]
+        if unit_diagonal:
+            x[i] = s
+        else:
+            if diag == T():
+                raise ValueError("A is singular: zero entry on diagonal.")
+            x[i] = s / diag
 
 def spsolve_triangular(A, b, lower: bool = True, overwrite_A: bool = False,
                        overwrite_b: bool = False, unit_diagonal: bool = False):
@@ -274,35 +293,20 @@ def spsolve_triangular(A, b, lower: bool = True, overwrite_A: bool = False,
     R.sum_duplicates()
     bv = np.asarray(b)
     T = type(_up(type(_ftype(R.data.dtype)), bv.dtype))
-    n = R.shape[0]
     if R.shape[0] != R.shape[1]:
         raise ValueError("A must be a square matrix")
-    X = bv.astype(T).copy()
-    two = X.ndim == 2
-    k = X.shape[1] if two else 1
-    order = list(range(n)) if lower else list(range(n - 1, -1, -1))
-    for i in order:
-        diag = T()
-        for c in range(k):
-            s = X[i, c] if two else X[i]
-            for p in range(R.indptr[i], R.indptr[i + 1]):
-                j = R.indices[p]
-                if j == i:
-                    if c == 0:
-                        diag += T(R.data[p])
-                elif (j < i) if lower else (j > i):
-                    s -= T(R.data[p]) * (X[j, c] if two else X[j])
-            if unit_diagonal:
-                v = s
-            else:
-                if c == 0 and diag == T():
-                    raise ValueError("A is singular: zero entry on diagonal.")
-                v = s / diag
-            if two:
-                X[i, c] = v
-            else:
-                X[i] = v
-    return X
+    if bv.ndim == 1:
+        x = bv.astype(T).copy()
+        _tri_solve1(R, x, lower, unit_diagonal, T)
+        return x
+    else:
+        X = bv.astype(T).copy()
+        for c in range(X.shape[1]):
+            col = np.ascontiguousarray(X[:, c])
+            _tri_solve1(R, col, lower, unit_diagonal, T)
+            for i in range(X.shape[0]):
+                X[i, c] = col[i]
+        return X
 
 def inv(A):
     C = _as_csc(A)
