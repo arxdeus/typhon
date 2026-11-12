@@ -6,6 +6,7 @@
 import numpy as np
 import internal.static as static
 from . import _kernels as K
+from . import _cdf as C
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -90,7 +91,24 @@ def fdtri(dfn, dfd, p): return _map3(K.fdtri, dfn, dfd, p)
 def chdtr(v, x): return _map2(K.chdtr, v, x)
 def chdtrc(v, x): return _map2(K.chdtrc, v, x)
 def chdtri(v, p): return _map2(K.chdtri, v, p)
-def bdtr(k, n, p): return _map3(K.bdtr, k, n, p)
+def bdtr(k, n, p): return _map3(C.bdtr, k, n, p)
+
+# discrete / gamma distribution functions (_cdf)
+def pdtr(k, m): return _map2(C.pdtr, k, m)
+def pdtrc(k, m): return _map2(C.pdtrc, k, m)
+def pdtri(k, y): return _map2(C.pdtri, k, y)
+def pdtrik(p, m): return _map2(C.pdtrik, p, m)
+def bdtrc(k, n, p): return _map3(C.bdtrc, k, n, p)
+def bdtri(k, n, y): return _map3(C.bdtri, k, n, y)
+def nbdtr(k, n, p): return _map3(C.nbdtr, k, n, p)
+def nbdtrc(k, n, p): return _map3(C.nbdtrc, k, n, p)
+def nbdtri(k, n, y): return _map3(C.nbdtri, k, n, y)
+def gdtr(a, b, x): return _map3(C.gdtr, a, b, x)
+def gdtrc(a, b, x): return _map3(C.gdtrc, a, b, x)
+def gdtria(p, b, x): return _map3(C.gdtria, p, b, x)
+def gdtrib(a, p, x): return _map3(C.gdtrib, a, p, x)
+def gdtrix(a, b, p): return _map3(C.gdtrix, a, b, p)
+def ndtri_exp(y): return _map1(C.ndtri_exp, y)
 
 # elementary
 def xlogy(x, y): return _map2(K.xlogy, x, y)
