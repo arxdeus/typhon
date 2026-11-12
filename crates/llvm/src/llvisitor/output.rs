@@ -44,7 +44,7 @@ fn execute_command(args: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// Directory holding `libcodonrt`: `TYPHON_LIB_DIR`, else next to/around the executable.
+/// Directory holding `libtyphonrt`: `TYPHON_LIB_DIR`, else next to/around the executable.
 pub fn runtime_lib_dirs(argv0: &str) -> Vec<String> {
     if let Ok(d) = std::env::var("TYPHON_LIB_DIR")
         && !d.is_empty()
@@ -222,10 +222,10 @@ impl<'ctx> LlvmVisitor<'ctx> {
             }
         }
         #[cfg(windows)]
-        let extra = ["-lcodonrt", "-llibomp", "-llibopenblas", "-o", filename];
+        let extra = ["-ltyphonrt", "-llibomp", "-llibopenblas", "-o", filename];
         #[cfg(not(windows))]
-        // PORT-NOTE: OpenMP (`__kmpc_*`, `omp_*`) is linked into libcodonrt (typhon-omp); no `-lomp`.
-        let extra = ["-lcodonrt", "-lpthread", "-ldl", "-lz", "-lm", "-lc", "-o", filename];
+        // PORT-NOTE: OpenMP (`__kmpc_*`, `omp_*`) is linked into libtyphonrt (typhon-omp); no `-lomp`.
+        let extra = ["-ltyphonrt", "-lpthread", "-ldl", "-lz", "-lm", "-lc", "-o", filename];
         command.extend(extra.iter().map(|s| s.to_string()));
         command.extend(user_flags);
         #[cfg(not(windows))]

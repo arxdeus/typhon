@@ -185,7 +185,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         if ll::has_blocks(wrapper) {
             return wrapper;
         }
-        ll::add_string_attr(wrapper, ll::FN_INDEX, "codon-abi-body", &ll::name(body));
+        ll::add_string_attr(wrapper, ll::FN_INDEX, "typhon-abi-body", &ll::name(body));
         let b = Builder::new(self.c);
         b.at_end(ll::append_block(self.c, wrapper, "entry"));
         let result_type = ll::fn_ret_ty(sig);
@@ -248,12 +248,12 @@ impl<'ctx> LlvmVisitor<'ctx> {
         }
         let mut exports = Vec::new();
         for f in ll::functions(self.m()) {
-            if ll::has_string_attr(f, "codon-c-export") && !ll::is_declaration(f) {
-                exports.push((f, ll::string_attr_value(f, "codon-c-export").unwrap_or_default()));
+            if ll::has_string_attr(f, "typhon-c-export") && !ll::is_declaration(f) {
+                exports.push((f, ll::string_attr_value(f, "typhon-c-export").unwrap_or_default()));
             }
         }
         for (body, name) in exports {
-            ll::remove_string_attr(body, "codon-c-export");
+            ll::remove_string_attr(body, "typhon-c-export");
             ll::set_name(body, &format!("{name}.codon"));
             ll::set_linkage(
                 body,
@@ -263,7 +263,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             if let Some(&wrapper) = self.win_callbacks.get(&(body as usize)) {
                 ll::set_name(wrapper, &name);
                 ll::set_linkage(wrapper, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
-                ll::add_string_attr(wrapper, ll::FN_INDEX, "codon-abi-body", &ll::name(body));
+                ll::add_string_attr(wrapper, ll::FN_INDEX, "typhon-abi-body", &ll::name(body));
                 if !self.options.jit {
                     ll::set_dll_storage(wrapper, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
                 }

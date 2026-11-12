@@ -1,5 +1,5 @@
 //! Compiles the variadic `__kmpc_fork_call` shim (stable Rust cannot define C-variadic
-//! functions). Linked whole-archive so the symbol survives into libcodonrt / the cdylib.
+//! functions). Linked whole-archive so the symbol survives into libtyphonrt / the cdylib.
 fn main() {
     println!("cargo:rerun-if-changed=csrc/fork_call.c");
     cc::Build::new()

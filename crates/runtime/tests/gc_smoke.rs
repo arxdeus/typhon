@@ -1,7 +1,7 @@
 //! Smoke test: initialize the runtime and allocate through the Boehm GC via the C ABI.
 
-use codonrt::lib_rt::*;
-use codonrt::types::string_conv;
+use typhonrt::lib_rt::*;
+use typhonrt::types::string_conv;
 
 #[test]
 fn gc_alloc_smoke() {
@@ -18,12 +18,12 @@ fn gc_alloc_smoke() {
         assert!(!a.is_null());
         let u = seq_alloc_uncollectable(32);
         seq_free(u);
-        assert!(codonrt::gc::GC_get_heap_size() > 0);
+        assert!(typhonrt::gc::GC_get_heap_size() > 0);
         // churn the collector
         for _ in 0..10_000 {
             let _ = seq_alloc(256);
         }
-        codonrt::gc::GC_gcollect();
+        typhonrt::gc::GC_gcollect();
         let s = string_conv("héllo".as_bytes());
         assert_eq!(s.encode(), "héllo".as_bytes());
     }

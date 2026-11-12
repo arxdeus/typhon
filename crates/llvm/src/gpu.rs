@@ -825,7 +825,7 @@ fn patch_ptx_var(m: LLVMModuleRef, ptx_var: Option<V>, target: &str) -> Result<(
     }
     if let Some(f) = ffi::get_function(m, target) {
         if !ffi::use_empty(f) {
-            return Err(err("some __codon_ptx__() calls not replaced in module"));
+            return Err(err("some __typhon_ptx__() calls not replaced in module"));
         }
         unsafe { LLVMDeleteFunction(f) };
     }
@@ -840,7 +840,7 @@ fn has_kernels(m: LLVMModuleRef) -> bool {
 pub fn prepare_gpu_module<'ctx>(module: &Module<'ctx>, options: &Options) -> Result<Option<Module<'ctx>>> {
     let m = module.as_mut_ptr();
     if !has_kernels(m) {
-        patch_ptx_var(m, None, "__codon_ptx__")?;
+        patch_ptx_var(m, None, "__typhon_ptx__")?;
         return Ok(None);
     }
     unsafe {
@@ -887,7 +887,7 @@ pub fn apply_gpu_transformations(module: &Module, clone: Module, options: &Optio
         kernels.push(kernel);
     }
     if kernels.is_empty() {
-        return patch_ptx_var(m, None, "__codon_ptx__");
+        return patch_ptx_var(m, None, "__typhon_ptx__");
     }
     let ptx = module_to_ptx(cm, &kernels, options)?;
     clean_up_intrinsics(m);
@@ -903,7 +903,7 @@ pub fn apply_gpu_transformations(module: &Module, clone: Module, options: &Optio
         LLVMSetGlobalConstant(g, 1);
         ffi::set_linkage(g, L::LLVMPrivateLinkage);
         LLVMSetUnnamedAddress(g, llvm_sys::LLVMUnnamedAddr::LLVMGlobalUnnamedAddr);
-        patch_ptx_var(m, Some(g), "__codon_ptx__")?;
+        patch_ptx_var(m, Some(g), "__typhon_ptx__")?;
     }
     drop(clone);
     Ok(())

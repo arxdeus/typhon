@@ -163,19 +163,19 @@ impl Backtrace {
  */
 
 #[repr(C)]
-pub struct CodonBaseExceptionType {
+pub struct BaseExceptionTypeData {
     pub ty: c_int,
 }
 
 #[repr(C)]
-pub struct CodonBaseException {
+pub struct BaseExceptionData {
     pub obj: *mut c_void,
     pub bt: Backtrace,
     pub unwind_exception: UnwindException,
 }
 
 #[repr(C)]
-pub struct CodonExceptionHeader {
+pub struct ExceptionHeader {
     pub msg: SeqStr,
     pub func: SeqStr,
     pub file: SeqStr,
@@ -186,19 +186,19 @@ pub struct CodonExceptionHeader {
 }
 
 #[repr(C)]
-pub struct CodonSystemExitData {
+pub struct SystemExitData {
     pub status: SeqInt,
     pub message_exit: bool,
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_exc_offset() -> i64 {
-    -(core::mem::offset_of!(CodonBaseException, unwind_exception) as i64)
+    -(core::mem::offset_of!(BaseExceptionData, unwind_exception) as i64)
 }
 
 #[inline]
-unsafe fn base_of(exc: *mut c_void) -> *mut CodonBaseException {
-    unsafe { (exc as *mut u8).offset(seq_exc_offset() as isize) as *mut CodonBaseException }
+unsafe fn base_of(exc: *mut c_void) -> *mut BaseExceptionData {
+    unsafe { (exc as *mut u8).offset(seq_exc_offset() as isize) as *mut BaseExceptionData }
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -293,8 +293,8 @@ unsafe extern "C" fn seq_delete_unwind_exc(_reason: UnwindReasonCode, exp: *mut 
 
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_alloc_exc(obj: *mut c_void) -> *mut c_void {
-    let size = core::mem::size_of::<CodonBaseException>();
-    let e = seq_alloc(size) as *mut CodonBaseException;
+    let size = core::mem::size_of::<BaseExceptionData>();
+    let e = seq_alloc(size) as *mut BaseExceptionData;
     assert!(!e.is_null());
     unsafe {
         core::ptr::write_bytes(e as *mut u8, 0, size);
@@ -373,10 +373,10 @@ pub unsafe extern "C" fn seq_terminate(exc: *mut c_void) {
         let obj = base.obj;
         let info = &**(obj as *const *const TypeInfo);
         assert!(info.exception_offset >= 0);
-        let hdr = &*((obj as *mut u8).add(info.exception_offset as usize) as *const CodonExceptionHeader);
+        let hdr = &*((obj as *mut u8).add(info.exception_offset as usize) as *const ExceptionHeader);
 
         if info.system_exit_offset >= 0 {
-            let data = &*((obj as *mut u8).add(info.system_exit_offset as usize) as *const CodonSystemExitData);
+            let data = &*((obj as *mut u8).add(info.system_exit_offset as usize) as *const SystemExitData);
             if data.message_exit {
                 let mut m = hdr.msg.encode();
                 m.push(b'\n');
@@ -621,7 +621,7 @@ unsafe fn handle_action_value(
                 let enc_size = encoding_size(ttype_encoding);
                 let mut entry = class_info.offset(-(type_offset as isize) * enc_size as isize);
                 let p = read_encoded_pointer(&mut entry, ttype_encoding);
-                let this_type = (*(p as *const CodonBaseExceptionType)).ty;
+                let this_type = (*(p as *const BaseExceptionTypeData)).ty;
                 if this_type == CATCH_ALL_SELECTOR
                     || this_type == BASE_EXCEPTION_SELECTOR
                     || isinstance(excp.obj, this_type as SeqInt)

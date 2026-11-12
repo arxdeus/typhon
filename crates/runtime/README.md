@@ -1,4 +1,4 @@
-# typhon-runtime (libcodonrt)
+# typhon-runtime (libtyphonrt)
 
 ## Garbage collector
 

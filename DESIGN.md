@@ -30,8 +30,8 @@ typhon-common        codon/util, compiler/error, compiler/options, parser/common
   ├── typhon-dsl            codon/dsl/* (DSL trait, PluginManager)    -> parser, ir-transform, llvm
   ├── typhon-compiler       codon/compiler/{compiler,error}            -> everything above
   ├── typhon-cli  (bin `typhon`)   codon/app/main.cpp (run / build / doc modes; no jit REPL, no jupyter)
-  ├── typhon-runtime        codon/runtime/** -> `libcodonrt` (staticlib + cdylib, C ABI)
-  ├── typhon-omp            OpenMP runtime ABI (`__kmpc_*`, `omp_*`) in Rust, linked into libcodonrt
+  ├── typhon-runtime        codon/runtime/** -> `libtyphonrt` (staticlib + cdylib, C ABI)
+  ├── typhon-omp            OpenMP runtime ABI (`__kmpc_*`, `omp_*`) in Rust, linked into libtyphonrt
                             (replaces the GC-patched LLVM libomp the C++ build depends on)
   └── typhon-testsuite      test/main.cpp, test/types.cpp, test/cir/**, test/dsl/**
 ```

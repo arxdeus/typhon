@@ -63,7 +63,7 @@ mandelbrot 512, nbody 3e6, primes 30000, set_partition 14, spectral_norm 40 loop
 
 `python3 bench/memory.py --typhon-dir DIR --label L [--cpython] [names]` builds
 every benchmark plus `empty`/`hello` with Codon and with `DIR/typhon`, retargets
-Typhon exes to `@rpath/libcodonrt.dylib` with rpath `DIR` (so a snapshot dylib is
+Typhon exes to `@rpath/libtyphonrt.dylib` with rpath `DIR` (so a snapshot dylib is
 really used; verify with `DYLD_PRINT_LIBRARIES=1`), and reports median-of-3 peak
 RSS and peak memory footprint from `/usr/bin/time -l`, serial, round-robin.
 Output: `results/memory-<date>-<label>.{json,md}`.
@@ -71,5 +71,5 @@ Output: `results/memory-<date>-<label>.{json,md}`.
 Baseline findings (pre-gcfix snapshot): startup overhead is not worse than Codon
 (hello 6.8 vs 7.2 MiB RSS, footprint 2.4 MiB both, 1 thread each, no omp threads).
 Outliers are heap-policy related: chaos 143 vs 57 MiB, binary_trees 57 vs 46,
-spectral_norm 15.5 vs 13.1. libcodonrt.dylib 3.77 MB vs 2.2 MB, but the extra
+spectral_norm 15.5 vs 13.1. libtyphonrt.dylib 3.77 MB vs 2.2 MB, but the extra
 ~1.5 MB of text is mapped lazily and does not show in RSS/footprint.

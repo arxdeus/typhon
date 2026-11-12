@@ -1,4 +1,4 @@
-//! Port of codon/runtime/** (libcodonrt). Exports the same C ABI symbols as the C++
+//! Port of codon/runtime/** (libtyphonrt). Exports the same C ABI symbols as the C++
 //! runtime so compiled Codon programs (and the stdlib's `from C import ...`) can link
 //! against it.
 //!

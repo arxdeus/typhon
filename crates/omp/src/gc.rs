@@ -1,6 +1,6 @@
 //! Boehm GC integration.
 //!
-//! Codon's patched libomp exports `__kmpc_set_gc_callbacks`, which libcodonrt's
+//! Codon's patched libomp exports `__kmpc_set_gc_callbacks`, which libtyphonrt's
 //! `seq_init` calls with `GC_get_stack_base`, `GC_register_my_thread`,
 //! `GC_add_roots` and `GC_remove_roots`. Every worker thread registers itself
 //! before running any microtask, and runtime-owned memory that may hold the only

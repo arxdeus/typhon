@@ -114,12 +114,12 @@ pub fn execute(cfg: &Config, case: &Case) -> Result<Outcome, String> {
     cmd.arg(if case.py_numerics { "-numerics=py" } else { "-numerics=c" });
     cmd.arg(&file);
 
-    // CODON_TEST_FLAGS = 1 + barebones (C++: testFlags = 1 + get<5>)
-    cmd.env("CODON_TEST_FLAGS", (1 + case.barebones as i32).to_string());
+    // TYPHON_TEST_FLAGS = 1 + barebones (C++: testFlags = 1 + get<5>)
+    cmd.env("TYPHON_TEST_FLAGS", (1 + case.barebones as i32).to_string());
     // C++ runCompileAndRun: options->test = true (release pipeline in debug too,
     // plus TestOutliner/TestInliner/EscapeValidator).
     cmd.env("TYPHON_TEST_MODE", "1");
-    cmd.env("CODON_PATH", &cfg.stdlib);
+    cmd.env("TYPHON_PATH", &cfg.stdlib);
     cmd.env("TYPHON_STDLIB_DIR", &cfg.stdlib);
     let mut py = cfg.test_dir.join("python").into_os_string();
     if let Some(existing) = std::env::var_os("PYTHONPATH").filter(|v| !v.is_empty()) {
@@ -128,7 +128,7 @@ pub fn execute(cfg: &Config, case: &Case) -> Result<Outcome, String> {
     }
     cmd.env("PYTHONPATH", py);
     if let Some(lib) = &cfg.python {
-        cmd.env("CODON_PYTHON", lib);
+        cmd.env("TYPHON_PYTHON", lib);
     }
     // C++ ran from the repo root: tests open `build/...` for scratch files and
     // `test/stdlib/data/...` for fixtures. Emulate with a per-case scratch cwd.
@@ -136,14 +136,14 @@ pub fn execute(cfg: &Config, case: &Case) -> Result<Outcome, String> {
     std::fs::create_dir(cwd.path().join("build")).map_err(|e| e.to_string())?;
     #[cfg(unix)]
     std::os::unix::fs::symlink(&cfg.test_dir, cwd.path().join("test")).map_err(|e| e.to_string())?;
-    // C++ tests ran from the build dir, where `./libcodonrt.<ext>` resolves
+    // C++ tests ran from the build dir, where `./libtyphonrt.<ext>` resolves
     // (types/import_c_dylib*). Expose the runtime next to the scratch cwd.
     #[cfg(unix)]
     if let Some(dir) = cfg.bin.parent() {
         for ext in ["dylib", "so"] {
-            let rt = dir.join(format!("libcodonrt.{ext}"));
+            let rt = dir.join(format!("libtyphonrt.{ext}"));
             if rt.exists() {
-                let _ = std::os::unix::fs::symlink(&rt, cwd.path().join(format!("libcodonrt.{ext}")));
+                let _ = std::os::unix::fs::symlink(&rt, cwd.path().join(format!("libtyphonrt.{ext}")));
             }
         }
     }

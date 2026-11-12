@@ -656,7 +656,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         // debug info setup
         let db = DiBuilder::new(module.as_mut_ptr());
         let file = db.file(&src_file);
-        let producer = format!("codon version {}", typhon_common::config::CODON_VERSION);
+        let producer = format!("typhon version {}", typhon_common::config::VERSION);
         self.db.unit = db.compile_unit(file, &producer, !self.options.debug);
         self.db.builder = Some(db);
         ll::add_module_flag_int(module.as_mut_ptr(), "Debug Info Version", ll::debug_metadata_version());
@@ -928,8 +928,8 @@ impl<'ctx> LlvmVisitor<'ctx> {
     fn get_type_idx_var(&self, m: &Module, t: Option<TypeId>) -> V {
         let tit = self.get_type_info_type();
         let name = match t {
-            Some(t) => format!("codon.typeidx.{}", m.type_name(t)),
-            None => "codon.typeidx.<all>".to_string(),
+            Some(t) => format!("typhon.typeidx.{}", m.type_name(t)),
+            None => "typhon.typeidx.<all>".to_string(),
         };
         if let Some(g) = ll::get_global(self.m(), &name) {
             return g;
@@ -951,7 +951,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         self.b.at_end(self.block);
         if (self.trycatch.is_empty() && self.finally.is_empty()) || self.options.noexc {
             let is_throw = unsafe { !llvm_sys::core::LLVMIsAFunction(callee).is_null() } && ll::name(callee) == "seq_throw";
-            if !self.options.noexc && self.is_win_msvc() && ll::has_string_attr(self.func, "codon.seh.scopes") && is_throw {
+            if !self.options.noexc && self.is_win_msvc() && ll::has_string_attr(self.func, "typhon.seh.scopes") && is_throw {
                 // Give a rethrow outside all local handlers an explicit unwind-to-caller
                 // edge, so SEH scope ranges cannot absorb it into an earlier try region.
                 let normal = ll::append_block(self.c, self.func, "throw.unreachable");
@@ -1000,7 +1000,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
     fn enter_try(&mut self, mut d: TryCatchData) {
         // Only functions with local SEH scopes need an explicit rethrow boundary.
         if self.is_win_msvc() {
-            ll::add_string_attr(self.func, ll::FN_INDEX, "codon.seh.scopes", "");
+            ll::add_string_attr(self.func, ll::FN_INDEX, "typhon.seh.scopes", "");
         }
         d.sequence_number = self.next_seq();
         self.trycatch.push(d);
@@ -1266,7 +1266,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             self.set_debug_info_for_node(m, None);
             let new = self.func;
             if self.needs_win_export_wrapper(m, f) && !new.is_null() {
-                ll::add_string_attr(new, ll::FN_INDEX, "codon-c-export", &Self::get_name_for_function(m, f));
+                ll::add_string_attr(new, ll::FN_INDEX, "typhon-c-export", &Self::get_name_for_function(m, f));
             }
             self.func = old;
             return new;
@@ -1286,7 +1286,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             ll::add_type_attr(func, 1, "sret", return_type);
         }
         if self.needs_win_export_wrapper(m, f) {
-            ll::add_string_attr(func, ll::FN_INDEX, "codon-c-export", &Self::get_name_for_function(m, f));
+            ll::add_string_attr(func, ll::FN_INDEX, "typhon-c-export", &Self::get_name_for_function(m, f));
         }
         if !is_external && !declaration_only {
             let sp = self.get_di_subprogram_for_func(m, f);
@@ -1554,7 +1554,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         let generator = fd.generator || fd.is_async;
         if generator {
             if !fd.is_async {
-                ll::add_string_attr(func, ll::FN_INDEX, "codon.generator", "");
+                ll::add_string_attr(func, ll::FN_INDEX, "typhon.generator", "");
             }
             ll::add_fn_attr(func, "presplitcoroutine");
             let base = match m.type_kind(m.actual_type(return_type)) {

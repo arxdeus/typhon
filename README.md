@@ -15,7 +15,7 @@ full C++ dependency -> Rust crate mapping.
   AST -> IR translation, Codon IR with all analyses and optimization passes
   (cleanup, folding, lowering, pythonic, NumPy fusion, OpenMP/GPU), LLVM code
   generation, `run` via an in-process ORC JIT, `build` to exe/obj/lib/llvm/bc/asm/pyext,
-  `doc`, the DSL/plugin system, the runtime library `libcodonrt`, and the C++ tests.
+  `doc`, the DSL/plugin system, the runtime library `libtyphonrt`, and the C++ tests.
 * Not ported (by decision): the incremental JIT / REPL (`codon jit`), the Jupyter
   kernel and the Python `@codon.jit` bridge.
 * Replaced with Rust: LLVM's `libomp` (OpenMP runtime) is reimplemented in
@@ -34,8 +34,8 @@ full C++ dependency -> Rust crate mapping.
 | `typhon-dsl` | `codon/dsl/**` | plugin manager, Rust cdylib plugin ABI |
 | `typhon-compiler` | `codon/compiler/compiler.*` | driver wiring all stages |
 | `typhon-cli` | `codon/app/main.cpp` | `typhon` binary, CLI-compatible with `codon` |
-| `typhon-runtime` | `codon/runtime/**` | `libcodonrt` (C ABI): GC, exceptions, I/O, regex, numpy kernels |
-| `typhon-omp` | LLVM `libomp` | OpenMP `__kmpc_*` / `omp_*` ABI in Rust, linked into libcodonrt |
+| `typhon-runtime` | `codon/runtime/**` | `libtyphonrt` (C ABI): GC, exceptions, I/O, regex, numpy kernels |
+| `typhon-omp` | LLVM `libomp` | OpenMP `__kmpc_*` / `omp_*` ABI in Rust, linked into libtyphonrt |
 | `typhon-testsuite` | `test/main.cpp` | data-driven e2e harness over `../test/**` |
 
 ## Building
@@ -49,7 +49,7 @@ cd typhon
 cargo build --release -p typhon-cli -p typhon-runtime
 ```
 
-This produces `target/release/typhon` and `target/release/libcodonrt.dylib`
+This produces `target/release/typhon` and `target/release/libtyphonrt.dylib`
 (`.so` on Linux). The stdlib is found through `TYPHON_STDLIB_DIR`/`CODON_PATH`, next
 to the executable, or at `../stdlib` in this repository.
 

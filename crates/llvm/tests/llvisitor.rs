@@ -70,7 +70,7 @@ fn jit<'c>(ctx: &'c Context, m: &Module) -> (Engine, inkwell::module::Module<'c>
     }
     optimize(&module, &opts(), &[]).expect("optimize");
     let engine = Engine::new(&opts(), EngineConfig::default()).expect("engine");
-    use codonrt as rt;
+    use typhonrt as rt;
     let syms: Vec<(&str, u64)> = vec![
         ("seq_personality", rt::exc::seq_personality as *const () as usize as u64),
         ("seq_alloc_exc", rt::exc::seq_alloc_exc as *const () as usize as u64),
@@ -88,7 +88,7 @@ fn jit<'c>(ctx: &'c Context, m: &Module) -> (Engine, inkwell::module::Module<'c>
 
 #[test]
 fn codegen_and_jit_small_programs() {
-    codonrt::lib_rt::seq_init(0); // GC + JIT unwind-section registration
+    typhonrt::lib_rt::seq_init(0); // GC + JIT unwind-section registration
     let mut m = Module::new("test");
     let i = m.get_int_type();
     let b = m.get_bool_type();
@@ -333,11 +333,11 @@ fn codegen_and_jit_small_programs() {
 
 const UNCAUGHT_CHILD: &str = "TYPHON_TEST_UNCAUGHT_CHILD";
 
-/// A minimal Codon exception object: `{ *TypeInfo, CodonExceptionHeader }`.
+/// A minimal Codon exception object: `{ *TypeInfo, ExceptionHeader }`.
 fn fake_exception(ty: &'static [u8], msg: &'static [u8]) -> *mut u8 {
-    use codonrt::exc::CodonExceptionHeader;
-    use codonrt::rtti::TypeInfo;
-    use codonrt::types::SeqStr;
+    use typhonrt::exc::ExceptionHeader;
+    use typhonrt::rtti::TypeInfo;
+    use typhonrt::types::SeqStr;
     let s = |b: &'static [u8]| SeqStr { ptr: b.as_ptr() as *mut u8, meta: b.len() as i64 };
     let info = Box::leak(Box::new(TypeInfo {
         id: 1,
@@ -364,9 +364,9 @@ fn fake_exception(ty: &'static [u8], msg: &'static [u8]) -> *mut u8 {
     #[repr(C)]
     struct Obj {
         info: *const TypeInfo,
-        hdr: CodonExceptionHeader,
+        hdr: ExceptionHeader,
     }
-    let hdr = CodonExceptionHeader {
+    let hdr = ExceptionHeader {
         msg: s(msg),
         func: s(b"boom"),
         file: s(b"test.codon"),
@@ -379,19 +379,19 @@ fn fake_exception(ty: &'static [u8], msg: &'static [u8]) -> *mut u8 {
 }
 
 /// Regression: typed `except` under the JIT. The LSDA type table references the
-/// private `codon.typeidx.*` globals via `ARM64_RELOC_POINTER_TO_GOT` on Mach-O;
+/// private `typhon.typeidx.*` globals via `ARM64_RELOC_POINTER_TO_GOT` on Mach-O;
 /// RTDyld used to drop the symbol offset (GOT entry -> section base), so the
 /// personality read the wrong type index and libunwind aborted in phase 2.
 #[test]
 fn jit_typed_catch_reads_correct_type_index() {
     use inkwell::memory_buffer::MemoryBuffer;
-    codonrt::lib_rt::seq_init(0);
+    typhonrt::lib_rt::seq_init(0);
     // `@pad` precedes the type-info globals in `__const`, so a section-base
     // GOT entry would read 0 (catch-all) instead of the real index.
     let ir = r#"
 @pad = private unnamed_addr constant { i32 } { i32 0 }
-@"codon.typeidx.A" = private unnamed_addr constant { i32 } { i32 -1 }
-@"codon.typeidx.B" = private unnamed_addr constant { i32 } { i32 0 }
+@"typhon.typeidx.A" = private unnamed_addr constant { i32 } { i32 -1 }
+@"typhon.typeidx.B" = private unnamed_addr constant { i32 } { i32 0 }
 declare i32 @seq_personality(i32, i32, i64, ptr, ptr)
 declare ptr @seq_alloc_exc(ptr)
 declare void @seq_throw(ptr)
@@ -414,7 +414,7 @@ define i64 @typed(ptr %o) personality ptr @seq_personality {
 ok:
   ret i64 1000
 lp:
-  %l = landingpad { ptr, i32 } catch ptr @"codon.typeidx.A" catch ptr @"codon.typeidx.B"
+  %l = landingpad { ptr, i32 } catch ptr @"typhon.typeidx.A" catch ptr @"typhon.typeidx.B"
   %s = extractvalue { ptr, i32 } %l, 1
   %r = sext i32 %s to i64
   ret i64 %r }
@@ -423,7 +423,7 @@ lp:
     let buf = MemoryBuffer::create_from_memory_range_copy(ir.as_bytes(), "eh");
     let module = ctx.create_module_from_ir(buf).expect("parse");
     let engine = Engine::new(&opts(), EngineConfig::default()).expect("engine");
-    use codonrt as rt;
+    use typhonrt as rt;
     engine
         .define_absolute(&[
             ("seq_personality", rt::exc::seq_personality as *const () as usize as u64),
@@ -449,7 +449,7 @@ lp:
 #[test]
 fn jit_thread_local_global_links_and_is_per_thread() {
     use inkwell::memory_buffer::MemoryBuffer;
-    codonrt::lib_rt::seq_init(0);
+    typhonrt::lib_rt::seq_init(0);
     let ir = r#"
 @tls = thread_local global i64 0
 define i64 @bump() {
@@ -465,7 +465,7 @@ define i64 @bump() {
     engine
         .define_absolute(&[(
             "__emutls_get_address",
-            codonrt::emutls::__emutls_get_address as *const () as usize as u64,
+            typhonrt::emutls::__emutls_get_address as *const () as usize as u64,
         )])
         .expect("define");
     engine.add_module(&module).expect("add module");

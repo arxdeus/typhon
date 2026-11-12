@@ -1,19 +1,19 @@
 [package]
 name = "typhon-runtime"
-description = "Codon runtime library libcodonrt (port of codon/runtime/**): GC allocation, exceptions/personality, I/O, strings, regex, numpy kernels"
+description = "Codon runtime library libtyphonrt (port of codon/runtime/**): GC allocation, exceptions/personality, I/O, strings, regex, numpy kernels"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 build = "build.rs"
 
 [lib]
-name = "codonrt"
+name = "typhonrt"
 crate-type = ["rlib", "staticlib", "cdylib"]
 
 [features]
 default = ["omp-rust", "blas"]
 # OpenMP runtime ABI (__kmpc_* / omp_* / __kmpc_set_gc_callbacks) from the Rust
-# typhon-omp crate, linked into and exported from libcodonrt.
+# typhon-omp crate, linked into and exported from libtyphonrt.
 omp-rust = ["dep:typhon-omp"]
 # Fallback: link the external GC-patched LLVM libomp instead (do not combine with omp-rust).
 openmp-libomp = []

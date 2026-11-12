@@ -1,4 +1,4 @@
-//! Locating and loading the runtime library (`libcodonrt`) for JIT execution.
+//! Locating and loading the runtime library (`libtyphonrt`) for JIT execution.
 
 use std::path::{Path, PathBuf};
 
@@ -7,11 +7,11 @@ use typhon_llvm::GcRootCallbacks;
 
 /// Platform file name of the runtime dylib.
 pub const RUNTIME_DYLIB: &str = if cfg!(target_os = "macos") {
-    "libcodonrt.dylib"
+    "libtyphonrt.dylib"
 } else if cfg!(windows) {
-    "codonrt.dll"
+    "typhonrt.dll"
 } else {
-    "libcodonrt.so"
+    "libtyphonrt.so"
 };
 
 /// Candidate directories: `TYPHON_LIB_DIR`, next to the executable, `<exe>/../lib`,
@@ -37,7 +37,7 @@ pub fn runtime_dirs() -> Vec<PathBuf> {
     v
 }
 
-/// Path of `libcodonrt` if found.
+/// Path of `libtyphonrt` if found.
 pub fn find_runtime() -> Option<PathBuf> {
     runtime_dirs().into_iter().map(|d| d.join(RUNTIME_DYLIB)).find(|p| p.exists())
 }
@@ -126,7 +126,7 @@ pub struct Runtime {
     pub gc_roots: Option<GcRootCallbacks>,
 }
 
-/// Load `libcodonrt` into the process (C++: the `codon` binary links it directly).
+/// Load `libtyphonrt` into the process (C++: the `codon` binary links it directly).
 pub fn load_runtime() -> Result<Runtime> {
     let path = find_runtime().ok_or_else(|| {
         CompilerError::Io(format!(
@@ -139,7 +139,7 @@ pub fn load_runtime() -> Result<Runtime> {
     let remove = dlsym_global("seq_gc_remove_roots");
     let gc_roots = match (add, remove) {
         (Some(a), Some(r)) => Some(GcRootCallbacks {
-            // SAFETY: both are `extern "C" fn(*mut c_void, *mut c_void)` in libcodonrt.
+            // SAFETY: both are `extern "C" fn(*mut c_void, *mut c_void)` in libtyphonrt.
             add_roots: unsafe { std::mem::transmute::<usize, unsafe extern "C" fn(*mut libc::c_void, *mut libc::c_void)>(a) },
             remove_roots: unsafe { std::mem::transmute::<usize, unsafe extern "C" fn(*mut libc::c_void, *mut libc::c_void)>(r) },
         }),

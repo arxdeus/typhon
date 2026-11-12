@@ -347,7 +347,7 @@ fn update_loop_metadata(ctx: llvm_sys::prelude::LLVMContextRef, identifier: V, s
     let mut disabled = false;
     for &op in ops.iter().skip(1) {
         let n = md_name_of(op);
-        protected_loop |= n == "codon.coro.unroll";
+        protected_loop |= n == "typhon.coro.unroll";
         disabled |= n == "llvm.loop.unroll.disable";
     }
     if (suspends && disabled) || (!suspends && !protected_loop) {
@@ -356,12 +356,12 @@ fn update_loop_metadata(ctx: llvm_sys::prelude::LLVMContextRef, identifier: V, s
     let mut md: Vec<LLVMMetadataRef> = Vec::new();
     for &op in ops.iter().skip(1) {
         let n = md_name_of(op);
-        if n != "codon.coro.unroll" && n != "llvm.loop.unroll.disable" {
+        if n != "typhon.coro.unroll" && n != "llvm.loop.unroll.disable" {
             md.push(unsafe { LLVMValueAsMetadata(op) });
         }
     }
     if suspends {
-        for name in ["codon.coro.unroll", "llvm.loop.unroll.disable"] {
+        for name in ["typhon.coro.unroll", "llvm.loop.unroll.disable"] {
             unsafe {
                 let s = LLVMMDStringInContext2(ctx, name.as_ptr() as *const _, name.len());
                 let mut a = [s];
@@ -469,7 +469,7 @@ pub fn coro_resume_inliner_mark(module: llvm_sys::prelude::LLVMModuleRef) -> Vec
             let Some(callee) = ffi::called_function(i) else { continue };
             if callee != function
                 && ffi::has_local_linkage(callee)
-                && ffi::fn_has_string_attr(callee, "codon.generator")
+                && ffi::fn_has_string_attr(callee, "typhon.generator")
                 && ffi::name(callee).ends_with(".resume")
                 && ffi::num_args(i) == 1
                 && !ffi::call_has_fn_attr(i, "noinline")

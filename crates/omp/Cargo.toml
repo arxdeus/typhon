@@ -7,7 +7,7 @@ license.workspace = true
 build = "build.rs"
 
 [lib]
-# rlib: linked into libcodonrt; cdylib: drop-in `libomp.dylib` for oracle runs.
+# rlib: linked into libtyphonrt; cdylib: drop-in `libomp.dylib` for oracle runs.
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]

@@ -17,5 +17,5 @@ typhon-common.workspace = true
 typhon-compiler.workspace = true
 typhon-llvm.workspace = true
 typhon-ir.workspace = true
-# PORT-NOTE: libcodonrt is loaded at run time (dlopen) / linked by `build -exe`; it is
+# PORT-NOTE: libtyphonrt is loaded at run time (dlopen) / linked by `build -exe`; it is
 # built by `cargo build` (default-members) into target/<profile>, next to `typhon`.

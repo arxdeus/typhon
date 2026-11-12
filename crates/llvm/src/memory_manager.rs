@@ -276,7 +276,7 @@ pub(crate) extern "C" fn finalize(
 /// PORT-NOTE: works around an RTDyld bug (absent in C++, which uses JITLink).
 /// `RuntimeDyldMachOAArch64` handles `ARM64_RELOC_POINTER_TO_GOT` by zeroing the
 /// target offset before creating the GOT stub. Local symbols (e.g. the private
-/// `codon.typeidx.*` globals referenced from the LSDA type table) resolve to
+/// `typhon.typeidx.*` globals referenced from the LSDA type table) resolve to
 /// section+offset, so every such GOT entry points at the *section base*, and all
 /// of them share one stub. Typed `except` clauses then read a wrong type index
 /// (search phase matched, cleanup phase did not -> libunwind abort).

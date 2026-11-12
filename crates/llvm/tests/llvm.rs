@@ -237,7 +237,7 @@ exit:
     assert!(passes::coro_unroll_control(f.as_value_ref()));
     m.verify().unwrap();
     let hints = first_loop_hints(&m, "gen").expect("loop id");
-    assert!(hints.contains(&"codon.coro.unroll".to_string()));
+    assert!(hints.contains(&"typhon.coro.unroll".to_string()));
     assert!(hints.contains(&"llvm.loop.unroll.disable".to_string()));
     // Second run is a no-op.
     assert!(!passes::coro_unroll_control(f.as_value_ref()));
@@ -335,7 +335,7 @@ fn respects_resume_noinline_attributes() {
     for callee_noinline in [false, true] {
         for call_noinline in [false, true] {
             let code = format!(
-                "define internal void @values.resume(ptr nocapture %frame) \"codon.generator\" {} {{
+                "define internal void @values.resume(ptr nocapture %frame) \"typhon.generator\" {} {{
 entry:
   %value = load i64, ptr %frame
   %updated = add i64 %value, 1
@@ -642,16 +642,16 @@ fn gpu_patches_ptx_without_kernels() {
     let m = parse(
         &ctx,
         r#"
-declare ptr @__codon_ptx__()
+declare ptr @__typhon_ptx__()
 define ptr @f() {
-  %p = call ptr @__codon_ptx__()
+  %p = call ptr @__typhon_ptx__()
   ret ptr %p
 }
 "#,
     );
     let g = typhon_llvm::gpu::prepare_gpu_module(&m, &opts()).unwrap();
     assert!(g.is_none());
-    assert!(m.get_function("__codon_ptx__").is_none());
+    assert!(m.get_function("__typhon_ptx__").is_none());
     m.verify().unwrap();
 }
 
@@ -663,7 +663,7 @@ fn gpu_generates_ptx_for_kernel() {
     let m = parse(
         &ctx,
         r#"
-declare ptr @__codon_ptx__()
+declare ptr @__typhon_ptx__()
 declare double @llvm.sqrt.f64(double)
 define {} @kern(ptr %p) "kernel" {
   %v = load double, ptr %p
@@ -672,7 +672,7 @@ define {} @kern(ptr %p) "kernel" {
   ret {} zeroinitializer
 }
 define ptr @host() {
-  %p = call ptr @__codon_ptx__()
+  %p = call ptr @__typhon_ptx__()
   ret ptr %p
 }
 "#,

@@ -4,7 +4,7 @@
 //! PORT-NOTE: `ImportsFromIRPassRunBeforeUserCode` ran the module in-process with
 //! `options->capture`. Here the module is linked into an executable (same pipeline as
 //! `typhon build -exe`) and its stdout is compared, avoiding a second copy of
-//! libcodonrt inside the test process.
+//! libtyphonrt inside the test process.
 
 use std::collections::HashMap;
 
@@ -100,7 +100,7 @@ fn imports_from_ir_pass_run_before_user_code() {
         let mut v = c.codegen(&ctx).expect("codegen");
         let exe = dir.path().join(format!("parse_code_{debug}"));
         let exe_s = exe.to_string_lossy().into_owned();
-        // argv0 = this test binary: libcodonrt is found next to it (target/<profile>/deps/..).
+        // argv0 = this test binary: libtyphonrt is found next to it (target/<profile>/deps/..).
         let argv0 = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().join("typhon");
         v.write_to_executable(&exe_s, &argv0.to_string_lossy(), false, &[], "").expect("link");
         let out = std::process::Command::new(&exe).output().expect("run");

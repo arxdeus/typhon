@@ -3,8 +3,8 @@
 
 Usage:
   memory.py [--typhon-dir DIR] [--label L] [--runs 3] [--cpython] [names...]
-DIR must hold `typhon` and `libcodonrt.dylib` (default: target/release).
-Built Typhon exes are retargeted to @rpath/libcodonrt.dylib with rpath = DIR,
+DIR must hold `typhon` and `libtyphonrt.dylib` (default: target/release).
+Built Typhon exes are retargeted to @rpath/libtyphonrt.dylib with rpath = DIR,
 so they use exactly that dylib. Metrics from `/usr/bin/time -l`.
 Output: results/memory-<date>[-label].{json,md}
 """
@@ -43,9 +43,9 @@ def build(backend, name, src, tdir):
         raise RuntimeError(f"build {backend}/{name}: {p.stderr[-1500:]}")
     if backend == "typhon":
         for l in sh(["otool", "-L", str(exe)]).stdout.splitlines()[1:]:
-            m = re.match(r"\s*(\S*libcodonrt\.dylib)", l)
-            if m and m.group(1) != "@rpath/libcodonrt.dylib":
-                sh(["install_name_tool", "-change", m.group(1), "@rpath/libcodonrt.dylib", str(exe)])
+            m = re.match(r"\s*(\S*libtyphonrt\.dylib)", l)
+            if m and m.group(1) != "@rpath/libtyphonrt.dylib":
+                sh(["install_name_tool", "-change", m.group(1), "@rpath/libtyphonrt.dylib", str(exe)])
         rp = sh(["otool", "-l", str(exe)]).stdout
         for old in re.findall(r"path (\S+) \(offset", rp):
             if old != str(Path(tdir).resolve()):
