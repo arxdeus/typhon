@@ -18,11 +18,20 @@ class PCA:
     n_components_: int
     noise_variance_: float
     n_samples_: int
+    random_state: Optional[int]
+    iterated_power: int
+    n_oversamples: int
+    power_iteration_normalizer: str
 
     def __init__(self, n_components: Optional[int] = None, *, copy: bool = True,
                  whiten: bool = False, svd_solver: str = "auto", tol: float = 0.0,
-                 iterated_power = "auto", random_state = None):
+                 iterated_power = "auto", n_oversamples: int = 10,
+                 power_iteration_normalizer: str = "auto", random_state: Optional[int] = None):
         self.n_components = n_components
+        self.random_state = random_state
+        self.iterated_power = -1 if isinstance(iterated_power, str) else iterated_power
+        self.n_oversamples = n_oversamples
+        self.power_iteration_normalizer = power_iteration_normalizer
         self.whiten = whiten
         self.svd_solver = svd_solver
         self.components_ = np.empty((0, 0))
@@ -46,8 +55,10 @@ class PCA:
                 solver = "covariance_eigh"
             elif max(n, p) <= 500:
                 solver = "full"
+            elif 1 <= k < 0.8 * min(n, p):
+                solver = "randomized"
             else:
-                raise NotImplementedError("PCA: randomized solver is not ported; pass svd_solver='full'")
+                solver = "full"
         self.mean_ = np.mean(Xa, axis=0)
         Vt = np.empty((0, 0))
         S = np.empty(0)
@@ -71,6 +82,27 @@ class PCA:
             ev = w
             S = np.sqrt(w * float(n - 1))
             Vt = np.ascontiguousarray(V.T)
+        elif solver == "randomized":
+            from ._extmath import check_random_state, randomized_svd, svd_flip_v
+            if not 1 <= k <= min(n, p):
+                raise ValueError(f"n_components={k} must be between 1 and min(n_samples, n_features)")
+            Xc = Xa - self.mean_
+            U, S0, Vt0 = randomized_svd(Xc, k, check_random_state(self.random_state),
+                                        n_oversamples=self.n_oversamples, n_iter=self.iterated_power,
+                                        normalizer=self.power_iteration_normalizer, flip_sign=False)
+            svd_flip_v(U, Vt0)
+            total_var = float(np.sum(Xc * Xc)) / float(n - 1)
+            self.n_samples_ = n
+            self.n_components_ = k
+            self.components_ = Vt0
+            self.explained_variance_ = S0 ** 2 / float(n - 1)
+            self.explained_variance_ratio_ = self.explained_variance_ / total_var
+            self.singular_values_ = S0
+            if k < min(p, n):
+                self.noise_variance_ = (total_var - float(np.sum(self.explained_variance_))) / float(min(p, n) - k)
+            else:
+                self.noise_variance_ = 0.0
+            return self
         else:
             raise NotImplementedError(f"PCA svd_solver={solver}")
         # svd_flip(u_based_decision=False): largest |v| in each row positive
@@ -111,6 +143,49 @@ class PCA:
         if self.whiten:
             return (Xa * np.sqrt(self.explained_variance_)) @ self.components_ + self.mean_
         return Xa @ self.components_ + self.mean_
+
+    def get_covariance(self):
+        C = self.components_
+        ev = self.explained_variance_
+        if self.whiten:
+            C = C * np.sqrt(ev[:, None])
+        d = np.where(ev > self.noise_variance_, ev - self.noise_variance_, 0.0)
+        cov = (C.T * d) @ C
+        for i in range(cov.shape[0]):
+            cov[i, i] += self.noise_variance_
+        return cov
+
+    def get_precision(self):
+        nf = self.components_.shape[1]
+        if self.n_components_ == 0:
+            return np.eye(nf) / self.noise_variance_
+        if self.noise_variance_ == 0.0:
+            return sl.inv(self.get_covariance())
+        C = self.components_
+        ev = self.explained_variance_
+        if self.whiten:
+            C = C * np.sqrt(ev[:, None])
+        d = np.where(ev > self.noise_variance_, ev - self.noise_variance_, 0.0)
+        P = (C @ C.T) / self.noise_variance_
+        for i in range(P.shape[0]):
+            P[i, i] += 1.0 / d[i]
+        P = C.T @ sl.inv(P) @ C
+        P /= -(self.noise_variance_ ** 2)
+        for i in range(nf):
+            P[i, i] += 1.0 / self.noise_variance_
+        return P
+
+    def score_samples(self, X):
+        from ._extmath import fast_logdet
+        Xr = np.asarray(X, dtype=float) - self.mean_
+        nf = Xr.shape[1]
+        P = self.get_precision()
+        ll = -0.5 * np.sum(Xr * (Xr @ P), axis=1)
+        ll -= 0.5 * (nf * np.log(2.0 * np.pi) - fast_logdet(P))
+        return ll
+
+    def score(self, X, y = None) -> float:
+        return float(np.mean(self.score_samples(X)))
 
 # ------------------------------------------------------------ FastICA
 
@@ -291,3 +366,8 @@ class FastICA:
         if self.whiten:
             out += self.mean_
         return out
+
+from ._truncated_svd import TruncatedSVD
+from ._nmf import NMF
+from ._kernel_pca import KernelPCA
+from ._incremental_fa import IncrementalPCA, FactorAnalysis
