@@ -1,0 +1,355 @@
+{
+ "uptime_start": "11:17  up 2 days, 16:19, 8 users, load averages: 1.94 4.91 5.12",
+ "typhon_dir": "/Users/mind/.jcode/scratch/memaudit/baseline",
+ "runs": 3,
+ "rows": {
+  "empty": {
+   "codon": {
+    "rss": 7585792,
+    "footprint": 2507136,
+    "rss_all": [
+     7585792,
+     7585792,
+     7585792
+    ]
+   },
+   "typhon": {
+    "rss": 7012352,
+    "footprint": 2523520,
+    "rss_all": [
+     7012352,
+     7012352,
+     7012352
+    ]
+   },
+   "cpython": {
+    "rss": 8536064,
+    "footprint": 4931872,
+    "rss_all": [
+     8470528,
+     8536064,
+     8634368
+    ]
+   },
+   "uptime": "11:17  up 2 days, 16:19, 8 users, load averages: 1.94 4.91 5.12"
+  },
+  "hello": {
+   "codon": {
+    "rss": 7602176,
+    "footprint": 2523520,
+    "rss_all": [
+     7602176,
+     7602176,
+     7602176
+    ]
+   },
+   "typhon": {
+    "rss": 7077888,
+    "footprint": 2556288,
+    "rss_all": [
+     7077888,
+     7077888,
+     7077888
+    ]
+   },
+   "cpython": {
+    "rss": 8536064,
+    "footprint": 4948280,
+    "rss_all": [
+     8536064,
+     8503296,
+     8650752
+    ]
+   },
+   "uptime": "11:17  up 2 days, 16:19, 8 users, load averages: 2.03 4.88 5.11"
+  },
+  "binary_trees": {
+   "cpython": {
+    "error": "run ['python3', '/Users/mind/orca/codon/typhon/bench/src/binary_trees.py', '17'] rc=1:  'Node' is not defined\n        0.02 real         0.01 user         0.00 sys\n            10387456  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared d"
+   },
+   "codon": {
+    "rss": 47661056,
+    "footprint": 40255944,
+    "rss_all": [
+     47693824,
+     47644672,
+     47661056
+    ]
+   },
+   "typhon": {
+    "rss": 59621376,
+    "footprint": 52773320,
+    "rss_all": [
+     59621376,
+     59621376,
+     59621376
+    ]
+   },
+   "uptime": "11:17  up 2 days, 16:19, 8 users, load averages: 1.95 4.81 5.08"
+  },
+  "chaos": {
+   "codon": {
+    "rss": 59310080,
+    "footprint": 51823048,
+    "rss_all": [
+     59342848,
+     59310080,
+     59310080
+    ]
+   },
+   "typhon": {
+    "rss": 150454272,
+    "footprint": 143557136,
+    "rss_all": [
+     150487040,
+     150454272,
+     150454272
+    ]
+   },
+   "cpython": {
+    "rss": 45383680,
+    "footprint": 41517392,
+    "rss_all": [
+     45383680,
+     45367296,
+     45400064
+    ]
+   },
+   "uptime": "11:18  up 2 days, 16:20, 8 users, load averages: 2.25 4.32 4.88"
+  },
+  "fannkuch": {
+   "codon": {
+    "rss": 7733248,
+    "footprint": 2605440,
+    "rss_all": [
+     7749632,
+     7733248,
+     7733248
+    ]
+   },
+   "typhon": {
+    "rss": 7208960,
+    "footprint": 2621848,
+    "rss_all": [
+     7225344,
+     7208960,
+     7208960
+    ]
+   },
+   "cpython": {
+    "rss": 8978432,
+    "footprint": 5259552,
+    "rss_all": [
+     8994816,
+     8978432,
+     8781824
+    ]
+   },
+   "uptime": "11:19  up 2 days, 16:22, 8 users, load averages: 2.45 3.86 4.64"
+  },
+  "float": {
+   "codon": {
+    "rss": 517357568,
+    "footprint": 510198576,
+    "rss_all": [
+     517406720,
+     517357568,
+     517357568
+    ]
+   },
+   "typhon": {
+    "rss": 516833280,
+    "footprint": 510214960,
+    "rss_all": [
+     516849664,
+     516833280,
+     516833280
+    ]
+   },
+   "cpython": {
+    "rss": 2770288640,
+    "footprint": 2767915192,
+    "rss_all": [
+     2770288640,
+     2770452480,
+     2770288640
+    ]
+   },
+   "uptime": "11:20  up 2 days, 16:22, 8 users, load averages: 2.92 3.76 4.56"
+  },
+  "go": {
+   "cpython": {
+    "error": "run ['python3', '/Users/mind/orca/codon/typhon/bench/src/go.py'] rc=1: xError: invalid syntax\n        0.02 real         0.01 user         0.00 sys\n             8617984  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n       "
+   },
+   "codon": {
+    "rss": 13729792,
+    "footprint": 6341040,
+    "rss_all": [
+     13713408,
+     13729792,
+     13729792
+    ]
+   },
+   "typhon": {
+    "rss": 13205504,
+    "footprint": 6324632,
+    "rss_all": [
+     13205504,
+     13189120,
+     13205504
+    ]
+   },
+   "uptime": "11:20  up 2 days, 16:23, 8 users, load averages: 3.29 3.82 4.57"
+  },
+  "mandelbrot": {
+   "codon": {
+    "rss": 9846784,
+    "footprint": 4702592,
+    "rss_all": [
+     9846784,
+     9830400,
+     9846784
+    ]
+   },
+   "typhon": {
+    "rss": 9306112,
+    "footprint": 4702592,
+    "rss_all": [
+     9306112,
+     9306112,
+     9306112
+    ]
+   },
+   "cpython": {
+    "rss": 13156352,
+    "footprint": 9503008,
+    "rss_all": [
+     12910592,
+     13156352,
+     13156352
+    ]
+   },
+   "uptime": "11:21  up 2 days, 16:23, 8 users, load averages: 3.12 3.71 4.49"
+  },
+  "nbody": {
+   "codon": {
+    "rss": 7766016,
+    "footprint": 2605440,
+    "rss_all": [
+     7766016,
+     7766016,
+     7766016
+    ]
+   },
+   "typhon": {
+    "rss": 7241728,
+    "footprint": 2638232,
+    "rss_all": [
+     7241728,
+     7241728,
+     7241728
+    ]
+   },
+   "cpython": {
+    "rss": 8962048,
+    "footprint": 5308704,
+    "rss_all": [
+     8962048,
+     9158656,
+     8962048
+    ]
+   },
+   "uptime": "11:22  up 2 days, 16:24, 8 users, load averages: 3.41 3.68 4.42"
+  },
+  "primes": {
+   "codon": {
+    "rss": 7716864,
+    "footprint": 2572672,
+    "rss_all": [
+     7716864,
+     7716864,
+     7716864
+    ]
+   },
+   "typhon": {
+    "rss": 7192576,
+    "footprint": 2605440,
+    "rss_all": [
+     7208960,
+     7192576,
+     7192576
+    ]
+   },
+   "cpython": {
+    "rss": 8585216,
+    "footprint": 4948280,
+    "rss_all": [
+     8568832,
+     8765440,
+     8585216
+    ]
+   },
+   "uptime": "11:23  up 2 days, 16:25, 8 users, load averages: 2.77 3.46 4.30"
+  },
+  "set_partition": {
+   "codon": {
+    "rss": 12124160,
+    "footprint": 4686208,
+    "rss_all": [
+     12140544,
+     12124160,
+     12124160
+    ]
+   },
+   "typhon": {
+    "rss": 11583488,
+    "footprint": 4669824,
+    "rss_all": [
+     11583488,
+     11583488,
+     11567104
+    ]
+   },
+   "cpython": {
+    "rss": 8716288,
+    "footprint": 5062944,
+    "rss_all": [
+     8716288,
+     8863744,
+     8667136
+    ]
+   },
+   "uptime": "11:24  up 2 days, 16:26, 8 users, load averages: 2.85 3.38 4.23"
+  },
+  "spectral_norm": {
+   "codon": {
+    "rss": 13746176,
+    "footprint": 6324632,
+    "rss_all": [
+     13746176,
+     13746176,
+     13729792
+    ]
+   },
+   "typhon": {
+    "rss": 16269312,
+    "footprint": 9388464,
+    "rss_all": [
+     16269312,
+     16269312,
+     16252928
+    ]
+   },
+   "cpython": {
+    "rss": 8749056,
+    "footprint": 5095712,
+    "rss_all": [
+     8749056,
+     8732672,
+     8749056
+    ]
+   },
+   "uptime": "11:24  up 2 days, 16:27, 8 users, load averages: 2.92 3.29 4.14"
+  }
+ }
+}
