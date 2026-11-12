@@ -78,7 +78,7 @@ pub fn emsg(e: ErrorKind, args: &[&dyn Display]) -> String {
         CALL_NAME_STAR => f("cannot use starred expression here"),
         CALL_ELLIPSIS => f("multiple ellipsis expressions"),
         IMPORT_IDENTIFIER => f("expected identifier"),
-        IMPORT_FN => f("function signatures only allowed when importing C or Python functions"),
+        IMPORT_FN => f("function signatures only allowed when importing C functions"),
         IMPORT_STAR => f("import * only allowed at module level"),
         FN_LLVM => f("return types required for LLVM and C functions"),
         FN_LAST_KWARG => f("kwargs must be the last argument"),

@@ -70,7 +70,7 @@ typedef struct {
   int64_t n_params; const int64_t *params; int64_t size;
   _Bool reference, inline_value; int64_t exception_offset, system_exit_offset;
 } type_info;
-typedef struct { seq_str msg, func, file; int64_t line, col; void *python_type, *cause; } exc_header;
+typedef struct { seq_str msg, func, file; int64_t line, col; void *cause; } exc_header;
 typedef struct { const type_info *info; exc_header hdr; } exc_obj;
 static seq_str S(const char *s) { seq_str r = {(char *)s, (int64_t)strlen(s)}; return r; }
 static void *fake_exception(const char *ty, const char *msg) {

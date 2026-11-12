@@ -1,21 +1,16 @@
 //! Part 4: `wrapExpr`,
-//! `canWrapExpr`, `unpackTupleTypes`, `extractNamedTuple`, `cythonize*`.
+//! `canWrapExpr`, `unpackTupleTypes`, `extractNamedTuple`.
 
 use std::rc::Rc;
 
 use typhon_common::mangle::{self, stdlib};
 use typhon_common::{ErrorKind, Result};
-use typhon_ir::pyext::{PyFunction, PyFunctionType, PyGetSet, PyType};
 
 use super::{TypecheckVisitor, WrapFn};
-use crate::ast::{Attr, CallArg, CallExpr, DotExpr, EllipsisExpr, EllipsisType, FunctionStmt, IdExpr, IndexExpr, InstantiateExpr, IntExpr, Param, ParamStatus, ReturnStmt, StarExpr, StmtExpr, SuiteStmt};
+use crate::ast::{CallArg, CallExpr, DotExpr, EllipsisExpr, EllipsisType, FunctionStmt, IdExpr, IndexExpr, InstantiateExpr, IntExpr, Param, ParamStatus, ReturnStmt, StarExpr, StmtExpr, SuiteStmt};
 use crate::cache::fn_optional_unwrap;
 use crate::ids::{ExprId, TypeId};
 use crate::types::LiteralKind;
-
-const CYTHON_MODULE: &str = "std.internal.python";
-const CYTHON_WRAP: &str = "_PyWrap";
-const CYTHON_ITER: &str = "_PyWrap.IterWrap";
 
 /// Result of `canWrapExpr`: `(canWrap, newType, wrapFn)`.
 pub type CanWrap = (bool, Option<TypeId>, Option<WrapFn>);
@@ -109,7 +104,7 @@ impl<'a> TypecheckVisitor<'a> {
         }
         if xc.is_none() && ec.is_some_and(|e| {
             let n = types.class_name(e).unwrap();
-            n == st.generator.as_str() || n == "float" || n == st.optional.as_str() || n == "pyobj"
+            n == st.generator.as_str() || n == "float" || n == st.optional.as_str()
         }) {
             return Ok((false, None, None)); // argument type not yet known.
         }
@@ -215,31 +210,6 @@ impl<'a> TypecheckVisitor<'a> {
                 };
                 let u = tv.id_n(&fn_optional_unwrap());
                 Ok(tv.call_n(u, vec![x]))
-            }));
-        } else if is(ec, "pyobj") && !is(xc, &ecn) {
-            // wrap to pyobj
-            if self.find_method(xc, "__to_py__")?.is_empty() {
-                return Ok((false, None, None));
-            }
-            ty = Some(self.instantiate_type(ec.unwrap(), None)?);
-            f = Some(Box::new(|tv, e| {
-                let d = tv.dot_n(e, "__to_py__");
-                let c = tv.call_n(d, vec![]);
-                let p = tv.id_n("pyobj");
-                Ok(tv.call_n(p, vec![c]))
-            }));
-        } else if allow_unwrap && ec.is_some() && is(xc, "pyobj") && !is(xc, &ecn) {
-            // unwrap pyobj
-            if self.find_method(ec, "__from_py__")?.is_empty() {
-                return Ok((false, None, None));
-            }
-            ty = Some(self.instantiate_type(ec.unwrap(), None)?);
-            let texpr = self.id_n(&ecn);
-            self.set_type(texpr, expected);
-            f = Some(Box::new(move |tv, e| {
-                let d = tv.dot_n(texpr, "__from_py__");
-                let p = tv.dot_n(e, "p");
-                Ok(tv.call_n(d, vec![p]))
             }));
         } else if is(ec, &st.callable)
             && xc.is_some_and(|x| types.get_partial(x).is_some() || types.get_func(x).is_some() || types.is(x, &st.function))
@@ -476,278 +446,5 @@ impl<'a> TypecheckVisitor<'a> {
             ret.push((n, self.n_expr(IndexExpr { expr: Some(d), index: Some(ix) })));
         }
         ret
-    }
-
-    /// `cythonizeClass(name)`.
-    pub fn cythonize_class(&mut self, name: &str) -> Result<PyType> {
-        let empty = PyType::default();
-        let Some(c) = self.cache.classes.get(name).cloned() else { return Ok(empty) };
-        if !self.cache.imports.get(&c.module).is_some_and(|i| i.name.is_empty()) {
-            return Ok(empty);
-        }
-        if !c.methods.contains_key("__to_py__") || !c.methods.contains_key("__from_py__") {
-            return Ok(empty);
-        }
-        typhon_common::log_flag!(USER, "[py] Cythonizing {} ({})", self.get_user_facing_name(name), name);
-        let cast = c.ast.unwrap();
-        let mut py = PyType { name: self.get_unmangled_name(name), doc: self.cache.ast.class_docstr(cast), ..Default::default() };
-        let tc = self.extract_type(self.force_find(name).borrow().ty());
-        if !self.cache.types.can_realize(tc) {
-            let src = self.cache.ast[cast].src;
-            typhon_common::bail_e!(ErrorKind::CUSTOM, src, "cannot realize '{}' for Python export", self.get_unmangled_name(name));
-        }
-        let tc = self.realize(tc)?.expect("cannot realize");
-        let wm = |m: &str| mangle::mangled_method(CYTHON_MODULE, CYTHON_WRAP, m, 0, 0);
-        // 1. Replace to_py / from_py with _PyWrap.wrap_to_py/from_py
-        for (m, w, extra) in [("__to_py__", "wrap_to_py", false), ("__from_py__", "wrap_from_py", true)] {
-            let fnn = self.get_overloads(&c.methods[m])[0].clone();
-            let fna = self.cache.functions[&fnn].ast.unwrap();
-            let a0 = self.cache.ast[fna].kind.as_function().unwrap().items[0].name.clone();
-            let wi = self.id_n(&wm(w));
-            let ai = self.id_n(&a0);
-            let mut args = vec![ai];
-            if extra {
-                args.push(self.id_n(name));
-            }
-            let call = self.call_n(wi, args);
-            let r = self.n_stmt(ReturnStmt { expr: Some(call) });
-            let s = self.cache.ast.wrap_suite(Some(r));
-            self.cache.ast[fna].kind.as_function_mut().unwrap().suite = s;
-        }
-        for n in ["__from_py__", "__to_py__"] {
-            let fnn = self.get_overloads(&c.methods[n])[0].clone();
-            // Note: re-pointing the old IR function body at the new realization is done
-            // by the translate lane (needs IR builders); here the realization is refreshed.
-            let fty = self.cache.functions[&fnn].ty.unwrap();
-            self.cache.functions.get_mut(&fnn).unwrap().realizations.clear();
-            self.realize(fty)?.expect("cannot re-realize");
-        }
-        if let Some(pf) = self.cache.functions.get(&wm("py_type")) {
-            let mut rs: Vec<_> = pf.realizations.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-            rs.sort_by(|a, b| a.0.cmp(&b.0));
-            for (_, r) in rs {
-                let rt = r.borrow().ty.unwrap();
-                let types = self.types();
-                let g = types.func_generics(rt)[0].ty();
-                if types.unify(g, tc, None, self)? >= 0 {
-                    py.type_ptr_hook = r.borrow().ir;
-                    break;
-                }
-            }
-        }
-        // 2. Handle methods
-        let mut methods: Vec<_> = c.methods.iter().map(|(a, b)| (a.clone(), b.clone())).collect();
-        methods.sort();
-        for (n, ofnn) in methods {
-            let ov = self.get_overloads(&ofnn);
-            let canonical = ov.last().unwrap().clone();
-            let fna = self.cache.functions[&canonical].ast.unwrap();
-            if ov.len() == 1 && self.cache.ast[fna].attrs.has(Attr::AutoGenerated) {
-                continue;
-            }
-            let is_method = self.cache.ast[fna].attrs.has(Attr::Method);
-            let is_property = self.cache.ast[fna].attrs.has(Attr::Property);
-            let mut call = wm("wrap_multiple");
-            let mut is_magic = false;
-            if n.starts_with("__") && n.ends_with("__") && n.len() > 4 {
-                let mut m = n[2..n.len() - 2].to_string();
-                if m == "new" && self.cache.ast[cast].attrs.has(Attr::Tuple) {
-                    m = "init".into();
-                }
-                let wc = mangle::class(CYTHON_MODULE, CYTHON_WRAP);
-                if self.cache.classes.get(&wc).is_some_and(|c| c.methods.contains_key(&format!("wrap_magic_{m}"))) {
-                    call = wm(&format!("wrap_magic_{m}"));
-                    is_magic = true;
-                }
-            }
-            if is_property {
-                call = wm("wrap_get");
-            }
-            let mut generics = vec![tc];
-            if is_property {
-                generics.push(self.cache.types.new_str_static(self.get_unmangled_name(&canonical)));
-            } else if !is_magic {
-                generics.push(self.cache.types.new_str_static(n.clone()));
-                generics.push(self.cache.types.new_int_static(is_method as i64));
-            }
-            let cf = self.cache.functions[&call].ty.unwrap();
-            let Some(f) = self.realize_ir_func(cf, &generics)? else { continue };
-            typhon_common::log_flag!(USER, "[py] {} -> {} (method={}; property={})", n, call, is_method, is_property);
-            if is_property {
-                py.getset.push(PyGetSet { name: self.get_unmangled_name(&canonical), get: Some(f), ..Default::default() });
-                continue;
-            }
-            let slot: Option<&mut Option<typhon_ir::FuncId>> = match n.as_str() {
-                "__repr__" => Some(&mut py.repr),
-                "__add__" => Some(&mut py.add),
-                "__iadd__" => Some(&mut py.iadd),
-                "__sub__" => Some(&mut py.sub),
-                "__isub__" => Some(&mut py.isub),
-                "__mul__" => Some(&mut py.mul),
-                "__imul__" => Some(&mut py.imul),
-                "__mod__" => Some(&mut py.mod_),
-                "__imod__" => Some(&mut py.imod),
-                "__divmod__" => Some(&mut py.divmod),
-                "__pow__" => Some(&mut py.pow),
-                "__ipow__" => Some(&mut py.ipow),
-                "__neg__" => Some(&mut py.neg),
-                "__pos__" => Some(&mut py.pos),
-                "__abs__" => Some(&mut py.abs),
-                "__bool__" => Some(&mut py.bool_),
-                "__invert__" => Some(&mut py.invert),
-                "__lshift__" => Some(&mut py.lshift),
-                "__ilshift__" => Some(&mut py.ilshift),
-                "__rshift__" => Some(&mut py.rshift),
-                "__irshift__" => Some(&mut py.irshift),
-                "__and__" => Some(&mut py.and_),
-                "__iand__" => Some(&mut py.iand),
-                "__xor__" => Some(&mut py.xor_),
-                "__ixor__" => Some(&mut py.ixor),
-                "__or__" => Some(&mut py.or_),
-                "__ior__" => Some(&mut py.ior),
-                "__int__" => Some(&mut py.int_),
-                "__float__" => Some(&mut py.float_),
-                "__floordiv__" => Some(&mut py.floordiv),
-                "__ifloordiv__" => Some(&mut py.ifloordiv),
-                "__truediv__" => Some(&mut py.truediv),
-                "__itruediv__" => Some(&mut py.itruediv),
-                "__index__" => Some(&mut py.index),
-                "__matmul__" => Some(&mut py.matmul),
-                "__imatmul__" => Some(&mut py.imatmul),
-                "__len__" => Some(&mut py.len),
-                "__getitem__" => Some(&mut py.getitem),
-                "__setitem__" => Some(&mut py.setitem),
-                "__contains__" => Some(&mut py.contains),
-                "__hash__" => Some(&mut py.hash),
-                "__call__" => Some(&mut py.call),
-                "__str__" => Some(&mut py.str),
-                "__iter__" => Some(&mut py.iter),
-                "__del__" => Some(&mut py.del),
-                "__init__" => Some(&mut py.init),
-                "__new__" if self.cache.ast[cast].attrs.has(Attr::Tuple) => Some(&mut py.init),
-                _ => None,
-            };
-            match slot {
-                Some(s) => *s = Some(f),
-                None => py.methods.push(PyFunction {
-                    name: n.clone(),
-                    doc: self.cache.ast.function_docstr(fna),
-                    func: Some(f),
-                    ty: if is_method { PyFunctionType::Method } else { PyFunctionType::Class },
-                    // always use FASTCALL for now; works even for 0- or 1- arg methods
-                    nargs: 2,
-                    keywords: true,
-                    coexist: false,
-                }),
-            }
-        }
-        if py.methods.iter().any(|m| ["__lt__", "__le__", "__eq__", "__ne__", "__gt__", "__ge__"].contains(&m.name.as_str())) {
-            let cmp = self.force_find(&wm("wrap_cmp")).borrow().ty();
-            let cmp = self.cache.types.get_func(cmp).unwrap();
-            py.cmp = self.realize_ir_func(cmp, &[tc])?;
-        }
-        let c = self.cache.classes.get(name).unwrap().clone();
-        if c.realizations.len() != 1 {
-            let src = self.cache.ast[cast].src;
-            typhon_common::bail_e!(ErrorKind::CUSTOM, src, "cannot pythonize generic class '{}'", name);
-        }
-        let r = c.realizations.values().next().unwrap().clone();
-        py.ty = r.borrow().ir;
-        typhon_common::seqassert!(!self.cache.types.is(r.borrow().ty.unwrap(), &stdlib().tuple), "tuples not yet done");
-        let fields: Vec<String> = r.borrow().fields.iter().map(|f| f.0.clone()).collect();
-        for mn in fields {
-            let generics = vec![tc, self.cache.types.new_str_static(mn.clone())];
-            let g = self.cache.functions[&wm("wrap_get")].ty.unwrap();
-            let gf = self.realize_ir_func(g, &generics)?;
-            let sf = if !self.cache.ast[cast].attrs.has(Attr::Tuple) {
-                let s = self.cache.functions[&wm("wrap_set")].ty.unwrap();
-                self.realize_ir_func(s, &generics)?
-            } else {
-                None
-            };
-            py.getset.push(PyGetSet { name: mn.clone(), get: gf, set: sf, ..Default::default() });
-            typhon_common::log_flag!(USER, "[py] member -> {} . {}", name, mn);
-        }
-        Ok(py)
-    }
-
-    /// `cythonizeIterator(name)`.
-    pub fn cythonize_iterator(&mut self, name: &str) -> Result<PyType> {
-        typhon_common::log_flag!(USER, "[py] iterfn: {}", name);
-        let types = self.types();
-        let mut py = PyType { name: name.to_string(), ..Default::default() };
-        let cr = self.cache.classes[CYTHON_ITER].realizations[name].clone();
-        let tc = cr.borrow().ty.unwrap();
-        let wm = |m: &str| mangle::mangled_method(CYTHON_MODULE, CYTHON_WRAP, m, 0, 0);
-        if let Some(pf) = self.cache.functions.get(&wm("py_type")) {
-            let mut rs: Vec<_> = pf.realizations.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-            rs.sort_by(|a, b| a.0.cmp(&b.0));
-            for (_, r) in rs {
-                let rt = r.borrow().ty.unwrap();
-                if types.unify(self.extract_func_generic(rt, 0), tc, None, self)? >= 0 {
-                    py.type_ptr_hook = r.borrow().ir;
-                    break;
-                }
-            }
-        }
-        for n in ["_iter", "_iternext"] {
-            let m = self.cache.classes[CYTHON_ITER].methods[n].clone();
-            let fnn = self.get_overloads(&m)[0].clone();
-            let fty = self.cache.functions[&fnn].ty.unwrap();
-            let tcc = types.get_class(tc).unwrap();
-            let t = if n == "_iter" {
-                self.instantiate_type(fty, Some(tcc))?
-            } else {
-                let Some(ut) = types.get_class(self.extract_class_generic(tc, 0)) else { continue };
-                let Some(f) = self.find_best_method_types(ut, "__iter__", &[ut])? else { continue };
-                let fi = self.instantiate_type(f, Some(ut))?;
-                let Some(fnt) = self.realize(fi)? else { continue };
-                let t = self.instantiate_type(fty, Some(tcc))?;
-                let g = self.extract_func_generic(t, 0);
-                self.unify(g, types.func_ret(fnt))?;
-                t
-            };
-            if let Some(rtv) = self.realize(t)? {
-                let fname = types.func_name(rtv);
-                let rn = types.realized_name(rtv);
-                let ir = self.cache.functions[&fname].realizations[&rn].borrow().ir;
-                if n == "_iter" {
-                    py.iter = ir;
-                } else {
-                    py.iternext = ir;
-                }
-            }
-        }
-        py.ty = cr.borrow().ir;
-        Ok(py)
-    }
-
-    /// `cythonizeFunction(name)`.
-    pub fn cythonize_function(&mut self, name: &str) -> Result<PyFunction> {
-        let Some(f) = self.cache.functions.get(name).cloned() else { return Ok(PyFunction::default()) };
-        if f.is_toplevel {
-            let fname = mangle::mangled_method(CYTHON_MODULE, CYTHON_WRAP, "wrap_multiple", 0, 0);
-            let ast = f.ast.unwrap();
-            let fsn = self.cache.ast[ast].kind.as_function().unwrap().clone();
-            let generics = vec![
-                self.get_stdlib_type(&stdlib().none_type)?,
-                self.cache.types.new_str_static(fsn.name.clone()),
-                self.cache.types.new_int_static(0),
-            ];
-            let wf = self.cache.functions[&fname].ty.unwrap();
-            if let Some(ir) = self.realize_ir_func(wf, &generics)? {
-                typhon_common::log_flag!(USER, "[py] toplevel -> {} ({}): ({})", self.get_user_facing_name(name), name, self.cache.types.debug_string(f.ty.unwrap(), 2));
-                return Ok(PyFunction {
-                    name: self.get_unmangled_name(name),
-                    doc: self.cache.ast.function_docstr(ast),
-                    func: Some(ir),
-                    ty: PyFunctionType::Toplevel,
-                    nargs: fsn.items.len() as i32,
-                    keywords: true,
-                    coexist: false,
-                });
-            }
-        }
-        Ok(PyFunction::default())
     }
 }

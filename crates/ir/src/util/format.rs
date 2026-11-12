@@ -396,7 +396,6 @@ pub fn format_attribute(m: &Module, a: &crate::attribute::Attribute) -> String {
             let s: Vec<String> = mm.iter().map(|(k, v)| format!("{k}={v}")).collect();
             format!("({})", s.join(","))
         }
-        A::PythonWrapper(f) => format!("(pywrap {})", m.reference_string((*f).into())),
         A::TupleLiteral(v) => {
             let s: Vec<String> = v.iter().map(|x| format(m, (*x).into())).collect();
             format!("({})", s.join(","))

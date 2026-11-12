@@ -87,9 +87,6 @@ impl<'a> TypecheckVisitor<'a> {
             return Ok(Some(opt(self, coll)?));
         } else if cn.as_str() == st.optional && tn.as_str() != st.optional {
             return Ok(Some(opt(self, ti)?));
-        } else if !types.is(coll, "pyobj") && types.is(ti, "pyobj") {
-            // Rule: anything derives from pyobj
-            return Ok(Some(ti));
         } else if cn != tn {
             // Rule: subclass derives from its base class
             let mros = self.get_class_type(coll).mro.clone();

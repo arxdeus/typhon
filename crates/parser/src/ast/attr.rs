@@ -38,7 +38,6 @@ attrs_enum!(
     ParentClass,
     Bindings,
     LLVM,
-    Python,
     Atomic,
     Property,
     StaticMethod,
@@ -87,7 +86,6 @@ attrs_enum!(
     ExprDoNotRealize,
     ExprNoSpecial,
     ExprVirtual,
-    TryPyVar,
     LocalRenames,
     MaybeLiteral,
 );
@@ -270,7 +268,7 @@ mod tests {
     #[test]
     fn attr_values() {
         assert_eq!(Attr::Module as i32, 201);
-        assert_eq!(Attr::NoExtend as i32, 235);
+        assert_eq!(Attr::NoExtend as i32, 234);
         assert_eq!(Attr::MaybeLiteral as i32, 201 + Attr::ALL.len() as i32 - 1);
         assert_eq!(Attr::from_i32(203), Some(Attr::Bindings));
         let mut a = Attrs::new();

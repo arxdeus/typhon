@@ -135,7 +135,7 @@ StringList, KeyValue(KeyValueAttribute{attributes}), Member(BTreeMap<String,SrcI
 PythonWrapper(FuncId), Docstring, TupleLiteral(Vec<ValueId>), ListLiteral(Vec<LiteralElement>),
 SetLiteral(..), DictLiteral(Vec<KeyValuePair{key, value: Option}>), PartialFunction{name, args: Vec<Option<ValueId>>},
 ExactType(TypeId), Custom(Box<dyn CustomAttribute>)}`. Keys: `attr_id::{STRING_VALUE=101, INT_VALUE=102,
-STRING_LIST=103, KEY_VALUE=104, MEMBER=105, PYTHON_WRAPPER=106, SRC_INFO=107, DOCSTRING=108,
+STRING_LIST=103, KEY_VALUE=104, MEMBER=105, SRC_INFO=107, DOCSTRING=108,
 TUPLE_LITERAL=109, LIST_LITERAL=111, SET_LITERAL=111, DICT_LITERAL=112, PARTIAL_FUNCTION=113, EXACT_TYPE=114}`.
 `Attribute::id()`, `needs_clone()`, `format(m)`, typed accessors `as_key_value()` etc.
 
@@ -189,7 +189,7 @@ Other provided methods: `parent_series(m)`, `parents()`, `process_value`, `visit
 * `util::side_effect::{SideEffectStatus, NON_PURE_ATTR, PURE_ATTR, ...}`.
 * `util::context::CirContext<Frame>`.
 
-## Passes (`pass.rs`), schedule, rewrite, pyext
+## Passes (`pass.rs`), schedule, rewrite
 
 ```rust
 pub trait PassContext { fn analysis_result(&self, key: &str) -> Option<&dyn AnalysisResult>;
@@ -211,7 +211,6 @@ pub struct NullPassContext;   // no analyses, no options
 `dsl::{CustomValue, CustomType, CustomNode, CustomCategory}` (builders: `as_any()` for downcast in typhon-llvm).
 `CustomValue::ty(&self, m) -> Option<TypeId>` (`None` = none type), `matches`, `do_clone(cv, m)`, `format(m)`,
 `side_effect_status(local)`, used/replace hooks for values/types/vars.
-`pyext::{PyModule, PyFunction, PyFunctionType, PyMember, PyMemberType, PyGetSet, PyType}`.
 
 ## Series / helpers
 `m.series_push(s, v)`, `m.series_insert(s, idx, v)`, `m.try_catch_push(tc, handler, ty, var)`,

@@ -14,7 +14,6 @@ pub enum BuildKind {
     Assembly,
     Executable,
     Library,
-    PyExtension,
     Detect,
     Cir,
 }
@@ -30,7 +29,6 @@ pub struct Cli {
     pub pie: bool,
     pub build_kind: BuildKind,
     pub output: String,
-    pub py_module: String,
     pub relocation_model: String,
 }
 
@@ -64,7 +62,6 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
         pie: false,
         build_kind: BuildKind::Detect,
         output: String::new(),
-        py_module: String::new(),
         relocation_model: String::new(),
     };
     let mut march = String::new();
@@ -134,7 +131,6 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
             "auto-free" => o.autofree = parse_bool(val),
             "fast-math" => o.fastmath = parse_bool(val),
             "disable-native" => o.native = !parse_bool(val),
-            "auto-python" => o.autopy = parse_bool(val),
             "disable-opt" => {
                 let v = take(val);
                 o.disabled.push(v)
@@ -168,14 +164,12 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
             "linker-flags" if build => cli.lflags = take(val),
             "pie" if build => cli.pie = parse_bool(val),
             "o" if build => cli.output = take(val),
-            "module" if build => cli.py_module = take(val),
             "llvm" if build => cli.build_kind = BuildKind::Llvm,
             "bc" if build => cli.build_kind = BuildKind::Bitcode,
             "obj" if build => cli.build_kind = BuildKind::Object,
             "asm" | "assembly" if build => cli.build_kind = BuildKind::Assembly,
             "exe" if build => cli.build_kind = BuildKind::Executable,
             "lib" if build => cli.build_kind = BuildKind::Library,
-            "pyext" if build => cli.build_kind = BuildKind::PyExtension,
             "cir" if build => cli.build_kind = BuildKind::Cir,
             "detect" if build => cli.build_kind = BuildKind::Detect,
             "std" | "std-version" => {
@@ -217,9 +211,9 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
 pub fn print_help(build: bool) {
     println!("USAGE: typhon {} [options] <input file>{}", if build { "build" } else { "run" }, if build { "" } else { " <program arguments>..." });
     println!(
-        "\nOPTIONS:\n  -debug / -release        optimization mode (default: debug)\n  -numerics=c|py           numerical semantics (default: py)\n  -D<name>=<value>         static definitions\n  -disable-opt=<pass>      disable an IR pass\n  -log=<streams>           enable log streams\n  -fast-math, -disable-exceptions, -disable-native, -unordered-dict, -auto-python\n  -march/-mcpu/-mattr      target selection\n  -libdevice/-gpu-name/-gpu-features/-ptx  GPU options\n  -l<lib>                  load/link library"
+        "\nOPTIONS:\n  -debug / -release        optimization mode (default: debug)\n  -numerics=c|py           numerical semantics (default: py)\n  -D<name>=<value>         static definitions\n  -disable-opt=<pass>      disable an IR pass\n  -log=<streams>           enable log streams\n  -fast-math, -disable-exceptions, -disable-native, -unordered-dict\n  -march/-mcpu/-mattr      target selection\n  -libdevice/-gpu-name/-gpu-features/-ptx  GPU options\n  -l<lib>                  load/link library"
     );
     if build {
-        println!("  -llvm|-bc|-obj|-asm|-exe|-lib|-pyext|-cir   output kind\n  -o <file>                output file\n  -linker-flags=<flags>    pass flags to the linker\n  -pie                     position-independent executable\n  -module=<name>           Python extension module name");
+        println!("  -llvm|-bc|-obj|-asm|-exe|-lib|-cir   output kind\n  -o <file>                output file\n  -linker-flags=<flags>    pass flags to the linker\n  -pie                     position-independent executable");
     }
 }

@@ -269,8 +269,6 @@ pub struct Cache {
     pub generated_kw_tuples: FxHashMap<String, i32>,
     pub errors: ParserErrors,
 
-    pub py_module: Option<Rc<RefCell<typhon_ir::pyext::PyModule>>>,
-
     /// All AST nodes (`_nodes` / `N<T>`).
     pub ast: AstArena,
     /// All type-checker types.
@@ -316,7 +314,6 @@ impl Cache {
             generated_tuples: FxHashSet::default(),
             generated_kw_tuples: FxHashMap::default(),
             errors: ParserErrors::default(),
-            py_module: None,
             ast,
             types,
             hooks: CacheHooks::default(),
@@ -673,51 +670,6 @@ impl Cache {
                 }
             }
         }
-    }
-
-    /// `populatePythonModule()`: generate Python bindings for Cython-like access.
-    pub fn populate_python_module(&mut self) -> Result<()> {
-        const CYTHON_ITER: &str = "_PyWrap.IterWrap";
-        if !self.options.as_ref().is_some_and(|o| o.pyext) {
-            return Ok(());
-        }
-        if self.py_module.is_none() {
-            self.py_module = Some(Rc::new(RefCell::new(typhon_ir::pyext::PyModule::default())));
-        }
-        typhon_common::log_flag!(USER, "[py] ====== module generation =======");
-        let pm = self.py_module.clone().unwrap();
-        let ctx = self.type_ctx.clone();
-        let clss: Vec<String> = self.classes.keys().cloned().collect(); // needs copy
-        {
-            let mut tv = TypecheckVisitor::new(self, ctx.clone(), None, None);
-            for cn in clss {
-                let py = tv.cythonize_class(&cn)?;
-                if !py.name.is_empty() {
-                    pm.borrow_mut().types.push(py);
-                }
-            }
-            // Handle __iternext__ wrappers
-            let iters: Vec<String> =
-                tv.cache.classes.get(CYTHON_ITER).map(|c| c.realizations.keys().cloned().collect()).unwrap_or_default();
-            for cn in iters {
-                let py = tv.cythonize_iterator(&cn)?;
-                pm.borrow_mut().types.push(py);
-            }
-            let fns: Vec<String> = tv.cache.functions.keys().cloned().collect();
-            for f in fns {
-                let py = tv.cythonize_function(&f)?;
-                if !py.name.is_empty() {
-                    pm.borrow_mut().functions.push(py);
-                }
-            }
-            tv.prepare_vtables()?;
-        }
-        // Handle pending realizations!
-        let pr = self.pending_realizations.clone();
-        for (key, _) in pr {
-            self.translate_function(&key)?;
-        }
-        Ok(())
     }
 
     /// Convenience: `ast->hasAttribute(a)` for a statement.

@@ -729,21 +729,6 @@ impl<'a> TypecheckVisitor<'a> {
             return self.transform(Some(c));
         }
 
-        if !types.is(lt, "pyobj") && types.is(rt, "pyobj") {
-            // Special case: `obj op pyobj` -> `rhs.__rmagic__(lhs)` on lhs
-            // Assumes that pyobj implements all left and right magics
-            let l = self.get_temporary_var("l");
-            let r = self.get_temporary_var("r");
-            let (li, ri) = (self.id_n(&l), self.id_n(&r));
-            let a1 = self.n_stmt(AssignStmt { lhs: Some(li), rhs: Some(lhs), type_expr: None, update: UpdateMode::Assign });
-            let a2 = self.n_stmt(AssignStmt { lhs: Some(ri), rhs: Some(rhs), type_expr: None, update: UpdateMode::Assign });
-            let ri = self.id_n(&r);
-            let d = self.dot_n(ri, &format!("__{right_magic}__"));
-            let li = self.id_n(&l);
-            let c = self.call_n(d, vec![li]);
-            let se = self.op_stmt_expr(vec![a1, a2], c);
-            return self.transform(Some(se));
-        }
         // Normal operations: check if `lhs.__magic__(lhs, rhs)` exists
         if let Some(lc) = types.get_class(lt) {
             if let Some(m) = self.find_best_method_exprs(lc, &format!("__{magic}__"), &[lhs, rhs])? {

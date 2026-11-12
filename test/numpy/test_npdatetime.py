@@ -554,8 +554,8 @@ def test_dtype_promotion():
 test_dtype_promotion()
 
 @test
-def test_pyobject_roundtrip():
-    # All datetime types should be able to roundtrip through object
+def test_unit_roundtrip():
+    # All datetime units should roundtrip through astype
     a = np.array([
         0, 0, 0, 0, 0, 0, 0, 0, 0, -1020040340, -2942398, -1, 0, 1, 234523453,
         1199164176
@@ -696,7 +696,7 @@ def test_pyobject_roundtrip():
 
     assert np.array_equal(b.astype(np.datetime64['us', 56]), b)
 
-test_pyobject_roundtrip()
+test_unit_roundtrip()
 
 @test
 def test_different_unit_comparison():

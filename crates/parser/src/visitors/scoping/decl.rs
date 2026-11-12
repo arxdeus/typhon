@@ -39,7 +39,7 @@ impl ScopingVisitor<'_> {
                     None => break,
                 }
             }
-            if !is_id(&self.cache.ast, st.from, "C") && !is_id(&self.cache.ast, st.from, "python") {
+            if !is_id(&self.cache.ast, st.from, "C") {
                 if self.cache.ast[e].kind.as_id().is_none() {
                     stop!(self, ErrorKind::IMPORT_IDENTIFIER, self.esrc(Some(e)));
                 }
@@ -98,19 +98,12 @@ impl ScopingVisitor<'_> {
         // Validate
         let decorators = self.cache.ast[id].kind.as_function().unwrap().decorators.clone();
         let mut new_decorators = vec![];
-        for (di, &d) in decorators.iter().enumerate() {
+        for &d in decorators.iter() {
             let a = &self.cache.ast;
             let attr = if is_id(a, Some(d), "__attribute__") {
                 Some(Attr::Attribute)
             } else if is_id(a, Some(d), "llvm") {
                 Some(Attr::LLVM)
-            } else if is_id(a, Some(d), "python") {
-                if decorators.len() != 1 {
-                    let other = decorators[if di == 1 { 0 } else { 1 }];
-                    let _ = other;
-                    stop!(self, ErrorKind::FN_SINGLE_DECORATOR, self.esrc(Some(decorators[1])), "python");
-                }
-                Some(Attr::Python)
             } else if is_id(a, Some(d), "__internal__") {
                 Some(Attr::Internal)
             } else if is_id(a, Some(d), "__hidden__") {
@@ -284,14 +277,14 @@ impl ScopingVisitor<'_> {
     pub(crate) fn scope_class(&mut self, id: StmtId) {
         let cls = self.cache.ast[id].kind.as_class().unwrap().clone();
         let ssrc = self.cache.ast[id].src.clone();
-        // @tuple(init=, repr=, eq=, order=, hash=, pickle=, container=, python=, add=,
+        // @tuple(init=, repr=, eq=, order=, hash=, pickle=, container=, add=,
         // internal=...)
         // @dataclass(...)
         // @extend
         let mut magics: BTreeMap<&str, bool> = [
             ("new", true), ("repr", false), ("hash", false), ("eq", false), ("ne", false),
             ("lt", false), ("le", false), ("gt", false), ("ge", false), ("pickle", true),
-            ("unpickle", true), ("to_py", false), ("from_py", false), ("iter", false),
+            ("unpickle", true), ("iter", false),
             ("getitem", false), ("len", false), ("to_gpu", false), ("from_gpu", false),
             ("from_gpu_new", false), ("tuplesize", true),
         ]
@@ -329,7 +322,6 @@ impl ScopingVisitor<'_> {
                         "order" => &["lt", "le", "gt", "ge"],
                         "hash" => &["hash"],
                         "pickle" => &["pickle", "unpickle"],
-                        "python" => &["to_py", "from_py"],
                         "gpu" => &["to_gpu", "from_gpu", "from_gpu_new"],
                         "container" => &["iter", "getitem"],
                         _ => stop!(self, ErrorKind::CLASS_BAD_DECORATOR_ARG, arg.src.clone()),

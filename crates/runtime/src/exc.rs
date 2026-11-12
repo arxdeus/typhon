@@ -180,7 +180,6 @@ pub struct ExceptionHeader {
     pub file: SeqStr,
     pub line: SeqInt,
     pub col: SeqInt,
-    pub python_type: *mut c_void,
     pub cause: *mut c_void,
 }
 

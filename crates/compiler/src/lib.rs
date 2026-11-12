@@ -170,7 +170,6 @@ impl Compiler {
         HashMap::from([
             ("__debug__".into(), b(o.debug)),
             ("__py_numerics__".into(), b(o.pynum)),
-            ("__py_extension__".into(), b(o.pyext)),
             ("__dict_unordered__".into(), b(o.unordereddict)),
             ("__typhon_version_major__".into(), VERSION_MAJOR.to_string()),
             ("__typhon_version_minor__".into(), VERSION_MINOR.to_string()),

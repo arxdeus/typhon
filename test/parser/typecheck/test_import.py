@@ -123,7 +123,7 @@ class Foo:
 import "".a.b.c #! syntax error, unexpected '"'
 
 #%% import_err_3,barebones
-from a.b import foo() #! function signatures only allowed when importing C or Python functions
+from a.b import foo() #! function signatures only allowed when importing C functions
 
 #%% import_err_4,barebones
 from a.b.c import hai.hey #! expected identifier

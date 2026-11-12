@@ -88,7 +88,6 @@ unsafe fn libc_fflush() {
 fn process_source(cli: &mut Cli, standalone: bool) -> Option<Compiler> {
     let test_mode = std::env::var("TYPHON_TEST_MODE").is_ok_and(|v| v == "1");
     cli.options.standalone = standalone || test_mode;
-    cli.options.pyext = cli.build_kind == BuildKind::PyExtension;
     if test_mode {
         cli.options.test = true;
     }
@@ -202,7 +201,7 @@ fn build_mode(argv0: &str, exe_argv0: &str, args: &[String]) -> i32 {
     let extension = match kind {
         BuildKind::Llvm => ".ll",
         BuildKind::Bitcode => ".bc",
-        BuildKind::Object | BuildKind::PyExtension => ".o",
+        BuildKind::Object => ".o",
         BuildKind::Assembly => ".s",
         BuildKind::Library => {
             if cfg!(windows) {
@@ -239,22 +238,6 @@ fn build_mode(argv0: &str, exe_argv0: &str, args: &[String]) -> i32 {
             v.write_to_executable(&filename, exe_argv0, false, &cli.libs, &lf)
         }
         BuildKind::Library => v.write_to_executable(&filename, exe_argv0, true, &cli.libs, &cli.lflags),
-        BuildKind::PyExtension => {
-            let cache = compiler.cache().borrow();
-            match cache.py_module.clone() {
-                Some(pm) => {
-                    let name = if cli.py_module.is_empty() {
-                        Path::new(compiler.input()).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
-                    } else {
-                        cli.py_module.clone()
-                    };
-                    pm.borrow_mut().name = name;
-                    let pm = pm.borrow();
-                    v.write_to_python_extension(&compiler.module().borrow(), &pm, &filename)
-                }
-                None => Err(CompilerError::Io("no Python extension module was generated".into())),
-            }
-        }
         BuildKind::Detect => v.compile(&filename, exe_argv0, &cli.libs, &cli.lflags),
         BuildKind::Cir => Ok(()),
     };

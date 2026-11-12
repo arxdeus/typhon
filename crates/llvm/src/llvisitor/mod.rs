@@ -20,8 +20,6 @@ mod instrs;
 pub mod ll;
 mod output;
 pub use output::{runtime_link_args, runtime_lib_dirs, static_runtime_archive};
-mod pyext;
-mod pyext_module;
 mod rtti;
 mod types;
 mod win;
@@ -452,9 +450,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
                     ll::set_dso_local(storage);
                 } else {
                     ll::set_unnamed_addr(storage, llvm_sys::LLVMUnnamedAddr::LLVMLocalUnnamedAddr);
-                    if self.options.pyext && ll::is_win_msvc_triple(&triple) {
-                        ll::set_dll_storage(storage, llvm_sys::LLVMDLLStorageClass::LLVMDLLImportStorageClass);
-                    }
                 }
             } else if !(tls && ll::is_windows_triple(&triple)) {
                 // debug info

@@ -202,13 +202,3 @@ class __magic__:
         if not hasattr(slf, "__repr__") and hasattr(slf, "__repr_default__"):
             return slf.__repr_default__()
         return slf.__repr__()
-
-@tuple
-class PyObject:
-    refcnt: int
-    pytype: Ptr[u8]
-
-@tuple
-class PyWrapper[T]:
-    head: PyObject
-    data: T

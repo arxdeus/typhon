@@ -336,7 +336,7 @@ impl<'a> TypecheckVisitor<'a> {
                 let d = i!("dest");
                 stmts.push(ret_call!(n, [s, d]));
             }
-            "unpickle" | "from_py" => {
+            "unpickle" => {
                 // def __unpickle__(src: Ptr[u8]) -> T
                 let pu = ptr_u8(self);
                 fargs.push(p!("src", Some(pu)));
@@ -345,15 +345,6 @@ impl<'a> TypecheckVisitor<'a> {
                 let s = i!("src");
                 let t = ty!();
                 stmts.push(ret_call!(n, [s, t]));
-            }
-            "to_py" => {
-                // def __to_py__(self: T) -> Ptr[u8]
-                let t = ty!();
-                fargs.push(p!("self", Some(t)));
-                ret = Some(ptr_u8(self));
-                let n = ns!(op);
-                let s = i!("self");
-                stmts.push(ret_call!(n, [s]));
             }
             "to_gpu" => {
                 // def __to_gpu__(self: T, cache) -> T

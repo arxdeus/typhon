@@ -2423,7 +2423,7 @@ def test_percent_format_mapping():
 
     assert unicode("%(name)s") % names == unicode("Typhon")
     assert unicode("%(count)04d") % counts == unicode("0003")
-    assert unicode("%(name)-8s") % names == unicode("Typhon   ")
+    assert unicode("%(name)-8s") % names == unicode("Typhon  ")
 
 
 @test
@@ -3792,7 +3792,7 @@ def test_brace_format_basic_specs():
     assert unicode("{:.2f}").format(1.25) == unicode("1.25")
     assert unicode("{:08.2f}").format(1.25) == unicode("00001.25")
     assert unicode("{:s}").format(unicode("Typhon")) == unicode("Typhon")
-    assert unicode("{:.3s}").format(unicode("Typhon")) == unicode("Cod")
+    assert unicode("{:.3s}").format(unicode("Typhon")) == unicode("Typ")
     assert unicode("{:05}").format(unicode("x")) == unicode("x0000")
     assert unicode("{:0>5}").format(unicode("x")) == unicode("0000x")
     assert unicode("{!r:05}").format(unicode("x")) == unicode("'x'00")
@@ -3905,10 +3905,10 @@ def test_brace_format_spec_grammar():
 
 @test
 def test_brace_format_alignment():
-    assert unicode("{:<8}").format(unicode("Typhon")) == unicode("Typhon   ")
-    assert unicode("{:>8}").format(unicode("Typhon")) == unicode("   Typhon")
-    assert unicode("{:^8}").format(unicode("Typhon")) == unicode(" Typhon  ")
-    assert unicode("{:*^8}").format(unicode("Typhon")) == unicode("*Typhon**")
+    assert unicode("{:<8}").format(unicode("Typhon")) == unicode("Typhon  ")
+    assert unicode("{:>8}").format(unicode("Typhon")) == unicode("  Typhon")
+    assert unicode("{:^8}").format(unicode("Typhon")) == unicode(" Typhon ")
+    assert unicode("{:*^8}").format(unicode("Typhon")) == unicode("*Typhon*")
 
     assert unicode("{:>5d}").format(12) == unicode("   12")
     assert unicode("{:<5d}").format(12) == unicode("12   ")
@@ -4357,9 +4357,9 @@ def test_brace_format_map():
     }
     assert unicode("{name}").format_map(values) == unicode("Typhon")
     assert unicode("{greeting:>8}|{name:.3}").format_map(values) == unicode(
-        "      hi|Cod"
+        "      hi|Typ"
     )
-    assert unicode("{name:{width}}").format_map(values) == unicode("   Typhon")
+    assert unicode("{name:{width}}").format_map(values) == unicode("  Typhon")
     assert unicode("{{{name}}}").format_map(values) == unicode("{Typhon}")
 
     class Names:

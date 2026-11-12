@@ -2,7 +2,7 @@
 use typhon_common::mangle::{self, stdlib};
 use typhon_common::{CompilerError, ErrorKind, Result};
 
-use super::{ItemRef, TypeContext, TypecheckItem, TypecheckVisitor};
+use super::{ItemRef, TypeContext, TypecheckVisitor};
 use crate::ast::{
     Attr, BoolExpr, CallArg, CallExpr, DotExpr, EllipsisExpr, EllipsisType, ExprStmt, FunctionStmt, IdExpr, ImportStmt,
     IndexExpr, IntExpr, Param, ParamKind, ReturnStmt, StmtExpr, StringExpr, SuiteStmt, TupleExpr,
@@ -198,7 +198,6 @@ impl<'a> TypecheckVisitor<'a> {
         // Flatten imports:
         //   `a.b.c`      -> canonical name of `c` in `a.b` if `a.b` is an import
         //   `a.B.c`      -> canonical name of `c` in class `a.B`
-        //   `python.foo` -> internal.python._get_identifier("foo")
         let mut chain: Vec<String> = vec![];
         let mut head = e;
         while let Some(d) = self.ast()[head].kind.as_dot() {
@@ -214,29 +213,14 @@ impl<'a> TypecheckVisitor<'a> {
             let cur_module = self.ctx.borrow().module().to_string();
             match val {
                 None => {
-                    // Python capture
-                    let caps = self.ctx.borrow().base_ref().py_captures.clone();
-                    typhon_common::seqassert!(caps.is_some(), "unexpected py capture");
-                    caps.unwrap().borrow_mut().insert(chain[0].clone());
-                    let p = self.id_n("__pyenv__");
-                    let s = self.n_expr(StringExpr::new(chain[0].clone(), ""));
-                    fin = self.n_expr(IndexExpr { expr: Some(p), index: Some(s) });
+                    typhon_common::seqassert!(false, "unresolved import chain");
                 }
                 Some(val) => {
                     let (vmod, vcanon) = {
                         let v = val.borrow();
                         (v.module().to_string(), v.canonical_name.clone())
                     };
-                    if vmod == "std.python" && cur_module != vmod {
-                        // Import from python (e.g., pyobj.foo)
-                        let i = self.id_n("internal");
-                        let p = self.dot_n(i, "python");
-                        let g = self.dot_n(p, "_get_identifier");
-                        let s = self.n_expr(StringExpr::new(chain[pos].clone(), ""));
-                        pos += 1;
-                        let c = self.call_n(g, vec![s]);
-                        fin = self.tr(c)?;
-                    } else if vmod == cur_module && pos == 1 {
+                    if vmod == cur_module && pos == 1 {
                         let i = self.id_n(&chain[0]);
                         fin = self.transform_allow(Some(i), true)?.unwrap();
                     } else {
@@ -495,15 +479,6 @@ impl<'a> TypecheckVisitor<'a> {
         let mut i = chain.len();
         while i > import_end {
             i -= 1;
-            let imodule = ictx.borrow().module().to_string();
-            if imodule == "std.python" && import_end < chain.len() {
-                // Special case: importing from Python.
-                // Fake TypecheckItem that indicates std.python access
-                let level = ictx.borrow().typecheck_level;
-                let u = self.instantiate_unbound_at(self.src, level);
-                let v = TypecheckItem::new("", "", &imodule, Some(u), 0).into_ref();
-                return Ok((import_end, Some(v)));
-            }
             let key = chain[import_end..=i].join(".");
             // check only globals for imports!
             val = TypeContext::find_in(self.cache, &ictx, &key, 0, if import_name.is_empty() { None } else { Some("") });
@@ -550,9 +525,6 @@ impl<'a> TypecheckVisitor<'a> {
             }
         }
         if item_name.is_empty() && import_name.is_empty() {
-            if self.ctx.borrow().base_ref().py_captures.is_some() {
-                return Ok((1, None));
-            }
             typhon_common::bail_e!(ErrorKind::IMPORT_NO_MODULE, self.src, chain[import_end]);
         } else if item_name.is_empty() {
             let (imp_ctx, imp_name) = {
@@ -682,8 +654,7 @@ impl<'a> TypecheckVisitor<'a> {
     }
 
     /// `getClassMember(expr, member, type)`: find a class member.
-    ///   `obj.GENERIC` -> `GENERIC`, `optional.member` -> `unwrap(optional).member`,
-    ///   `pyobj.member` -> `pyobj._getattr("member")`.
+    ///   `obj.GENERIC` -> `GENERIC`, `optional.member` -> `unwrap(optional).member`.
     pub fn get_class_member(&mut self, expr: ExprId, member: &str, ty: Option<TypeId>) -> Result<(Option<ExprId>, bool)> {
         let types = self.types();
         let st = stdlib();
@@ -776,14 +747,6 @@ impl<'a> TypecheckVisitor<'a> {
             let c = self.call_n(f, vec![expr]);
             let d = self.dot_n(c, member);
             return Ok((self.transform(Some(d))?, true));
-        }
-
-        // Case: transform `pyobj.member` to `pyobj._getattr("member")`
-        if types.is(typ, "pyobj") {
-            let d = self.dot_n(expr, "_getattr");
-            let s = self.n_expr(StringExpr::new(member, ""));
-            let c = self.call_n(d, vec![s]);
-            return Ok((self.transform(Some(c))?, true));
         }
 
         // Case: NamedTuple support

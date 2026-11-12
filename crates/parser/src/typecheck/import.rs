@@ -9,7 +9,6 @@ use crate::ast::{
 };
 use crate::cache::{MODULE_MAIN, STDLIB_IMPORT};
 use crate::ids::{ExprId, StmtId};
-use crate::visitors::format::FormatVisitor;
 
 impl<'a> TypecheckVisitor<'a> {
     /// `visit(ImportStmt*)`: import and parse a new module into its own context; guard
@@ -36,31 +35,6 @@ impl<'a> TypecheckVisitor<'a> {
                 self.result_stmt = Some(self.tr_stmt(n)?);
                 return Ok(());
             }
-            let autopy = self.ctx.borrow().auto_python || self.cache.options.as_ref().is_some_and(|o| o.autopy);
-            if st.dots == 0 && autopy {
-                let from = st.from.expect("import without from");
-                let mut new_str = FormatVisitor::apply_expr(&self.cache.ast, from, None, false);
-                if let Some(w) = st.what {
-                    new_str += &format!(".{}", FormatVisitor::apply_expr(&self.cache.ast, w, None, false));
-                }
-                typhon_common::diag::compilation_warning(
-                    &format!("importing '{new_str}' from Python"),
-                    ssrc.file.as_str(),
-                    ssrc.line,
-                    ssrc.col,
-                    0,
-                    0,
-                    false,
-                    Default::default(),
-                );
-                let fsrc = self.cache.ast[from].src;
-                let e = self.parse_expr_via_hook(&new_str, fsrc)?;
-                let py = self.xm_id("python");
-                let n = self.n_stmt(ImportStmt { from: Some(py), what: Some(e), args: st.args.clone(), ret: st.ret, as_: st.as_.clone(), dots: 0, is_function: true });
-                self.result_stmt = Some(self.tr_stmt(n)?);
-                return Ok(());
-            }
-
             let mut s2 = ".".repeat(st.dots);
             for c in &components {
                 if c == ".." {
@@ -173,26 +147,10 @@ impl<'a> TypecheckVisitor<'a> {
     fn id_value(&self, e: Option<ExprId>) -> String {
         e.and_then(|e| self.cache.ast[e].kind.as_id().map(|i| i.value.clone())).expect("expected IdExpr")
     }
-
-    /// `parseExpr(cache, code, src)` through the `parse_code` hook.
-    /// Note: `CacheHooks` has no expression parser; parse `code` as a one-line module
-    /// and take the expression of its single `ExprStmt`.
-    fn parse_expr_via_hook(&mut self, code: &str, src: SrcInfo) -> Result<ExprId> {
-        let parse = self.cache.hooks.parse_code.clone().ok_or_else(|| CompilerError::custom("no parser hook installed", src))?;
-        let file = src.file.as_str().to_string();
-        let mut node = parse(self.cache, &file, code, src.line)?;
-        loop {
-            match &self.cache.ast[node].kind {
-                crate::ast::StmtKind::Suite(su) if su.items.len() == 1 => node = su.items[0],
-                crate::ast::StmtKind::Expr(e) if e.expr.is_some() => return Ok(e.expr.unwrap()),
-                _ => return Err(CompilerError::custom(format!("cannot parse '{code}' as an expression"), src)),
-            }
-        }
-    }
 }
 
 impl<'a> TypecheckVisitor<'a> {
-    /// `transformSpecialImport(stmt)`: `from C import ...` and `from python import ...`.
+    /// `transformSpecialImport(stmt)`: `from C import ...`.
     pub fn transform_special_import(&mut self, s: StmtId) -> Result<Option<StmtId>> {
         let st = self.cache.ast[s].kind.as_import().unwrap().clone();
         let Some(fi) = st.from.and_then(|f| self.cache.ast[f].kind.as_id().map(|i| i.value.clone())) else {
@@ -211,9 +169,6 @@ impl<'a> TypecheckVisitor<'a> {
                 // dylib C imports
                 return self.transform_cdll_import(de.expr.unwrap(), &de.member, &st.args, st.ret, &st.as_, !st.is_cvar());
             }
-        } else if fi == "python" && st.what.is_some() {
-            // Python imports
-            return self.transform_python_import(st.what.unwrap(), &st.args, st.ret, &st.as_);
         }
         Ok(None)
     }
@@ -344,66 +299,6 @@ impl<'a> TypecheckVisitor<'a> {
 }
 
 impl<'a> TypecheckVisitor<'a> {
-    /// `transformPythonImport(what, args, ret, alt)`:
-    /// `from python import module as f` -> `f = pyobj._import("module")`;
-    /// `from python import lib.foo(int) -> float as f` -> a wrapper function.
-    pub fn transform_python_import(&mut self, what: ExprId, args: &[Param], ret: Option<ExprId>, alt: &str) -> Result<Option<StmtId>> {
-        // Get a module name (e.g., os.path)
-        let components = self.get_import_path(Some(what), 0);
-        let last = components.last().cloned().unwrap_or_default();
-
-        if ret.is_none() && args.is_empty() {
-            // Simple import: `from python import foo.bar` -> `bar = pyobj._import("foo.bar")`
-            let lhs = self.xm_id(if alt.is_empty() { &last } else { alt });
-            let p = self.xm_id("pyobj");
-            let d = self.xm_dot(p, "_import");
-            let sname = self.xm_str(&components.join("."));
-            let c = self.xm_call(d, &[sname]);
-            let a = self.xm_assign(lhs, Some(c), None, UpdateMode::Assign);
-            return Ok(Some(self.tr_stmt(a)?));
-        }
-
-        // f = pyobj._import("foo")._getattr("bar")
-        let lhs = self.xm_id("f");
-        let p = self.xm_id("pyobj");
-        let d = self.xm_dot(p, "_import");
-        let modname = components[..components.len().saturating_sub(1)].join(".");
-        let ms = self.xm_str(&modname);
-        let imp = self.xm_call(d, &[ms]);
-        let ga = self.xm_dot(imp, "_getattr");
-        let ls = self.xm_str(&last);
-        let gac = self.xm_call(ga, &[ls]);
-        let call = self.xm_assign(lhs, Some(gac), None, UpdateMode::Assign);
-        // f(a1, ...)
-        let mut params = vec![];
-        let mut call_args = vec![];
-        for (i, a) in args.iter().enumerate() {
-            let t = a.ty.map(|t| self.cache.ast.clone_expr(t, false));
-            params.push(self.cache.ast.new_param(self.src, format!("a{i}"), t, None, 0, ParamKind::Normal));
-            call_args.push(self.xm_id(&format!("a{i}")));
-        }
-        // `return ret.__from_py__(f(a1, ...))`
-        let ret_type = match ret {
-            Some(r) if self.cache.ast[r].kind.as_none().is_none() => self.cache.ast.clone_expr(r, false),
-            _ => self.xm_id(&stdlib().none_type),
-        };
-        let rt = self.cache.ast.clone_expr(ret_type, false);
-        let fp = self.xm_dot(rt, "__from_py__");
-        let f = self.xm_id("f");
-        let fc = self.xm_call(f, &call_args);
-        let fcp = self.xm_dot(fc, "p");
-        let ret_expr = self.xm_call(fp, &[fcp]);
-        let ret_stmt = self.n_stmt(ReturnStmt { expr: Some(ret_expr) });
-        let body = self.xm_suite(&[Some(call), Some(ret_stmt)]);
-        let name = if alt.is_empty() { last } else { alt.to_string() };
-        let func = self.cache.ast.new_function(self.src, name, Some(ret_type), params, Some(body), vec![], false)?;
-        let t = self.get_time();
-        if t != 0 {
-            self.cache.ast[func].attrs.set_int(Attr::ExprTime, t);
-        }
-        Ok(Some(self.tr_stmt(func)?))
-    }
-
     /// `transformNewImport(file)`: parse a new file into its own context and wrap its
     /// top-level statements into `_import_N_call()` (except during stdlib loading).
     pub fn transform_new_import(&mut self, file: &ImportFile) -> Result<Option<StmtId>> {

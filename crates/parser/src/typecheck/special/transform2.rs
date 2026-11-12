@@ -2,7 +2,7 @@
 //! `transformSetAttr`, `transformCompileError`, `transformTupleFn`, `transformTypeFn`,
 //! `transformRealizedFn`, `transformStaticPrintFn`, `transformHasRttiFn`).
 
-use typhon_common::mangle::{self, stdlib};
+use typhon_common::mangle::stdlib;
 use typhon_common::{ErrorKind, Result};
 
 use super::super::TypecheckVisitor;
@@ -99,17 +99,6 @@ impl<'a> TypecheckVisitor<'a> {
             let t = self.sp_int(tag);
             let bin = self.sp_bin(c, "==", t);
             return self.transform(Some(bin));
-        } else if types.is(self.ety(typ_expr), "pyobj") {
-            if types.is(typ, "pyobj") {
-                let f = self.sp_id(&mangle::func("std.internal.python", "_isinstance"));
-                let a0 = self.sp_arg(e, 0);
-                let a1 = self.sp_arg(e, 1);
-                let c = self.sp_call(f, vec![a0, a1]);
-                return self.transform(Some(c));
-            } else {
-                let b = self.sp_bool(false);
-                return self.transform(Some(b));
-            }
         }
 
         let typ_expr = self.transform_type(Some(typ_expr), false)?.unwrap();

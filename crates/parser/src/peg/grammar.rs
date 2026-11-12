@@ -323,9 +323,9 @@ rule generics() -> Vec<Param>
     })? dec() x:#{cond(r)} {x}
 rule decorators() -> Vec<ExprId> = decorator()+
 rule decorator() -> ExprId
-    = "@" _ !(("llvm" / "python") _ EOL()) e:named_expression() _ EOL() SAMEDENT() {e}
+    = "@" _ !("llvm" _ EOL()) e:named_expression() _ EOL() SAMEDENT() {e}
 rule extern_decorators() -> Vec<ExprId>
-    = p:position!() a:decorators()? "@" _ k:$("llvm" / "python") _ EOL() SAMEDENT() b:decorators()? q:position!() {
+    = p:position!() a:decorators()? "@" _ k:$("llvm") _ EOL() SAMEDENT() b:decorators()? q:position!() {
         let mut v = vec![st.id(k, (p, q))];
         v.extend(a.unwrap_or_default());
         v.extend(b.unwrap_or_default());

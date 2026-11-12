@@ -226,24 +226,16 @@ fn checks_finally_exit_overrides() {
 
 #[test]
 fn checks_late_realizations() {
-    for pyext in [false, true] {
-        for initialized in [false, true] {
-            let mut src = String::from("\nclass Late:\n  value: int\n  def __init__(self):\n");
-            src += if initialized { "    self.value = 42\n" } else { "    pass\n" };
-            src += "\ndef make() -> int:\n  return Late().value\n";
-            let ctx = format!("pyext={pyext} initialized={initialized}");
-            let (c, r) = compile(&src, "field_initialization_late.codon", |o| o.pyext = pyext);
-            if pyext && !initialized {
-                expect_err(&r, "field 'Late.value' may be uninitialized", &ctx);
-            } else {
-                expect_ok(&r, &ctx);
-                if !pyext {
-                    let m = c.module().clone();
-                    let got = m.borrow_mut().get_or_realize_func("make", &[], &[], "").is_some();
-                    assert_eq!(got, initialized, "{ctx}");
-                }
-            }
-        }
+    for initialized in [false, true] {
+        let mut src = String::from("\nclass Late:\n  value: int\n  def __init__(self):\n");
+        src += if initialized { "    self.value = 42\n" } else { "    pass\n" };
+        src += "\ndef make() -> int:\n  return Late().value\n";
+        let ctx = format!("initialized={initialized}");
+        let (c, r) = compile(&src, "field_initialization_late.codon", |_| {});
+        expect_ok(&r, &ctx);
+        let m = c.module().clone();
+        let got = m.borrow_mut().get_or_realize_func("make", &[], &[], "").is_some();
+        assert_eq!(got, initialized, "{ctx}");
     }
 }
 

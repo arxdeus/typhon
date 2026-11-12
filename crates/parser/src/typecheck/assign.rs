@@ -600,17 +600,6 @@ impl<'a> TypecheckVisitor<'a> {
             self.result_stmt = self.transform_stmt_opt(Some(n))?;
             return Ok(());
         }
-        // Case: transform `pyobj.member = value` to `pyobj._setattr("member", value)`.
-        // Mirrors the read path in `getClassMember`, deferring the attribute write to
-        // CPython at runtime.
-        if member.is_none() && types.is(lhs_class, "pyobj") {
-            let d = self.dot_n(lhs, "_setattr");
-            let m = self.n_expr(StringExpr::new(member_name, ""));
-            let c = self.call_n(d, vec![m, rhs0]);
-            let es = self.expr_stmt_n(c);
-            self.result_stmt = self.transform_stmt_opt(Some(es))?;
-            return Ok(());
-        }
         // Case: __setattr__ support. Ensure that only Literal[str] arguments are accepted.
         if member.is_none() {
             let (u, v) = (self.instantiate_unbound(), self.instantiate_unbound());

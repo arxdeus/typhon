@@ -8,7 +8,6 @@ pub mod base;
 pub mod ids;
 pub mod module;
 pub mod pass;
-pub mod pyext;
 pub mod realize;
 pub mod rewrite;
 pub mod schedule;

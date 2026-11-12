@@ -129,7 +129,6 @@ impl<'a> TranslateVisitor<'a> {
             c.bases = vec![main];
             c.series = vec![block];
         }
-        cache.populate_python_module()?;
         {
             let mut c = ctx.borrow_mut();
             c.main_func = Some(main);

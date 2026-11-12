@@ -8,8 +8,8 @@ use typhon_common::{ErrorKind, Result, SrcInfo};
 
 use super::{Base, CtxRef, TypeContext, TypecheckVisitor};
 use crate::ast::{
-    AssignStmt, Attr, AttrValue, CallLayout, CaptureType, DotExpr, EllipsisExpr, EllipsisType, ExprKind,
-    ExprStmt, ForStmt, IdExpr, ImportStmt, IndexExpr, KeywordStarExpr, LiteralKind, Param, ParamKind, ParamStatus,
+    AssignStmt, Attr, AttrValue, CallLayout, CaptureType, EllipsisExpr, EllipsisType, ExprKind,
+    ExprStmt, ForStmt, IdExpr, IndexExpr, KeywordStarExpr, LiteralKind, Param, ParamKind, ParamStatus,
     ReturnStmt, StarExpr, StringExpr, SuiteStmt, UpdateMode, YieldStmt, is_id,
 };
 use crate::cache::{Function, VAR_CLASS_TOPLEVEL};
@@ -360,16 +360,6 @@ impl<'a> TypecheckVisitor<'a> {
     /// function type. Also realize built-ins and extern C functions.
     pub fn visit_function(&mut self, s: StmtId) -> Result<()> {
         let types = self.types();
-        if self.cache.ast[s].attrs.has(Attr::Python) {
-            // Handle Python block
-            let (name, items, ret, suite) = {
-                let f = self.cache.ast[s].kind.as_function().unwrap();
-                (f.name.clone(), f.items.clone(), f.ret, f.suite)
-            };
-            let code = suite.and_then(|x| self.cache.ast.first_in_block(x)).expect("invalid Python definition");
-            self.result_stmt = self.transform_python_definition(&name, &items, ret, code)?;
-            return Ok(());
-        }
         let orig_stmt = self.cache.ast.clone_stmt(s, true);
 
         // Parse attributes
@@ -1078,34 +1068,6 @@ impl<'a> TypecheckVisitor<'a> {
             self.result_stmt = Some(self.n_stmt(SuiteStmt { items: vec![f, ta] }));
         }
         Ok(())
-    }
-
-    /// `transformPythonDefinition(name, args, ret, code)`:
-    /// `@python def foo(x: int, y) -> int: [code]` ->
-    /// `pyobj._exec("def foo(x, y): [code]"); from python import __main__.foo(int, _) -> int`.
-    pub fn transform_python_definition(&mut self, name: &str, args: &[Param], ret: Option<ExprId>, code: StmtId) -> Result<Option<StmtId>> {
-        let code_expr = self.cache.ast[code].kind.as_expr().and_then(|e| e.expr);
-        let code_str = code_expr.and_then(|e| self.cache.ast[e].kind.as_string().map(|s| s.value()));
-        typhon_common::seqassert!(code_str.is_some(), "invalid Python definition");
-        let code_str = code_str.unwrap_or_default();
-        let pyargs: Vec<String> = args.iter().map(|a| a.name.clone()).collect();
-        let code_str = format!("def {}({}):\n{}\n", name, pyargs.join(", "), code_str);
-        let pyobj = self.id_n("pyobj");
-        let exec = self.dot_n(pyobj, "_exec");
-        let sx = self.n_expr(StringExpr::new(code_str, ""));
-        let call = self.call_n(exec, vec![sx]);
-        let es = self.n_stmt(ExprStmt { expr: Some(call) });
-        let from = self.id_n("python");
-        let main = self.id_n("__main__");
-        let what = self.n_expr(DotExpr { expr: Some(main), member: name.to_string() });
-        let cargs: Vec<Param> = args.iter().map(|p| self.cache.ast.clone_param(p, false)).collect();
-        let ret = match ret {
-            Some(r) => self.cache.ast.clone_expr(r, false),
-            None => self.id_n("pyobj"),
-        };
-        let imp = self.n_stmt(ImportStmt { from: Some(from), what: Some(what), args: cargs, ret: Some(ret), ..Default::default() });
-        let suite = self.n_stmt(SuiteStmt { items: vec![es, imp] });
-        Ok(Some(self.tr_stmt(suite)?))
     }
 
     /// `transformLLVMDefinition(code)`: `{=expr}` blocks are parsed into the

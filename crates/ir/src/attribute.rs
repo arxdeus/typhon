@@ -7,7 +7,7 @@ use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use typhon_common::SrcInfo;
 
-use crate::ids::{FuncId, TypeId, ValueId};
+use crate::ids::{TypeId, ValueId};
 
 /// Attribute keys (`XAttribute::AttributeID`).
 pub mod attr_id {
@@ -16,7 +16,6 @@ pub mod attr_id {
     pub const STRING_LIST: i32 = 103;
     pub const KEY_VALUE: i32 = 104;
     pub const MEMBER: i32 = 105;
-    pub const PYTHON_WRAPPER: i32 = 106;
     pub const SRC_INFO: i32 = 107;
     pub const DOCSTRING: i32 = 108;
     pub const TUPLE_LITERAL: i32 = 109;
@@ -84,7 +83,6 @@ pub enum Attribute {
     StringList(Vec<String>),
     KeyValue(KeyValueAttribute),
     Member(BTreeMap<String, SrcInfo>),
-    PythonWrapper(FuncId),
     Docstring(String),
     TupleLiteral(Vec<ValueId>),
     ListLiteral(Vec<LiteralElement>),
@@ -104,7 +102,6 @@ impl Clone for Attribute {
             Attribute::StringList(s) => Attribute::StringList(s.clone()),
             Attribute::KeyValue(s) => Attribute::KeyValue(s.clone()),
             Attribute::Member(s) => Attribute::Member(s.clone()),
-            Attribute::PythonWrapper(s) => Attribute::PythonWrapper(*s),
             Attribute::Docstring(s) => Attribute::Docstring(s.clone()),
             Attribute::TupleLiteral(s) => Attribute::TupleLiteral(s.clone()),
             Attribute::ListLiteral(s) => Attribute::ListLiteral(s.clone()),
@@ -130,7 +127,6 @@ impl Attribute {
             Attribute::StringList(_) => STRING_LIST,
             Attribute::KeyValue(_) => KEY_VALUE,
             Attribute::Member(_) => MEMBER,
-            Attribute::PythonWrapper(_) => PYTHON_WRAPPER,
             Attribute::Docstring(_) => DOCSTRING,
             Attribute::TupleLiteral(_) => TUPLE_LITERAL,
             Attribute::ListLiteral(_) => LIST_LITERAL,
@@ -144,7 +140,7 @@ impl Attribute {
 
     pub fn needs_clone(&self) -> bool {
         match self {
-            Attribute::PythonWrapper(_) | Attribute::ExactType(_) => false,
+            Attribute::ExactType(_) => false,
             Attribute::Custom(c) => c.needs_clone(),
             _ => true,
         }
@@ -160,7 +156,6 @@ impl Attribute {
                 | Attribute::SetLiteral(_)
                 | Attribute::DictLiteral(_)
                 | Attribute::PartialFunction { .. }
-                | Attribute::PythonWrapper(_)
         )
     }
 
@@ -235,12 +230,6 @@ impl Attribute {
     pub fn as_member(&self) -> Option<&BTreeMap<String, SrcInfo>> {
         match self {
             Attribute::Member(s) => Some(s),
-            _ => None,
-        }
-    }
-    pub fn as_python_wrapper(&self) -> Option<FuncId> {
-        match self {
-            Attribute::PythonWrapper(s) => Some(*s),
             _ => None,
         }
     }

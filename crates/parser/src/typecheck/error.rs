@@ -4,8 +4,8 @@ use typhon_common::{ErrorKind, Result};
 
 use super::{TypeContext, TypecheckVisitor};
 use crate::ast::{
-    AssignStmt, Attr, AwaitExpr, BoolExpr, BreakStmt, CallArg, CallExpr, DotExpr, ExceptStmt, ExprStmt, IdExpr, IfStmt,
-    IntExpr, StmtExpr, StringExpr, SuiteStmt, ThrowStmt, TryStmt, UnaryExpr, UpdateMode, WhileStmt,
+    AssignStmt, Attr, AwaitExpr, BoolExpr, CallArg, CallExpr, DotExpr, ExceptStmt, ExprStmt, IdExpr, IfStmt,
+    IntExpr, StmtExpr, StringExpr, SuiteStmt, ThrowStmt, TryStmt, UnaryExpr, UpdateMode,
 };
 use crate::cache::VAR_USED_SUFFIX;
 use crate::ids::{ExprId, StmtId};
@@ -92,8 +92,7 @@ impl<'a> TypecheckVisitor<'a> {
 }
 
 impl<'a> TypecheckVisitor<'a> {
-    /// `visit(TryStmt*)`. Python exceptions (`pyobj` / `PyError`) are collected into a
-    /// single `except PyError` handler with a `while True` dispatch loop.
+    /// `visit(TryStmt*)`.
     pub fn visit_try(&mut self, s: StmtId) -> Result<()> {
         let st = stdlib();
         let suite = self.cache.ast[s].kind.as_try().unwrap().suite;
@@ -101,12 +100,6 @@ impl<'a> TypecheckVisitor<'a> {
         self.cache.ast[s].kind.as_try_mut().unwrap().suite = suite;
 
         let mut catches: Vec<StmtId> = vec![];
-        let t = self.xm_bool(true);
-        let py_suite = self.xm_suite(&[]);
-        let py_catch = self.n_stmt(WhileStmt { cond: Some(t), suite: Some(py_suite), else_suite: None, goto_var: String::new() });
-        // `new_stmt` may re-wrap the suite slot: read it back.
-        let py_suite = self.cache.ast[py_catch].kind.as_while().unwrap().suite.unwrap();
-
         let mut done = self.xm_done(suite);
         let items = self.cache.ast[s].kind.as_try().unwrap().items.clone();
         for c in items {
@@ -143,56 +136,7 @@ impl<'a> TypecheckVisitor<'a> {
             let exc = self.cache.ast[c].kind.as_except().unwrap().exc;
             let exc = self.transform(exc)?;
             self.cache.ast[c].kind.as_except_mut().unwrap().exc = exc;
-            let ecls = exc.and_then(|e| self.extract_class_type_expr(e));
-            let is_pyobj = exc.is_some() && ecls.is_some_and(|t| self.cache.types.is(t, "pyobj"));
-            let is_pyerr = !is_pyobj && exc.is_some() && ecls.is_some_and(|t| self.cache.types.is(t, &st.py_error));
-            if is_pyobj || is_pyerr {
-                if !self.cache.ast[s].attrs.has(Attr::TryPyVar) {
-                    let v = self.get_temporary_var("pyexc");
-                    self.cache.ast[s].attrs.set_str(Attr::TryPyVar, v);
-                }
-                let py_var = self.cache.ast[s].attrs.get_str(Attr::TryPyVar).unwrap().to_string();
-                let cvar = self.cache.ast[c].kind.as_except().unwrap().var.clone();
-                if is_pyobj {
-                    // Transform python.Error exceptions
-                    if !cvar.is_empty() {
-                        let l = self.xm_id(&cvar);
-                        let pv = self.xm_id(&py_var);
-                        let r = self.xm_dot(pv, "pytype");
-                        let a = self.xm_assign(l, Some(r), None, UpdateMode::Assign);
-                        let cs = self.cache.ast[c].kind.as_except().unwrap().suite;
-                        let ns = self.xm_suite(&[Some(a), cs]);
-                        self.cache.ast[c].kind.as_except_mut().unwrap().suite = Some(ns);
-                    }
-                    let isi = self.xm_id("isinstance");
-                    let pv = self.xm_id(&py_var);
-                    let pt = self.xm_dot(pv, "pytype");
-                    let cond = self.xm_call(isi, &[pt, exc.unwrap()]);
-                    let cs = self.cache.ast[c].kind.as_except().unwrap().suite;
-                    let brk = self.n_stmt(BreakStmt);
-                    let body = self.xm_suite(&[cs, Some(brk)]);
-                    let i = self.xm_if(cond, Some(body), None);
-                    let w = self.cache.ast.wrap_suite(Some(i));
-                    self.cache.ast[c].kind.as_except_mut().unwrap().suite = w;
-                } else {
-                    // Transform PyExc exceptions
-                    if !cvar.is_empty() {
-                        let l = self.xm_id(&cvar);
-                        let r = self.xm_id(&py_var);
-                        let a = self.xm_assign(l, Some(r), None, UpdateMode::Assign);
-                        let cs = self.cache.ast[c].kind.as_except().unwrap().suite;
-                        let ns = self.xm_suite(&[Some(a), cs]);
-                        self.cache.ast[c].kind.as_except_mut().unwrap().suite = Some(ns);
-                    }
-                    let cs = self.cache.ast[c].kind.as_except().unwrap().suite;
-                    let brk = self.n_stmt(BreakStmt);
-                    let ns = self.xm_suite(&[cs, Some(brk)]);
-                    self.cache.ast[c].kind.as_except_mut().unwrap().suite = Some(ns);
-                }
-                let cs = self.cache.ast[c].kind.as_except().unwrap().suite;
-                self.cache.ast.suite_add_stmt(py_suite, cs);
-            } else {
-                // Handle all other exceptions
+            {
                 let exc = self.transform_type(exc, false)?;
                 self.cache.ast[c].kind.as_except_mut().unwrap().exc = exc;
                 if let Some(e) = exc {
@@ -220,23 +164,6 @@ impl<'a> TypecheckVisitor<'a> {
                 done &= exc.is_none_or(|e| self.cache.ast[e].done) && self.xm_done(cs);
                 catches.push(c);
             }
-        }
-        if !self.cache.ast[py_suite].kind.as_suite().unwrap().items.is_empty() {
-            // Process PyError catches
-            let py_var = self.cache.ast[s].attrs.get_str(Attr::TryPyVar).unwrap().to_string();
-            let exc = self.xm_id(&st.py_error);
-            let th = self.n_stmt(ThrowStmt { expr: None, from: None, transformed: false });
-            self.cache.ast.suite_add_stmt(py_suite, Some(th));
-            let exc = self.transform_type(Some(exc), false)?;
-            let c = self.n_stmt(ExceptStmt { var: py_var.clone(), exc, suite: Some(py_catch) });
-            let et = self.extract_type_expr(exc.unwrap());
-            let time = self.get_time();
-            TypeContext::add_var(self.cache, &self.ctx, &py_var, &py_var, et, time, Default::default());
-            let cs = self.cache.ast[c].kind.as_except().unwrap().suite;
-            let cs = self.xm_block(cs)?;
-            self.cache.ast[c].kind.as_except_mut().unwrap().suite = cs;
-            done &= exc.is_none_or(|e| self.cache.ast[e].done) && self.xm_done(cs);
-            catches.push(c);
         }
         self.cache.ast[s].kind.as_try_mut().unwrap().items = catches;
 

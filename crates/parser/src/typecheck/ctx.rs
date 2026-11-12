@@ -11,7 +11,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use typhon_common::fs::{ImportFile, ImportStatus};
 use typhon_common::mangle::stdlib;
 use typhon_common::SrcInfo;
@@ -151,8 +151,6 @@ pub struct Base {
     /// Index of the parent base.
     pub parent: i32,
     pub deduce: Deduce,
-    /// Identifiers that are to be fetched from Python.
-    pub py_captures: Option<Rc<RefCell<FxHashSet<String>>>>,
     /// Stack of nested loops.
     pub loops: Vec<Loop>,
     /// Priority -> unbounds with defaults.
@@ -202,7 +200,6 @@ pub struct TypeContext {
     pub time: i64,
     /// Type to be expected upon completed typechecking.
     pub expected_type: Option<TypeId>,
-    pub auto_python: bool,
     /// True if no side-effects allowed.
     pub simple_types: bool,
     pub global_shadows: FxHashMap<String, usize>,
@@ -234,7 +231,6 @@ impl TypeContext {
             static_loops: vec![],
             time: 0,
             expected_type: None,
-            auto_python: false,
             simple_types: false,
             global_shadows: FxHashMap::default(),
             itime: FxHashMap::default(),

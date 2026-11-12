@@ -59,7 +59,6 @@ impl DocVisitor<'_> {
         for (at, n) in [
             (Attr::Property, "property"),
             (Attr::Attribute, "__attribute__"),
-            (Attr::Python, "python"),
             (Attr::LLVM, "llvm"),
             (Attr::Internal, "__internal__"),
             (Attr::HiddenFromUser, "__hidden__"),
@@ -151,7 +150,7 @@ impl DocVisitor<'_> {
     pub(super) fn visit_import(&mut self, s: StmtId) -> Result<String> {
         let st = self.shared.cache.ast[s].kind.as_import().unwrap().clone();
         let src = self.shared.cache.ast[s].src.clone();
-        if is_id(&self.shared.cache.ast, st.from, "C") || is_id(&self.shared.cache.ast, st.from, "python") {
+        if is_id(&self.shared.cache.ast, st.from, "C") {
             let id = self.shared.next_id();
             let (mut name, mut lib) = (String::new(), String::new());
             match st.what.map(|w| self.shared.cache.ast[w].kind.clone()) {

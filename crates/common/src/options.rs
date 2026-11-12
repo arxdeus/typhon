@@ -17,14 +17,12 @@ pub struct Options {
     pub test: bool,
     pub jit: bool,
     pub standalone: bool,
-    pub pyext: bool,
     pub pmempty: bool,
     pub capture: bool,
     pub native: bool,
     pub pynum: bool,
     pub noexc: bool,
     pub fastmath: bool,
-    pub autopy: bool,
     pub autofree: bool,
     pub unordereddict: bool,
     pub ctor: GlobalCtorMode,
@@ -39,8 +37,8 @@ pub struct Options {
     pub mcpu: String,
     pub mattrs: Vec<String>,
     /// Link executables against `libtyphonrt.a` instead of the shared runtime
-    /// (`build -exe` default; `-dynamic-runtime` turns it off). Libraries,
-    /// Python extensions and the JIT always use the shared runtime.
+    /// (`build -exe` default; `-dynamic-runtime` turns it off). Libraries
+    /// and the JIT always use the shared runtime.
     pub static_runtime: bool,
 }
 
@@ -52,14 +50,12 @@ impl Default for Options {
             test: false,
             jit: false,
             standalone: false,
-            pyext: false,
             pmempty: false,
             capture: false,
             native: true,
             pynum: true,
             noexc: false,
             fastmath: false,
-            autopy: false,
             autofree: false,
             unordereddict: false,
             ctor: GlobalCtorMode::Auto,

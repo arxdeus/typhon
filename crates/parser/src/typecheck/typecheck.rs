@@ -82,9 +82,7 @@ impl<'a> TypecheckVisitor<'a> {
             return Err(CompilerError::Parser(tv.find_typecheck_errors(suite)));
         };
         let out = tv.n_stmt(SuiteStmt { items: vec![preamble, n] });
-        if !tv.cache.options.as_ref().is_some_and(|o| o.pyext) {
-            tv.prepare_vtables()?;
-        }
+        tv.prepare_vtables()?;
         if !tv.cache.errors.is_empty() {
             return Err(CompilerError::Parser(tv.cache.errors.clone()));
         }
@@ -507,12 +505,7 @@ impl<'a> TypecheckVisitor<'a> {
     pub fn visit_directive(&mut self, s: StmtId) -> Result<()> {
         let d = self.cache.ast[s].kind.as_directive().unwrap().clone();
         let src = self.cache.ast[s].src;
-        let msg = if d.key == "auto_python" {
-            self.ctx.borrow_mut().auto_python = d.value == "1";
-            format!("directive '{}' = {}", d.key, d.value == "1")
-        } else {
-            format!("unknown directive '{}'", d.key)
-        };
+        let msg = format!("unknown directive '{}'", d.key);
         typhon_common::diag::compilation_warning(&msg, src.file.as_str(), src.line, src.col, 0, -1, false, Default::default());
         self.set_done_stmt(s);
         Ok(())
