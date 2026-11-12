@@ -5,6 +5,7 @@ Usage:
   compare.py check            # correctness pass with tiny args
   compare.py measure [names]  # serial measurement pass -> results/<date>.{json,md}
   compare.py report FILE.json # re-render markdown from a raw json
+  compare.py --set numpy check|measure [names]  # NumPy set (src_np/), results/<date>-numpy.*
 
 See README.md in this directory for the method.
 """
@@ -36,6 +37,26 @@ BENCH = {
     "set_partition": (["14"], ["8"]),
     "spectral_norm": (["40"], ["1"]),
 }
+# NumPy set: same .py for every backend, no typed Cython. Codon's numpy needs Accelerate
+# linked explicitly on macOS (Typhon links it itself).
+BENCH_NP = {
+    "np_matmul": (["2048", "60"], ["128", "2"]),
+    "np_solve_chol": (["2000", "40"], ["64", "2"]),
+    "np_eigh_svd": (["1000", "25"], ["40", "2"]),
+    "np_small_linalg": (["500000"], ["1000"]),
+    "np_arc_distance": (["10000000", "15"], ["1000", "2"]),
+    "np_jacobi_2d": (["700", "2000"], ["30", "5"]),
+    "np_covariance": (["4000", "5000"], ["50", "60"]),
+}
+SET = "scalar"
+if sys.argv[1:2] == ["--set"]:
+    SET = sys.argv[2]; del sys.argv[1:3]
+    if SET == "numpy":
+        SRC, BENCH = HERE / "src_np", BENCH_NP
+    elif SET != "scalar":
+        sys.exit(f"unknown set {SET}")
+CODON_LINK = ["-linker-flags", "-framework Accelerate"] if SET == "numpy" and platform.system() == "Darwin" else []
+RTOL = 1e-5 if SET == "numpy" else 1e-6
 BACKENDS = ["cpython", "cython", "cython_typed", "codon", "typhon"]
 LABEL = {"cpython": "CPython 3.14", "cython": "Cython (plain .py)", "cython_typed": "Cython (typed .pyx)",
          "codon": "Codon (C++)", "typhon": "Typhon (Rust)"}
@@ -73,7 +94,7 @@ def build(name, backend):
         return 0.0
     if backend in ("codon", "typhon"):
         exe = CODON if backend == "codon" else TYPHON_BIN
-        p, dt = sh([str(exe), "build", "-release", "-exe", "-o", str(d / name), str(SRC / f"{name}.py")])
+        p, dt = sh([str(exe), "build", "-release", "-exe"] + (CODON_LINK if backend == "codon" else []) + ["-o", str(d / name), str(SRC / f"{name}.py")])
     else:
         src = SRC / f"{name}.py" if backend == "cython" else TYPED / f"{name}.pyx"
         if backend == "cython" and (SRC / f"{name}_cy.py").exists():
@@ -119,7 +140,8 @@ def run(name, backend, args):
     return internal, wall, out
 
 
-def same(a, b, rtol=1e-6):
+def same(a, b, rtol=None):
+    rtol = rtol or RTOL
     if len(a) != len(b):
         return False
     for x, y in zip(a, b):
@@ -172,6 +194,8 @@ def env_info():
         "ncpu": q(["sysctl", "-n", "hw.ncpu"]),
         "memsize": q(["sysctl", "-n", "hw.memsize"]),
         "macos": q(["sw_vers", "-productVersion"]),
+        "set": SET,
+        "numpy": q([str(PY), "-c", "import numpy; print(numpy.__version__)"]) if SET == "numpy" else None,
         "python": q([str(PY), "-c", "import sys; print(sys.version.split()[0])"]),
         "cython": q([str(PY), "-c", "import Cython; print(Cython.__version__)"]),
         "cc": q(["cc", "--version"]).splitlines()[0],
@@ -296,7 +320,7 @@ def main():
     if cmd == "report":
         p = Path(sys.argv[2]); p.with_suffix(".md").write_text(report(json.loads(p.read_text()))); return
     RESULTS.mkdir(exist_ok=True)
-    out = RESULTS / f"{datetime.date.today().isoformat()}.json"
+    out = RESULTS / f"{os.environ.get('BENCH_TAG', datetime.date.today().isoformat())}{'-numpy' if SET == 'numpy' else ''}.json"
     data = measure(list(BENCH) if cmd == "measure" and not sys.argv[2:] else names, out)
     out.with_suffix(".md").write_text(report(data))
     print(out.with_suffix(".md").read_text())

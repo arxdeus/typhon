@@ -43,6 +43,21 @@ Sizes were chosen so that CPython takes about 6-19 s per run: binary_trees 17,
 chaos (fixed, 2048² and 1e6 iters), fannkuch 10, float 1e7, go (fixed),
 mandelbrot 512, nbody 3e6, primes 30000, set_partition 14, spectral_norm 40 loops.
 
+## NumPy set (`src_np/`, `compare.py --set numpy check|measure`)
+
+Seven programs. Each `.py` is used unchanged by every backend: Codon/Typhon build it,
+CPython+NumPy runs it, and plain Cython cythonizes it (NumPy calls still go through Python).
+There are no typed Cython variants. BLAS-heavy: np_matmul (2048², 60 reps),
+np_solve_chol (solve + cholesky 2000, 40 reps), np_eigh_svd (1000, 25 reps).
+Per-call overhead: np_small_linalg (5e5 iterations of 4x4 matmul/inv plus 8x8 solve/dot).
+From npbench: np_arc_distance (ufunc chain, 1e7 x 15), np_jacobi_2d (700², 2000 steps),
+np_covariance (4000x5000). Each size is chosen so CPython+NumPy takes about 2-5 s.
+Results go to `results/<date>-numpy.{json,md}` (override the prefix with `BENCH_TAG`).
+On macOS, Codon is built with `-linker-flags "-framework Accelerate"`, because its NumPy
+calls ILP64 Accelerate symbols and does not link the framework itself. Typhon links Accelerate itself.
+CPython uses NumPy 2.5.4 wheels, which also use Accelerate, so every backend uses the same BLAS.
+The float tolerance is 1e-5 relative.
+
 ## Method
 
 * Timings: each program's internal timer (its last printed line) is the primary
