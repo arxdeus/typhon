@@ -1,5 +1,4 @@
-//! Port of `codon/cir/llvm/llvisitor.{h,cpp}` (CIR -> LLVM IR code generator) and
-//! `codon/cir/dsl/codegen.h` (custom node codegen interface).
+//! CIR -> LLVM IR code generator.
 //!
 //! Layout of the port:
 //! - `mod.rs`    : visitor state, naming, globals, module/function visits, runtime helpers
@@ -27,10 +26,8 @@ mod rtti;
 mod types;
 mod win;
 
-use std::any::Any;
 use std::collections::BTreeMap;
 use std::ptr::null_mut;
-use std::rc::Rc;
 
 use inkwell::context::Context;
 use inkwell::module::Module as LlModule;
@@ -81,44 +78,6 @@ fn seq_exc_offset(ptr_size: u64) -> i64 {
     let aligned = header.div_ceil(16) * 16;
     -(aligned as i64)
 }
-
-// ------------------------------------------------------------------ codegen builder traits
-
-/// Port of `dsl::codegen::TypeBuilder`.
-pub trait TypeBuilder {
-    /// Construct the LLVM type.
-    fn build_type(&self, visitor: &mut LlvmVisitor<'_>, m: &Module) -> LLVMTypeRef;
-    /// Construct the LLVM debug type.
-    fn build_debug_type(&self, visitor: &mut LlvmVisitor<'_>, m: &Module) -> LLVMMetadataRef;
-}
-
-/// Port of `dsl::codegen::ValueBuilder`.
-pub trait ValueBuilder {
-    /// Construct the LLVM value (the visitor's current block is `visitor.block()`).
-    fn build_value(&self, visitor: &mut LlvmVisitor<'_>, m: &Module) -> LLVMValueRef;
-}
-
-/// Port of `dsl::codegen::CFBuilder` (control-flow graph construction for custom flows).
-/// The dataflow visitor lives in `typhon-ir-analyze`, so it is passed as `dyn Any`.
-pub trait CfBuilder {
-    fn build_cf_nodes(&self, visitor: &mut dyn Any);
-}
-
-/// Combined codegen interface implemented by custom DSL nodes. C++ custom nodes return
-/// builders from `getBuilder()`; in Rust the custom node type itself (found through
-/// `as_any()`) is registered with [`LlvmVisitor::register_value_builder`] /
-/// [`LlvmVisitor::register_type_builder`].
-pub trait CodegenBuilder {
-    fn value_builder(&self) -> Option<&dyn ValueBuilder> {
-        None
-    }
-    fn type_builder(&self) -> Option<&dyn TypeBuilder> {
-        None
-    }
-}
-
-type ValueBuilderCast = fn(&dyn Any) -> Option<&dyn ValueBuilder>;
-type TypeBuilderCast = fn(&dyn Any) -> Option<&dyn TypeBuilder>;
 
 // ------------------------------------------------------------------ state
 
@@ -257,8 +216,6 @@ pub struct LlvmVisitor<'ctx> {
     finally: Vec<TryCatchData>,
     catches: Vec<CatchData>,
     next_sequence_number: i64,
-    value_builders: Vec<ValueBuilderCast>,
-    type_builders: Vec<TypeBuilderCast>,
     jit_symbols: Vec<(String, u64)>,
     error: Option<CompilerError>,
 }
@@ -298,8 +255,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
             finally: Vec::new(),
             catches: Vec::new(),
             next_sequence_number: 0,
-            value_builders: Vec::new(),
-            type_builders: Vec::new(),
             jit_symbols: Vec::new(),
             error: None,
         }
@@ -377,14 +332,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
     /// linked into the host process).
     pub fn set_jit_symbols(&mut self, syms: Vec<(String, u64)>) {
         self.jit_symbols = syms;
-    }
-    /// Register a custom-node type `T` as a value builder.
-    pub fn register_value_builder<T: CodegenBuilder + 'static>(&mut self) {
-        self.value_builders.push(|a| a.downcast_ref::<T>().and_then(|t| t.value_builder()));
-    }
-    /// Register a custom-type type `T` as a type builder.
-    pub fn register_type_builder<T: CodegenBuilder + 'static>(&mut self) {
-        self.type_builders.push(|a| a.downcast_ref::<T>().and_then(|t| t.type_builder()));
     }
     /// `getGlobalCtorName()`.
     pub fn global_ctor_name() -> &'static str {
@@ -1697,45 +1644,8 @@ impl<'ctx> LlvmVisitor<'ctx> {
                 self.process_value(m, flow);
                 self.process_value(m, val);
             }
-            K::Custom(node) => self.visit_custom(m, node.clone()),
             K::Any { .. } => panic!("cannot codegen wildcard value"),
         }
-    }
-
-    /// `visit(const dsl::CustomConst/CustomFlow/CustomInstr*)`.
-    fn visit_custom(&mut self, m: &Module, node: typhon_ir::dsl::CustomNode) {
-        use typhon_ir::dsl::CustomCategory;
-        let n = node.node.borrow();
-        let any = n.as_any();
-        let casts = self.value_builders.clone();
-        let builder = casts.iter().find_map(|c| c(any));
-        let Some(builder) = builder else {
-            panic!("no codegen builder registered for custom node {}", n.format(m));
-        };
-        if node.category != CustomCategory::Const {
-            self.b.at_end(self.block);
-        }
-        let v = builder.build_value(self, m);
-        if node.category == CustomCategory::Const {
-            // CustomConst builders set the visitor's value themselves in C++; a non-null
-            // return is taken as the value as well.
-            if !v.is_null() {
-                self.value = v;
-            }
-        } else {
-            self.value = v;
-        }
-    }
-
-    fn custom_type_builder_type(&mut self, m: &Module, ct: &Rc<dyn typhon_ir::dsl::CustomType>) -> Ty {
-        let casts = self.type_builders.clone();
-        let b = casts.iter().find_map(|c| c(ct.as_any())).unwrap_or_else(|| panic!("no type builder for {}", ct.format(m)));
-        b.build_type(self, m)
-    }
-    fn custom_type_builder_debug(&mut self, m: &Module, ct: &Rc<dyn typhon_ir::dsl::CustomType>) -> Md {
-        let casts = self.type_builders.clone();
-        let b = casts.iter().find_map(|c| c(ct.as_any())).unwrap_or_else(|| panic!("no type builder for {}", ct.format(m)));
-        b.build_debug_type(self, m)
     }
 }
 

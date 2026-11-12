@@ -5,7 +5,6 @@
 
 pub mod attribute;
 pub mod base;
-pub mod dsl;
 pub mod ids;
 pub mod module;
 pub mod pass;

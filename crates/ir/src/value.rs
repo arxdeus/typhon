@@ -2,7 +2,6 @@
 //! from `var.h`: value node payloads.
 
 use crate::base::NodeBase;
-use crate::dsl::{CustomCategory, CustomNode};
 use crate::ids::{Id, TypeId, ValueId, VarId};
 use crate::schedule::OMPSched;
 
@@ -237,7 +236,6 @@ pub enum ValueKind {
     AwaitInstr(AwaitInstr),
     ThrowInstr(ThrowInstr),
     FlowInstr(FlowInstr),
-    Custom(CustomNode),
     /// `util::AnyValue` (`flow == false`) / `util::AnyFlow` (`flow == true`): wildcards for matching.
     Any { flow: bool },
 }
@@ -251,7 +249,6 @@ impl ValueKind {
             | ValueKind::BoolConst(_)
             | ValueKind::StringConst(_)
             | ValueKind::BytesConst(_) => true,
-            ValueKind::Custom(c) => c.category == CustomCategory::Const,
             _ => false,
         }
     }
@@ -265,7 +262,6 @@ impl ValueKind {
             | ValueKind::IfFlow(_)
             | ValueKind::TryCatchFlow(_)
             | ValueKind::PipelineFlow(_) => true,
-            ValueKind::Custom(c) => c.category == CustomCategory::Flow,
             ValueKind::Any { flow } => *flow,
             _ => false,
         }
@@ -287,7 +283,6 @@ impl ValueKind {
             | ValueKind::AwaitInstr(_)
             | ValueKind::ThrowInstr(_)
             | ValueKind::FlowInstr(_) => true,
-            ValueKind::Custom(c) => c.category == CustomCategory::Instr,
             _ => false,
         }
     }
@@ -329,11 +324,6 @@ impl ValueKind {
             ValueKind::AwaitInstr(_) => "AwaitInstr",
             ValueKind::ThrowInstr(_) => "ThrowInstr",
             ValueKind::FlowInstr(_) => "FlowInstr",
-            ValueKind::Custom(c) => match c.category {
-                CustomCategory::Const => "CustomConst",
-                CustomCategory::Flow => "CustomFlow",
-                CustomCategory::Instr => "CustomInstr",
-            },
             ValueKind::Any { flow: true } => "AnyFlow",
             ValueKind::Any { flow: false } => "AnyValue",
         }
@@ -393,7 +383,6 @@ impl ValueKind {
             ValueKind::AwaitInstr(i) => vec![i.value],
             ValueKind::ThrowInstr(i) => i.value.into_iter().chain(i.fallback).collect(),
             ValueKind::FlowInstr(i) => vec![i.flow, i.val],
-            ValueKind::Custom(c) => c.node.borrow().used_values(),
             _ => Vec::new(),
         }
     }
@@ -408,7 +397,6 @@ impl ValueKind {
             ValueKind::StackAllocInstr(i) => vec![i.ptr_type],
             ValueKind::YieldInInstr(i) => vec![i.ty],
             ValueKind::AwaitInstr(i) => vec![i.ty],
-            ValueKind::Custom(c) => c.node.borrow().used_types(),
             _ => Vec::new(),
         }
     }
@@ -421,7 +409,6 @@ impl ValueKind {
             ValueKind::ImperativeForFlow(f) => vec![f.var],
             ValueKind::TryCatchFlow(f) => f.catches.iter().filter_map(|c| c.var).collect(),
             ValueKind::AssignInstr(i) => vec![i.lhs],
-            ValueKind::Custom(c) => c.node.borrow().used_variables(),
             _ => Vec::new(),
         }
     }

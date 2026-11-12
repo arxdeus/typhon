@@ -6,14 +6,12 @@
 //! pipelines to loops). Here they are [`CfValue::Real`] / [`CfValue::Synth`]; synthetic
 //! values live in the graph's own arena and get fresh `IdMixin` ids (`next_id`).
 
-use std::any::TypeId as StdTypeId;
 use std::cell::RefCell;
 use std::fmt::Write as _;
 use std::rc::Rc;
 
 use indexmap::IndexSet;
 use rustc_hash::{FxHashMap, FxHashSet};
-use typhon_ir::dsl::CustomValue;
 use typhon_ir::ids::next_id;
 use typhon_ir::pass::{Analysis, AnalysisResult, PassContext};
 use typhon_ir::{FuncId, Id, Module, NodeRef, TypeId, TypeKind, ValueId, ValueKind, VarId};
@@ -486,27 +484,6 @@ pub fn build_cf_graph(m: &Module, f: FuncId) -> CFGraph {
     g
 }
 
-/// Custom CF builder callback (`dsl::codegen::CFBuilder::buildCFNodes`).
-pub type CfBuilderFn = Rc<dyn Fn(&dyn CustomValue, ValueId, &mut CFVisitor<'_>)>;
-
-thread_local! {
-    static CF_BUILDERS: RefCell<FxHashMap<StdTypeId, CfBuilderFn>> = RefCell::new(FxHashMap::default());
-}
-
-/// Registers the CFG builder of a DSL custom node type (`CustomFlow/CustomInstr::getCFBuilder`).
-///
-/// Note: `typhon_ir::dsl::CustomValue` has no CF-builder hook, so DSL plugins register
-/// one per concrete type here. Unregistered custom nodes process their used values and are
-/// then inserted as ordinary values.
-pub fn register_cf_builder<T: CustomValue + 'static>(f: impl Fn(&T, ValueId, &mut CFVisitor<'_>) + 'static) {
-    let cb: CfBuilderFn = Rc::new(move |cv: &dyn CustomValue, v, vis| {
-        if let Some(t) = cv.as_any().downcast_ref::<T>() {
-            f(t, v, vis)
-        }
-    });
-    CF_BUILDERS.with(|b| b.borrow_mut().insert(StdTypeId::of::<T>(), cb));
-}
-
 #[derive(Clone, Copy, Debug)]
 struct Loop {
     next_it: BlockId,
@@ -847,27 +824,7 @@ impl<'a> CFVisitor<'a> {
                 self.process(i.val);
                 self.default_insert(v.into());
             }
-            ValueKind::Custom(c) if c.category != typhon_ir::dsl::CustomCategory::Const => {
-                let tid = c.node.borrow().as_any().type_id();
-                let cb = CF_BUILDERS.with(|b| b.borrow().get(&tid).cloned());
-                match cb {
-                    Some(cb) => {
-                        let node = c.node.clone();
-                        let borrowed = node.borrow();
-                        cb(&**borrowed, v, self);
-                    }
-                    None => {
-                        let used = c.node.borrow().used_values();
-                        for u in used {
-                            self.process(u);
-                        }
-                        if c.category == typhon_ir::dsl::CustomCategory::Instr {
-                            self.default_insert(v.into());
-                        }
-                    }
-                }
-            }
-            // VarValue, PointerValue, constants, StackAlloc, YieldIn, custom consts, Any
+            // VarValue, PointerValue, constants, StackAlloc, YieldIn, Any
             _ => self.default_insert(v.into()),
         }
     }

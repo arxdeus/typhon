@@ -2,7 +2,6 @@
 use std::collections::BTreeMap;
 
 use crate::base::NodeBase;
-use crate::dsl::CustomTypeRc;
 use crate::ids::{FuncId, TypeId};
 use crate::realize::AstTypeRef;
 
@@ -110,7 +109,6 @@ pub enum TypeKind {
     Generator { base: TypeId },
     Vector { count: u32, base: TypeId },
     Union { types: Vec<TypeId> },
-    Custom(CustomTypeRc),
 }
 
 impl TypeKind {
@@ -191,7 +189,6 @@ impl TypeKind {
             TypeKind::Generator { .. } => "GeneratorType",
             TypeKind::Vector { .. } => "VectorType",
             TypeKind::Union { .. } => "UnionType",
-            TypeKind::Custom(_) => "CustomType",
         }
     }
 }

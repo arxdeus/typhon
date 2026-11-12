@@ -6,7 +6,6 @@
 //! no-op. Note: the reference implementation `Visitor::defaultVisit` throws `"cannot visit node"`; every
 //! in-tree visitor overrides it or the relevant methods, so a no-op default is used.
 
-use crate::dsl::CustomCategory;
 use crate::ids::{FuncId, NodeRef, TypeId, ValueId, VarId};
 use crate::module::Module;
 use crate::types::TypeKind;
@@ -64,9 +63,6 @@ macro_rules! visitor_trait {
             fn visit_pipeline_flow(&mut self, m: $m, v: ValueId) {
                 self.default_visit(m, v.into())
             }
-            fn visit_custom_flow(&mut self, m: $m, v: ValueId) {
-                self.default_visit(m, v.into())
-            }
             fn visit_int_const(&mut self, m: $m, v: ValueId) {
                 self.default_visit(m, v.into())
             }
@@ -80,9 +76,6 @@ macro_rules! visitor_trait {
                 self.default_visit(m, v.into())
             }
             fn visit_bytes_const(&mut self, m: $m, v: ValueId) {
-                self.default_visit(m, v.into())
-            }
-            fn visit_custom_const(&mut self, m: $m, v: ValueId) {
                 self.default_visit(m, v.into())
             }
             fn visit_assign_instr(&mut self, m: $m, v: ValueId) {
@@ -125,9 +118,6 @@ macro_rules! visitor_trait {
                 self.default_visit(m, v.into())
             }
             fn visit_flow_instr(&mut self, m: $m, v: ValueId) {
-                self.default_visit(m, v.into())
-            }
-            fn visit_custom_instr(&mut self, m: $m, v: ValueId) {
                 self.default_visit(m, v.into())
             }
             /// `util::AnyValue` / `util::AnyFlow` (matching wildcards).
@@ -180,9 +170,6 @@ macro_rules! visitor_trait {
             fn visit_union_type(&mut self, m: $m, t: TypeId) {
                 self.default_visit(m, t.into())
             }
-            fn visit_custom_type(&mut self, m: $m, t: TypeId) {
-                self.default_visit(m, t.into())
-            }
         }
     };
 }
@@ -202,13 +189,11 @@ pub enum ValueVisitKind {
     ImperativeForFlow,
     TryCatchFlow,
     PipelineFlow,
-    CustomFlow,
     IntConst,
     FloatConst,
     BoolConst,
     StringConst,
     BytesConst,
-    CustomConst,
     AssignInstr,
     ExtractInstr,
     InsertInstr,
@@ -223,7 +208,6 @@ pub enum ValueVisitKind {
     AwaitInstr,
     ThrowInstr,
     FlowInstr,
-    CustomInstr,
     Any,
 }
 
@@ -258,11 +242,6 @@ pub fn value_visit_kind(k: &ValueKind) -> ValueVisitKind {
         ValueKind::AwaitInstr(_) => K::AwaitInstr,
         ValueKind::ThrowInstr(_) => K::ThrowInstr,
         ValueKind::FlowInstr(_) => K::FlowInstr,
-        ValueKind::Custom(c) => match c.category {
-            CustomCategory::Const => K::CustomConst,
-            CustomCategory::Flow => K::CustomFlow,
-            CustomCategory::Instr => K::CustomInstr,
-        },
         ValueKind::Any { .. } => K::Any,
     }
 }
@@ -280,13 +259,11 @@ macro_rules! dispatch_value {
             K::ImperativeForFlow => $vis.visit_imperative_for_flow($m, $v),
             K::TryCatchFlow => $vis.visit_try_catch_flow($m, $v),
             K::PipelineFlow => $vis.visit_pipeline_flow($m, $v),
-            K::CustomFlow => $vis.visit_custom_flow($m, $v),
             K::IntConst => $vis.visit_int_const($m, $v),
             K::FloatConst => $vis.visit_float_const($m, $v),
             K::BoolConst => $vis.visit_bool_const($m, $v),
             K::StringConst => $vis.visit_string_const($m, $v),
             K::BytesConst => $vis.visit_bytes_const($m, $v),
-            K::CustomConst => $vis.visit_custom_const($m, $v),
             K::AssignInstr => $vis.visit_assign_instr($m, $v),
             K::ExtractInstr => $vis.visit_extract_instr($m, $v),
             K::InsertInstr => $vis.visit_insert_instr($m, $v),
@@ -301,7 +278,6 @@ macro_rules! dispatch_value {
             K::AwaitInstr => $vis.visit_await_instr($m, $v),
             K::ThrowInstr => $vis.visit_throw_instr($m, $v),
             K::FlowInstr => $vis.visit_flow_instr($m, $v),
-            K::CustomInstr => $vis.visit_custom_instr($m, $v),
             K::Any => $vis.visit_any_value($m, $v),
         }
     }};
@@ -343,7 +319,6 @@ enum TypeVisitKind {
     Generator,
     Vector,
     Union,
-    Custom,
 }
 
 fn type_visit_kind(m: &Module, t: TypeId) -> TypeVisitKind {
@@ -364,7 +339,6 @@ fn type_visit_kind(m: &Module, t: TypeId) -> TypeVisitKind {
         TypeKind::Generator { .. } => K::Generator,
         TypeKind::Vector { .. } => K::Vector,
         TypeKind::Union { .. } => K::Union,
-        TypeKind::Custom(_) => K::Custom,
     }
 }
 
@@ -399,7 +373,6 @@ macro_rules! dispatch_type {
             K::Generator => $vis.visit_generator_type($m, $t),
             K::Vector => $vis.visit_vector_type($m, $t),
             K::Union => $vis.visit_union_type($m, $t),
-            K::Custom => $vis.visit_custom_type($m, $t),
         }
     }};
 }

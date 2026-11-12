@@ -3,7 +3,6 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::attribute::Attribute;
-use crate::dsl::CustomNode;
 use crate::ids::{FuncId, Id, NodeRef, ValueId, VarId};
 use crate::module::Module;
 use crate::util::operator::{Operator, OperatorState};
@@ -276,11 +275,6 @@ impl CloneVisitor {
             ValueKind::PipelineFlow(f) => {
                 let stages = f.stages.iter().map(|s| self.clone_stage(m, s)).collect();
                 self.nt(m, v, ValueKind::PipelineFlow(PipelineFlow { stages }))
-            }
-            ValueKind::Custom(c) => {
-                let node = c.node.borrow().do_clone(self, m);
-                let kind = ValueKind::Custom(CustomNode::new(c.category, node));
-                self.nt(m, v, kind)
             }
             k @ (ValueKind::IntConst(_)
             | ValueKind::FloatConst(_)

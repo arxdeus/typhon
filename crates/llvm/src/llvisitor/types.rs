@@ -55,7 +55,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
                 let storage = ll::struct_ty(c, &[ll::array_ty(alignment_type, 0), ll::array_ty(i8t, max_size)]);
                 ll::struct_ty(c, &[i8t, storage])
             }
-            TypeKind::Custom(ct) => self.custom_type_builder_type(m, &ct),
         }
     }
 
@@ -213,7 +212,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
             TypeKind::Vector { .. } | TypeKind::Union { .. } => {
                 self.db.b().basic_type(&name, self.bits(ty), ll::DW_ATE_UNSIGNED)
             }
-            TypeKind::Custom(ct) => self.custom_type_builder_debug(m, &ct),
         }
     }
 }

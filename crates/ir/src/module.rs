@@ -12,7 +12,6 @@ use typhon_common::{SrcInfo, log_flag};
 
 use crate::attribute::{Attribute, AttributeMap, attr_id};
 use crate::base::NodeBase;
-use crate::dsl::{CustomCategory, CustomNode};
 use crate::ids::{FuncId, Id, NodeRef, TypeId, ValueId, VarId, next_id};
 use crate::realize::{AstTypeRef, TypeRealizer};
 use crate::types::*;
@@ -535,9 +534,6 @@ impl Module {
     pub fn nr_flow_instr(&mut self, flow: ValueId, val: ValueId) -> ValueId {
         self.nr(ValueKind::FlowInstr(FlowInstr { flow, val }))
     }
-    pub fn nr_custom(&mut self, node: CustomNode) -> ValueId {
-        self.nr(ValueKind::Custom(node))
-    }
     /// `util::AnyValue` / `util::AnyFlow`.
     pub fn nr_any_value(&mut self, flow: bool) -> ValueId {
         self.nr(ValueKind::Any { flow })
@@ -890,7 +886,6 @@ impl Module {
         as_await_instr, as_await_instr_mut, AwaitInstr, AwaitInstr;
         as_throw_instr, as_throw_instr_mut, ThrowInstr, ThrowInstr;
         as_flow_instr, as_flow_instr_mut, FlowInstr, FlowInstr;
-        as_custom, as_custom_mut, Custom, CustomNode;
     }
 
     pub fn is_flow(&self, v: ValueId) -> bool {
@@ -1250,7 +1245,6 @@ impl Module {
             ValueKind::AwaitInstr(i) => req(&mut i.value, false),
             ValueKind::ThrowInstr(i) => opt(&mut i.value, false) + opt(&mut i.fallback, false),
             ValueKind::FlowInstr(i) => req(&mut i.flow, true) + req(&mut i.val, false),
-            ValueKind::Custom(c) => c.node.borrow_mut().replace_used_value(self, id, new),
             _ => 0,
         }
     }
@@ -1286,7 +1280,6 @@ impl Module {
                         vec![*base]
                     }
                     TypeKind::Union { types } => types.clone(),
-                    TypeKind::Custom(c) => c.used_types(),
                     _ => Vec::new(),
                 };
                 if let Some(info) = &d.runtime_info {
@@ -1352,7 +1345,6 @@ impl Module {
                     ValueKind::StackAllocInstr(i) => rep(&mut i.ptr_type),
                     ValueKind::YieldInInstr(i) => rep(&mut i.ty),
                     ValueKind::AwaitInstr(i) => rep(&mut i.ty),
-                    ValueKind::Custom(c) => c.node.borrow_mut().replace_used_type(self, name, new),
                     _ => 0,
                 };
                 self.values[v].kind = kind;
@@ -1460,7 +1452,6 @@ impl Module {
                         }
                         c
                     }
-                    ValueKind::Custom(c) => c.node.borrow_mut().replace_used_variable(self, id, new),
                     _ => 0,
                 };
                 self.values[v].kind = kind;
@@ -1559,10 +1550,6 @@ impl Module {
             ValueKind::TernaryInstr(i) => self.try_value_type(i.true_value)?,
             ValueKind::AwaitInstr(i) => i.ty,
             ValueKind::FlowInstr(i) => self.try_value_type(i.val)?,
-            ValueKind::Custom(c) => match c.node.borrow().ty(self) {
-                Some(t) => t,
-                None => none()?,
-            },
             ValueKind::Any { flow: false } => {
                 self.get_type(&int_type_name(64, true)).ok_or(MissingType::Int)?
             }
@@ -1617,7 +1604,6 @@ impl Module {
             }
             TypeKind::Optional { base } => self.type_is_atomic(*base),
             TypeKind::Union { types } => types.iter().all(|x| self.type_is_atomic(*x)),
-            TypeKind::Custom(c) => c.is_atomic(),
             _ => false,
         }
     }
@@ -1626,7 +1612,6 @@ impl Module {
     pub fn type_is_content_atomic(&self, t: TypeId) -> bool {
         match self.type_kind(t) {
             TypeKind::Ref { contents, .. } => self.type_fields(*contents).iter().all(|f| self.type_is_atomic(f.ty)),
-            TypeKind::Custom(c) => c.is_content_atomic(),
             _ => true,
         }
     }
@@ -2195,9 +2180,4 @@ enum MissingType {
     None,
     Pointer(TypeId),
     Int,
-}
-
-/// Helper used by [`CustomCategory`] consumers.
-pub fn custom_category(m: &Module, v: ValueId) -> Option<CustomCategory> {
-    m.as_custom(v).map(|c| c.category)
 }

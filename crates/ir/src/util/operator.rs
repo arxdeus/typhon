@@ -59,13 +59,11 @@ pub trait Operator {
         handle_imperative_for_flow,
         handle_try_catch_flow,
         handle_pipeline_flow,
-        handle_custom_flow,
         handle_int_const,
         handle_float_const,
         handle_bool_const,
         handle_string_const,
         handle_bytes_const,
-        handle_custom_const,
         handle_assign_instr,
         handle_extract_instr,
         handle_insert_instr,
@@ -80,7 +78,6 @@ pub trait Operator {
         handle_await_instr,
         handle_throw_instr,
         handle_flow_instr,
-        handle_custom_instr,
         handle_any_value
     );
 
@@ -97,13 +94,11 @@ pub trait Operator {
             K::ImperativeForFlow => self.handle_imperative_for_flow(m, v),
             K::TryCatchFlow => self.handle_try_catch_flow(m, v),
             K::PipelineFlow => self.handle_pipeline_flow(m, v),
-            K::CustomFlow => self.handle_custom_flow(m, v),
             K::IntConst => self.handle_int_const(m, v),
             K::FloatConst => self.handle_float_const(m, v),
             K::BoolConst => self.handle_bool_const(m, v),
             K::StringConst => self.handle_string_const(m, v),
             K::BytesConst => self.handle_bytes_const(m, v),
-            K::CustomConst => self.handle_custom_const(m, v),
             K::AssignInstr => self.handle_assign_instr(m, v),
             K::ExtractInstr => self.handle_extract_instr(m, v),
             K::InsertInstr => self.handle_insert_instr(m, v),
@@ -118,7 +113,6 @@ pub trait Operator {
             K::AwaitInstr => self.handle_await_instr(m, v),
             K::ThrowInstr => self.handle_throw_instr(m, v),
             K::FlowInstr => self.handle_flow_instr(m, v),
-            K::CustomInstr => self.handle_custom_instr(m, v),
             K::Any => self.handle_any_value(m, v),
         }
     }

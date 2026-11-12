@@ -250,7 +250,6 @@ impl<'a> Formatter<'a> {
             ValueKind::BoolConst(c) => format!("{}", c.val),
             ValueKind::StringConst(c) => format!("\"{}\"", escape_string(&c.val)),
             ValueKind::BytesConst(c) => format!("b\"{}\"", escape_string(&c.val)),
-            ValueKind::Custom(c) => c.node.borrow().format(m),
             ValueKind::AssignInstr(i) => {
                 let l = self.fmt_var(Some(i.lhs), false);
                 let r = self.fmt_value(Some(i.rhs));
@@ -348,7 +347,6 @@ impl<'a> Formatter<'a> {
                 let a: Vec<String> = types.iter().map(|x| self.fmt_type(Some(*x), false)).collect();
                 format!("(union '\"{}\" {})", r, a.join(" "))
             }
-            TypeKind::Custom(c) => c.format(m),
         }
     }
 }

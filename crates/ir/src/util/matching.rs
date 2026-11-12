@@ -161,10 +161,6 @@ impl<'a> Matcher<'a> {
                             && s.parallel == t.parallel
                     })
             }
-            (ValueKind::Custom(a), ValueKind::Custom(b)) => {
-                let bb = b.node.borrow();
-                a.node.borrow().matches(&**bb)
-            }
             (ValueKind::IntConst(a), ValueKind::IntConst(b)) => m.type_is(a.ty, b.ty) && a.val == b.val,
             (ValueKind::FloatConst(a), ValueKind::FloatConst(b)) => m.type_is(a.ty, b.ty) && a.val == b.val,
             (ValueKind::BoolConst(a), ValueKind::BoolConst(b)) => m.type_is(a.ty, b.ty) && a.val == b.val,

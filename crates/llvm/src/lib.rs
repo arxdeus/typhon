@@ -27,7 +27,7 @@ pub use llvm_sys;
 
 pub use debug_listener::{DebugListener, LineInfo};
 pub use engine::{Engine, EngineConfig, GcRootCallbacks, ResourceTracker};
-pub use llvisitor::{CodegenBuilder, LlvmVisitor, TypeBuilder, ValueBuilder};
+pub use llvisitor::LlvmVisitor;
 pub use optimize::{GLOBAL_CTOR_NAME, PassStage, optimize, verify};
 pub use target::{
     data_layout_string, features_str, host_target_machine, host_triple, initialize_targets, target_machine_for,

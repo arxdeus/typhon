@@ -278,16 +278,6 @@ impl Analyzer<'_> {
                 }
                 self.set(uid, s, call_status);
             }
-            ValueKind::Custom(c) => {
-                if c.category == typhon_ir::dsl::CustomCategory::Const {
-                    self.set(uid, p, p);
-                } else {
-                    let n = c.node.borrow();
-                    let (a, b) = (n.side_effect_status(true), n.side_effect_status(false));
-                    drop(n);
-                    self.set(uid, a, b);
-                }
-            }
             ValueKind::AssignInstr(a) => {
                 let s = self.process(Some(a.rhs));
                 self.handle_var_assign(uid, a.lhs, s);

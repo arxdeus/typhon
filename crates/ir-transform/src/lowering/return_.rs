@@ -4,7 +4,6 @@ use std::collections::{BTreeSet, VecDeque};
 use rustc_hash::{FxHashMap, FxHashSet};
 use typhon_ir::util::irtools;
 use typhon_ir::util::operator::{Operator, OperatorState};
-use typhon_ir::dsl::CustomCategory;
 use typhon_ir::{FuncId, Id, Module, NodeRef, TypeId, TypeKind, ValueId, ValueKind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -187,7 +186,7 @@ impl ReturnAnalysis<'_> {
                 out.insert((ExitKind::Throw, NO_TARGET));
                 sequence(self.analyze(m, y.value), &out)
             }
-            k if k.is_flow() || matches!(k, ValueKind::Custom(c) if c.category == CustomCategory::Instr) => {
+            k if k.is_flow() => {
                 [ExitKind::Normal, ExitKind::Return, ExitKind::Throw, ExitKind::Break, ExitKind::Continue]
                     .into_iter()
                     .map(|k| (k, NO_TARGET))
