@@ -8,15 +8,13 @@ import math
 import numpy as np
 from .._base import _compressed, _coo, _issparse
 from .._construct import csr_array
+from .._sparsetools import _arr
 
 NULL_IDX: Literal[int] = -9999
 
 class NegativeCycleError(Exception):
     def __init__(self, msg: str = ""):
         super().__init__(msg)
-
-def _issparse(g) -> Literal[bool]:
-    return _issparse(g)
 
 def _is_null(v: float, null_value: float, infinity_null: bool, nan_null: bool) -> bool:
     if math.isnan(v):
@@ -43,7 +41,7 @@ def csgraph_from_dense(graph, null_value: float = 0.0, nan_null: bool = True,
                 Bj.append(j)
                 Bx.append(v)
         Bp[i + 1] = len(Bj)
-    return csr_array((np.array(Bx, dtype=float), np.array(Bj, dtype=int), Bp),
+    return csr_array((_arr(Bx, float), _arr(Bj, int), Bp),
                      shape=(m, n))
 
 def csgraph_to_dense(csgraph, null_value: float = 0.0):
@@ -65,12 +63,49 @@ def csgraph_to_dense(csgraph, null_value: float = 0.0):
 
 def csgraph_masked_from_dense(graph, null_value: float = 0.0, nan_null: bool = True,
                               infinity_null: bool = True, copy: bool = True):
-    G = np.asarray(graph).astype(float)
+    # numpy.ma masked array with null edges masked (fill_value 0 as scipy)
+    import numpy.ma as ma
+    G = np.asarray(graph).astype(float).copy()
+    if G.ndim != 2:
+        raise ValueError("graph should have two dimensions")
+    if G.shape[0] != G.shape[1]:
+        raise ValueError("graph should be a square array")
     mask = np.zeros(G.shape, dtype=bool)
     for i in range(G.shape[0]):
         for j in range(G.shape[1]):
             mask[i, j] = _is_null(G[i, j], null_value, infinity_null, nan_null)
-    return G, mask
+    return ma.masked_array(G, mask=mask, fill_value=0.0)
+
+def csgraph_from_masked(graph):
+    # CSR of the unmasked entries (row-major order)
+    import numpy.ma as ma
+    G = ma.getdata(graph).astype(float)
+    M = ma.getmaskarray(graph)
+    if G.ndim != 2:
+        raise ValueError("graph should have two dimensions")
+    m, n = G.shape
+    if m != n:
+        raise ValueError("graph should be a square array")
+    Bp = np.zeros(m + 1, dtype=int)
+    Bj = List[int]()
+    Bx = List[float]()
+    for i in range(m):
+        for j in range(n):
+            if not M[i, j]:
+                Bj.append(j)
+                Bx.append(G[i, j])
+        Bp[i + 1] = len(Bj)
+    return csr_array((_arr(Bx, float), _arr(Bj, int), Bp), shape=(m, n))
+
+def csgraph_to_masked(csgraph):
+    # dense graph with non-edges masked (scipy: fill_value default 1e20)
+    import numpy.ma as ma
+    D = csgraph_to_dense(csgraph, null_value=math.inf)
+    mask = np.zeros(D.shape, dtype=bool)
+    for i in range(D.shape[0]):
+        for j in range(D.shape[1]):
+            mask[i, j] = math.isinf(D[i, j])
+    return ma.masked_array(D, mask=mask)
 
 def _csr_graph(csgraph):
     # validate_graph(..., dense_output=False): float64 CSR

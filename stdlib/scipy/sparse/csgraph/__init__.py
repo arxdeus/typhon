@@ -4,10 +4,13 @@
 # scipy.sparse.csgraph: graph algorithms on sparse / dense adjacency matrices.
 
 from ._validation import NegativeCycleError, csgraph_from_dense, \
-    csgraph_to_dense, csgraph_masked_from_dense
+    csgraph_to_dense, csgraph_masked_from_dense, csgraph_from_masked, \
+    csgraph_to_masked
 from ._shortest_path import shortest_path, dijkstra, bellman_ford, johnson, \
-    floyd_warshall, construct_dist_matrix
+    floyd_warshall, construct_dist_matrix, yen
 from ._traversal import connected_components, breadth_first_order, \
     depth_first_order, breadth_first_tree, depth_first_tree, reconstruct_path
 from ._misc import minimum_spanning_tree, reverse_cuthill_mckee, \
     structural_rank, laplacian, maximum_flow, MaximumFlowResult
+from ._matching import maximum_bipartite_matching, \
+    min_weight_full_bipartite_matching

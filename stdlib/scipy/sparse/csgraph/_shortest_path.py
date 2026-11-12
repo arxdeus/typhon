@@ -377,3 +377,205 @@ def construct_dist_matrix(graph, predecessors, directed: bool = True,
             if null_path and i != j:
                 D[i, j] = null_value
     return D
+
+# ----------------------------------------------------------------- yen
+
+def _johnson_potentials(data, G, directed: bool, N: int):
+    # Bellman-Ford on a virtual source (scipy _johnson_directed/_undirected)
+    pot = np.zeros(N)
+    for count in range(N):
+        for j in range(N):
+            d1 = pot[j]
+            for k in range(G.indptr[j], G.indptr[j + 1]):
+                w12 = data[k]
+                ik = G.indices[k]
+                d2 = pot[ik]
+                if d1 + w12 < d2:
+                    pot[ik] = d1 + w12
+                if not directed:
+                    if d2 + w12 < d1:
+                        d1 = d2 + w12
+                        pot[j] = d1
+    for j in range(N):
+        d1 = pot[j]
+        for k in range(G.indptr[j], G.indptr[j + 1]):
+            w12 = data[k]
+            d2 = pot[G.indices[k]]
+            if directed:
+                if d1 + w12 + _DTYPE_EPS < d2:
+                    raise NegativeCycleError(f"Negative cycle detected on node {j}")
+            else:
+                if abs(d2 - d1) > w12 + _DTYPE_EPS:
+                    raise NegativeCycleError(f"Negative cycle detected on node {j}")
+    return pot
+
+class _YenCand:
+    dist: List[float]
+    path: List[List[int]]
+    spur: List[int]
+    required: int
+
+    def __init__(self, K: int):
+        self.dist = List[float]()
+        self.path = List[List[int]]()
+        self.spur = List[int]()
+        self.required = K
+
+    def insert(self, distance: float, src_pred, spur_pred, spur_node: int, sink: int):
+        if len(self.dist) >= self.required and distance >= self.dist[len(self.dist) - 1]:
+            return
+        p = List[int]()
+        idx = sink
+        while idx != spur_node:
+            p.append(idx)
+            idx = spur_pred[idx]
+        while idx != NULL_IDX:
+            p.append(idx)
+            idx = src_pred[idx]
+        # std::lower_bound on distance
+        pos = 0
+        while pos < len(self.dist) and self.dist[pos] < distance:
+            pos += 1
+        self.dist.insert(pos, distance)
+        self.path.insert(pos, p)
+        self.spur.insert(pos, spur_node)
+        while len(self.dist) > self.required:
+            self.dist.pop()
+            self.path.pop()
+            self.spur.pop()
+
+def _yen_dijkstra(src: int, source: int, w, G, wT, GT, directed: bool, N: int):
+    D = np.full((1, N), _INF)
+    P = np.full((1, N), NULL_IDX, dtype=int)
+    dummy = np.zeros((1, 1), dtype=int)
+    D[0, source] = 0.0
+    Gw = G.copy()
+    Gw.data = w
+    GTw = GT.copy()
+    if not directed:
+        GTw.data = wT
+    _dijkstra_core(Gw, GTw, directed, [src], _INF, N, D, P, dummy, 0, False)
+    return D, P
+
+def yen(csgraph, source: int, sink: int, K: int, directed: bool = True,
+        return_predecessors: Literal[bool] = False, unweighted: bool = False):
+    G = _csr_graph(csgraph)
+    N = G.shape[0]
+    if source < 0 or source >= N or sink < 0 or sink >= N:
+        raise ValueError(f"For csgraph with shape (N, N), must have 0 <= source < N and 0 <= sink < N. Got N={N}, source={source}, sink={sink}.")
+    dist_array = np.full(K, _INF)
+    preds = np.full((K, N), NULL_IDX, dtype=int)
+    neg = False
+    if unweighted:
+        data = np.ones(len(G.data))
+    else:
+        data = G.data.copy()
+        for v in data:
+            if v < 0:
+                neg = True
+    pot = np.zeros(N)
+    if neg:
+        pot = _johnson_potentials(data, G, directed, N)
+        for j in range(N):
+            for k in range(G.indptr[j], G.indptr[j + 1]):
+                data[k] += pot[j]
+                data[k] -= pot[G.indices[k]]
+    GT = _transpose_csr(G)
+    if directed:
+        dataT = np.empty(0)
+    else:
+        if unweighted:
+            dataT = data
+        else:
+            dataT = GT.data.copy()
+            if neg:
+                for j in range(N):
+                    for k in range(GT.indptr[j], GT.indptr[j + 1]):
+                        dataT[k] += pot[j]
+                        dataT[k] -= pot[GT.indices[k]]
+    # --- _yen ---
+    D, P = _yen_dijkstra(source, source, data, G, dataT, GT, directed, N)
+    dist_array[0] = D[0, sink]
+    if dist_array[0] != _INF:
+        w = data.copy()
+        wT = dataT.copy()
+        node = sink
+        while node != NULL_IDX:
+            preds[0, node] = P[0, node]
+            node = P[0, node]
+        cand = _YenCand(K)
+        spur_km1 = source
+        for k in range(1, K):
+            spur_node = sink
+            root_dist = dist_array[k - 1]
+            while spur_node != spur_km1:
+                tmp_i = preds[k - 1, spur_node]
+                tmp_d = _INF
+                for i in range(G.indptr[tmp_i], G.indptr[tmp_i + 1]):
+                    if G.indices[i] == spur_node:
+                        tmp_d = w[i]
+                        break
+                if not directed:
+                    for i in range(GT.indptr[tmp_i], GT.indptr[tmp_i + 1]):
+                        if GT.indices[i] == spur_node and wT[i] < tmp_d:
+                            tmp_d = wT[i]
+                            break
+                if tmp_d == _INF:
+                    raise ValueError(f"No edge between nodes {tmp_i} and {spur_node}")
+                root_dist -= tmp_d
+                spur_node = tmp_i
+                for sp_i in range(k):
+                    node = spur_node
+                    while preds[sp_i, node] == preds[k - 1, node]:
+                        if node == source:
+                            for i in range(G.indptr[spur_node], G.indptr[spur_node + 1]):
+                                if spur_node == preds[sp_i, G.indices[i]]:
+                                    w[i] = _INF
+                            if not directed:
+                                for i in range(GT.indptr[spur_node], GT.indptr[spur_node + 1]):
+                                    if spur_node == preds[sp_i, GT.indices[i]]:
+                                        wT[i] = _INF
+                            break
+                        node = preds[sp_i, node]
+                node = preds[k - 1, spur_node]
+                while node != NULL_IDX:
+                    for i in range(G.indptr[node], G.indptr[node + 1]):
+                        w[i] = _INF
+                    if not directed:
+                        for i in range(GT.indptr[node], GT.indptr[node + 1]):
+                            wT[i] = _INF
+                    node = preds[k - 1, node]
+                D2, P2 = _yen_dijkstra(spur_node, source, w, G, wT, GT, directed, N)
+                total = D2[0, sink] + root_dist
+                if total != _INF:
+                    cand.insert(total, preds[k - 1], P2[0], spur_node, sink)
+                node = spur_node
+                while node != NULL_IDX:
+                    for i in range(G.indptr[node], G.indptr[node + 1]):
+                        w[i] = data[i]
+                    if not directed:
+                        for i in range(GT.indptr[node], GT.indptr[node + 1]):
+                            wT[i] = dataT[i]
+                    node = preds[k - 1, node]
+            if len(cand.dist) == 0:
+                break
+            dist_array[k] = cand.dist[0]
+            p = cand.path[0]
+            spur_km1 = cand.spur[0]
+            cand.dist.pop(0)
+            cand.path.pop(0)
+            cand.spur.pop(0)
+            for q in range(len(p) - 1):
+                preds[k, p[q]] = p[q + 1]
+            cand.required -= 1
+    if neg:
+        for k in range(K):
+            dist_array[k] += pot[sink] - pot[source]
+    nf = 0
+    for k in range(K):
+        if dist_array[k] < _INF:
+            nf += 1
+    if return_predecessors:
+        return dist_array[:nf].copy(), np.ascontiguousarray(preds[:nf])
+    else:
+        return dist_array[:nf].copy()
