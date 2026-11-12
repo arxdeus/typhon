@@ -91,7 +91,7 @@ binary_trees (56 vs 45 MB).
 `tools/build-runtime.sh <rust-triple>...` cross-builds `libtyphonrt.a` to
 `$CARGO_TARGET_DIR/<triple>/release/` for `aarch64-linux-android`, `x86_64-linux-android`
 (NDK from `ANDROID_NDK_HOME` or the newest `$ANDROID_HOME/ndk/*`, API 24),
-`aarch64-apple-ios` and `aarch64-apple-ios-sim` (iOS 13.0). It exports the per-target
+`aarch64-apple-ios` and `aarch64-apple-ios-sim` (iOS 16.4). It exports the per-target
 `CC_/AR_/CFLAGS_` (with `-DLARGE_CONFIG`), the bindgen sysroot, and a cmake toolchain file
 for bdwgc (`tools/cmake/`). It uses rustup's cargo, because Homebrew rust has no cross std.
 
@@ -99,8 +99,28 @@ Native libs needed to link the archive:
 - Android: `-ldl -llog -lunwind -lm -lc` (NDK clang adds them, so pass `-ldl -llog -lm`).
 - iOS / simulator: `-liconv -lSystem -lc -lm -framework Accelerate`.
 
-`blas` links Accelerate on macOS/iOS. `cnp_clogf` is implemented in Rust on Android
-because bionic only has `clogf` from API 26.
+`cnp_clogf` is implemented in Rust on Android because bionic only has `clogf` from API 26.
+
+### BLAS / LAPACK (feature `blas`, default)
+
+The stdlib calls `cblas_*` and Fortran-style LAPACK (`dgesv_`, ...) with 64-bit ints.
+- **macOS / iOS**: Accelerate (`-framework Accelerate`), symbols with the
+  `$NEWLAPACK$ILP64` suffix. These need macOS 13.3+ / **iOS 16.4+**, so the iOS
+  aliases default to `ios16.4`.
+- **Android / Linux**: OpenBLAS 0.3.32, built from source by `build.rs` (crates.io
+  `openblas-build` downloads it; `make libs netlib`). It is ILP64 (`INTERFACE64=1`, plain
+  names), uses the f2c-translated LAPACK (`NOFORTRAN=1` implies `C_LAPACK=1`, so no
+  Fortran compiler is needed), has no LAPACKE, and is static, linked whole into
+  `libtyphonrt.a` (~20 MB of archive, dead-stripped at link). `TARGET=ARMV8` on Android
+  arm64, otherwise `DYNAMIC_ARCH=1`. The result is cached in `OUT_DIR/openblas-omp`, and
+  `TYPHON_OPENBLAS_DIR=<dir with libopenblas.a>` skips the build. It takes ~1 min per
+  target.
+- **Threads**: `USE_OPENMP=1`, compiled with clang `-fopenmp` but resolved against
+  typhon-omp (no libomp/libgomp; gcc is replaced by clang because it would emit
+  `GOMP_*`). BLAS and `@par` share one pool and `OMP_NUM_THREADS`/`omp_set_num_threads`.
+  BLAS called inside a parallel region runs single-threaded. `NUM_PARALLEL=8` allows
+  concurrent calls from independent threads (e.g. isolates).
+- Windows links a prebuilt LP64 `libopenblas` (`-llibopenblas`).
 
 Libraries: `seq_register_current_thread()` registers the calling thread with the GC. It is
 idempotent and calls `seq_init(0)` if needed. The thread is unregistered when it exits.

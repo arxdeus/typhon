@@ -27,8 +27,8 @@ pub struct TargetInfo {
 pub const TARGET_ALIASES: &[(&str, &str)] = &[
     ("android-arm64", "aarch64-linux-android24"),
     ("android-x64", "x86_64-linux-android24"),
-    ("ios-arm64", "arm64-apple-ios13.0"),
-    ("ios-sim-arm64", "arm64-apple-ios13.0-simulator"),
+    ("ios-arm64", "arm64-apple-ios16.4"),
+    ("ios-sim-arm64", "arm64-apple-ios16.4-simulator"),
 ];
 
 /// Resolve an alias to an LLVM triple (non-aliases are returned unchanged).

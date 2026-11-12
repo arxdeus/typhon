@@ -4,7 +4,7 @@
 # Output: ${CARGO_TARGET_DIR:-typhon/target}/<triple>/release/libtyphonrt.a
 # Android: NDK from $ANDROID_NDK_HOME, else newest $ANDROID_HOME/ndk/*; API ${TYPHON_ANDROID_API:-24}.
 # TYPHON_CARGO_SUBCMD=rustc with `-- --crate-type staticlib -- --print native-static-libs` lists link libs.
-# iOS: Xcode SDKs via xcrun; min version ${IPHONEOS_DEPLOYMENT_TARGET:-13.0}.
+# iOS: Xcode SDKs via xcrun; min version ${IPHONEOS_DEPLOYMENT_TARGET:-16.4} (Accelerate ILP64 LAPACK).
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 targets=(); extra=()
@@ -14,7 +14,7 @@ while [ $# -gt 0 ]; do
 done
 [ ${#targets[@]} -gt 0 ] || { echo "usage: $0 <rust-triple>... [-- cargo args]" >&2; exit 2; }
 api="${TYPHON_ANDROID_API:-24}"
-ios_min="${IPHONEOS_DEPLOYMENT_TARGET:-13.0}"
+ios_min="${IPHONEOS_DEPLOYMENT_TARGET:-16.4}"
 # Cross targets need rustup's std for them; a Homebrew rust earlier in PATH has only the host.
 if command -v rustup >/dev/null; then
   tc_bin="$(dirname "$(cd "$root" && rustup which cargo 2>/dev/null || true)")"

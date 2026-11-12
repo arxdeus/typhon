@@ -9,8 +9,8 @@ Typhon can cross-compile Python modules to native libraries that mobile apps
 |------------------|-----------------------------------|-------------------------|-----------|
 | `android-arm64`  | `aarch64-linux-android24`         | `aarch64-linux-android` | `.so`     |
 | `android-x64`    | `x86_64-linux-android24`          | `x86_64-linux-android`  | `.so`     |
-| `ios-arm64`      | `arm64-apple-ios13.0`             | `aarch64-apple-ios`     | `.dylib`  |
-| `ios-sim-arm64`  | `arm64-apple-ios13.0-simulator`   | `aarch64-apple-ios-sim` | `.dylib`  |
+| `ios-arm64`      | `arm64-apple-ios16.4`             | `aarch64-apple-ios`     | `.dylib`  |
+| `ios-sim-arm64`  | `arm64-apple-ios16.4-simulator`   | `aarch64-apple-ios-sim` | `.dylib`  |
 
 You can also pass any full LLVM triple. With a cross target, code is always PIC and
 uses generic per-target CPUs (`generic+neon` on Android arm64, `x86-64+sse4.2` on
@@ -115,8 +115,12 @@ the host, pushed with adb, and run in `/data/local/tmp`.
 | `types/` | 620/620 | 0 | |
 | `opt/` | 26/26 | 0 | needed 64-byte TLS alignment (bionic loader requirement) |
 | `cnumerics/` | 8/8 | 0 | |
-| `numpy/` | 120/120 | 0 | includes linalg, dot/matmul, random legacy (SVD signs emulate LAPACK) |
-| `scipy/` | 28/38 | 10 | `test_signal` tf2sos is off by 1e-4 on an ill-conditioned root |
+| `numpy/` | 120/120 | 0 | includes linalg, dot/matmul, random legacy |
+| `scipy/` | 38/38 | 0 | linalg (dsyevr, dsygvd, QR, ...) and signal (tf2sos) via OpenBLAS |
+
+BLAS/LAPACK: OpenBLAS 0.3.32 on Android (ILP64, f2c LAPACK, threads via OpenMP on typhon-omp,
+see `crates/runtime/README.md`). On iOS it is Accelerate, whose ILP64 LAPACK needs **iOS 16.4**
+(the default deployment target of the `ios-*` aliases).
 
 Android fixes so far: `@thread_local` globals are aligned to 64 bytes, links pass
 `--allow-multiple-definition` so a program `@export` can override a runtime hook (as on ld64),
