@@ -121,3 +121,22 @@ class _LegacyGauss:
             for j in range(m):
                 out[i, j] = self.gauss()
         return out
+
+# ------------------------------------------------------------ public API
+
+def Bunch(**kwargs):
+    """Container exposing keys as attributes (b.key). Typhon: a statically
+    typed named tuple, so keys are fixed at construction."""
+    return kwargs
+
+from numpy.random.legacy import check_random_state
+from .validation import (check_array, check_X_y, check_consistent_length, column_or_1d,
+                         check_is_fitted, check_scalar, check_symmetric, indexable,
+                         assert_all_finite, as_float_array, check_non_negative,
+                         has_fit_parameter, _check_sample_weight, _num_samples,
+                         NotFittedError)
+from .multiclass import unique_labels, type_of_target, is_multilabel, check_classification_targets
+from .class_weight import compute_class_weight, compute_sample_weight
+from .extmath import safe_sqr, safe_sparse_dot, row_norms, squared_norm, stable_cumsum
+from ._indexing import (_safe_indexing, resample, shuffle, gen_batches, gen_even_slices,
+                        murmurhash3_32, get_chunk_n_rows, _approximate_mode)
