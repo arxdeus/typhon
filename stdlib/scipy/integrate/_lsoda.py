@@ -209,6 +209,8 @@ class _Lsoda:
     opt_mxords: int
     tcrit: float
     tolsf: float
+    fixed_meth: int
+    fixed_miter: int
     imxer: int
     # work arrays
     yh: np.ndarray[float, 1]
@@ -301,6 +303,8 @@ class _Lsoda:
         self.opt_mxords = 0
         self.tcrit = 0.0
         self.tolsf = 0.0
+        self.fixed_meth = 0
+        self.fixed_miter = 0
         self.imxer = -1
         self.yh = np.zeros(0)
         self.ewt = np.zeros(0)
@@ -619,6 +623,8 @@ class _Lsoda:
         self.icf = 0
         if self.jstart == 0:
             self._first_call_init()
+            if self.meth == 2:
+                _cfode(2, self.elco, self.tesco)
             self._reset()
         elif self.jstart == -1:
             self.ipup = self.miter
@@ -708,7 +714,7 @@ class _Lsoda:
                         yh[i + j * nyh] = yh[i + j * nyh] + ej * acor[i]
                 self.icount -= 1
                 switched = False
-                if self.icount >= 0:
+                if self.icount >= 0 or self.fixed_meth != 0:
                     pass
                 elif self.meth == 1:
                     cond_b = (dsm > 100.0 * pnorm * self.uround) and (self.pdest != 0.0)
@@ -1003,6 +1009,9 @@ class _Lsoda:
             if self.iopt == 1 and (tout - t) * h0 < 0.0:
                 return t, self._mark_error(istate)
             self.meth = 1
+            if self.fixed_meth != 0:
+                # vode emulation: one method family only
+                self.meth = self.fixed_meth
             self.nyh = n
             self._alloc(n)
             for i in range(n):
@@ -1011,7 +1020,7 @@ class _Lsoda:
             self.uround = _UROUND
             self.tn = t
             self.tsw = t
-            self.maxord = self.mxordn
+            self.maxord = self.mxordn if self.meth == 1 else self.mxords
             if itask == 4 or itask == 5:
                 tcrit = self.tcrit
                 if (tcrit - tout) * (tout - t) < 0.0:
@@ -1027,6 +1036,10 @@ class _Lsoda:
             self.nqu = 0
             self.mused = 0
             self.miter = 0
+            if self.fixed_meth == 2:
+                self.miter = self.fixed_miter
+            elif self.fixed_meth == 1:
+                self.miter = 0
             self.ccmax = 0.3
             self.maxcor = 3
             self.msbp = 20
