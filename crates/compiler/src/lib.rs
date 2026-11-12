@@ -88,6 +88,7 @@ impl Compiler {
         } else {
             file.to_string()
         };
+        let mut t1 = Timer::new("parse");
         let node = if is_code {
             let f = cache.hooks.parse_code.clone().ok_or_else(|| CompilerError::Io("parser not available".into()))?;
             f(&mut cache, &abspath, code, start_line)?
@@ -95,6 +96,7 @@ impl Compiler {
             let f = cache.hooks.parse_file.clone().ok_or_else(|| CompilerError::Io("parser not available".into()))?;
             f(&mut cache, &abspath)?
         };
+        t1.log();
         fs.borrow_mut().set_module0(file);
 
         let mut t2 = Timer::new("typecheck");
@@ -142,6 +144,7 @@ impl Compiler {
 
     /// Second half of `compile()`: lower the IR module to LLVM in `ctx`.
     pub fn codegen<'ctx>(&self, ctx: &'ctx Context) -> Result<LlvmVisitor<'ctx>> {
+        let _t = Timer::new("llvm/codegen");
         let mut v = LlvmVisitor::new(ctx, self.options.clone());
         v.visit_module(&self.module.borrow())?;
         if logger().flags.contains(LoggerFlags::USER)

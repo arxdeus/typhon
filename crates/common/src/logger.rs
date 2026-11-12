@@ -76,19 +76,42 @@ pub fn log_line(msg: &str) {
 pub struct Timer {
     name: String,
     start: Instant,
+    cpu: f64,
     pub logged: bool,
+}
+
+/// Process user+sys CPU seconds (`getrusage(RUSAGE_SELF)`).
+pub fn process_cpu_seconds() -> f64 {
+    #[cfg(unix)]
+    unsafe {
+        let mut ru: libc::rusage = std::mem::zeroed();
+        if libc::getrusage(libc::RUSAGE_SELF, &mut ru) == 0 {
+            let tv = |t: libc::timeval| t.tv_sec as f64 + t.tv_usec as f64 / 1e6;
+            return tv(ru.ru_utime) + tv(ru.ru_stime);
+        }
+    }
+    0.0
+}
+
+/// `TYPHON_TIMINGS=1` enables the per-phase timing report (same as `-log=t`).
+pub fn timings_env() -> bool {
+    static ON: once_cell::sync::Lazy<bool> =
+        once_cell::sync::Lazy::new(|| std::env::var("TYPHON_TIMINGS").map(|v| !v.is_empty() && v != "0").unwrap_or(false));
+    *ON
 }
 
 impl Timer {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), start: Instant::now(), logged: false }
+        let on = timings_env() || logger().flags.contains(LoggerFlags::TIME);
+        Self { name: name.into(), start: Instant::now(), cpu: if on { process_cpu_seconds() } else { 0.0 }, logged: !on }
     }
     pub fn elapsed(&self) -> f64 {
         self.start.elapsed().as_millis() as f64 / 1000.0
     }
     pub fn log(&mut self) {
         if !self.logged {
-            crate::log_flag!(TIME, "[T] {} = {:.3}", self.name, self.elapsed());
+            let cpu = process_cpu_seconds() - self.cpu;
+            log_line(&format!("[T] {} = {:.3} (cpu {:.3})", self.name, self.elapsed(), cpu));
             self.logged = true;
         }
     }

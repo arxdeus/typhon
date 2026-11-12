@@ -22,6 +22,7 @@ fn execute_command(args: &[String]) -> Result<()> {
     if std::env::var_os("TYPHON_LOG_COMMANDS").is_some() {
         eprintln!("Executing '{}'", args.join(" "));
     }
+    let _t = typhon_common::Timer::new("link (wall; child cpu not counted)");
     let status = Command::new(&args[0])
         .args(&args[1..])
         .status()
@@ -226,6 +227,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         let module = self.module.as_ref().expect("no module");
         let tm = crate::target::target_machine_for_module(module, &self.options, false, pic)?
             .ok_or_else(|| CompilerError::Llvm("could not create target machine".into()))?;
+        let _t = typhon_common::Timer::new("llvm/emit-object");
         let ft = if assembly { FileType::Assembly } else { FileType::Object };
         tm.write_to_file(module, ft, Path::new(filename)).map_err(|e| CompilerError::Llvm(e.to_string()))
     }

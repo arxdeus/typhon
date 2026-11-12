@@ -18,3 +18,4 @@ indexmap.workspace = true
 serde.workspace = true
 include_dir.workspace = true
 dirs.workspace = true
+libc.workspace = true

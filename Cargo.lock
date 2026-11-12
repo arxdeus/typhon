@@ -1437,6 +1437,7 @@ dependencies = [
  "dirs",
  "include_dir",
  "indexmap",
+ "libc",
  "once_cell",
  "parking_lot",
  "rustc-hash",
