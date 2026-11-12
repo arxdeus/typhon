@@ -2,8 +2,8 @@
 
 Typhon is an ahead-of-time compiler for Python-syntax programs, written in Rust
 on top of LLVM 20. It type-checks a statically typed Python dialect, lowers it to
-an optimizing IR, and either runs it through an in-process ORC JIT or produces
-native executables, libraries and CPython extensions.
+an optimizing IR, and produces native executables. `typhon run` builds a
+temporary executable and runs it (ahead-of-time, no JIT).
 
 See [`DESIGN.md`](DESIGN.md) for the architecture.
 
@@ -16,10 +16,10 @@ See [`DESIGN.md`](DESIGN.md) for the architecture.
 | `typhon-ir` | arena-based IR, visitors, cloning, formatting, pass traits |
 | `typhon-ir-analyze` | CFG, dominators, reaching definitions, capture and side-effect analyses |
 | `typhon-ir-transform` | pass manager and IR passes (cleanup, folding, lowering, NumPy fusion, OpenMP/GPU) |
-| `typhon-llvm` | LLVM code generation, optimization, ORC JIT |
+| `typhon-llvm` | LLVM code generation, optimization, object emission |
 | `typhon-compiler` | driver wiring all stages |
 | `typhon-cli` | the `typhon` binary |
-| `typhon-runtime` | `libtyphonrt`: GC, exceptions, I/O, regex, NumPy kernels |
+| `typhon-runtime` | `libtyphonrt` (static): GC, exceptions, I/O, regex, NumPy kernels |
 | `typhon-omp` | OpenMP runtime ABI in Rust, linked into `libtyphonrt` |
 | `typhon-testsuite` | data-driven end-to-end harness over `test/` |
 
@@ -37,32 +37,23 @@ Requirements: Rust stable (edition 2024), LLVM 20.1 static libraries (set
 cargo build --release -p typhon-cli -p typhon-runtime
 ```
 
-This produces `target/release/typhon` and `target/release/libtyphonrt.{dylib,so}`.
+This produces `target/release/typhon`; the runtime is linked statically into every program.
 The stdlib is found through `TYPHON_STDLIB_DIR` / `TYPHON_PATH`, next to the
 executable, or at `./stdlib` in this repository.
 
 ## Usage
 
 ```sh
-typhon run program.py                 # JIT compile and run
+typhon run program.py                 # build to a temp executable and run
 typhon run -release program.py        # with optimizations
 typhon build -exe -o prog program.py  # native executable
-typhon build -lib -o libx program.py  # shared library
-typhon build -pyext -o x program.py   # CPython extension
 typhon build -llvm program.py         # emit LLVM IR
 typhon doc file.py                    # JSON docs
 ```
 
 ## Runtime
 
-`run`, `-lib` and `-pyext` use the shared `libtyphonrt`. `-exe` embeds the runtime
-statically by default; pass `-dynamic-runtime` to link the shared library instead.
-
-## Python interoperability
-
-Python code can be called with `from python import module`, using the libpython
-found automatically or given by `TYPHON_PYTHON`. Typhon programs can be built as
-CPython extension modules with `-pyext`; see [`docs/pyext.md`](docs/pyext.md).
+`libtyphonrt` is always linked statically; there is no shared runtime library.
 
 ## Standard library
 

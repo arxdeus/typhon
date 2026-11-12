@@ -10,8 +10,8 @@ typed Python dialect.
 2. **Translate**: typed AST to Typhon IR (`typhon-ir`).
 3. **Analyze and transform** (`typhon-ir-analyze`, `typhon-ir-transform`): cleanup,
    constant folding, lowering, Pythonic rewrites, NumPy fusion, OpenMP and GPU passes.
-4. **Generate** (`typhon-llvm`): LLVM IR, optimization, ORC JIT (`run`) or object
-   emission and linking (`build`).
+4. **Generate** (`typhon-llvm`): LLVM IR, optimization, object emission and linking.
+   `run` builds a temporary executable and runs it (AOT, no JIT).
 5. **Run**: programs link against `libtyphonrt` (`typhon-runtime`), with the OpenMP
    ABI provided by `typhon-omp`.
 
@@ -55,8 +55,7 @@ live in `typhon-ir::pass`; the `PassManager` lives in `typhon-ir-transform`.
 ## Runtime
 
 `libtyphonrt` provides the allocator (Boehm GC), exceptions and unwinding, I/O,
-regex, compression, and NumPy kernels. `run`, `-lib` and `-pyext` use the shared
-library; `-exe` embeds it statically unless `-dynamic-runtime` is given.
+regex, compression, and NumPy kernels. It is linked statically only.
 `typhon-omp` implements `__kmpc_*` / `omp_*` on `std::thread`.
 
 ## Dependencies
@@ -83,7 +82,7 @@ library; `-exe` embeds it statically unless `-dynamic-runtime` is given.
 
 ## Conventions
 
-* `unsafe` only for FFI (runtime, LLVM, JIT).
+* `unsafe` only for FFI (runtime, LLVM).
 * No `todo!()` / `unimplemented!()` in committed code.
 * Every crate passes `cargo check -p <crate>` and `cargo test -p <crate>`.
 
