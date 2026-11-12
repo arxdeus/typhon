@@ -110,6 +110,17 @@ static GC_INIT: Once = Once::new();
 pub fn gc_init() {
     GC_INIT.call_once(|| unsafe {
         gc::GC_set_finalize_on_demand(1);
+        // bdwgc's lost-signal retry (on by default) makes every stop/start-the-world
+        // with other threads (e.g. idle OpenMP/BLAS workers) fall into a usleep(3ms)
+        // loop on Android: 10000 x inv(8x8) took 37 ms with 4 threads vs 9 ms with 1.
+        // `GC_RETRY_SIGNALS` set by the user still wins.
+        #[cfg(not(target_vendor = "apple"))]
+        if std::env::var_os("GC_RETRY_SIGNALS").is_none() {
+            unsafe extern "C" {
+                fn setenv(k: *const c_char, v: *const c_char, o: c_int) -> c_int;
+            }
+            setenv(c"GC_RETRY_SIGNALS".as_ptr(), c"0".as_ptr(), 0);
+        }
         gc::GC_init();
         gc::GC_set_warn_proc(Some(gc::GC_ignore_warn_proc));
         gc::GC_set_finalizer_notifier(Some(run_finalizers));
@@ -132,6 +143,8 @@ pub fn gc_init() {
         );
         #[cfg(feature = "omp-rust")]
         typhon_omp::gc::set_unregister_callback(gc::GC_unregister_my_thread);
+        #[cfg(feature = "omp-rust")]
+        typhon_omp::gc::set_blocking_callback(gc::GC_do_blocking);
         #[cfg(feature = "openmp-libomp")]
         __kmpc_set_gc_callbacks(
             gc::GC_get_stack_base,

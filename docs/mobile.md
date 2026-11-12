@@ -122,6 +122,14 @@ BLAS/LAPACK: OpenBLAS 0.3.32 on Android (ILP64, f2c LAPACK, threads via OpenMP o
 see `crates/runtime/README.md`). On iOS it is Accelerate, whose ILP64 LAPACK needs **iOS 16.4**
 (the default deployment target of the `ios-*` aliases).
 
+BLAS threading cost (emulator, 4 vCPU): small calls must not lose to 1 thread. Three fixes made
+that hold: the runtime sets `GC_RETRY_SIGNALS=0` before `GC_init` (unless the user set it), because
+bdwgc's retry path slept 3 ms per stop-the-world once idle workers existed. Parked typhon-omp
+workers wait inside `GC_do_blocking`, so collections skip them. typhon-omp spins with
+`spin_loop` instead of `sched_yield` and creates task deques lazily, which cuts fork/join from
+4.9 to 2.4 us (libomp: 0.6 us). OpenBLAS `GEMM_MULTITHREAD_THRESHOLD` was left at its default
+because raising it to 16 changed nothing.
+
 Android fixes so far: `@thread_local` globals are aligned to 64 bytes, links pass
 `--allow-multiple-definition` so a program `@export` can override a runtime hook (as on ld64),
 and complex `log` avoids `clog`, which bionic only has from API 26.

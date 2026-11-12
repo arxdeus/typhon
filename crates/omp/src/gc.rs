@@ -39,6 +39,33 @@ pub fn unregister_current_thread() {
     }
 }
 
+pub type DoBlocking =
+    unsafe extern "C" fn(unsafe extern "C" fn(*mut c_void) -> *mut c_void, *mut c_void) -> *mut c_void;
+static DO_BLOCKING: OnceLock<DoBlocking> = OnceLock::new();
+
+/// `GC_do_blocking`: parked workers run their condvar wait through it so that
+/// stop-the-world collections skip them instead of signalling every idle worker
+/// (each signal round trip made small BLAS-heavy loops ~20% slower on Android).
+pub fn set_blocking_callback(f: DoBlocking) {
+    let _ = DO_BLOCKING.set(f);
+}
+
+/// Run `f` (which must not touch the GC heap) in the collector's "blocking" state.
+pub fn blocking<F: FnOnce()>(f: F) {
+    unsafe extern "C" fn tramp<F: FnOnce()>(p: *mut c_void) -> *mut c_void {
+        unsafe { (*(p as *mut Option<F>)).take().unwrap()() };
+        std::ptr::null_mut()
+    }
+    let mut f = Some(f);
+    match DO_BLOCKING.get() {
+        Some(db) => unsafe { db(tramp::<F>, (&mut f as *mut Option<F>).cast()) },
+        None => {
+            (f.take().unwrap())();
+            std::ptr::null_mut()
+        }
+    };
+}
+
 /// Install the GC hooks (GC-aware libomp extension).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn __kmpc_set_gc_callbacks(

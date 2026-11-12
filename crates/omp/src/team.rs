@@ -20,7 +20,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use crossbeam_deque::{Stealer, Worker};
-use crossbeam_utils::{Backoff, CachePadded};
+use crossbeam_utils::CachePadded;
 use parking_lot::{Condvar, Mutex};
 
 use crate::sched::{DispBuf, DispPriv, DISP_BUFS};
@@ -43,30 +43,30 @@ const SPIN_TIME: Duration = Duration::from_micros(200);
 
 /// Spin-then-park helper: returns `true` while the caller should keep spinning.
 pub(crate) struct Spinner {
-    backoff: Backoff,
+    iters: u32,
     start: Option<Instant>,
 }
 
 impl Spinner {
     pub(crate) fn new() -> Self {
-        Spinner { backoff: Backoff::new(), start: None }
+        Spinner { iters: 0, start: None }
     }
 
     pub(crate) fn spin(&mut self) -> bool {
-        if !self.backoff.is_completed() {
-            self.backoff.snooze();
+        // Busy-wait with `spin_loop` hints only: `sched_yield` and reading the clock
+        // on every iteration cost microseconds per fork/join on Android, which made
+        // small threaded BLAS/LAPACK calls slower than serial ones.
+        std::hint::spin_loop();
+        self.iters = self.iters.wrapping_add(1);
+        if self.iters % 256 != 0 {
             return true;
         }
         let start = *self.start.get_or_insert_with(Instant::now);
-        if start.elapsed() < SPIN_TIME {
-            std::thread::yield_now();
-            return true;
-        }
-        false
+        start.elapsed() < SPIN_TIME
     }
 
     pub(crate) fn reset(&mut self) {
-        self.backoff.reset();
+        self.iters = 0;
         self.start = None;
     }
 }
@@ -156,13 +156,12 @@ pub struct Frame {
     pub(crate) disp: DispPriv,
     pub(crate) reduce_lock: Cell<*const parking_lot::RawMutex>,
     pub(crate) implicit_task: TaskCtx,
-    pub(crate) deque: Worker<Box<TaskRec>>,
+    /// Created on first task push (most regions create no tasks).
+    deque: std::cell::OnceCell<Worker<Box<TaskRec>>>,
 }
 
 impl Frame {
     fn new(team: Arc<Team>, tid: i32, level: i32, active_level: i32, parent: *const Frame) -> Self {
-        let deque = Worker::new_lifo();
-        let _ = team.stealers[tid as usize].set(deque.stealer());
         Frame {
             team,
             tid,
@@ -174,8 +173,20 @@ impl Frame {
             disp: DispPriv::default(),
             reduce_lock: Cell::new(std::ptr::null()),
             implicit_task: TaskCtx::new(None),
-            deque,
+            deque: std::cell::OnceCell::new(),
         }
+    }
+
+    pub(crate) fn deque(&self) -> &Worker<Box<TaskRec>> {
+        self.deque.get_or_init(|| {
+            let w = Worker::new_lifo();
+            let _ = self.team.stealers[self.tid as usize].set(w.stealer());
+            w
+        })
+    }
+
+    pub(crate) fn pop_own(&self) -> Option<Box<TaskRec>> {
+        self.deque.get().and_then(|d| d.pop())
     }
 
     /// Walk up to the frame at nesting `level` (0 = the root frame).
@@ -275,14 +286,24 @@ impl WorkerHandle {
     fn take(&self) -> Mail {
         let mut spin = Spinner::new();
         while !self.has_mail.load(Ordering::Acquire) && spin.spin() {}
-        let mut g = self.mail.lock();
-        loop {
-            if let Some(m) = g.take() {
-                self.has_mail.store(false, Ordering::Relaxed);
-                return m;
+        let mut out = None;
+        let mut park = || {
+            let mut g = self.mail.lock();
+            loop {
+                if let Some(m) = g.take() {
+                    self.has_mail.store(false, Ordering::Relaxed);
+                    out = Some(m);
+                    return;
+                }
+                self.cv.wait(&mut g);
             }
-            self.cv.wait(&mut g);
+        };
+        if self.has_mail.load(Ordering::Acquire) || !GC_REGISTERED.with(|r| r.get()) {
+            park();
+        } else {
+            gc::blocking(park);
         }
+        out.unwrap()
     }
 }
 

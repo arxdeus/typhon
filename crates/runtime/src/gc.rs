@@ -44,6 +44,10 @@ unsafe extern "C" {
     pub fn GC_allow_register_threads();
     pub fn GC_thread_is_registered() -> c_int;
     pub fn GC_unregister_my_thread() -> c_int;
+    pub fn GC_do_blocking(
+        f: unsafe extern "C" fn(*mut c_void) -> *mut c_void,
+        data: *mut c_void,
+    ) -> *mut c_void;
     pub fn GC_set_finalize_on_demand(v: c_int);
     pub fn GC_set_warn_proc(p: GC_warn_proc);
     pub fn GC_ignore_warn_proc(msg: *mut c_char, arg: GC_word);

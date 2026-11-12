@@ -126,7 +126,7 @@ pub(crate) fn run_one(frame: &Frame) -> bool {
     if frame.team.pending_tasks.load(Ordering::Acquire) == 0 {
         return false;
     }
-    if let Some(t) = frame.deque.pop() {
+    if let Some(t) = frame.pop_own() {
         execute(t, frame);
         return true;
     }
@@ -228,7 +228,7 @@ pub unsafe extern "C" fn __kmpc_omp_task(_loc: *mut Ident, _gtid: i32, new_task:
         // PORT-NOTE: serialized teams execute tasks immediately (undeferred).
         execute(rec, frame);
     } else {
-        frame.deque.push(rec);
+        frame.deque().push(rec);
         frame.team.barrier.wake();
     }
     0
