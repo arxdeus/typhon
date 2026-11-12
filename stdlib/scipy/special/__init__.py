@@ -16,6 +16,7 @@ from . import _misc as M
 from . import _ellip as E
 from . import _orth as O
 from . import _roots as R
+from . import _specfun as SPF
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -385,6 +386,22 @@ def roots_sh_jacobi(n, p1, q1, mu: Literal[bool] = False):
     scale = 2.0 ** float(p1)
     return _rw(((t[0] + 1) / 2, t[1] / scale, t[2] / scale), mu)
 p_roots = roots_legendre
+
+# Bessel zeros (specfun jyzo)
+def _jyzo(n, nt, which: int):
+    if K.floor(float(n)) != float(n) or K.floor(float(nt)) != float(nt):
+        raise ValueError("Arguments must be integers.")
+    if nt <= 0:
+        raise ValueError("nt > 0")
+    r = SPF.jyzo(abs(int(n)), int(nt))
+    return np.array(r[which])
+def jnyn_zeros(n, nt):
+    r = SPF.jyzo(abs(int(n)), int(nt))
+    return (np.array(r[0]), np.array(r[1]), np.array(r[2]), np.array(r[3]))
+def jn_zeros(n, nt): return _jyzo(n, nt, 0)
+def jnp_zeros(n, nt): return _jyzo(n, nt, 1)
+def yn_zeros(n, nt): return _jyzo(n, nt, 2)
+def ynp_zeros(n, nt): return _jyzo(n, nt, 3)
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:

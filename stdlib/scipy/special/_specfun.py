@@ -421,3 +421,242 @@ def hypu(a: float, b: float, x: float) -> float:
     if r[1] != 0:
         out = NAN
     return out
+
+# ------------------------------------------------------------------ Bessel zeros (jyzo / jyndd / jynbh)
+def msta1(x: float, mp: int) -> int:
+    a0 = fabs(x)
+    n0 = _ci(1.1 * a0) + 1
+    f0 = 0.5 * log10(6.28 * n0) - n0 * log10(1.36 * a0 / n0) - mp
+    n1 = n0 + 5
+    f1 = 0.5 * log10(6.28 * n1) - n1 * log10(1.36 * a0 / n1) - mp
+    nn = 0
+    for it in range(1, 21):
+        nn = _ci(n1 - (n1 - n0) / (1.0 - f0 / f1))
+        f = 0.5 * log10(6.28 * nn) - nn * log10(1.36 * a0 / nn) - mp
+        if abs(nn - n1) < 1:
+            break
+        n0 = n1
+        f0 = f1
+        n1 = nn
+        f1 = f
+    return nn
+
+def msta2(x: float, n: int, mp: int) -> int:
+    a0 = fabs(x)
+    hmp = 0.5 * mp
+    ejn = 0.5 * log10(6.28 * n) - n * log10(1.36 * a0 / n)
+    obj = 0.0
+    n0 = 0
+    if ejn <= hmp:
+        obj = float(mp)
+        n0 = _ci(1.1 * a0) + 1
+    else:
+        obj = hmp + ejn
+        n0 = n
+    f0 = 0.5 * log10(6.28 * n0) - n0 * log10(1.36 * a0 / n0) - obj
+    n1 = n0 + 5
+    f1 = 0.5 * log10(6.28 * n1) - n1 * log10(1.36 * a0 / n1) - obj
+    nn = 0
+    for it in range(1, 21):
+        nn = _ci(n1 - (n1 - n0) / (1.0 - f0 / f1))
+        f = 0.5 * log10(6.28 * nn) - nn * log10(1.36 * a0 / nn) - obj
+        if abs(nn - n1) < 1:
+            break
+        n0 = n1
+        f0 = f1
+        n1 = nn
+        f1 = f
+    return nn + 10
+
+_JA = (-0.0703125, 0.112152099609375, -0.5725014209747314, 0.6074042001273483e+01)
+_JB = (0.0732421875, -0.2271080017089844, 0.1727727502584457e+01, -0.2438052969955606e+02)
+_JA1 = (0.1171875, -0.144195556640625, 0.6765925884246826, -0.6883914268109947e+01)
+_JB1 = (-0.1025390625, 0.2775764465332031, -0.1993531733751297e+01, 0.2724882731126854e+02)
+
+def jynbh(n: int, nmin: int, x: float, bj: List[float], by: List[float]) -> int:
+    r2p = 0.63661977236758
+    nm = n
+    if x < 1.0e-100:
+        for k in range(nmin, n + 1):
+            bj[k - nmin] = 0.0
+            by[k - nmin] = -1.0e+300
+        if nmin == 0:
+            bj[0] = 1.0
+        return nm
+    by0 = 0.0
+    by1 = 0.0
+    if x <= 300.0 or n > _ci(0.9 * x):
+        if n == 0:
+            nm = 1
+        m = msta1(x, 200)
+        if m < nm:
+            nm = m
+        else:
+            m = msta2(x, nm, 15)
+        bs = 0.0
+        su = 0.0
+        sv = 0.0
+        f2 = 0.0
+        f1 = 1.0e-100
+        f = 0.0
+        k = m
+        while k >= 0:
+            f = 2.0 * (k + 1.0) / x * f1 - f2
+            if k <= nm and k >= nmin:
+                bj[k - nmin] = f
+            if k == 2 * (k // 2) and k != 0:
+                bs += 2.0 * f
+                su += (1.0 if (k // 2) % 2 == 0 else -1.0) * f / k
+            elif k > 1:
+                sv += (1.0 if (k // 2) % 2 == 0 else -1.0) * k / (k * k - 1.0) * f
+            f2 = f1
+            f1 = f
+            k -= 1
+        s0 = bs + f
+        for k2 in range(nmin, nm + 1):
+            bj[k2 - nmin] /= s0
+        bj0 = f1 / s0
+        bj1 = f2 / s0
+        ec = log(x / 2.0) + 0.5772156649015329
+        by0 = r2p * (ec * bj0 - 4.0 * su / s0)
+        by1 = r2p * ((ec - 1.0) * bj1 - bj0 / x - 4.0 * sv / s0)
+        if 0 >= nmin:
+            by[0 - nmin] = by0
+        if 1 >= nmin:
+            by[1 - nmin] = by1
+    else:
+        t1 = x - 0.25 * PI
+        p0 = 1.0
+        q0 = -0.125 / x
+        for k in range(1, 5):
+            p0 += _JA[k - 1] * pow(x, -2.0 * k)
+            q0 += _JB[k - 1] * pow(x, -2.0 * k - 1)
+        cu = sqrt(r2p / x)
+        bj0 = cu * (p0 * cos(t1) - q0 * sin(t1))
+        by0 = cu * (p0 * sin(t1) + q0 * cos(t1))
+        if 0 >= nmin:
+            bj[0 - nmin] = bj0
+            by[0 - nmin] = by0
+        t2 = x - 0.75 * PI
+        p1 = 1.0
+        q1 = 0.375 / x
+        for k in range(1, 5):
+            p1 += _JA1[k - 1] * pow(x, -2.0 * k)
+            q1 += _JB1[k - 1] * pow(x, -2.0 * k - 1)
+        bj1 = cu * (p1 * cos(t2) - q1 * sin(t2))
+        by1 = cu * (p1 * sin(t2) + q1 * cos(t2))
+        if 1 >= nmin:
+            bj[1 - nmin] = bj1
+            by[1 - nmin] = by1
+        for k in range(2, nm + 1):
+            bjk = 2.0 * (k - 1.0) / x * bj1 - bj0
+            if k >= nmin:
+                bj[k - nmin] = bjk
+            bj0 = bj1
+            bj1 = bjk
+    for k in range(2, nm + 1):
+        byk = 2.0 * (k - 1.0) * by1 / x - by0
+        if k >= nmin:
+            by[k - nmin] = byk
+        by0 = by1
+        by1 = byk
+    return nm
+
+def jyndd(n: int, x: float):
+    """Returns (bjn, djn, fjn, byn, dyn, fyn)."""
+    bj = [0.0, 0.0]
+    by = [0.0, 0.0]
+    jynbh(n + 1, n, x, bj, by)
+    bjn = bj[0]
+    byn = by[0]
+    djn = -bj[1] + n * bj[0] / x
+    dyn = -by[1] + n * by[0] / x
+    fjn = (n * n / (x * x) - 1.0) * bjn - djn / x
+    fyn = (n * n / (x * x) - 1.0) * byn - dyn / x
+    return (bjn, djn, fjn, byn, dyn, fyn)
+
+def jyzo(n: int, nt: int):
+    """Returns (rj0, rj1, ry0, ry1): first nt zeros of Jn, Jn', Yn, Yn'."""
+    from C import atan2(float, float) -> float
+    from C import atan(float) -> float
+    from C import tan(float) -> float
+    rj0 = [0.0] * (nt + 1)
+    rj1 = [0.0] * nt
+    ry0 = [0.0] * (nt + 1)
+    ry1 = [0.0] * nt
+    n3 = pow(float(n), 0.33333) if n > 0 else 1.0
+    x = 2.4 if n == 0 else n + 1.85576 * n3 + 1.03315 / n3
+    L = 0
+    while True:
+        while True:
+            x0 = x
+            r = jyndd(n, x)
+            x -= r[0] / r[1]
+            if not (fabs(x - x0) > 1e-11):
+                break
+        L += 1
+        rj0[L - 1] = x
+        if L == 1:
+            x = 5.52 if n == 0 else n + 3.24460 * n3 + 3.15824 / n3
+        else:
+            x = rj0[L - 1] + (rj0[L - 1] - rj0[L - 2])
+        if L <= n + 10:
+            r = jyndd(n, x)
+            h = atan2(fabs(r[1]), sqrt(fabs(r[2] * r[0])))
+            b = -r[1] / (r[0] * atan(h))
+            x -= (h - PI / 2) / b
+        if not (L < nt):
+            break
+    x = 3.8317 if n == 0 else n + 0.80861 * n3 + 0.07249 / n3
+    L = 0
+    while True:
+        while True:
+            x0 = x
+            r = jyndd(n, x)
+            x -= r[1] / r[2]
+            if not (fabs(x - x0) > 1e-11):
+                break
+        L += 1
+        rj1[L - 1] = x
+        if L < nt:
+            x = rj1[L - 1] + (rj0[L] - rj0[L - 1])
+        else:
+            break
+    x = 0.89357697 if n == 0 else n + 0.93158 * n3 + 0.26035 / n3
+    L = 0
+    while True:
+        while True:
+            x0 = x
+            r = jyndd(n, x)
+            x -= r[3] / r[4]
+            if not (fabs(x - x0) > 1.0e-11):
+                break
+        L += 1
+        ry0[L - 1] = x
+        if L == 1:
+            x = 3.957678419314858 if n == 0 else n + 2.59626 * n3 + 2.022183 / n3
+        else:
+            x = ry0[L - 1] + (ry0[L - 1] - ry0[L - 2])
+        if L <= n + 10:
+            r = jyndd(n, x)
+            h = atan2(fabs(r[4]), sqrt(fabs(r[5] * r[3])))
+            b = -r[4] / (r[3] * tan(h))
+            x -= (h - PI / 2) / b
+        if not (L < nt):
+            break
+    x = 2.67257 if n == 0 else n + 1.8211 * n3 + 0.94001 / n3
+    L = 0
+    while True:
+        while True:
+            x0 = x
+            r = jyndd(n, x)
+            x -= r[4] / r[5]
+            if not (fabs(x - x0) > 1.0e-11):
+                break
+        L += 1
+        ry1[L - 1] = x
+        if L < nt:
+            x = ry1[L - 1] + (ry0[L] - ry0[L - 1])
+        else:
+            break
+    return (rj0[:nt], rj1, ry0[:nt], ry1)
