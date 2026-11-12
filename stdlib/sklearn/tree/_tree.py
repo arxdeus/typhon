@@ -6,6 +6,7 @@
 
 import math
 import numpy as np
+from ._criterion import _fma
 from ._splitter import Splitter, SplitRecord, ParentInfo
 
 TREE_LEAF: Literal[int] = -1
@@ -189,9 +190,9 @@ class Tree:
             l = self.left[nid]
             if l != TREE_LEAF:
                 r = self.right[nid]
-                imps[self.feat[nid]] += (self.wnns[nid] * self.imp[nid] -
-                                         self.wnns[l] * self.imp[l] -
-                                         self.wnns[r] * self.imp[r])
+                # clang contracts this expression into fused multiply-adds
+                t = _fma(self.wnns[nid], self.imp[nid], -(self.wnns[l] * self.imp[l]))
+                imps[self.feat[nid]] += _fma(-self.wnns[r], self.imp[r], t)
         for i in range(self.n_features):
             imps[i] /= self.wnns[0]
         if normalize:

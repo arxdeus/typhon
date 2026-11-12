@@ -103,6 +103,56 @@ def tree_cases():
     from sklearn.preprocessing import StandardScaler
     out("cvs", cross_val_score(make_pipeline(StandardScaler(), DecisionTreeClassifier(random_state=0, max_depth=4)), X, y, cv=KFold(5)))
 
+def ensemble_cases():
+    from sklearn.ensemble import (RandomForestClassifier, RandomForestRegressor, ExtraTreesClassifier,
+        ExtraTreesRegressor, GradientBoostingClassifier, GradientBoostingRegressor, AdaBoostClassifier,
+        AdaBoostRegressor, BaggingClassifier, BaggingRegressor, IsolationForest, VotingClassifier,
+        VotingRegressor)
+    from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+    X, y = data(90, 5, 3)
+    Xt, _ = data(20, 5, 3)
+    Xt = Xt + 0.37
+    yr = reg_target(X)
+    yb = np.where(y == 2, 1, y)
+    m = RandomForestClassifier(n_estimators=6, random_state=0, oob_score=True).fit(X, y)
+    out("rfc_proba", m.predict_proba(Xt)); out("rfc_fi", m.feature_importances_); out("rfc_oob", [m.oob_score_])
+    m = RandomForestClassifier(n_estimators=4, random_state=3, class_weight="balanced_subsample", max_samples=0.6, max_depth=4).fit(X, y)
+    out("rfc2_proba", m.predict_proba(Xt))
+    m = RandomForestRegressor(n_estimators=5, random_state=1, max_depth=5, oob_score=True).fit(X, yr)
+    out("rfr_pred", m.predict(Xt)); out("rfr_fi", m.feature_importances_); out("rfr_oob", [m.oob_score_])
+    m = ExtraTreesClassifier(n_estimators=5, random_state=2).fit(X, y)
+    out("etc_proba", m.predict_proba(Xt)); out("etc_fi", m.feature_importances_)
+    m = ExtraTreesRegressor(n_estimators=4, random_state=2, bootstrap=True, max_samples=0.5).fit(X, yr)
+    out("etr_pred", m.predict(Xt))
+    m = GradientBoostingClassifier(n_estimators=10, random_state=0, subsample=0.8, max_features=3).fit(X, yb)
+    out("gbb_proba", m.predict_proba(Xt)); out("gbb_train", m.train_score_); out("gbb_oob", m.oob_scores_)
+    m = GradientBoostingClassifier(loss="exponential", n_estimators=8, random_state=1).fit(X, yb)
+    out("gbe_dec", m.decision_function(Xt))
+    m = GradientBoostingClassifier(n_estimators=8, random_state=0, learning_rate=0.2).fit(X, y)
+    out("gbm_proba", m.predict_proba(Xt)); out("gbm_fi", m.feature_importances_)
+    out("gbm_staged", [p[0] for p in m.staged_predict(Xt[:1])])
+    for loss in ["squared_error", "absolute_error", "huber", "quantile"]:
+        m = GradientBoostingRegressor(loss=loss, n_estimators=10, random_state=1, subsample=0.7, max_depth=2).fit(X, yr)
+        out("gbr_%s_pred" % loss, m.predict(Xt)); out("gbr_%s_fi" % loss, m.feature_importances_)
+    m = AdaBoostClassifier(n_estimators=10, random_state=0).fit(X, y)
+    out("abc_proba", m.predict_proba(Xt)); out("abc_w", m.estimator_weights_)
+    m = AdaBoostRegressor(n_estimators=8, random_state=0, loss="square").fit(X, yr)
+    out("abr_pred", m.predict(Xt))
+    m = BaggingClassifier(n_estimators=5, random_state=0, max_samples=0.7, max_features=0.8).fit(X, y)
+    out("bgc_proba", m.predict_proba(Xt))
+    m = BaggingRegressor(n_estimators=5, random_state=2, bootstrap_features=True).fit(X, yr)
+    out("bgr_pred", m.predict(Xt))
+    m = IsolationForest(n_estimators=10, random_state=0).fit(X)
+    out("iso_score", m.score_samples(Xt))
+    m = IsolationForest(n_estimators=6, random_state=1, contamination=0.1, max_samples=40).fit(X)
+    out("iso2_dec", m.decision_function(Xt))
+    m = VotingClassifier([("a", DecisionTreeClassifier(random_state=0, max_depth=3)), ("b", RandomForestClassifier(n_estimators=4, random_state=0))], voting="soft", weights=[1, 2]).fit(X, y)
+    out("vc_proba", m.predict_proba(Xt))
+    m = VotingRegressor([("a", DecisionTreeRegressor(random_state=0, max_depth=3)), ("b", GradientBoostingRegressor(n_estimators=5, random_state=0))]).fit(X, yr)
+    out("vr_pred", m.predict(Xt))
+    from sklearn.model_selection import KFold, cross_val_score
+    out("cvs_rf", cross_val_score(RandomForestClassifier(n_estimators=5, random_state=0), X, y, cv=KFold(4)))
+
 if __name__ == "__main__":
     which = sys.argv[1] if len(sys.argv) > 1 else "tree"
     if which == "tree":

@@ -578,10 +578,9 @@ class GradientBoostingClassifier(_BaseGB[DecisionTreeRegressor]):
         return self
 
     def decision_function(self, X):
-        raw = self._raw_predict(X)
-        if raw.shape[1] == 1:
-            return raw.ravel()
-        return raw
+        """(n, n_trees_per_iteration_): binary problems give (n, 1) (sklearn
+        ravels to (n,); the static return type cannot depend on n_classes)."""
+        return self._raw_predict(X)
 
     def _labels(self, raw):
         n = raw.shape[0]
@@ -611,7 +610,7 @@ class GradientBoostingClassifier(_BaseGB[DecisionTreeRegressor]):
 
     def staged_decision_function(self, X):
         for raw in self._staged_raw_predict(X):
-            yield raw.ravel() if raw.shape[1] == 1 else raw
+            yield raw
 
     def staged_predict(self, X):
         for raw in self._staged_raw_predict(X):

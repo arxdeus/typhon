@@ -5,3 +5,6 @@
 from ._forest import (RandomForestClassifier, RandomForestRegressor, ExtraTreesClassifier,
                       ExtraTreesRegressor)
 from ._gb import GradientBoostingClassifier, GradientBoostingRegressor
+from ._weight_boosting import AdaBoostClassifier, AdaBoostRegressor
+from ._bagging import BaggingClassifier, BaggingRegressor, IsolationForest
+from ._voting import VotingClassifier, VotingRegressor

@@ -151,7 +151,7 @@ class Criterion:
                     y_ik = y[i * no + k]
                     w_y_ik = w * y_ik
                     self.sum_total[k] += w_y_ik
-                    self.sq_sum_total += w_y_ik * y_ik
+                    self.sq_sum_total = _fma(w_y_ik, y_ik, self.sq_sum_total)
                 self.weighted_n_node_samples += w
         self.reset()
 
@@ -204,7 +204,7 @@ class Criterion:
                     if cls:
                         self.sum_left[k * mc + int(y[i * no + k])] += w
                     else:
-                        self.sum_left[k] += w * y[i * no + k]
+                        self.sum_left[k] = _fma(w, y[i * no + k], self.sum_left[k])
                 self.weighted_n_left += w
         else:
             self.reverse_reset()
@@ -216,7 +216,7 @@ class Criterion:
                     if cls:
                         self.sum_left[k * mc + int(y[i * no + k])] -= w
                     else:
-                        self.sum_left[k] -= w * y[i * no + k]
+                        self.sum_left[k] = _fma(-w, y[i * no + k], self.sum_left[k])
                 self.weighted_n_left -= w
                 p -= 1
         self.weighted_n_right = self.weighted_n_node_samples - self.weighted_n_left
@@ -305,7 +305,7 @@ class Criterion:
                 w = self.sample_weight[i]
                 for k in range(no):
                     y_ik = self.y[i * no + k]
-                    sq_left += w * y_ik * y_ik
+                    sq_left = _fma(w * y_ik, y_ik, sq_left)
             sq_right = self.sq_sum_total - sq_left
             il = sq_left / wl
             ir = sq_right / wr
