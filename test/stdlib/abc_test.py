@@ -51,3 +51,36 @@ def test_abc():
     assert len(d) == 2
     assert Counter("aab")["a"] == 2
 test_abc()
+
+
+def _identity(f):
+    return f
+
+
+def _logged(f):
+    def w(*args, **kwargs):
+        return f(*args, **kwargs) * 10
+    return w
+
+
+class Decorated:
+    k: int
+
+    def __init__(self, k: int):
+        self.k = k
+
+    @_identity
+    def plain(self, x: int):
+        return x + self.k
+
+    @_logged
+    def wrapped(self, x):
+        return x + self.k
+
+
+@test
+def test_method_decorators():
+    d = Decorated(1)
+    assert d.plain(2) == 3
+    assert d.wrapped(2) == 30
+test_method_decorators()

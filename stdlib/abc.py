@@ -6,9 +6,9 @@ class ABC:
     pass
 
 
-@__attribute__
-def abstractmethod():
-    pass
+def abstractmethod(funcobj):
+    """Mark a method abstract (identity: abstract-instantiation checks are not enforced)."""
+    return funcobj
 
 
 @__attribute__

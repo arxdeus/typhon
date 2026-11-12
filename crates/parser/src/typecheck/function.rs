@@ -1049,6 +1049,10 @@ impl<'a> TypecheckVisitor<'a> {
             };
             let mut cargs = vec![];
             for arg in &items {
+                if self.get_unmangled_name(&arg.name) == "Self" {
+                    // Generic parameters (e.g. the implicit `Self`) are inferred.
+                    continue;
+                }
                 let id = self.id_n(&arg.name);
                 let e = if arg.name.starts_with("**") {
                     self.n_expr(KeywordStarExpr { expr: Some(id) })
@@ -1064,7 +1068,20 @@ impl<'a> TypecheckVisitor<'a> {
             let rs = self.n_stmt(ReturnStmt { expr: Some(call) });
             let body = self.n_stmt(SuiteStmt { items: vec![rs] });
             let ret = self.cache.ast.clone_expr_opt(ret, false);
-            let params: Vec<Param> = items.iter().map(|p| self.cache.ast.clone_param(p, false)).collect();
+            // The implicit `Self` generic belongs to the original method only; the
+            // forwarding wrapper takes an unannotated `self` instead.
+            let mut params: Vec<Param> = vec![];
+            for p in &items {
+                if self.get_unmangled_name(&p.name) == "Self" {
+                    continue;
+                }
+                let mut q = self.cache.ast.clone_param(p, false);
+                let self_ty = q.ty.and_then(|t| self.cache.ast[t].kind.as_id().map(|i| i.value.clone()));
+                if q.name == "self" && self_ty.is_some_and(|n| self.get_unmangled_name(&n) == "Self") {
+                    q.ty = None;
+                }
+                params.push(q);
+            }
             let new_func = self.cache.ast.new_function(src, stmt_name, ret, params, Some(body), vec![], is_async)?;
             let t = self.get_time();
             if t != 0 {
