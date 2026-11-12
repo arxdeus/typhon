@@ -61,6 +61,8 @@ pub const STDLIB: &[&str] = &[
     "stdlib/os_test.py", "stdlib/expanduser_test.py", "stdlib/pathlib_test.py",
     "stdlib/ntpath_test.py", "stdlib/win32_os_test.py", "stdlib/unicode_test.py",
     "stdlib/functools_test.py", "stdlib/hashlib_test.py", "stdlib/future_test.py",
+    "stdlib/contextlib_test.py", "stdlib/dataclasses_test.py", "stdlib/logging_test.py",
+    "stdlib/warnings_test.py", "stdlib/abc_test.py", "stdlib/io_exit_flush_test.py",
 ];
 
 pub const CNUMERICS: &[&str] = &[

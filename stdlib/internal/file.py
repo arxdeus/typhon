@@ -479,6 +479,7 @@ class _FileState:
         if self._write_buf:
             free(self._write_buf)
             self._write_buf = Ptr[u8]()
+            _file_unregister_exit_flush(self)
         self._read_offset = 0
         self._read_length = 0
         self._write_length = 0
@@ -619,6 +620,41 @@ def _file_flush_stdio_write_buffer(state: _FileState):
         raise IOError("file I/O error: error in write")
     state._write_length = 0
 
+# Files with a staging write buffer, flushed at process exit (CPython flushes
+# unclosed files at shutdown). Registered once per buffer allocation (cold path).
+_file_exit_states: Optional[List[_FileState]] = None
+
+def _file_flush_at_exit() -> None:
+    if _file_exit_states is None:
+        return
+    for st in _file_exit_states:
+        if st._fp and st._write_length > 0:
+            try:
+                _file_flush_stdio_write_buffer(st)
+                _C.fflush(st._fp)
+            except:
+                pass
+
+def _file_unregister_exit_flush(state: _FileState):
+    if _file_exit_states is not None:
+        l = _file_exit_states
+        # Most recently opened files are closed first: search from the end.
+        i = len(l) - 1
+        while i >= 0:
+            if l[i] is state:
+                l[i] = l[len(l) - 1]
+                l.pop()
+                return
+            i -= 1
+
+def _file_register_exit_flush(state: _FileState):
+    from C import atexit(cobj) -> i32
+    global _file_exit_states
+    if _file_exit_states is None:
+        _file_exit_states = List[_FileState]()
+        atexit(_file_flush_at_exit.__raw__())
+    _file_exit_states.append(state)
+
 def _file_buffered_stdio_write(state: _FileState, data: Ptr[u8], length: int):
     if length <= 0:
         return
@@ -639,6 +675,7 @@ def _file_buffered_stdio_write(state: _FileState, data: Ptr[u8], length: int):
 
     if not state._write_buf:
         state._write_buf = Ptr[u8](_FILE_READ_BUFFER_SIZE)
+        _file_register_exit_flush(state)
     if state._write_length + length > _FILE_READ_BUFFER_SIZE:
         _file_flush_stdio_write_buffer(state)
     bytes.memcpy(state._write_buf + state._write_length, data, length)
