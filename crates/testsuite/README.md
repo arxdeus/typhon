@@ -39,6 +39,31 @@ Only one filter positional is accepted by libtest-mimic; use `--skip` for exclus
 * `gpu/` is compile-only (`build -llvm`), `cnumerics/` uses `-numerics=c`.
 * The Windows-only JIT tests and the 64 KiB stdout truncation are not covered.
 
+### Android (cross) mode
+Set `TYPHON_TEST_TARGET=android-arm64` to run every executing case on a device/emulator:
+each case is built on the host with `typhon build [-debug|-release] -numerics=.. -exe -target
+<T>`, pushed to `/data/local/tmp/typhon-e2e/cases/<pid>-<n>/` (with an empty `build/` and a
+`test` symlink to the test dir, pushed once per run to `/data/local/tmp/typhon-e2e/test`), run
+there via `adb shell` with `TMPDIR=<case>/build`, and compared like on the host. Compile errors
+are compared from the host build. Each case dir is removed afterwards and the whole
+`/data/local/tmp/typhon-e2e` at the end of the run. Needs the target runtime
+(`tools/build-runtime.sh aarch64-linux-android`).
+
+| env | default | meaning |
+|---|---|---|
+| `TYPHON_TEST_TARGET` | unset (host mode) | cross target, e.g. `android-arm64` |
+| `TYPHON_ANDROID_SERIAL` | adb default | device serial (`adb -s`) |
+| `ADB` | `$ANDROID_HOME/platform-tools/adb` | adb binary |
+| `TYPHON_ANDROID_JOBS` | `4` | max concurrent on-device runs (host builds stay parallel) |
+
+```
+TYPHON_TEST_TARGET=android-arm64 TYPHON_ANDROID_SERIAL=emulator-5580 \
+  cargo test -p typhon-testsuite --test e2e -- core/ --test-threads 8
+```
+Tests that depend on platform behaviour branch on `internal.static.platform() == "android"`
+(e.g. SELinux forbids `link(2)` in `/data/local/tmp`, bionic has no locale grouping).
+Results: `docs/mobile.md`.
+
 ### Known gaps (need in-process compiler API)
 `options->test` and `options->standalone` are set in-process (`test=true` keeps the full
 debug pass pipeline off; `standalone` is bit 2 of `seq_flags`). The CLI cannot set them; hence

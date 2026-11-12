@@ -158,8 +158,9 @@ def log(z):
         pass
 
     if isinstance(z, complex):
-        # UCRT's complex ABI differs from the Unix pair-of-scalars ABI.
-        if __windows__:
+        # UCRT's complex ABI differs from the Unix pair-of-scalars ABI; bionic has
+        # clog only from API 26 (Typhon targets API 24).
+        if __windows__ or __android__:
             return _log_impl(z)
         return clog(z.real, z.imag)
     elif isinstance(z, complex64):
