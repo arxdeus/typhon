@@ -397,17 +397,28 @@ pub fn tanh<T: Hf + MulAdd>(x: T) -> T {
 /// Highway `Hypot` (exponent-rescaled sqrt(a^2 + b^2)).
 #[inline(always)]
 pub fn hypot<T: Hf + MulAdd>(a: T, b: T) -> T {
+    // Exponent arithmetic in the same-width unsigned type (values < 2^11, so
+    // signed results are compared via `lt`), keeping f64 lanes 64-bit wide.
     let (m, bias) = (T::MANT, T::BIAS as i32);
-    let (kmin, kmax) = (bias / 2 + m as i32, bias + bias / 2 - 1);
+    let u = |x: i32| T::U::i(x);
+    let lt = |x: T::U, y: T::U| (x.wadd(!y).wadd(u(1)) >> (T::BITS - 1)) == u(1);
+    let pick = |c: bool, x: T::U, y: T::U| {
+        let k = u(0).wadd(u(-(c as i32)));
+        (x & k) | (y & !k)
+    };
     let (aa, ab) = (abs(a), abs(b));
     let inf = T::c(f64::INFINITY);
-    let (ea, eb) = ((aa.bits() >> m).to_i32(), (ab.bits() >> m).to_i32());
-    let mx = ea.max(eb);
+    let (ea, eb) = (aa.bits() >> m, ab.bits() >> m);
+    let mx = pick(lt(ea, eb), eb, ea);
     let zero = T::c(0.0);
-    let mn = if aa == zero || ab == zero { mx } else { ea.min(eb) };
-    let scl = (kmin - mn).max(0).min(kmax - mx);
-    let f = T::from_bits(T::U::i(bias + scl) << m);
-    let g = T::from_bits(T::U::i(bias - scl) << m);
+    let mn = pick(aa == zero || ab == zero, mx, pick(lt(ea, eb), ea, eb));
+    // scl = min(max(kmin - mn, 0), kmax - mx)
+    let up = u(bias / 2 + m as i32).wadd(!mn).wadd(u(1));
+    let up = pick(lt(up, u(0)), u(0), up);
+    let cap = u(bias + bias / 2 - 1).wadd(!mx).wadd(u(1));
+    let scl = pick(lt(cap, up), cap, up);
+    let f = T::from_bits(u(bias).wadd(scl) << m);
+    let g = T::from_bits(u(bias).wadd(!scl).wadd(u(1)) << m);
     let (sa, sb) = (aa * f, ab * f);
     let h = fma(sa, sa, sb * sb).sqrt() * g;
     fsel(aa == inf || ab == inf, inf, h)

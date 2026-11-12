@@ -251,6 +251,14 @@ macro_rules! complex_abs {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $name(input: *const $t, is: usize, out: *mut $t, os: usize, n: usize) {
             let (ib, ob) = (input as *const u8, out as *mut u8);
+            let sz = core::mem::size_of::<$t>();
+            if is == 2 * sz && os == sz {
+                let (z, o) = unsafe { (core::slice::from_raw_parts(input, 2 * n), core::slice::from_raw_parts_mut(out, n)) };
+                for (o, z) in o.iter_mut().zip(z.chunks_exact(2)) {
+                    *o = $h(z[0], z[1]);
+                }
+                return;
+            }
             for i in 0..n {
                 unsafe {
                     let z = ib.wrapping_add(i.wrapping_mul(is)) as *const $t;
@@ -377,6 +385,20 @@ mod tests {
                 let floor = if matches!(name, "sin" | "cos") { 1e-6 * (x.abs() as f64).max(1.0) } else { 1e-37 };
                 let tol = if name == "atanh" { 1e-4 } else { 1e-6 };
                 assert!(close(y as f64, r as f64, tol, floor), "{name}_f32({x}) = {y}, libm {r}");
+            }
+        }
+    }
+
+    #[test]
+    fn hypot_extremes() {
+        let v = [0.0, -0.0, 1.0, -3.0, 1e-320, 5e-310, 1e-200, 1e200, 1.7e308, f64::MAX, f64::INFINITY,
+            f64::NEG_INFINITY, f64::NAN, 2.2250738585072014e-308];
+        for &a in &v {
+            for &b in &v {
+                let (h, r) = (hm::hypot(a, b), a.hypot(b));
+                assert!(h == r || (h.is_nan() && r.is_nan()) || (h - r).abs() <= 2.3e-16 * r, "hypot({a},{b}) {h} vs {r}");
+                let (hf, rf) = (hm::hypot(a as f32, b as f32), (a as f32).hypot(b as f32));
+                assert!(hf == rf || (hf.is_nan() && rf.is_nan()) || (hf - rf).abs() <= 1.2e-7 * rf, "hypotf({a},{b})");
             }
         }
     }
