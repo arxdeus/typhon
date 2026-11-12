@@ -11,6 +11,7 @@ from . import _bessel as B
 from . import _gamma2 as G2
 from . import _noncentral as NC
 from . import _kolmogorov as KS
+from . import _hyp as H
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -218,6 +219,11 @@ def _kolmogp(x): return _map1(KS.kolmogp, x)
 def _smirnovc(n, d): return _map2(KS.smirnovc, n, d)
 def _smirnovci(n, p): return _map2(KS.smirnovci, n, p)
 def _smirnovp(n, d): return _map2(KS.smirnovp, n, d)
+
+# hypergeometric (_hyp)
+def hyp2f1(a, b, c, z): return _map4(H.hyp2f1, a, b, c, z)
+def hyp0f1(v, z): return _map2(H.hyp0f1, v, z)
+def hyp1f1(a, b, x): return _map3(H.hyp1f1, a, b, x)
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:
