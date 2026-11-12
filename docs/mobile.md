@@ -95,7 +95,22 @@ Strings and memory ownership:
 `"android"` or `"ios"` on mobile (as in CPython 3.13+), and otherwise `"darwin"`,
 `"linux"` or `"win32"`.
 
-Limitations: numpy's linalg (BLAS/LAPACK) is not available on Android.
+### numpy.linalg (BLAS/LAPACK)
+
+`numpy.linalg`, `@`/`dot` and the torch/sklearn kernels that call BLAS work on every
+target. The backend is chosen at compile time with `-linalg=auto|system|rust`:
+
+- `auto` (default): Accelerate on Apple (macOS, iOS, simulator), the built-in Rust
+  backend everywhere else (Android, Linux).
+- `system`: Accelerate on Apple, OpenBLAS (runtime feature `openblas`) on Linux.
+- `rust`: `typhon-linalg` (`crates/linalg`, pure Rust on faer), which is linked into
+  `libtyphonrt.a` for every target and exports unsuffixed `cblas_*` and Fortran
+  `xxxxx_` LAPACK with ILP64 integers. Unused symbols are dead-stripped.
+
+The compile-time define `__typhon_linalg_rust__` reflects the choice. The Rust backend
+is sequential by default (to avoid oversubscription with `@par`), unless built with its
+`rayon` feature and run with `TYPHON_LINALG_THREADS=n`. On Apple silicon Accelerate's
+gemm is about 5-9x faster (AMX), so keep `auto` there.
 
 ## Flutter
 
