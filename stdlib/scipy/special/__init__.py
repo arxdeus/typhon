@@ -15,6 +15,7 @@ from . import _hyp as H
 from . import _misc as M
 from . import _ellip as E
 from . import _orth as O
+from . import _roots as R
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -347,6 +348,43 @@ def eval_genlaguerre(n, alpha, x): return _mapn2(O.eval_genlaguerre, O.eval_genl
 def eval_laguerre(n, x): return _mapn1(O.eval_laguerre, O.eval_laguerre_l, n, x)
 def eval_hermite(n, x): return _mapn1(_herm_f, O.eval_hermite, n, x)
 def eval_hermitenorm(n, x): return _mapn1(_hermn_f, O.eval_hermitenorm, n, x)
+
+# Gauss quadrature roots/weights (_roots)
+def _rw(t, mu: Literal[bool]):
+    if mu:
+        return t
+    else:
+        return (t[0], t[1])
+def roots_legendre(n, mu: Literal[bool] = False): return _rw(R.roots_legendre_mu(n), mu)
+def roots_chebyt(n, mu: Literal[bool] = False): return _rw(R.roots_chebyt_mu(n), mu)
+def roots_chebyu(n, mu: Literal[bool] = False): return _rw(R.roots_chebyu_mu(n), mu)
+def roots_gegenbauer(n, alpha, mu: Literal[bool] = False): return _rw(R.roots_gegenbauer_mu(n, float(alpha)), mu)
+def roots_jacobi(n, alpha, beta, mu: Literal[bool] = False): return _rw(R.roots_jacobi_mu(n, float(alpha), float(beta)), mu)
+def roots_genlaguerre(n, alpha, mu: Literal[bool] = False): return _rw(R.roots_genlaguerre_mu(n, float(alpha)), mu)
+def roots_laguerre(n, mu: Literal[bool] = False): return _rw(R.roots_genlaguerre_mu(n, 0.0), mu)
+def roots_hermite(n, mu: Literal[bool] = False): return _rw(R.roots_hermite_mu(n), mu)
+def roots_hermitenorm(n, mu: Literal[bool] = False): return _rw(R.roots_hermitenorm_mu(n), mu)
+def _roots_scale(t, sx: float, ox: float, sw: float):
+    return (t[0] * sx + ox, t[1] * sw, t[2] * sw)
+def roots_chebyc(n, mu: Literal[bool] = False): return _rw(_roots_scale(R.roots_chebyt_mu(n), 2.0, 0.0, 2.0), mu)
+def roots_chebys(n, mu: Literal[bool] = False): return _rw(_roots_scale(R.roots_chebyu_mu(n), 2.0, 0.0, 2.0), mu)
+def roots_sh_chebyt(n, mu: Literal[bool] = False):
+    t = R.roots_chebyt_mu(n)
+    return _rw(((t[0] + 1) / 2, t[1], t[2]), mu)
+def roots_sh_chebyu(n, mu: Literal[bool] = False):
+    t = R.roots_chebyu_mu(n)
+    m_us = K.beta(1.5, 1.5)
+    return _rw(((t[0] + 1) / 2, t[1] * (m_us / t[2]), m_us), mu)
+def roots_sh_legendre(n, mu: Literal[bool] = False):
+    t = R.roots_legendre_mu(n)
+    return _rw(((t[0] + 1) / 2, t[1] / 2, 1.0), mu)
+def roots_sh_jacobi(n, p1, q1, mu: Literal[bool] = False):
+    if (p1 - q1) <= -1 or q1 <= 0:
+        raise ValueError("(p - q) must be greater than -1, and q must be greater than 0.")
+    t = R.roots_jacobi_mu(n, float(p1 - q1), float(q1 - 1))
+    scale = 2.0 ** float(p1)
+    return _rw(((t[0] + 1) / 2, t[1] / scale, t[2] / scale), mu)
+p_roots = roots_legendre
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:
