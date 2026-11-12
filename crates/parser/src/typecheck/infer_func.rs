@@ -277,8 +277,10 @@ impl<'a> TypecheckVisitor<'a> {
                 k.items = prepend;
             }
             let old_bl = std::mem::replace(&mut self.ctx.borrow_mut().block_level, 0);
+            let old_sb = std::mem::replace(&mut self.ctx.borrow_mut().static_branch_depth, 0);
             let ret = self.infer_types(Some(suite), false);
             self.ctx.borrow_mut().block_level = old_bl;
+            self.ctx.borrow_mut().static_branch_depth = old_sb;
             match ret? {
                 None => {
                     self.cache.functions.get_mut(&realizations_owner).unwrap().realizations.remove(&key);

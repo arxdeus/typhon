@@ -60,6 +60,7 @@ impl<'a> TypecheckVisitor<'a> {
         let ie = self.cache.ast[e].kind.as_if().unwrap().clone();
         let b = self.get_stdlib_type(&st.bool_)?;
         self.cache.ast[ie.cond.unwrap()].expected_type = Some(b);
+        let narrow = self.none_check_narrowing(ie.cond.unwrap());
         let mut cond = self.transform(ie.cond)?.unwrap();
         self.cache.ast[e].kind.as_if_mut().unwrap().cond = Some(cond);
 
@@ -83,8 +84,21 @@ impl<'a> TypecheckVisitor<'a> {
             return Ok(());
         }
 
+        let raw_id = |s: &Self, x: Option<ExprId>| x.and_then(|x| s.cache.ast[x].kind.as_id().map(|i| i.value.clone()));
+        let (if_raw, el_raw) = (raw_id(self, ie.ifexpr), raw_id(self, ie.elsexpr));
         let mut ifx = self.transform(ie.ifexpr)?.unwrap();
         let mut elx = self.transform(ie.elsexpr)?.unwrap();
+        // `x if opt is None else opt` / `opt if opt is not None else x`: the branch
+        // where `opt` is known to be non-None uses the unwrapped value (mypy narrowing).
+        if let Some((name, non_none_in_if)) = narrow {
+            let (br, raw) = if non_none_in_if { (&mut ifx, if_raw) } else { (&mut elx, el_raw) };
+            let is_var = raw.is_some_and(|r| r == name);
+            if is_var && types.is(self.ety(*br), &st.optional) {
+                let d = self.dot_n(*br, "__val__");
+                let c = self.call_n(d, vec![]);
+                *br = self.tr(c)?;
+            }
+        }
 
         self.wrap_expr(&mut cond, b, None, true)?;
         // Add wrappers and unify both sides
@@ -132,6 +146,28 @@ impl<'a> TypecheckVisitor<'a> {
             self.set_done_expr(e);
         }
         Ok(())
+    }
+    /// Recognise `v is None` / `v is not None` (either operand order) on a plain
+    /// variable. Returns the variable's name and whether the *if* branch is the one
+    /// where `v` is not None.
+    fn none_check_narrowing(&self, cond: ExprId) -> Option<(String, bool)> {
+        let a = &self.cache.ast;
+        let bx = a[cond].kind.as_binary()?;
+        let non_none_in_if = match bx.op.as_str() {
+            "is" => false,
+            "is not" => true,
+            _ => return None,
+        };
+        let (l, r) = (bx.lexpr?, bx.rexpr?);
+        let var = if a[r].kind.as_none().is_some() {
+            l
+        } else if a[l].kind.as_none().is_some() {
+            r
+        } else {
+            return None;
+        };
+        let name = a[var].kind.as_id()?.value.clone();
+        Some((name, non_none_in_if))
     }
     fn op_if_set(&mut self, e: ExprId, c: ExprId, i: ExprId, el: ExprId) {
         let k = self.cache.ast[e].kind.as_if_mut().unwrap();
@@ -215,7 +251,10 @@ impl<'a> TypecheckVisitor<'a> {
                     items.extend(x);
                     x = Some(self.c_suite(items));
                 }
-                let r = self.transform_stmt_opt(x)?;
+                self.ctx.borrow_mut().static_branch_depth += 1;
+                let r = self.transform_stmt_opt(x);
+                self.ctx.borrow_mut().static_branch_depth -= 1;
+                let r = r?;
                 self.result_stmt = match r {
                     Some(r) => Some(r),
                     None => {

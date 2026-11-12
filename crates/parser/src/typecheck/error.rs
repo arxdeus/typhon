@@ -190,6 +190,15 @@ impl<'a> TypecheckVisitor<'a> {
     /// `visit(ThrowStmt*)`: `raise exc` -> `raise BaseException._set_header(exc, ...)`.
     pub fn visit_throw(&mut self, s: StmtId) -> Result<()> {
         let th = self.cache.ast[s].kind.as_throw().unwrap().clone();
+        // An unconditional `raise` in a statically-taken branch (e.g. `if c is None: raise`
+        // with `c: NoneType`) makes the rest of the function dead: later statements must not
+        // be instantiated with the un-narrowed types (Python narrowing semantics).
+        {
+            let mut c = self.ctx.borrow_mut();
+            if c.in_function() && c.block_level == 0 && c.static_branch_depth > 0 {
+                c.return_early = true;
+            }
+        }
         let Some(expr) = th.expr else {
             self.set_done_stmt(s);
             return Ok(());

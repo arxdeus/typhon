@@ -194,6 +194,8 @@ pub struct TypeContext {
     pub block_level: i32,
     /// True if an early return is found.
     pub return_early: bool,
+    /// Depth of statically-evaluated `if` branches being transformed (a `raise` there ends the block).
+    pub static_branch_depth: i32,
     /// Stack of static loop control variables.
     pub static_loops: Vec<String>,
     /// Current statement time.
@@ -228,6 +230,7 @@ impl TypeContext {
             realization_depth: 0,
             block_level: 0,
             return_early: false,
+            static_branch_depth: 0,
             static_loops: vec![],
             time: 0,
             expected_type: None,

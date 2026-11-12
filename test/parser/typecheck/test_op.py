@@ -322,7 +322,7 @@ x: Optional[List[int]] = None
 z = x if x else []
 print(z, z.__class__.__name__)  #: [] Optional[List[int]]
 z = x if x is not None else []
-print(z, z.__class__.__name__)  #: [] Optional[List[int]]
+print(z, z.__class__.__name__)  #: [] List[int]
 z = x or []
 print(z, z.__class__.__name__)  #: [] Optional[List[int]]
 

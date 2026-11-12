@@ -409,3 +409,46 @@ print foo(N=1, x=(1, 2)) #: len 2
 print foo(N=3, x=(1, 2)) #: ()
 print foo(N=1, x=(1, 2, 3)) #: (3,)
 
+
+#%% none_narrowing_after_raise,barebones
+def f(c=None):
+    if True:
+        if c is None: raise ValueError('none')
+        return len(c)
+def g(c=None):
+    if c is None: raise ValueError('g')
+    return len(c)
+def h(c=None):
+    if True:
+        if c is None: return -1
+        return len(c)
+    return 0
+try:
+    f()
+except ValueError as e:
+    print 'f', e  #: f none
+try:
+    g()
+except ValueError as e:
+    print 'g', e  #: g g
+print f([1, 2]), g([1]), h(), h('abc')  #: 2 1 -1 3
+
+#%% optional_ternary_narrowing,barebones
+def f(x: int, opt: Optional[int] = None):
+    n = x if opt is None else opt
+    m = opt if opt is not None else x
+    k = x if None is opt else opt
+    s = 'a' * n
+    return n, m, k, len(s), opt
+print f(3)  #: (3, 3, 3, 3, None)
+print f(3, 5)  #: (5, 5, 5, 5, 5)
+
+#%% explicit_base_method_self_binding,barebones
+class B:
+    def run(self): return self.name()
+    def name(self): return 'B'
+class C(B):
+    def name(self): return 'C'
+    def run2(self): return B.run(self)
+    def run3(self): return super().run()
+print C().run2(), C().run3(), B().run()  #: C C B
