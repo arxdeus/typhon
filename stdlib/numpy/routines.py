@@ -26,17 +26,41 @@ def _check_out(out, shape):
 def _inner_type(t):
     if isinstance(t, ndarray):
         return t.dtype()
-    elif isinstance(t, List) or isinstance(t, Tuple):
+    elif isinstance(t, List):
+        return _inner_type_t(type(t[0]))
+    elif isinstance(t, Tuple):
         return _inner_type(t[0])
+    elif isinstance(t, NoneType):
+        return 0.0  # untyped empty list: numpy's default float64
     else:
         return t
+
+def _inner_type_t(T: type):
+    if isinstance(T(), List):
+        return _inner_type_t(type(T()[0]))
+    elif T is NoneType:
+        return 0.0
+    else:
+        return _inner_type(T())
 
 def _extract_shape(t):
     if isinstance(t, ndarray):
         return t.shape
-    elif isinstance(t, List) or isinstance(t, Tuple):
+    elif isinstance(t, List):
+        if len(t) == 0:
+            # empty list: inner dimensions are statically known to be 0
+            return (0, *_empty_shape(type(t[0])))
         rest = _extract_shape(t[0])
         return (len(t), *rest)
+    elif isinstance(t, Tuple):
+        rest = _extract_shape(t[0])
+        return (len(t), *rest)
+    else:
+        return ()
+
+def _empty_shape(T: type):
+    if isinstance(T(), List):
+        return (0, *_empty_shape(type(T()[0])))
     else:
         return ()
 
@@ -54,6 +78,8 @@ def _flatten(t, shape, D: type):
                 start += s.size
             elif isinstance(s, List) or isinstance(s, Tuple):
                 start = helper(s, p, start, D)
+            elif isinstance(s, NoneType):
+                pass  # only reachable for untyped empty lists (never iterated)
             else:
                 p[start] = util.cast(s, D)
                 start += 1

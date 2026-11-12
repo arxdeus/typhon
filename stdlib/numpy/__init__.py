@@ -26,6 +26,7 @@ from .npio import *
 from .reductions import *
 from .reductions import min as amin, max as amax
 from .util import AxisError, TooHardError
+from .errstate import errstate, seterr, geterr, seterrcall, geterrcall
 
 import linalg
 import fft
