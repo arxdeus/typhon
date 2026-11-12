@@ -294,16 +294,18 @@ impl<'a> TypecheckVisitor<'a> {
     /// `transformStaticPlatform(expr)`.
     pub fn transform_static_platform(&mut self, e: ExprId) -> Result<Option<ExprId>> {
         self.sp_set_static_kind(e, LiteralKind::String);
-        let platform = if cfg!(windows) {
-            "win32"
-        } else if cfg!(target_os = "linux") {
-            "linux"
-        } else if cfg!(target_os = "macos") {
-            "darwin"
-        } else if cfg!(unix) {
-            "unix"
-        } else {
-            ""
+        // Follows the compilation target (`-target`), like CPython 3.13+ `sys.platform`
+        // ("android", "ios" on mobile).
+        use typhon_common::target::{TargetInfo, TargetOs};
+        let target = self.cache.options.as_ref().map(|o| o.target_info()).unwrap_or_else(TargetInfo::host);
+        let platform = match target.os {
+            TargetOs::Windows => "win32",
+            TargetOs::Linux => "linux",
+            TargetOs::Android => "android",
+            TargetOs::MacOs => "darwin",
+            TargetOs::Ios => "ios",
+            TargetOs::Other if cfg!(unix) => "unix",
+            TargetOs::Other => "",
         };
         if platform.is_empty() {
             typhon_common::bail_e!(ErrorKind::CUSTOM, self.cache.ast[e].src, "unsupported platform");

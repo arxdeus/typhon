@@ -15,6 +15,7 @@
 //! across modules exactly like C++), building through the LLVM C API; the module
 //! itself is owned as an `inkwell::module::Module` so callers get a safe handle.
 
+pub mod cross;
 mod flows;
 mod instrs;
 pub mod ll;
@@ -44,6 +45,8 @@ use self::ll::{BB, Builder, DiBuilder, Md, Ty, V};
 
 const MAIN_UNCLASH: &str = ".main.unclash";
 const MAIN_CTOR: &str = ".main.ctor";
+/// Marks `@export` function definitions (consumed by library linking).
+pub(crate) const EXPORT_ATTR: &str = "typhon-export";
 
 /// `SEQ_FLAG_*` (runtime flags).
 const SEQ_FLAG_DEBUG: i64 = 1 << 0;
@@ -482,7 +485,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
 
     /// `makeModule`: a new module initialized for the host (or `march`/`mcpu`) target.
     fn make_module(&mut self, src: Option<SrcInfo>) -> Result<LlModule<'ctx>> {
-        let tm = crate::target::host_target_machine(&self.options, false)?;
+        let tm = crate::target::compile_target_machine(&self.options, false)?;
         let module = self.ctx.create_module("typhon");
         module.set_triple(&tm.get_triple());
         module.set_data_layout(&tm.get_target_data().get_data_layout());
@@ -1314,6 +1317,8 @@ impl<'ctx> LlvmVisitor<'ctx> {
         let fd = m.func(f).unwrap();
         if irtools::is_export(m, f) {
             ll::set_linkage(func, LLVMExternalLinkage);
+            // Used by library builds: thread registration + export list.
+            ll::add_string_attr(func, ll::FN_INDEX, EXPORT_ATTR, "");
         } else {
             ll::set_linkage(func, LLVMPrivateLinkage);
         }

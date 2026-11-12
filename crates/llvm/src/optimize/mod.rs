@@ -119,7 +119,7 @@ fn run_llvm_optimization_passes(module: &Module, options: &Options) -> Result<()
 
     // PipelineStart / EarlySimplification
     if options.native {
-        native::add_native_llvm_passes(module);
+        native::add_native_llvm_passes_for(module, options);
     }
     if speed {
         let marked = coro::coro_resume_inliner_mark(m);

@@ -120,7 +120,7 @@ pub fn target_machine_for_module(
     }
     let cpu = options.mcpu.clone();
     let features = features_str(&options.mattrs);
-    let machine = target_machine_for(&triple, &cpu, &features, &options.march, pic)?;
+    let machine = target_machine_for(&triple, &cpu, &features, &options.march, pic || options.is_cross())?;
     if set_function_attributes {
         set_function_attributes_for(module, &cpu, &features);
     }
@@ -178,6 +178,19 @@ pub fn host_target_machine_with_model(options: &Options, pic: bool, code_model: 
     let features = features_str(&options.mattrs);
     target_machine_with_model(&triple, &cpu, &features, &options.march, pic, code_model)?
         .ok_or_else(|| CompilerError::Llvm(format!("could not find target for '{triple}'")))
+}
+
+/// Target machine for the compilation target: `options.target` when cross
+/// compiling (always PIC), else the host.
+pub fn compile_target_machine(options: &Options, pic: bool) -> Result<TargetMachine> {
+    if !options.is_cross() {
+        return host_target_machine(options, pic);
+    }
+    let triple = options.target.clone();
+    let cpu = options.mcpu.clone();
+    let features = features_str(&options.mattrs);
+    target_machine_with_model(&triple, &cpu, &features, &options.march, true, CodeModel::Default)?
+        .ok_or_else(|| CompilerError::Llvm(format!("could not find LLVM target for '{triple}'")))
 }
 
 /// Data layout string of a target machine.

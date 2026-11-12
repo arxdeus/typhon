@@ -9,6 +9,7 @@ pub mod mangle;
 pub mod options;
 pub mod srcinfo;
 pub mod strings;
+pub mod target;
 
 pub use error::{CompilerError, ErrorKind, ErrorMessage, ParserErrors, Result, emsg};
 pub use logger::{Logger, LoggerFlags, Timer, logger};

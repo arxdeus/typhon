@@ -9,6 +9,7 @@ use llvm_sys::LLVMLinkage::*;
 use typhon_common::options::GlobalCtorMode;
 use typhon_common::{CompilerError, Result};
 
+use super::cross;
 use super::ll::{self, Builder};
 use super::{LlvmVisitor, MAIN_CTOR, MAIN_UNCLASH};
 
@@ -103,6 +104,31 @@ const RUNTIME_NATIVE_LIBS: &[&str] = &["-lgcc_s", "-lutil", "-lrt", "-lpthread",
 #[cfg(windows)]
 const RUNTIME_NATIVE_LIBS: &[&str] = &["-lkernel32", "-lntdll", "-luserenv", "-lws2_32", "-ldbghelp", "-llibopenblas"];
 
+/// Runtime archive for a cross target: `$TYPHON_LIB_DIR/<T>/libtyphonrt.a`,
+/// `<exe dir>/../<T>/release/libtyphonrt.a` (cargo cross output) or
+/// `<exe dir>/../lib/typhon/<T>/libtyphonrt.a`.
+pub fn cross_runtime_archive(argv0: &str, target: &typhon_common::target::TargetInfo) -> Result<String> {
+    let t = target.rust_triple().ok_or_else(|| CompilerError::Llvm(format!("unsupported cross target '{}'", target.triple)))?;
+    let mut candidates = Vec::new();
+    if let Ok(d) = std::env::var("TYPHON_LIB_DIR")
+        && !d.is_empty()
+    {
+        candidates.push(PathBuf::from(&d).join(&t).join("libtyphonrt.a"));
+    }
+    let exe = if argv0.is_empty() { std::env::current_exe().unwrap_or_default() } else { std::fs::canonicalize(argv0).unwrap_or_else(|_| PathBuf::from(argv0)) };
+    if let Some(dir) = exe.parent() {
+        candidates.push(dir.join("..").join(&t).join("release").join("libtyphonrt.a"));
+        candidates.push(dir.join("../lib/typhon").join(&t).join("libtyphonrt.a"));
+    }
+    candidates.iter().find(|p| p.is_file()).map(|p| p.to_string_lossy().into_owned()).ok_or_else(|| {
+        let searched: Vec<String> = candidates.iter().map(|d| d.display().to_string()).collect();
+        CompilerError::Llvm(format!(
+            "runtime for target {t} not found (searched {}); build it with `tools/build-runtime.sh {t}` or set TYPHON_LIB_DIR to a directory containing {t}/libtyphonrt.a",
+            searched.join(", ")
+        ))
+    })
+}
+
 impl<'ctx> LlvmVisitor<'ctx> {
     /// `runLLVMPipeline`.
     fn run_llvm_pipeline(&mut self) -> Result<()> {
@@ -144,6 +170,31 @@ impl<'ctx> LlvmVisitor<'ctx> {
         let entry = ll::const_struct(self.c, &[b.c_i32(65535), ctor, b.null_ptr()]);
         let arr_ty = ll::array_ty(entry_ty, 1);
         ll::new_global(mm, arr_ty, true, LLVMAppendingLinkage, Some(ll::const_array(entry_ty, &[entry])), "llvm.global_ctors");
+    }
+
+    /// Library prologue for `@export` functions: call the idempotent
+    /// `seq_register_current_thread()` first so foreign threads (e.g. Dart
+    /// isolates) are known to the GC. Returns the exported symbol names.
+    fn setup_library_exports(&mut self) -> Vec<String> {
+        let mm = self.m();
+        let exports: Vec<_> =
+            ll::functions(mm).into_iter().filter(|&f| !ll::is_declaration(f) && ll::has_string_attr(f, super::EXPORT_ATTR)).collect();
+        if exports.is_empty() {
+            return Vec::new();
+        }
+        let b = Builder::new(self.c);
+        let reg = ll::get_or_insert_function(mm, "seq_register_current_thread", ll::fn_ty(b.void(), &[], false));
+        let mut names = Vec::new();
+        for f in exports {
+            names.push(ll::name(f));
+            let first = unsafe { llvm_sys::core::LLVMGetFirstInstruction(ll::entry_block(f)) };
+            if first.is_null() {
+                continue;
+            }
+            b.before(first);
+            b.call(ll::function_type(reg), reg, &[]);
+        }
+        names
     }
 
     /// `writeToObjectFile` (`assembly` writes a `.s` file instead).
@@ -199,6 +250,10 @@ impl<'ctx> LlvmVisitor<'ctx> {
         if library && self.options.ctor != GlobalCtorMode::No {
             self.setup_global_ctor();
         }
+        let exports = if library { self.setup_library_exports() } else { Vec::new() };
+        if self.options.is_cross() {
+            return self.write_cross_executable(filename, argv0, library, libs, user_flags, &exports);
+        }
         let obj_file = format!("{filename}.o");
         self.write_to_object_file(&obj_file, library || pie, false)?;
         let runtime = runtime_link_args(argv0)?;
@@ -240,6 +295,60 @@ impl<'ctx> LlvmVisitor<'ctx> {
             let _ = execute_command(&["dsymutil".to_string(), filename.to_string()]);
         }
         let _ = std::fs::remove_file(&obj_file);
+        r
+    }
+
+    /// Cross link for `-target` (Android NDK clang / Xcode SDK clang).
+    fn write_cross_executable(
+        &mut self,
+        filename: &str,
+        argv0: &str,
+        library: bool,
+        libs: &[String],
+        user_flags: Vec<String>,
+        exports: &[String],
+    ) -> Result<()> {
+        let target = self.options.target_info();
+        let obj_file = format!("{filename}.o");
+        self.write_to_object_file(&obj_file, true, false)?;
+        let archive = cross_runtime_archive(argv0, &target)?;
+        let list_file = format!("{filename}.exports");
+        let mut command = cross::linker_command(&target, &self.options.target, &self.options.sysroot)?;
+        command.push("-Wno-unused-command-line-argument".into());
+        command.push(obj_file.clone());
+        let base = Path::new(filename).file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        if library {
+            command.push("-shared".into());
+            if target.is_apple() {
+                command.push(format!("-Wl,-install_name,@rpath/{base}"));
+            } else {
+                command.push(format!("-Wl,-soname,{base}"));
+            }
+            // Only `@export` functions are visible; runtime symbols stay hidden.
+            if target.is_apple() {
+                let body: String = exports.iter().map(|e| format!("_{e}\n")).collect();
+                std::fs::write(&list_file, body).map_err(io_err)?;
+                command.push(format!("-Wl,-exported_symbols_list,{list_file}"));
+            } else {
+                let body = format!("{{\n  global:\n{}  local: *;\n}};\n", exports.iter().map(|e| format!("    {e};\n")).collect::<String>());
+                std::fs::write(&list_file, body).map_err(io_err)?;
+                command.push(format!("-Wl,--version-script={list_file}"));
+                command.push("-Wl,--exclude-libs,ALL".into());
+            }
+        } else if !target.is_apple() {
+            command.push("-pie".into());
+        }
+        for l in libs {
+            command.push(format!("-l{l}"));
+        }
+        command.extend(cross::gc_flags(&target).iter().map(|s| s.to_string()));
+        command.push(archive);
+        command.extend(cross::native_libs(&target).iter().map(|s| s.to_string()));
+        command.extend(["-o".to_string(), filename.to_string()]);
+        command.extend(user_flags);
+        let r = execute_command(&command);
+        let _ = std::fs::remove_file(&obj_file);
+        let _ = std::fs::remove_file(&list_file);
         r
     }
 

@@ -469,3 +469,13 @@ pub fn add_native_llvm_passes(module: &Module) {
         apply_native_attributes(module, &cpu, &features);
     }
 }
+
+/// Like [`add_native_llvm_passes`] but, when cross compiling, applies the explicit
+/// (or per-target default) `-mcpu`/`-mattr` instead of the host CPU.
+pub fn add_native_llvm_passes_for(module: &Module, options: &typhon_common::Options) {
+    if options.is_cross() {
+        apply_native_attributes(module, &options.mcpu, &target::features_str(&options.mattrs));
+    } else {
+        add_native_llvm_passes(module);
+    }
+}

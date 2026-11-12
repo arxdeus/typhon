@@ -167,15 +167,18 @@ impl Compiler {
     pub fn early_defines(&self) -> HashMap<String, String> {
         let o = &self.options;
         let b = |v: bool| if v { "1" } else { "0" }.to_string();
-        HashMap::from([
+        let mut m = HashMap::from([
             ("__debug__".into(), b(o.debug)),
             ("__py_numerics__".into(), b(o.pynum)),
             ("__dict_unordered__".into(), b(o.unordereddict)),
             ("__typhon_version_major__".into(), VERSION_MAJOR.to_string()),
             ("__typhon_version_minor__".into(), VERSION_MINOR.to_string()),
             ("__typhon_version_micro__".into(), VERSION_PATCH.to_string()),
-            ("__apple__".into(), b(cfg!(target_os = "macos"))),
-            ("__windows__".into(), b(cfg!(windows))),
-        ])
+        ]);
+        // Platform defines follow the compilation target (`-target`), not the host.
+        for (k, v) in o.target_info().defines() {
+            m.insert(k.to_string(), b(v));
+        }
+        m
     }
 }

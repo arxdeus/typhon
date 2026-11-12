@@ -38,6 +38,10 @@ pub struct Options {
     /// (`build -exe` default; `-dynamic-runtime` turns it off). Libraries
     /// and the JIT always use the shared runtime.
     pub static_runtime: bool,
+    /// `-target`: LLVM triple of a cross target (aliases resolved); empty = host.
+    pub target: String,
+    /// `-sysroot`: SDK / sysroot passed to the cross linker.
+    pub sysroot: String,
 }
 
 impl Default for Options {
@@ -66,6 +70,8 @@ impl Default for Options {
             mcpu: String::new(),
             mattrs: Vec::new(),
             static_runtime: false,
+            target: String::new(),
+            sysroot: String::new(),
         }
     }
 }
@@ -73,5 +79,16 @@ impl Default for Options {
 impl Options {
     pub fn with_argv0(argv0: impl Into<String>) -> Self {
         Self { argv0: argv0.into(), ..Default::default() }
+    }
+}
+
+impl Options {
+    /// True when compiling for a target other than the host.
+    pub fn is_cross(&self) -> bool {
+        !self.target.is_empty()
+    }
+
+    pub fn target_info(&self) -> crate::target::TargetInfo {
+        crate::target::TargetInfo::from_option(&self.target)
     }
 }

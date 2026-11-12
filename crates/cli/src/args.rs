@@ -160,6 +160,8 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
                 let v = take(val);
                 o.mattrs.extend(v.split(',').filter(|s| !s.is_empty()).map(String::from))
             }
+            "target" => o.target = typhon_common::target::resolve_target_alias(&take(val)),
+            "sysroot" => o.sysroot = take(val),
             "relocation-model" => cli.relocation_model = take(val),
             "linker-flags" if build => cli.lflags = take(val),
             "pie" if build => cli.pie = parse_bool(val),
@@ -204,14 +206,34 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
         }
     }
     o.march = march;
+    apply_target_defaults(&mut o);
     cli.options = o;
     cli
+}
+
+/// For a cross target: drop a `-target` equal to the host, else select generic
+/// per-target CPU/features (never the host ones) unless given explicitly.
+pub fn apply_target_defaults(o: &mut Options) {
+    if o.target.is_empty() {
+        return;
+    }
+    if o.target == typhon_llvm::target::host_triple() {
+        o.target.clear();
+        return;
+    }
+    let (cpu, feats) = o.target_info().default_cpu_features();
+    if o.mcpu.is_empty() {
+        o.mcpu = cpu;
+    }
+    if o.mattrs.is_empty() {
+        o.mattrs = feats;
+    }
 }
 
 pub fn print_help(build: bool) {
     println!("USAGE: typhon {} [options] <input file>{}", if build { "build" } else { "run" }, if build { "" } else { " <program arguments>..." });
     println!(
-        "\nOPTIONS:\n  -debug / -release        optimization mode (default: debug)\n  -numerics=c|py           numerical semantics (default: py)\n  -D<name>=<value>         static definitions\n  -disable-opt=<pass>      disable an IR pass\n  -log=<streams>           enable log streams\n  -fast-math, -disable-exceptions, -disable-native, -unordered-dict\n  -march/-mcpu/-mattr      target selection\n  -libdevice/-gpu-name/-gpu-features/-ptx  GPU options\n  -l<lib>                  load/link library"
+        "\nOPTIONS:\n  -debug / -release        optimization mode (default: debug)\n  -numerics=c|py           numerical semantics (default: py)\n  -D<name>=<value>         static definitions\n  -disable-opt=<pass>      disable an IR pass\n  -log=<streams>           enable log streams\n  -fast-math, -disable-exceptions, -disable-native, -unordered-dict\n  -march/-mcpu/-mattr      target selection\n  -target <triple|alias>   cross target (aarch64-linux-android24, x86_64-linux-android24,\n                           arm64-apple-ios13.0[-simulator]; aliases android-arm64,\n                           android-x64, ios-arm64, ios-sim-arm64)\n  -sysroot <dir>           sysroot / SDK for cross linking\n  -libdevice/-gpu-name/-gpu-features/-ptx  GPU options\n  -l<lib>                  load/link library"
     );
     if build {
         println!("  -llvm|-bc|-obj|-asm|-exe|-lib|-cir   output kind\n  -o <file>                output file\n  -linker-flags=<flags>    pass flags to the linker\n  -pie                     position-independent executable");

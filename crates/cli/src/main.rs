@@ -203,6 +203,9 @@ fn build_mode(argv0: &str, exe_argv0: &str, args: &[String]) -> i32 {
         BuildKind::Bitcode => ".bc",
         BuildKind::Object => ".o",
         BuildKind::Assembly => ".s",
+        BuildKind::Library if cli.options.is_cross() => {
+            if cli.options.target_info().is_apple() { ".dylib" } else { ".so" }
+        }
         BuildKind::Library => {
             if cfg!(windows) {
                 ".dll"
