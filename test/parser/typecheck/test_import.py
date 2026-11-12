@@ -216,3 +216,11 @@ from os import path as p
 print(p.join('a', 'b'))  #: a/b
 import os.path
 print(os.path.basename('/x/y'))  #: y
+
+#%% import_submodule_lazy_branches,barebones
+import a.pk as q2
+def pick(c: bool):
+    if c:
+        return q2.leaf.g()
+    return q2.leaf.g() + '!'
+print(pick(False))  #: pk.leaf.g rel pk.X rel pk.X!

@@ -165,3 +165,18 @@ def test_lazy_submodule_attrs():
     np.testing.assert_raises(ValueError, int, 'x')
 
 test_lazy_submodule_attrs()
+
+def _rs_either(s: Optional[int]):
+    if s is None:
+        return np.random.RandomState()
+    return np.random.RandomState(s)
+
+@test
+def test_lazy_submodule_init_on_every_branch():
+    # regression: the lazy np.random loader was emitted only in the first
+    # typechecked branch, so the other branch saw uninitialized module globals
+    a = _rs_either(3).randint(0, 100)
+    assert a == _rs_either(3).randint(0, 100)
+    assert 0 <= _rs_either(None).randint(0, 100) < 100
+
+test_lazy_submodule_init_on_every_branch()

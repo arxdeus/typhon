@@ -491,6 +491,21 @@ impl<'a> TypecheckVisitor<'a> {
                     import_name = self.get_str_literal(*vt, 0);
                     import_end = i + 1;
                     import_val = val.clone();
+                    // A submodule bound lazily (auto-load below, or a non-toplevel import)
+                    // must be initialized on *every* access path, not only the first one
+                    // that was typechecked (e.g. `if c: np.random.X() else: np.random.Y()`).
+                    // The loader is idempotent (guarded by the module's `loaded` flag).
+                    let (toplevel, ivar) = {
+                        let imp = self.get_import(&import_name);
+                        (imp.loaded_at_toplevel, imp.import_var.clone())
+                    };
+                    if !toplevel && !self.ctx.borrow().is_stdlib_loading {
+                        let f = self.xm_id(&mangle::mangled_func("", &format!("{ivar}_call"), 0, 0, true));
+                        let c = self.xm_call(f, &[]);
+                        let s = self.xm_expr_stmt(c);
+                        let s = self.tr_stmt(s)?;
+                        self.prepend_stmts.borrow_mut().push(s);
+                    }
                     ictx = self.get_import(&import_name).ctx.clone().expect("import without ctx");
                     i = chain.len();
                     continue;
@@ -534,7 +549,8 @@ impl<'a> TypecheckVisitor<'a> {
             if !self.ctx.borrow().is_stdlib_loading && import_name.ends_with("__init__.py") {
                 // Special case: subimport is not yet loaded
                 //   (e.g., import a; a.b.x where a.b is a module as well)
-                if super::helpers::get_import_file(self.cache, &chain[import_end], &import_name, false).is_some() {
+                if let Some(file) = super::helpers::get_import_file(self.cache, &chain[import_end], &import_name, false) {
+                    let fresh = !self.cache.imports.contains_key(&file.path);
                     // Auto-load support
                     let w = self.id_n(&chain[import_end]);
                     let is = self.n_stmt(ImportStmt { from: Some(w), ..Default::default() });
@@ -548,6 +564,13 @@ impl<'a> TypecheckVisitor<'a> {
                         v.tr_stmt(s)?
                     };
                     self.prepend_stmts.borrow_mut().push(s);
+                    // The loader call was emitted only at this use site (possibly inside a
+                    // branch), so other access paths must call the loader themselves.
+                    if fresh {
+                        if let Some(im) = self.cache.imports.get_mut(&file.path) {
+                            im.loaded_at_toplevel = false;
+                        }
+                    }
                     return self.get_import_chain(chain);
                 }
             }
