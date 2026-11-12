@@ -7,3 +7,7 @@ from ._bayes import BayesianRidge
 from ._coordinate_descent import (ElasticNet, Lasso, MultiTaskElasticNet, MultiTaskLasso,
                                   LassoCV, ElasticNetCV, MultiTaskElasticNetCV,
                                   MultiTaskLassoCV, enet_path, lasso_path)
+from ._least_angle import (Lars, LassoLars, LarsCV, LassoLarsCV, LassoLarsIC, lars_path,
+                           lars_path_gram)
+from ._omp import (OrthogonalMatchingPursuit, OrthogonalMatchingPursuitCV, orthogonal_mp,
+                   orthogonal_mp_gram)
