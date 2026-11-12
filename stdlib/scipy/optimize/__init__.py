@@ -21,6 +21,7 @@ from ._constraints import LinearConstraint, NonlinearConstraint
 from ._cons import _has_constraints
 from ._slsqp_core import _minimize_slsqp
 from ._tnc import _minimize_tnc
+from ._lsq_linear import lsq_linear, nnls
 from ._hessian_update_strategy import HessianUpdateStrategy, BFGS, SR1
 from ._trustregion import _minimize_trust_region, _minimize_newtoncg, \
                           _TR_NCG, _TR_DOGLEG, _TR_EXACT, _TR_KRYLOV

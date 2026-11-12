@@ -81,6 +81,17 @@ def dlarf_(side: cobj, m: cobj, n: cobj, v: cobj, incv: cobj, tau: cobj, c: cobj
 def dlartgp_(f: cobj, g: cobj, cs: cobj, sn: cobj, r: cobj) -> None:
     pass
 
+@C
+@_C.linkname("dlartg" + _suffix_lapack)
+def dlartg_(f: cobj, g: cobj, cs: cobj, sn: cobj, r: cobj) -> None:
+    pass
+
+def dlartg(f: float, g: float):
+    cs = 0.0; sn = 0.0; r = 0.0; ff = f; gg = g
+    dlartg_(__ptr__(ff).as_byte(), __ptr__(gg).as_byte(), __ptr__(cs).as_byte(),
+            __ptr__(sn).as_byte(), __ptr__(r).as_byte())
+    return cs, sn, r
+
 def _c(s: str) -> u8:
     return u8(ord(s))
 
