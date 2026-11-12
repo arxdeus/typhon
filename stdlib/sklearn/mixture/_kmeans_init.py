@@ -4,10 +4,11 @@
 # mixture models (init_params='kmeans' / 'k-means++').
 
 import numpy as np
+from ..decomposition._extmath import _row_sq_einsum
 
 def _sq_dists(A, B, B_sq):
     # sklearn _euclidean_distances(A, B, Y_norm_squared=B_sq, squared=True)
-    AA = np.sum(A * A, axis=1)
+    AA = _row_sq_einsum(A)
     D = -2.0 * (A @ B.T)
     D += AA[:, None]
     D += B_sq[None, :]
@@ -112,7 +113,7 @@ def kmeans_labels(X0, n_clusters: int, rs, max_iter: int = 300, tol: float = 1e-
     """KMeans(n_clusters, n_init=1, random_state=rs).fit(X).labels_"""
     X = np.array(X0, dtype=float)
     X -= X.mean(axis=0)
-    xsq = np.sum(X * X, axis=1)
+    xsq = _row_sq_einsum(X)
     centers, _ = kmeans_plusplus(X, n_clusters, xsq, rs)
     tol_ = float(np.mean(np.var(X, axis=0))) * tol
     n = X.shape[0]

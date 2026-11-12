@@ -91,8 +91,36 @@ def squared_norm(x) -> float:
     a = np.asarray(x, dtype=float).ravel()
     return float(np.dot(a, a))
 
+def _row_sq_einsum(X):
+    """np.einsum('ij,ij->i', X, X) for float64, bit-exact with numpy's NEON
+    sum-of-products kernel: 2 lanes, 8-element blocks consumed highest pair
+    first with fused multiply-adds, zero-padded tail, then lane0 + lane1."""
+    n, p = X.shape
+    out = np.empty(n)
+    for r in range(n):
+        a0 = 0.0
+        a1 = 0.0
+        i = 0
+        while p - i >= 8:
+            blk = 3
+            while blk >= 0:
+                v0 = X[r, i + 2 * blk]
+                v1 = X[r, i + 2 * blk + 1]
+                a0 = float._fma(v0, v0, a0)
+                a1 = float._fma(v1, v1, a1)
+                blk -= 1
+            i += 8
+        while i < p:
+            v0 = X[r, i]
+            v1 = X[r, i + 1] if i + 1 < p else 0.0
+            a0 = float._fma(v0, v0, a0)
+            a1 = float._fma(v1, v1, a1)
+            i += 2
+        out[r] = 0.0 + (a0 + a1)
+    return out
+
 def row_norms(X, squared: bool = False):
-    r = np.sum(X * X, axis=1)
+    r = _row_sq_einsum(X)
     if not squared:
         r = np.sqrt(r)
     return r

@@ -178,5 +178,29 @@ def manifold_tsne():
     t = TSNE(n_components=3, perplexity=5, random_state=2, max_iter=300, init="random", angle=0.3)
     L("tsne_bh3", t.fit_transform(X)); S("tsne_bh3_kl", t.kl_divergence_)
 
+def manifold():
+    from sklearn.manifold import MDS, Isomap, LocallyLinearEmbedding, SpectralEmbedding, trustworthiness
+    from sklearn.manifold import ClassicalMDS
+    X, y = data(40, 5, 3)
+    m = MDS(2, random_state=0, n_init=2, init="random", max_iter=200)
+    L("mds_m", m.fit_transform(X)); S("mds_m_stress", m.stress_); S("mds_m_it", m.n_iter_)
+    m = MDS(2, metric_mds=False, random_state=1, n_init=1, init="random", max_iter=100)
+    L("mds_nm", m.fit_transform(X)); S("mds_nm_stress", m.stress_); S("mds_nm_it", m.n_iter_)
+    m = MDS(2, init="classical_mds", max_iter=100)
+    L("mds_c", m.fit_transform(X)); S("mds_c_stress", m.stress_)
+    L("cmds", ClassicalMDS(3).fit_transform(X))
+    im = Isomap(n_neighbors=6, n_components=2).fit(X)
+    L("iso_emb", im.embedding_); L("iso_dist", im.dist_matrix_[:3]); L("iso_tr", im.transform(X[:4] + 0.05))
+    S("iso_err", im.reconstruction_error())
+    for meth, k in [("standard", 8), ("modified", 8), ("ltsa", 8), ("hessian", 9)]:
+        e = LocallyLinearEmbedding(n_neighbors=k, n_components=2, method=meth, eigen_solver="dense").fit(X)
+        L(f"lle_{meth}", e.embedding_); S(f"lle_{meth}_err", e.reconstruction_error_)
+    e = LocallyLinearEmbedding(n_neighbors=8, n_components=2, eigen_solver="dense").fit(X)
+    L("lle_tr", e.transform(X[:3] + 0.05))
+    L("se_nn", SpectralEmbedding(n_components=2, random_state=0, n_neighbors=8).fit_transform(X))
+    L("se_rbf", SpectralEmbedding(n_components=2, random_state=0, affinity="rbf", gamma=0.2).fit_transform(X))
+    Z = X[:, :2] + 0.3 * X[:, 2:4]
+    S("tw", trustworthiness(X, Z, n_neighbors=5)); S("tw3", trustworthiness(X, X[:, [0, 2, 4]], n_neighbors=3))
+
 for sec in sys.argv[1:]:
     globals()[sec]()

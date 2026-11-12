@@ -6,6 +6,7 @@
 import numpy as np
 import scipy.linalg as sl
 from ._kmeans_init import kmeans_labels, kmeans_plusplus
+from ..decomposition._extmath import _row_sq_einsum
 
 _EPS = 2.220446049250313e-16
 
@@ -29,7 +30,7 @@ def _init_resp(X, k: int, init_params: str, rs):
         for c in range(k):
             resp[idx[c], c] = 1.0
     elif init_params == "k-means++":
-        _, idx = kmeans_plusplus(X, k, np.sum(X * X, axis=1), rs)
+        _, idx = kmeans_plusplus(X, k, _row_sq_einsum(X), rs)
         for c in range(k):
             resp[idx[c], c] = 1.0
     else:
@@ -143,7 +144,7 @@ def _estimate_log_gaussian_prob(X, means, pc, ct: str):
         lp = np.sum(means ** 2 * prec, axis=1) - 2.0 * (X @ (means * prec).T) + (X ** 2) @ prec.T
     else:
         prec = pc[0, 0] ** 2
-        xs = np.sum(X * X, axis=1)
+        xs = _row_sq_einsum(X)  # row_norms(X, squared=True)
         lp = np.sum(means ** 2, axis=1) * prec - 2 * ((X @ means.T) * prec) + xs[:, None] * prec[None, :]
     return -0.5 * (d * np.log(2 * np.pi) + lp) + log_det
 
