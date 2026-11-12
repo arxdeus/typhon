@@ -626,6 +626,8 @@ impl<'a> TypecheckVisitor<'a> {
                 if !a.is_value() {
                     // Special case: generic defaults are evaluated as-is!
                     default_value = self.transform(Some(d))?;
+                } else if self.is_per_call_default(d) {
+                    // `__per_call_default__(expr)`: evaluated at each call site.
                 } else {
                     default_value = Some(self.function_default_value(s, canonical_name, a, d, is_class_member, is_global)?);
                 }
@@ -745,6 +747,13 @@ impl<'a> TypecheckVisitor<'a> {
             }
         }
         Ok(FnSignature { args, suite, ret, explicits, base_type })
+    }
+
+    /// Whether a default is wrapped in `__per_call_default__(...)` (dataclass
+    /// `default_factory`): such defaults are not hoisted to a global.
+    pub(crate) fn is_per_call_default(&self, d: ExprId) -> bool {
+        let Some(c) = self.cache.ast[d].kind.as_call() else { return false };
+        c.expr.and_then(|f| self.cache.ast[f].kind.as_id()).is_some_and(|i| i.value.contains("__per_call_default__"))
     }
 
     /// Default value of a value parameter: stored in a global `.default.<fn>.<arg>`.

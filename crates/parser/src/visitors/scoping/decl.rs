@@ -286,7 +286,7 @@ impl ScopingVisitor<'_> {
             ("lt", false), ("le", false), ("gt", false), ("ge", false), ("pickle", true),
             ("unpickle", true), ("iter", false),
             ("getitem", false), ("len", false), ("to_gpu", false), ("from_gpu", false),
-            ("from_gpu_new", false), ("tuplesize", true),
+            ("from_gpu_new", false), ("tuplesize", true), ("frozen", false), ("kw_only", false), ("dataclass", false),
         ]
         .into_iter()
         .collect();
@@ -301,6 +301,10 @@ impl ScopingVisitor<'_> {
                 set(self, Attr::NoExtend);
             } else if is_id(a, Some(d), "dataclass") {
                 set(self, Attr::Dataclass);
+                // CPython defaults: repr=True, eq=True.
+                for k in ["repr", "eq", "ne", "dataclass"] {
+                    magics.insert(k, true);
+                }
             } else if let ExprKind::Call(c) = &a[d].kind {
                 let c = c.clone();
                 if is_id(a, c.expr, "tuple") {
@@ -310,6 +314,10 @@ impl ScopingVisitor<'_> {
                     stop!(self, ErrorKind::CLASS_BAD_DECORATOR, self.esrc(c.expr));
                 } else if has(self, Attr::Tuple) {
                     stop!(self, ErrorKind::CLASS_CONFLICT_DECORATOR, self.esrc(Some(d)), "dataclass", "tuple");
+                } else {
+                    for k in ["repr", "eq", "ne", "dataclass"] {
+                        magics.insert(k, true);
+                    }
                 }
                 for arg in &c.items {
                     let Some(b) = arg.value.and_then(|v| self.cache.ast[v].kind.as_bool()).map(|b| b.value) else {
@@ -324,10 +332,17 @@ impl ScopingVisitor<'_> {
                         "pickle" => &["pickle", "unpickle"],
                         "gpu" => &["to_gpu", "from_gpu", "from_gpu_new"],
                         "container" => &["iter", "getitem"],
+                        "frozen" => &["frozen"],
+                        "kw_only" => &["kw_only"],
                         _ => stop!(self, ErrorKind::CLASS_BAD_DECORATOR_ARG, arg.src.clone()),
                     };
                     for k in keys {
                         magics.insert(k, b);
+                    }
+                    // order=True implies eq=True (CPython requires it).
+                    if arg.name == "order" && b {
+                        magics.insert("eq", true);
+                        magics.insert("ne", true);
                     }
                 }
             } else if is_id(a, Some(d), "tuple") {
@@ -346,6 +361,11 @@ impl ScopingVisitor<'_> {
                 set(self, Attr::Internal);
             } else {
                 stop!(self, ErrorKind::CLASS_BAD_DECORATOR, self.esrc(Some(d)));
+            }
+        }
+        if has(self, Attr::Tuple) {
+            for k in ["frozen", "kw_only", "dataclass"] {
+                magics.insert(k, false);
             }
         }
         if !has(self, Attr::Tuple) && !has(self, Attr::Internal) && !has(self, Attr::Dataclass) && cls.items.is_empty() {

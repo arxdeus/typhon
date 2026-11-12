@@ -426,3 +426,7 @@ class AsyncGenerator[T]:
         ret ptr %self
 
 __typhon__: Literal[bool] = True
+
+def __per_call_default__(value):
+    """Marks a parameter default re-evaluated at every call (dataclass default_factory)."""
+    return value

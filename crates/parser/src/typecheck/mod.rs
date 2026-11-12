@@ -10,6 +10,7 @@ pub mod call;
 pub mod class;
 pub mod collections;
 pub mod cond;
+pub mod dataclass;
 pub mod ctx;
 pub mod error;
 pub mod function;

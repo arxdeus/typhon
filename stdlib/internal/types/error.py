@@ -522,3 +522,8 @@ class ResourceWarning(Warning):
 class EncodingWarning(Warning):
     def __init__(self, message: str = ""):
         super().__init__(message)
+
+# dataclasses.FrozenInstanceError (raised by compiler-generated frozen checks).
+class FrozenInstanceError(AttributeError):
+    def __init__(self, message: str = ""):
+        super().__init__(message)

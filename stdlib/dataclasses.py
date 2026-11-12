@@ -4,9 +4,7 @@
 import internal.static as _static
 
 
-class FrozenInstanceError(AttributeError):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
+from internal.types.error import FrozenInstanceError
 
 
 class _MISSING_TYPE:
@@ -24,8 +22,8 @@ def dataclass():
 
 def field(default=None, default_factory=None, init: bool = True,
           repr: bool = True, hash=None, compare: bool = True, kw_only=None):
-    # Class-level defaults are evaluated once when the class is defined, so a
-    # `default_factory` result is shared between instances (unlike CPython).
+    # In a @dataclass body the compiler rewrites `field(default_factory=F)` so F
+    # runs per instance; this runtime fallback only serves other uses.
     if default_factory is not None:
         return default_factory()
     return default

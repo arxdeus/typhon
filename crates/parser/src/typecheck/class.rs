@@ -377,7 +377,7 @@ impl<'a> TypecheckVisitor<'a> {
                 let o = i!("other");
                 stmts.push(ret_call!(n, [o]));
             }
-            "repr" | "repr_default" => {
+            "repr" | "repr_default" | "repr_dataclass" => {
                 // def __repr__(self: T) -> str
                 let t = ty!();
                 fargs.push(p!("self", Some(t)));
@@ -416,7 +416,7 @@ impl<'a> TypecheckVisitor<'a> {
         }
         // NC<>: no source location
         let suite = self.cache.ast.new_stmt(SuiteStmt { items: stmts }, Default::default());
-        let t = self.cache.ast.new_function(Default::default(), format!("__{op}__"), ret, fargs, Some(suite), vec![], false)?;
+        let t = self.cache.ast.new_function(Default::default(), format!("__{}__", if op == "repr_dataclass" { "repr" } else { op }), ret, fargs, Some(suite), vec![], false)?;
         for a in attrs {
             self.cache.ast[t].attrs.set(a);
         }
@@ -1131,6 +1131,109 @@ impl<'a> TypecheckVisitor<'a> {
         Ok(())
     }
 
+    /// A bare base class `A` whose members were auto-deduced from its `__init__` is
+    /// implicitly generic (`A[T_c]`). Python code writes `class B(A)`, so give `B` the same
+    /// hidden generics and rewrite the base to `A[T_c, ...]`; otherwise the base can never
+    /// be realized ("cannot realize base").
+    fn propagate_deduced_base_generics(&mut self, s: StmtId, args: &mut Vec<Param>) -> Result<()> {
+        let st = stdlib();
+        let mut bases = self.cache.ast[s].kind.as_class().unwrap().base_classes.clone();
+        let mut changed = false;
+        let mut raw_base: Option<ExprId> = None;
+        for b in bases.iter_mut() {
+            if self.cache.ast[*b].kind.as_id().is_none() {
+                continue;
+            }
+            let probe = self.cache.ast.clone_expr(*b, false);
+            let Ok(Some(t)) = self.transform_type(Some(probe), true) else { continue };
+            let Some(ct) = self.extract_class_type_expr(t) else { continue };
+            let Some(bast) = self.cache.get_class_by_type(ct).and_then(|c| c.ast) else { continue };
+            if !self.cache.ast[bast].attrs.has(Attr::ClassDeduce) {
+                continue;
+            }
+            let gens: Vec<String> = self.cache.ast[bast]
+                .kind
+                .as_class()
+                .unwrap()
+                .items
+                .iter()
+                .filter(|p| p.is_generic())
+                .map(|p| self.get_unmangled_name(&p.name))
+                .filter(|n| n.starts_with("T_"))
+                .collect();
+            if gens.is_empty() {
+                continue;
+            }
+            let mut idx = vec![];
+            for g in gens {
+                if !args.iter().any(|p| p.is_generic() && self.get_unmangled_name(&p.name) == g) {
+                    let ty = self.id_n(&st.type_);
+                    let def = self.id_n(&st.none_type);
+                    let p = self.cache.ast.new_param(Default::default(), g.clone(), Some(ty), Some(def), 1, ParamKind::Normal);
+                    args.insert(0, p);
+                }
+                idx.push(self.id_n(&g));
+            }
+            let index = if idx.len() == 1 { idx[0] } else { self.n_expr(TupleExpr { items: idx }) };
+            if raw_base.is_none() {
+                raw_base = Some(self.cache.ast.clone_expr(*b, false));
+            }
+            *b = self.n_expr(IndexExpr { expr: Some(*b), index: Some(index) });
+            changed = true;
+        }
+        if changed {
+            self.cache.ast[s].kind.as_class_mut().unwrap().base_classes = bases;
+            // The subclass `__init__` (which forwards to the base `__init__`) must defer the
+            // inherited hidden generics just like the base's own deducing `__init__`.
+            self.cache.ast[s].attrs.set(Attr::ClassDeduce);
+            let suite = self.cache.ast[s].kind.as_class().unwrap().suite;
+            for sp in self.class_methods_opt(suite)? {
+                let a = &mut self.cache.ast[sp];
+                if a.kind.as_function().is_some_and(|f| f.name == "__init__") && !a.attrs.has(Attr::ClassDeduce) {
+                    a.attrs.set_value(Attr::ClassDeduce, crate::ast::AttrValue::StrList(vec![]));
+                }
+                if let Some(rb) = raw_base {
+                    self.rewrite_super_init(sp, rb);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// `super().__init__(args)` -> `Base.__init__(self, args)` at the top level of `__init__`,
+    /// so the base's hidden generics are inferred from the forwarded arguments.
+    fn rewrite_super_init(&mut self, f: StmtId, base: ExprId) {
+        let Some(fd) = self.cache.ast[f].kind.as_function().cloned() else { return };
+        if fd.name != "__init__" {
+            return;
+        }
+        let Some(slf) = fd.items.first().map(|p| p.name.clone()) else { return };
+        let Some(items) = fd.suite.and_then(|x| self.cache.ast[x].kind.as_suite()).map(|x| x.items.clone()) else { return };
+        let super_name = mangle::func("", "super");
+        for st in items {
+            let Some(ex) = self.cache.ast[st].kind.as_expr().and_then(|x| x.expr) else { continue };
+            let Some(call) = self.cache.ast[ex].kind.as_call().cloned() else { continue };
+            let Some(dot) = call.expr.and_then(|d| self.cache.ast[d].kind.as_dot().cloned()) else { continue };
+            if dot.member != "__init__" {
+                continue;
+            }
+            let Some(inner) = dot.expr.and_then(|d| self.cache.ast[d].kind.as_call().cloned()) else { continue };
+            let is_super = inner.items.is_empty()
+                && inner.expr.and_then(|i| self.cache.ast[i].kind.as_id()).is_some_and(|i| i.value == super_name || i.value == "super");
+            if !is_super {
+                continue;
+            }
+            let b = self.cache.ast.clone_expr(base, false);
+            let d = self.dot_n(b, "__init__");
+            let sid = self.id_n(&slf);
+            let mut args = vec![self.cache.ast.call_arg("", Some(sid))];
+            args.extend(call.items.iter().cloned());
+            let c = self.cache.ast[ex].kind.as_call_mut().unwrap();
+            c.expr = Some(d);
+            c.items = args;
+        }
+    }
+
     fn set_class_items(&mut self, s: StmtId, canonical: &str, items: Vec<Param>) {
         if self.cache.ast[s].attrs.has(Attr::Extend) {
             let a = self.cache.classes.get(canonical).and_then(|c| c.ast).unwrap();
@@ -1179,6 +1282,7 @@ impl<'a> TypecheckVisitor<'a> {
             if has(self, Attr::ClassDeduce) && !self.auto_deduce_members(s, &mut args_to_parse)? {
                 self.cache.ast[s].attrs.erase(Attr::ClassDeduce);
             }
+            self.propagate_deduced_base_generics(s, &mut args_to_parse)?;
 
             // Add all generics before parent classes, fields and methods
             for a in args_to_parse.iter_mut() {
@@ -1292,7 +1396,10 @@ impl<'a> TypecheckVisitor<'a> {
                 let var_name = a.name.clone();
                 let tt = self.cache.ast.clone_expr_opt(a.ty, true);
                 let ta = self.transform_type(tt, true)?;
-                let dd = self.cache.ast.clone_expr_opt(a.default_value, false);
+                let mut dd = self.cache.ast.clone_expr_opt(a.default_value, false);
+                if self.is_dataclass_stmt(s) {
+                    dd = self.dataclass_field_default(dd);
+                }
                 let td = self.transform_allow(dd, true)?;
                 args.push(self.cache.ast.new_param(Default::default(), var_name.clone(), ta, td, 0, ParamKind::Normal));
                 self.cache.classes.get_mut(canonical_name).unwrap().fields.push(ClassField::new(var_name, None, canonical_name, None));
@@ -1371,7 +1478,12 @@ impl<'a> TypecheckVisitor<'a> {
                     if m == "new" && custom_new && !is_record {
                         continue;
                     }
-                    let f = self.codegen_magic(&m, transformed_type_ast.unwrap(), &member_args, is_tuple)?;
+                    if matches!(m.as_str(), "frozen" | "kw_only" | "dataclass") {
+                        continue;
+                    }
+                    let op = if m == "repr" && self.is_dataclass_stmt(s) { "repr_dataclass" } else { m.as_str() };
+                    let f = self.codegen_magic(op, transformed_type_ast.unwrap(), &member_args, is_tuple)?;
+                    let f = self.dataclass_postprocess_magic(s, &m, f);
                     if let Some(f) = self.transform_stmt_opt(f)? {
                         parts.fns.push(f);
                     }
@@ -1927,8 +2039,17 @@ impl<'a> TypecheckVisitor<'a> {
                         if fbase == acls_ast_name {
                             let name = a.name.clone();
                             if args.iter().any(|aa| aa.name == name) {
-                                let n = v.get_unmangled_name(&a.name);
-                                typhon_common::bail_e!(ErrorKind::CUSTOM, src, "field '{}' already defined", n);
+                                // A member auto-deduced from the subclass `__init__`
+                                // (`self.axis = ...`) that is already an inherited field is
+                                // just a re-assignment (Python semantics): keep the base field.
+                                let deduced = v.cache.ast[attr].attrs.has(Attr::ClassDeduce);
+                                if deduced {
+                                    args.retain(|aa| aa.name != name);
+                                    v.cache.classes.get_mut(canonical).unwrap().fields.retain(|f| f.name != name);
+                                } else {
+                                    let n = v.get_unmangled_name(&a.name);
+                                    typhon_common::bail_e!(ErrorKind::CUSTOM, src, "field '{}' already defined", n);
+                                }
                             }
                             let tt = v.cache.ast.clone_expr_opt(a.ty, true);
                             let ta = v.transform_type(tt, true)?;

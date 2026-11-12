@@ -551,6 +551,10 @@ impl<'a> TypecheckVisitor<'a> {
         let rhs0 = am.rhs.unwrap();
 
         let Some(lhs_class) = self.extract_class_type_expr(lhs) else { return Ok(()) };
+        if let Some(t) = self.dataclass_frozen_assign(lhs_class, &member_name)? {
+            self.result_stmt = Some(t);
+            return Ok(());
+        }
         // enum_reassign_err: use the existing member globals, without a second
         // registry of enum names in the class cache.
         if self.is_enum(lhs_class) && !member_name.starts_with("__") {

@@ -197,6 +197,15 @@ class __magic__:
     def repr_default(slf) -> str:
         return f'<{type(slf).__name__} object at {slf.__raw__()}>'
 
+    # @dataclass classes: CPython-style `Name(a=1, b=2)`
+    def repr_dataclass(slf) -> str:
+        s = type(slf).__name__ + "("
+        for i, k, v in static.vars(slf, with_index=True):
+            if i:
+                s += ", "
+            s += k + "=" + v.__repr__()
+        return s + ")"
+
     # @dataclass parameter: repr=True
     def str(slf) -> str:
         if not hasattr(slf, "__repr__") and hasattr(slf, "__repr_default__"):

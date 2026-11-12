@@ -40,3 +40,48 @@ def test_helpers():
     assert it.tags == List[str]()
     assert astuple(Item("b", 3)) == ("b", 3, List[str]())
 test_helpers()
+
+
+@dataclass
+class Bag:
+    items: List[int] = field(default_factory=List[int])
+    n: int = 0
+
+    def __post_init__(self):
+        self.n = len(self.items) + 1
+
+
+@dataclass(frozen=True)
+class Frozen:
+    x: int
+
+
+@dataclass(kw_only=True)
+class KW:
+    a: int
+    b: str = "b"
+
+
+@dataclass(order=True)
+class Ord:
+    v: int
+
+
+@test
+def test_semantics():
+    b1 = Bag()
+    b2 = Bag()
+    b1.items.append(1)
+    assert b2.items == List[int]()  # fresh object per instance
+    assert b1.n == 1 and Bag([1, 2]).n == 3
+    assert repr(Bag([1], 5)) == "Bag(items=[1], n=2)"
+    assert str(KW(a=1)) == "KW(a=1, b='b')"
+    f = Frozen(1)
+    caught = False
+    try:
+        f.x = 2
+    except dataclasses.FrozenInstanceError as e:
+        caught = str(e) == "cannot assign to field 'x'"
+    assert caught and f.x == 1
+    assert Ord(1) < Ord(2) and Ord(3) == Ord(3)
+test_semantics()
