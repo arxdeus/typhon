@@ -191,6 +191,70 @@ def _spectra_rows(x2, sf: float, m: str, fmin: float, fmax: float, nf: int, n_ov
     return ps.reshape((ps.shape[0], ps.shape[1], 1)), freqs
 
 
+def _opt_float(x) -> Optional[float]:
+    if isinstance(x, NoneType):
+        return None
+    else:
+        return float(x)
+
+
+def _check_baseline(baseline, times, sfreq: float) -> Tuple[float, float]:
+    """mne.baseline._check_baseline (on_baseline_outside_data='raise')."""
+    bmin = _opt_float(baseline[0])
+    bmax = _opt_float(baseline[1])
+    t0 = float(times[0])
+    t1 = float(times[-1])
+    tstep = 1.0 / sfreq
+    if bmin is None and bmax is not None and bmax.__val__() == 0.0 and t0 == 0.0:
+        raise ValueError("Baseline interval is only one sample. Use `baseline=(0, 0)` if this is desired.")
+    b0 = t0 if bmin is None else bmin.__val__()
+    b1 = t1 if bmax is None else bmax.__val__()
+    if b0 > b1:
+        raise ValueError(f"Baseline min ({b0}) must be less than baseline max ({b1})")
+    if b0 < t0 - tstep or b1 > t1 + tstep:
+        raise ValueError(f"Baseline interval [{b0}, {b1}] s is outside of epochs data [{t0}, {t1}] s. Epochs were probably cropped.")
+    return (b0, b1)
+
+
+def _baseline_idx(times, bl: Tuple[float, float]) -> Tuple[int, int]:
+    """Index range used by mne.baseline.rescale."""
+    n = times.shape[0]
+    imin = -1
+    imax = -1
+    for i in range(n):
+        if imin < 0 and times[i] >= bl[0]:
+            imin = i
+        if times[i] <= bl[1]:
+            imax = i + 1
+    if imin < 0:
+        raise ValueError(f"bmin is too large ({bl[0]}), it exceeds the largest time value")
+    if imax < 0:
+        raise ValueError(f"bmax is too small ({bl[1]}), it is smaller than the smallest time value")
+    if imin >= imax:
+        raise ValueError(f"Bad rescaling slice ({imin}:{imax}) from time values {bl[0]}, {bl[1]}")
+    return imin, imax
+
+
+def _rescale_3d(data, times, bl: Tuple[float, float], picks: List[int]):
+    imin, imax = _baseline_idx(times, bl)
+    for e in range(data.shape[0]):
+        for p in picks:
+            m = data[e, p, imin:imax].mean()
+            data[e, p, :] -= m
+
+
+def _detrend_picks(info: Info) -> List[int]:
+    """_pick_data_channels(info, with_ref_meg=True, with_aux=True, exclude=())."""
+    out = List[int]()
+    for i in range(info.nchan):
+        t = info.ch_types[i]
+        if t in ("mag", "grad", "eeg", "csd", "seeg", "ecog", "dbs", "hbo", "hbr",
+                 "fnirs_cw_amplitude", "fnirs_fd_ac_amplitude", "fnirs_fd_phase",
+                 "fnirs_od", "ref_meg", "eog", "ecg", "emg", "bio", "eyegaze", "pupil"):
+            out.append(i)
+    return out
+
+
 def _resample_info_times(info: Info, sfreq: float):
     info.lowpass = min(info.lowpass, sfreq / 2.0)
     info.sfreq = float(sfreq)
@@ -203,6 +267,8 @@ class Evoked:
     times: np.ndarray[float, 1]
     nave: int
     comment: str
+    baseline: Optional[Tuple[float, float]]
+    kind: str
 
     def __init__(self, data: np.ndarray[float, 2], info: Info, times: np.ndarray[float, 1],
                  nave: int, comment: str = ""):
@@ -211,6 +277,79 @@ class Evoked:
         self.times = times
         self.nave = nave
         self.comment = comment
+        self.baseline = None
+        self.kind = "average"
+
+    @property
+    def first(self) -> int:
+        return int(round(float(self.times[0]) * self.info.sfreq))
+
+    @property
+    def last(self) -> int:
+        return self.first + self.times.shape[0] - 1
+
+    def apply_baseline(self, baseline = (None, 0), *, verbose = None):
+        if isinstance(baseline, NoneType):
+            return self
+        bl = _check_baseline(baseline, self.times, self.info.sfreq)
+        d3 = self.data.reshape((1, self.data.shape[0], self.data.shape[1]))
+        _rescale_3d(d3, self.times, bl, list(range(self.info.nchan)))
+        self.data = d3.reshape((self.data.shape[0], self.data.shape[1]))
+        self.baseline = bl
+        return self
+
+    def get_peak(self, ch_type: Optional[str] = None, tmin: Optional[float] = None,
+                 tmax: Optional[float] = None, mode: str = "abs", time_as_index: bool = False,
+                 merge_grads: bool = False, return_amplitude: Literal[bool] = False, *,
+                 strict: bool = True):
+        """Evoked.get_peak: (ch_name, latency[, amplitude])."""
+        used = self.info.get_channel_types(None, True, True)
+        if ch_type is None and len(used) > 1:
+            raise RuntimeError('Multiple data channel types found. Please pass the "ch_type" parameter.')
+        pk = List[int]()
+        if ch_type is None:
+            pk = _picks_to_idx(self.info, None, "data", "bads")
+        else:
+            if ch_type.__val__() not in used:
+                raise ValueError(f'Channel type "{ch_type}" not found in this evoked object.')
+            pk = _picks_to_idx(self.info, ch_type.__val__(), "all", "bads")
+        t = self.times
+        lo = float(t[0]) if tmin is None else tmin.__val__()
+        hi = float(t[-1]) if tmax is None else tmax.__val__()
+        if lo < float(t[0]) or hi > float(t[-1]):
+            nm = "tmin" if lo < float(t[0]) else "tmax"
+            raise ValueError(f"{nm} ({lo if nm == 'tmin' else hi}) is out of bounds. It must be between {float(t[0])} and {float(t[-1])}")
+        if lo > hi:
+            raise ValueError(f"tmin ({lo}) must be <= tmax ({hi})")
+        if mode != "abs" and mode != "pos" and mode != "neg":
+            raise ValueError(f"Invalid value for the 'mode' parameter. Allowed values are 'abs', 'neg', and 'pos', but got '{mode}' instead.")
+        best = -np.inf
+        bi = -1
+        bj = -1
+        anyok = False
+        for i in range(len(pk)):
+            for j in range(t.shape[0]):
+                if t[j] < lo or t[j] > hi:
+                    continue
+                v = self.data[pk[i], j]
+                if (mode == "pos" and v > 0) or (mode == "neg" and v < 0):
+                    anyok = True
+                s = abs(v) if mode == "abs" else (v if mode == "pos" else -v)
+                if s > best:
+                    best = s
+                    bi = i
+                    bj = j
+        if strict and mode == "pos" and not anyok:
+            raise ValueError("No positive values encountered. Cannot operate in pos mode.")
+        if strict and mode == "neg" and not anyok:
+            raise ValueError("No negative values encountered. Cannot operate in neg mode.")
+        name = self.info.ch_names[pk[bi]]
+        amp = float(self.data[pk[bi], bj])
+        lat = float(bj) if time_as_index else float(t[bj])
+        if return_amplitude:
+            return name, lat, amp
+        else:
+            return name, lat
 
     @property
     def ch_names(self):
@@ -231,7 +370,10 @@ class Evoked:
         return self.data[np.array(pk)][:, m].copy()
 
     def copy(self):
-        return Evoked(self.data.copy(), self.info.copy(), self.times.copy(), self.nave, self.comment)
+        e = Evoked(self.data.copy(), self.info.copy(), self.times.copy(), self.nave, self.comment)
+        e.baseline = self.baseline
+        e.kind = self.kind
+        return e
 
     def crop(self, tmin: Optional[float] = None, tmax: Optional[float] = None,
              include_tmax: bool = True, verbose = None):
@@ -281,6 +423,12 @@ class EpochsArray:
     times: np.ndarray[float, 1]
     baseline: Optional[Tuple[float, float]]
     preload: bool
+    drop_log: List[List[str]]
+    selection: List[int]
+    reject: Optional[Dict[str, float]]
+    flat: Optional[Dict[str, float]]
+    _raw_sfreq: float
+    _kind: str
 
     def __init__(self, data, info: Info, events = None, tmin: float = 0.0, event_id = None,
                  reject = None, flat = None, reject_tmin = None, reject_tmax = None,
@@ -330,6 +478,12 @@ class EpochsArray:
         self.times = np.arange(start_idx, start_idx + n_t).astype(float) / sfreq
         self.preload = True
         self.baseline = None
+        self.drop_log = [List[str]() for _ in range(n_ep)]
+        self.selection = list(range(n_ep))
+        self.reject = None
+        self.flat = None
+        self._raw_sfreq = sfreq
+        self._kind = "EpochsArray"
         if not isinstance(baseline, NoneType):
             bmin: Optional[float] = baseline[0]
             bmax: Optional[float] = baseline[1]
@@ -354,18 +508,18 @@ class EpochsArray:
         return self._data.shape[0]
 
     def __repr__(self) -> str:
-        return f"<EpochsArray | {len(self)} events (all good), {self.times[0]:.3g} – {self.times[-1]:.3g} s (baseline off), ~{self._data.nbytes / 1024.0:.1f} KiB, data loaded>"
+        return f"<{self._kind} | {len(self)} events (all good), {self.times[0]:.3g} – {self.times[-1]:.3g} s (baseline off), ~{self._data.nbytes / 1024.0:.1f} KiB, data loaded>"
 
     def apply_baseline(self, baseline = (None, 0), verbose = None):
-        bmin: Optional[float] = baseline[0]
-        bmax: Optional[float] = baseline[1]
-        m = _time_mask(self.times, bmin, bmax, sfreq=self.info.sfreq)
-        idx = np.nonzero(m)[0]
-        picks = _picks_to_idx(self.info, None, "data_or_ica", (), allow_empty=True)
-        for e in range(self._data.shape[0]):
-            for p in picks:
-                mean = self._data[e, p, idx].mean()
-                self._data[e, p, :] -= mean
+        """mne BaseEpochs.apply_baseline (rescale mode='mean' on data+aux channels)."""
+        if isinstance(baseline, NoneType):
+            if self.baseline is not None:
+                raise RuntimeError("You cannot remove baseline correction from preloaded data once it has been applied.")
+            return self
+        bl = _check_baseline(baseline, self.times, self.info.sfreq)
+        picks = _detrend_picks(self.info)
+        _rescale_3d(self._data, self.times, bl, picks)
+        self.baseline = bl
         return self
 
     def get_data(self, picks = None, item = None, units = None, tmin: Optional[float] = None,
@@ -383,7 +537,28 @@ class EpochsArray:
         n = EpochsArray(self._data, self.info, self.events, 0.0, self.event_id)
         n.times = self.times.copy()
         n.baseline = self.baseline
+        n.drop_log = [list(d) for d in self.drop_log]
+        n.selection = list(self.selection)
+        n.reject = None if self.reject is None else self.reject.__val__().copy()
+        n.flat = None if self.flat is None else self.flat.__val__().copy()
+        n._raw_sfreq = self._raw_sfreq
+        n._kind = self._kind
         return n
+
+    def _get_name(self) -> str:
+        """BaseEpochs._get_name(count='frac', ms='×', sep='+')."""
+        keys = list(self.event_id.keys())
+        if len(keys) == 1:
+            return keys[0]
+        n = self.events.shape[0]
+        parts = List[str]()
+        for k in keys:
+            c = 0
+            for i in range(n):
+                if int(self.events[i, 2]) == self.event_id[k]:
+                    c += 1
+            parts.append(f"{float(c) / n:.2f} × {k}")
+        return " + ".join(parts)
 
     def crop(self, tmin: Optional[float] = None, tmax: Optional[float] = None,
              include_tmax: bool = True, verbose = None):
@@ -416,13 +591,9 @@ class EpochsArray:
             d = np.median(sub, axis=0)
         else:
             raise ValueError("method must be 'mean' or 'median'")
-        comment = ""
-        keys = list(self.event_id.keys())
-        if len(keys) == 1:
-            comment = keys[0]
-        else:
-            comment = " + ".join(keys)
-        return Evoked(d, self.info._pick(pk), self.times.copy(), len(self), comment)
+        ev = Evoked(d, self.info._pick(pk), self.times.copy(), len(self), self._get_name())
+        ev.baseline = self.baseline
+        return ev
 
     def compute_psd(self, method: str = "multitaper", fmin: float = 0, fmax: float = np.inf,
                     tmin: Optional[float] = None, tmax: Optional[float] = None, picks = None,
@@ -529,10 +700,46 @@ class RawArray:
         if tmax is not None:
             e = min(e, int(round(tmax.__val__() * self.info.sfreq)))
         out = self._data[np.array(pk), s:e].copy()
+        tt = self.times[s:e].copy()
+        if not isinstance(reject_by_annotation, NoneType) and len(self.annotations) > 0:
+            mode = reject_by_annotation.lower()
+            if mode != "omit" and mode != "nan":
+                raise ValueError(f"Invalid value for the 'reject_by_annotation' parameter. Allowed values are 'omit' and 'nan', but got '{reject_by_annotation}' instead.")
+            used = self._bad_annot_mask(s, e)
+            if mode == "nan":
+                for j in range(e - s):
+                    if not used[j]:
+                        out[:, j] = np.nan
+            else:
+                keep = np.array([j for j in range(e - s) if used[j]], dtype=int)
+                out = out[:, keep].copy()
+                tt = tt[keep].copy()
         if return_times:
-            return out, self.times[s:e].copy()
+            return out, tt
         else:
             return out
+
+    def _bad_annot_mask(self, start: int, stop: int) -> List[bool]:
+        """True for samples in [start, stop) not covered by BAD annotations."""
+        used = [True for _ in range(stop - start)]
+        sf = self.info.sfreq
+        ft = self.first_time
+        t0 = float(self.times[0])
+        ann = self.annotations
+        for i in range(len(ann)):
+            if not ann.description[i].upper().startswith("BAD"):
+                continue
+            on = ann.onset[i] - ft
+            en = on + ann.duration[i]
+            a = int(np.round((on - t0) * sf))
+            b = int(np.round((en - t0) * sf))
+            if not (a < stop and b > start):
+                continue
+            a = max(a, start)
+            b = min(b, stop)
+            for j in range(a, b):
+                used[j - start] = False
+        return used
 
     def copy(self):
         n = RawArray(self._data, self.info, self.first_samp)

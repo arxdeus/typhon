@@ -161,7 +161,7 @@ class _ByteWriter:
 
     def raw(self, s: str):
         for k in range(len(s)):
-            self.buf.append(int(s.ptr[k]))
+            self.buf.append(int(s._ptr[k]))
 
     def zeros(self, n: int):
         for _ in range(n):
