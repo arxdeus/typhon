@@ -10,3 +10,8 @@ from ._function_transformer import FunctionTransformer
 from ._encoders import OneHotEncoder
 from ._ordinal import OrdinalEncoder
 from ._label import LabelEncoder, LabelBinarizer, label_binarize, MultiLabelBinarizer
+from ._polynomial import PolynomialFeatures
+from ._spline import SplineTransformer
+from ._quantile import QuantileTransformer, quantile_transform, KBinsDiscretizer
+from ._power import PowerTransformer, power_transform
+from ._target_encoder import TargetEncoder
