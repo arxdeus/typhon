@@ -38,7 +38,7 @@ pub const TYPE_TESTS: &[&str] = &[
     "parser/typecheck/test_error.py", "parser/typecheck/test_function.py",
     "parser/typecheck/test_import.py", "parser/typecheck/test_infer.py",
     "parser/typecheck/test_loops.py", "parser/typecheck/test_op.py",
-    "parser/typecheck/test_parser.py", "parser/typecheck/test_python.py",
+    "parser/typecheck/test_parser.py",
     "parser/typecheck/test_typecheck.py", "parser/typecheck/test_poly.py",
 ];
 
@@ -61,7 +61,6 @@ pub const STDLIB: &[&str] = &[
     "stdlib/os_test.py", "stdlib/expanduser_test.py", "stdlib/pathlib_test.py",
     "stdlib/ntpath_test.py", "stdlib/win32_os_test.py", "stdlib/unicode_test.py",
     "stdlib/functools_test.py", "stdlib/hashlib_test.py", "stdlib/future_test.py",
-    "python/pybridge.py",
 ];
 
 pub const CNUMERICS: &[&str] = &[
@@ -103,7 +102,7 @@ pub const NUMPY: &[&str] = &[
     "numpy/test_gaps.py", "numpy/test_fft.py", "numpy/test_functional.py",
     "numpy/test_indexing.py", "numpy/test_io.py", "numpy/test_lib.py",
     "numpy/test_linalg.py", "numpy/test_loops.py", "numpy/test_misc.py",
-    "numpy/test_ndmath.py", "numpy/test_npdatetime.py", "numpy/test_pybridge.py",
+    "numpy/test_ndmath.py", "numpy/test_npdatetime.py",
     "numpy/test_reductions.py", "numpy/test_routines.py", "numpy/test_sorting.py",
     "numpy/test_statistics.py", "numpy/test_ufunc.py", "numpy/test_window.py",
 ];

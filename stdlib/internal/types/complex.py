@@ -10,7 +10,7 @@ def _complex_float_to_string(value) -> str:
     else:
         return _float_dtoa_shortest(value, add_dot_zero=False)
 
-@tuple(python=False)
+@tuple
 class complex64:
     real: float32
     imag: float32
@@ -25,7 +25,6 @@ class complex:
 
     @overload
     def __new__(what):
-        # do not overload! (needed to avoid pyobj conversion)
         if isinstance(what, str) or isinstance(what, Optional[str]):
             return complex._from_str(what)
         else:

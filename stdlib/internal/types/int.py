@@ -62,7 +62,6 @@ class Int:
 
     @overload
     def __new__(what, /) -> Int[N]:
-        # do not overload! (needed to avoid pyobj conversion)
         if type(what) is Union:
             # Dispatch on the active member (Python semantics: int(3.7) == 3).
             for tag, T in static.vars_types(what, with_index=True):

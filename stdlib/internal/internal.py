@@ -166,26 +166,6 @@ class __magic__:
                 setattr(obj, k, type(v).__unpickle__(src))
             return obj
 
-    # @dataclass parameter: python=True
-    def to_py(slf) -> Ptr[u8]:
-        o = pyobj._tuple_new(static.len(tuple(slf)))
-        for i, _, v in static.vars(slf, with_index=True):
-            pyobj._tuple_set(o, i, v.__to_py__())
-        return o
-
-    # @dataclass parameter: python=True
-    def from_py(src: Ptr[u8], T: type) -> T:
-        if isinstance(T, ByVal):
-            return type._force_value_cast(tuple(
-                t.__from_py__(pyobj._tuple_get(src, i))
-                for i, t in static.vars_types(T, with_index=True)
-            ), T)
-        else:
-            obj = T.__new__()
-            for i, k, v in static.vars(obj, with_index=True):
-                setattr(obj, k, type(v).__from_py__(pyobj._tuple_get(src, i)))
-            return obj
-
     # @dataclass parameter: gpu=True
     def to_gpu(slf, cache):
         return type._to_gpu(slf, cache)

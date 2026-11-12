@@ -129,10 +129,6 @@ class Generator[T]:
 class Optional:
     T: type = NoneType
 
-@__internal__
-class pyobj:
-    p: Ptr[u8]
-
 @tuple
 @__internal__
 class str:
@@ -184,10 +180,6 @@ class Tuple:
         return __magic__.pickle(self, dest)
     def __unpickle__(src: Ptr[u8], Self: type) -> Self:
         return __magic__.unpickle(src)
-    def __to_py__(self: Self) -> Ptr[u8]:
-        return __magic__.to_py(self)
-    def __from_py__(src: Ptr[u8], Self: type) -> Self:
-        return __magic__.from_py(src)
     def __to_gpu__(self: Self, cache) -> Self:
         return __magic__.to_gpu(self, cache)
     def __from_gpu__(self: Self, other: Self):
@@ -320,8 +312,6 @@ def isinstance(obj, what):
     # isinstance(obj, ByRef) -> Literal[bool]: true if obj is ref. type (class)
     # isinstance(obj, Union) -> Literal[bool]: true if obj is union
     # isinstance(union, T) -> bool: true if union's current content is T (runtime)
-    # isinstance(pyobj, pyobj_T) -> bool: true if pyobj's type is pyobj_T (runtime)
-    # isinstance(non_pyobj, pyobj) -> Literal[bool]: always false
     # isinstance(obj, T) -> Literal[bool]: true if T is base type (static or RTTI) of type(obj)
     # isinstance(obj, T) -> bool: true if type(obj) is base type (static or RTTI) of T and RTTI info matches
     # otherwise: Literal[False]
@@ -368,7 +358,7 @@ def superf(*args):
     """Special handling"""
     pass
 
-#(init=False, repr=False, eq=False, order=False, hash=False, pickle=False, python=False, gpu=False, container=False)
+#(init=False, repr=False, eq=False, order=False, hash=False, pickle=False, gpu=False, container=False)
 @__internal__
 @tuple
 class NamedTuple:

@@ -52,9 +52,4 @@ from internal.file import File, gzFile, open, gzopen
 from internal.gpu import _gpu_loop_outline_template
 from pickle import pickle, unpickle
 from internal.dlopen import dlsym as _dlsym, dlsym_c as _dlsym_c
-import internal.python
-from internal.python import PyError
 from asyncio import Future as _Future
-
-if __py_extension__:
-    internal.python.ensure_initialized()

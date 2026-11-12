@@ -141,14 +141,6 @@ class __cast__:
     def cast(obj: Optional[T], T: type) -> T:
         return obj.unwrap()
 
-    @overload
-    def cast(obj: T, T: type) -> pyobj:
-        return obj.__to_py__()
-
-    @overload
-    def cast(obj: pyobj, T: type) -> T:
-        return T.__from_py__(obj)
-
     # Function[[T...], R]
         # ExternFunction[[T...], R]
         # TyphonFunction[[T...], R]

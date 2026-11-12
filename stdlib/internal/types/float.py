@@ -34,7 +34,6 @@ class float:
 
     @overload
     def __new__(what, /) -> float:
-        # do not overload! (needed to avoid pyobj conversion)
         if type(what) is Union:
             for tag, T in static.vars_types(what, with_index=True):
                 if T is str or hasattr(T, "__float__"):

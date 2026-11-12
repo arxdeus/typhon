@@ -234,7 +234,7 @@ print a <= a, a <= b, b <= a #: True True True
 print a > a, a > b, b > a #: False False False
 print a >= a, a >= b, b >= a #: True True True
 
-# TODO: pickle / to_py / from_py
+# TODO: pickle
 
 #%% magic_contains,barebones
 sponge = (1, 'z', 1.55, 'q', 48556)
@@ -280,13 +280,6 @@ Foo(1).__pickle__(p) #! 'Foo' object has no attribute '__pickle__'
 class Foo:
     x: int
 Foo(1).__getitem__(0) #! 'Foo' object has no attribute '__getitem__'
-
-#%% magic_err_7,barebones
-@tuple(python=False)
-class Foo:
-    x: int
-p = Ptr[u8]()
-Foo(1).__to_py__(p) #! 'Foo' object has no attribute '__to_py__'
 
 #%% inherit_class_4,barebones
 class defdict[K,V](Dict[K,V]):
@@ -597,8 +590,7 @@ print(C.apple)
 
 
 #%% class_var_override,barebones
-# python_pybridge_typhon: exception subclasses need independent _pytype slots;
-# inherited class variables must still share storage and follow the C3 MRO.
+# Inherited class variables must still share storage and follow the C3 MRO.
 class Root:
     tag: ClassVar[int] = 1
 class Left(Root):

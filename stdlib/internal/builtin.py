@@ -807,11 +807,6 @@ def cast(U: type, obj) -> U:
     elif U is Optional[T]:
         return U(obj)
 
-    if U is pyobj:
-        return obj.__to_py__()
-    elif T is pyobj:
-        return U.__from_py__(obj.p)
-
     def _cast(obj, UU: type) -> UU:
         if static.has_rtti(type(obj)):
             return RTTIType._cast(obj, UU)
