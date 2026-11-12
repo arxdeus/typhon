@@ -341,7 +341,30 @@ def cdfs():
     g.v('sp.kolmogorov(np.array([0.5, 1.0, 1.5]))')
     g.write()
 
+# ---------------------------------------------------------------- misc (lambertw, struve, ...)
+def misc():
+    g = Gen('test_special_misc.py')
+    g.block('lambertw_wrightomega')
+    for z, k in [(1.0, 0), (0.5, 0), (-0.2, 0), (-0.3678, 0), (-0.2, -1), (-0.01, -1), (10.0, 0), (1e10, 0),
+                 (1e-10, 0), (2.0, 1), (2.0, -1), (-5.0, 0), (3.0, 2), (0.0, 0)]:
+        g.s(f'sp.lambertw({L(z)}, {k}).real')
+        g.s(f'sp.lambertw({L(z)}, {k}).imag')
+    for z, k in [((1+2j), 0), ((-0.3+0.1j), 0), ((-0.3-0.01j), -1), ((5-3j), 3), ((0.2+0.0j), -2)]:
+        g.s(f'sp.lambertw({z!r}, {k}).real')
+        g.s(f'sp.lambertw({z!r}, {k}).imag')
+    for x in [-100.0, -20.0, -3.0, -1.0, 0.0, 0.5, 1.0, 3.0, 50.0, 1e10, 1e25, float('inf'), float('nan')]:
+        g.s(f'sp.wrightomega({L(x)})')
+    g.block('struve')
+    for v, x in [(0.0, 1.0), (1.0, 2.5), (0.5, 0.1), (2.0, 10.0), (-0.5, 3.0), (-1.5, 4.0), (0.0, 30.0),
+                 (1.0, 50.0), (3.3, 7.0), (-2.0, 1.0), (1.0, -2.0), (0.0, 0.0), (-1.0, 0.0), (10.0, 5.0),
+                 (0.0, 200.0), (5.0, 100.0)]:
+        g.s(f'sp.struve({L(v)}, {L(x)})', 1e-12)
+        g.s(f'sp.modstruve({L(v)}, {L(x)})', 1e-12)
+    g.v('sp.struve(1.0, np.array([0.5, 1.5, 4.0]))', 1e-12)
+    g.write()
+
 if __name__ == '__main__':
+    misc()
     bessel()
     gamma_hyp()
     orth_ellip()

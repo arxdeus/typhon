@@ -18,6 +18,8 @@ from . import _orth as O
 from . import _roots as R
 from . import _specfun as SPF
 from . import _faddeeva as FD
+from . import _struve as ST
+from . import _lambertw as LW
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -208,6 +210,8 @@ def _shichi0(x: float) -> float: return G2.shichi(x)[0]
 def _shichi1(x: float) -> float: return G2.shichi(x)[1]
 def _fres0(x: float) -> float: return G2.fresnel(x)[0]
 def _fres1(x: float) -> float: return G2.fresnel(x)[1]
+def struve(v, x): return _map2(ST.struve, v, x)
+def modstruve(v, x): return _map2(ST.modstruve, v, x)
 def erfi(x): return _map1(FD.erfi, x)
 def dawsn(x): return _map1(FD.dawsn, x)
 def sici(x): return (_map1(_sici0, x), _map1(_sici1, x))
@@ -415,6 +419,23 @@ def jn_zeros(n, nt): return _jyzo(n, nt, 0)
 def jnp_zeros(n, nt): return _jyzo(n, nt, 1)
 def yn_zeros(n, nt): return _jyzo(n, nt, 2)
 def ynp_zeros(n, nt): return _jyzo(n, nt, 3)
+
+# Lambert W / Wright omega (_lambertw)
+def _lw1(z, k: int, tol: float) -> complex:
+    return LW.lambertw(complex(z), k, tol)
+def lambertw(z, k = 0, tol: float = 1e-8):
+    """Lambert W function (complex result), branch k."""
+    if _is_arr(z) or _is_arr(k):
+        shp = _bshape(z, k)
+        Z = np.broadcast_to(np.asarray(z), shp)
+        Kk = np.broadcast_to(np.asarray(k), shp)
+        out = np.empty(shp, dtype=complex)
+        for idx in np.ndindex(shp):
+            out[idx] = _lw1(Z[idx], int(Kk[idx]), tol)
+        return out
+    else:
+        return _lw1(z, int(k), tol)
+def wrightomega(x): return _map1(LW.wrightomega_real, x)
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:
