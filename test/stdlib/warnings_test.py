@@ -26,7 +26,15 @@ def test_record_and_filters():
         warnings.warn("dup")
         warnings.warn("dup")
         warnings.warn("other")
-        assert len(w if w is not None else List[warnings.WarningMessage]()) == 2
+        for i in range(3):
+            warnings.warn("loop")
+        # "default" dedups per (message, category, location), like CPython.
+        rec = w if w is not None else List[warnings.WarningMessage]()
+        assert len(rec) == 4
+        assert rec[0].filename.endswith("warnings_test.py")
+        assert rec[0].lineno == rec[1].lineno - 1
+    assert warnings.UserWarning is UserWarning
+    assert isinstance(DeprecationWarning("x"), Warning)
 
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")

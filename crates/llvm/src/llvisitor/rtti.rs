@@ -457,8 +457,18 @@ impl<'ctx> LlvmVisitor<'ctx> {
                     return Some(self.b.null_ptr());
                 }
                 let (pt, pf) = ll::intrinsic(self.m(), "llvm.coro.promise", &[]);
-                let align = self.b.c_i32(ll::pref_align(self.m(), bt) as i64);
+                let align = self.b.c_i32(ll::pref_align(self.m(), self.generator_promise_type(bt).0) as i64);
                 Some(self.b.call(pt, pf, &[args[0], align, self.b.c_i1(false)]))
+            }
+            Intrinsic::GeneratorExcSlot => {
+                let t = m.actual_type(it.expect("invalid generator exception slot access"));
+                let TypeKind::Generator { base } = *m.type_kind(t) else { panic!("invalid generator exception slot access") };
+                let bt = self.get_llvm_type(m, base);
+                let (gpt, idx) = self.generator_promise_type(bt);
+                let (pt, pf) = ll::intrinsic(self.m(), "llvm.coro.promise", &[]);
+                let align = self.b.c_i32(ll::pref_align(self.m(), gpt) as i64);
+                let p = self.b.call(pt, pf, &[args[0], align, self.b.c_i1(false)]);
+                Some(self.b.struct_gep(gpt, p, idx))
             }
             Intrinsic::AllocationSize => {
                 let t = it.expect("allocation size requires a reference type");

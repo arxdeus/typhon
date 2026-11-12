@@ -127,7 +127,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
 
         if self.is_storable_type(loop_var_type) {
             self.b.at_end(body_block);
-            let alignment = self.b.c_i32(ll::pref_align(self.m(), loop_var_type) as i64);
+            let alignment = self.b.c_i32(ll::pref_align(self.m(), self.generator_promise_type(loop_var_type).0) as i64);
             let from = self.b.c_i1(false);
             let promise = self.b.call(promise_f.0, promise_f.1, &[iter, alignment, from]);
             let generated = self.b.load(loop_var_type, promise);
@@ -715,7 +715,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             self.b.cond_br(done, cleanup_block, body_block);
 
             self.b.at_end(body_block);
-            let alignment = self.b.c_i32(ll::pref_align(self.m(), base_type) as i64);
+            let alignment = self.b.c_i32(ll::pref_align(self.m(), self.generator_promise_type(base_type).0) as i64);
             let promise = self.b.call(promise_f.0, promise_f.1, &[iter, alignment, self.b.c_i1(false)]);
             self.value = self.b.load(base_type, promise);
 

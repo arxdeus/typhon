@@ -1,64 +1,12 @@
 import sys as _sys
 
 
-class Warning(Exception):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class UserWarning(Warning):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class DeprecationWarning(Warning):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class PendingDeprecationWarning(Warning):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class SyntaxWarning(Warning):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class RuntimeWarning(Warning):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class FutureWarning(Warning):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class ImportWarning(Warning):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class UnicodeWarning(Warning):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class BytesWarning(Warning):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class ResourceWarning(Warning):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
-
-
-class EncodingWarning(Warning):
-    def __init__(self, message: str = ""):
-        super().__init__(message)
+# Warning categories are builtins (internal.types.error), re-exported here.
+from internal.types.error import (Warning, UserWarning, DeprecationWarning,
+                                  PendingDeprecationWarning, SyntaxWarning,
+                                  RuntimeWarning, FutureWarning, ImportWarning,
+                                  UnicodeWarning, BytesWarning, ResourceWarning,
+                                  EncodingWarning)
 
 
 _ACTIONS = ("error", "ignore", "always", "all", "default", "module", "once")
@@ -229,17 +177,26 @@ def warn_explicit(message: Warning, category: type, filename: str, lineno: int,
 
 
 def warn(message: str, category: type = UserWarning, stacklevel: int = 1,
-         source=None, skip_file_prefixes=()):
-    # The caller's frame is not available at runtime, so the location is
-    # reported the way CPython does when the stack is exhausted: `sys:1`.
+         source=None, skip_file_prefixes=(),
+         __file: str = __callsite_file__, __line: int = __callsite_line__):
+    # The compiler supplies the call site's file:line. With stacklevel > 1 the
+    # outer frames are not available, so the location falls back to `sys:1`
+    # (what CPython reports when the stack is exhausted).
     w: Warning = category(message)
-    _warn_impl(w, "sys", 1)
+    if stacklevel <= 1:
+        _warn_impl(w, __file, __line)
+    else:
+        _warn_impl(w, "sys", 1)
 
 
 @overload
 def warn(message: Warning, category=None, stacklevel: int = 1, source=None,
-         skip_file_prefixes=()):
-    _warn_impl(message, "sys", 1)
+         skip_file_prefixes=(),
+         __file: str = __callsite_file__, __line: int = __callsite_line__):
+    if stacklevel <= 1:
+        _warn_impl(message, __file, __line)
+    else:
+        _warn_impl(message, "sys", 1)
 
 
 class catch_warnings:

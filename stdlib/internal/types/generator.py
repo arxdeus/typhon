@@ -76,6 +76,38 @@ class Generator:
             self.__promise__()[0] = what
         return self.__next__()
 
+    @__internal__
+    def __exc_slot__(self) -> Ptr[cobj]:
+        pass
+
+    def throw(self: Generator[T], exc, /) -> T:
+        """Raise `exc` at the suspended `yield` and run to the next yield.
+
+        Returns the next yielded value; raises StopIteration if the generator
+        finishes, or propagates the exception if not handled inside."""
+        if isinstance(exc, type):
+            return self.throw(exc())
+        e: BaseException = exc
+        if self.__done__():
+            raise exc
+        self.__exc_slot__()[0] = e.__raw__()
+        self.__resume__()
+        if self.__done__():
+            raise StopIteration()
+        return self._get()
+
+    def close(self) -> None:
+        """Raise GeneratorExit at the suspended `yield`; error if it yields again."""
+        if self.__done__():
+            return
+        try:
+            self.throw(GeneratorExit())
+        except GeneratorExit:
+            return
+        except StopIteration:
+            return
+        raise RuntimeError("generator ignored GeneratorExit")
+
     @nocapture
     @llvm
     def _destroy(self) -> None:

@@ -1063,6 +1063,13 @@ impl Module {
                 let TypeKind::Pointer { base: pbase } = self.type_kind(result) else { return false };
                 self.actual_type(*pbase) == self.actual_type(*gbase) && arguments.len() == 1 && arguments[0] == gen_t
             }
+            Intrinsic::GeneratorExcSlot => {
+                let Some(gen_t) = intrinsic_type else { return false };
+                matches!(self.type_kind(gen_t), TypeKind::Generator { .. })
+                    && is_ptr(self, Some(result))
+                    && arguments.len() == 1
+                    && arguments[0] == gen_t
+            }
         }
     }
 

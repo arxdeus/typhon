@@ -89,11 +89,13 @@ struct CoroData {
     suspend: BB,
     exit: BB,
     is_async: bool,
+    /// Pending-exception slot (`Generator.throw`), checked at every resume point.
+    exc_slot: V,
 }
 
 impl Default for CoroData {
     fn default() -> Self {
-        CoroData { promise: null_mut(), handle: null_mut(), cleanup: null_mut(), suspend: null_mut(), exit: null_mut(), is_async: false }
+        CoroData { promise: null_mut(), handle: null_mut(), cleanup: null_mut(), suspend: null_mut(), exit: null_mut(), is_async: false, exc_slot: null_mut() }
     }
 }
 
@@ -1152,6 +1154,43 @@ impl<'ctx> LlvmVisitor<'ctx> {
         let sw = self.b.switch(res, self.coro.suspend, 2);
         Builder::add_case(sw, self.b.c_i8(0), self.block);
         Builder::add_case(sw, self.b.c_i8(1), self.coro.cleanup);
+        if !final_yield {
+            self.check_pending_generator_exc();
+        }
+    }
+
+    /// After resuming at a yield point: raise the exception delivered by
+    /// `Generator.throw()` (stored in the promise's exception slot), if any.
+    pub(super) fn check_pending_generator_exc(&mut self) {
+        if self.coro.exc_slot.is_null() || self.options.noexc {
+            return;
+        }
+        self.b.at_end(self.block);
+        let pending = self.b.load(self.b.ptr(), self.coro.exc_slot);
+        let none = self.b.is_null(pending);
+        let cont = ll::append_block(self.c, self.func, "yield.resume");
+        let raise = ll::append_block(self.c, self.func, "yield.throw");
+        self.b.cond_br(none, cont, raise);
+        self.b.at_end(raise);
+        self.b.store(self.b.null_ptr(), self.coro.exc_slot);
+        let (eat, eaf) = self.make_exc_alloc_func();
+        let (tt, tf) = self.make_throw_func();
+        let exc = self.b.call(eat, eaf, &[pending]);
+        self.block = raise;
+        self.call(tt, tf, &[exc]);
+        self.b.at_end(self.block);
+        self.b.unreachable();
+        self.block = cont;
+    }
+
+    /// LLVM type of a generator's promise: `{T, ptr}` (value, pending exception) or
+    /// `{ptr}` when `T` is not storable. Returns `(type, exception slot index)`.
+    pub(super) fn generator_promise_type(&self, value: Ty) -> (Ty, u32) {
+        if self.is_storable_type(value) {
+            (ll::struct_ty(self.c, &[value, self.b.ptr()]), 1)
+        } else {
+            (ll::struct_ty(self.c, &[self.b.ptr()]), 0)
+        }
     }
 
     /// `visit(const ExternalFunc*)`.
@@ -1420,10 +1459,14 @@ impl<'ctx> LlvmVisitor<'ctx> {
 
             // coro ID and promise
             let null = self.b.null_ptr();
-            let pt = self.get_llvm_type(m, base);
+            let mut pt = self.get_llvm_type(m, base);
+            let (gpt, idx) = self.generator_promise_type(pt);
+            pt = gpt;
+            let slot_idx = Some(idx);
             self.b.at_end(entry);
             self.coro.promise = self.b.alloca(pt);
             ll::set_name(self.coro.promise, "coro.promise");
+
             let id = self.b.call(id_t, id_f, &[self.b.c_i32(0), self.coro.promise, null, null]);
             ll::set_name(id, "coro.id");
             let need_alloc = self.b.call(alloc_t, alloc_f, &[id]);
@@ -1443,6 +1486,11 @@ impl<'ctx> LlvmVisitor<'ctx> {
             Builder::add_incoming(phi, alloc, alloc_block);
             self.coro.handle = self.b.call(begin_t, begin_f, &[id, phi]);
             ll::set_name(self.coro.handle, "coro.handle");
+            if let Some(idx) = slot_idx {
+                // Address the slot only after coro.begin so it is rewritten to the frame.
+                self.coro.exc_slot = self.b.struct_gep(pt, self.coro.promise, idx);
+                self.b.store(self.b.null_ptr(), self.coro.exc_slot);
+            }
 
             // coro cleanup
             self.b.at_end(self.coro.cleanup);

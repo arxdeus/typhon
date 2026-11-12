@@ -521,6 +521,19 @@ impl<'a> TypecheckVisitor<'a> {
             let c = self.n_expr(CallExpr { expr: Some(i), items: vec![], ordered: false, partial: false });
             return self.tr(c);
         }
+        // `__callsite_file__` / `__callsite_line__` defaults expand to the caller's
+        // source location (used by e.g. `warnings.warn`).
+        if let Some(name) = self.cache.ast[d].kind.as_id().map(|i| i.value.clone()) {
+            if name == "__callsite_file__" || name == "__callsite_line__" {
+                let src = self.src;
+                let c = if name == "__callsite_file__" {
+                    self.n_expr(crate::ast::StringExpr::new(src.file.as_str(), ""))
+                } else {
+                    self.n_expr(crate::ast::IntExpr::new(src.line as i64))
+                };
+                return self.tr(c);
+            }
+        }
         let c = self.cache.ast.clone_expr(d, true);
         self.tr(c)
     }

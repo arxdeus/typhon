@@ -17,15 +17,29 @@ class _GeneratorContextManager[T]:
             raise RuntimeError("generator didn't yield")
         return next(self.gen)
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        # The dialect cannot throw an exception into a suspended generator,
-        # so the code after `yield` runs (like a `finally:` block) and the
-        # original exception, if any, propagates.
-        if not self.gen.__done__():
+    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+        if exc_value is None:
+            if self.gen.__done__():
+                return False
             self.gen.__resume__()
             if not self.gen.__done__():
                 raise RuntimeError("generator didn't stop")
-        return False
+            return False
+        else:
+            exc: BaseException = exc_value
+            if self.gen.__done__():
+                return False
+            try:
+                self.gen.throw(exc)
+            except StopIteration:
+                # The generator swallowed the exception: suppress it.
+                return True
+            except BaseException as e:
+                if e.__raw__() == exc.__raw__():
+                    # Re-raised the same exception: let the with statement propagate it.
+                    return False
+                raise
+            raise RuntimeError("generator didn't stop after throw()")
 
 
 def contextmanager(func):

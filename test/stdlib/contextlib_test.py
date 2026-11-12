@@ -94,3 +94,100 @@ def test_exitstack():
     moved.close()
     assert log == ["enter3", "exit3"]
 test_exitstack()
+
+
+@contextmanager
+def catcher(log: List[str]):
+    try:
+        yield 1
+    except ValueError as e:
+        log.append("caught " + str(e))
+    finally:
+        log.append("finally")
+
+
+@contextmanager
+def passthrough(log: List[str]):
+    try:
+        yield 1
+    finally:
+        log.append("cleanup")
+
+
+@contextmanager
+def stubborn():
+    try:
+        yield 1
+    except ValueError:
+        yield 2
+
+
+@contextmanager
+def translator():
+    try:
+        yield 1
+    except ValueError as e:
+        raise KeyError("translated " + str(e))
+
+
+@test
+def test_contextmanager_throw():
+    log = List[str]()
+    with catcher(log):
+        raise ValueError("boom")
+    assert log == ["caught boom", "finally"]
+    log.clear()
+    with catcher(log):
+        log.append("body")
+    assert log == ["body", "finally"]
+    log.clear()
+    ok = False
+    try:
+        with passthrough(log):
+            raise ValueError("v")
+    except ValueError as e:
+        ok = str(e) == "v"
+    assert ok and log == ["cleanup"]
+    msg = ""
+    try:
+        with stubborn():
+            raise ValueError("x")
+    except RuntimeError as e:
+        msg = str(e)
+    assert msg == "generator didn't stop after throw()"
+    msg = ""
+    try:
+        with translator():
+            raise ValueError("y")
+    except KeyError as e:
+        msg = str(e)
+    assert "translated y" in msg
+test_contextmanager_throw()
+
+
+@test
+def test_generator_throw_close():
+    def g(log: List[str]):
+        try:
+            yield 1
+            yield 2
+        except ValueError:
+            log.append("ve")
+            yield 10
+        finally:
+            log.append("fin")
+    log = List[str]()
+    it = g(log)
+    assert next(it) == 1
+    assert it.throw(ValueError("e")) == 10
+    it.close()
+    assert log == ["ve", "fin"]
+    it2 = g(log)
+    next(it2)
+    hit = False
+    try:
+        it2.throw(KeyError("k"))
+    except KeyError:
+        hit = True
+    assert hit
+test_generator_throw_close()

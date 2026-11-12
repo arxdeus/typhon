@@ -474,3 +474,51 @@ class ProcessLookupError(OSError):
 class TimeoutError(OSError):
     def __init__(self, /, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+class Warning(Exception):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+class UserWarning(Warning):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+class DeprecationWarning(Warning):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+class PendingDeprecationWarning(Warning):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+class SyntaxWarning(Warning):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+class RuntimeWarning(Warning):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+class FutureWarning(Warning):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+class ImportWarning(Warning):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+class UnicodeWarning(Warning):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+class BytesWarning(Warning):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+class ResourceWarning(Warning):
+    def __init__(self, message: str = ""):
+        super().__init__(message)
+
+class EncodingWarning(Warning):
+    def __init__(self, message: str = ""):
+        super().__init__(message)

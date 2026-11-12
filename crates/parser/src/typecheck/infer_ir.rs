@@ -372,6 +372,8 @@ impl<'a> TypecheckVisitor<'a> {
                 set(Intrinsic::RecordNew, ret_t);
             } else if fname == mm("Generator", "__promise__") {
                 set(Intrinsic::GeneratorPromise, parent_t);
+            } else if fname == mm("Generator", "__exc_slot__") {
+                set(Intrinsic::GeneratorExcSlot, parent_t);
             }
         }
         Ok(f)

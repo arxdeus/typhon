@@ -18,6 +18,8 @@ pub enum Intrinsic {
     RecordNew,
     RepresentationCast,
     GeneratorPromise,
+    /// Address of the pending-exception slot of a generator (`Generator.__exc_slot__`).
+    GeneratorExcSlot,
     Sizeof,
     IsAtomic,
     IsContentAtomic,
@@ -37,6 +39,7 @@ impl Intrinsic {
             Intrinsic::RecordNew => "record_new",
             Intrinsic::RepresentationCast => "representation_cast",
             Intrinsic::GeneratorPromise => "generator_promise",
+            Intrinsic::GeneratorExcSlot => "generator_exc_slot",
             Intrinsic::Sizeof => "sizeof",
             Intrinsic::IsAtomic => "is_atomic",
             Intrinsic::IsContentAtomic => "is_content_atomic",
@@ -56,7 +59,8 @@ impl Intrinsic {
             | Intrinsic::Typeinfo
             | Intrinsic::RecordNew
             | Intrinsic::RepresentationCast
-            | Intrinsic::GeneratorPromise => SideEffectStatus::Pure,
+            | Intrinsic::GeneratorPromise
+            | Intrinsic::GeneratorExcSlot => SideEffectStatus::Pure,
             Intrinsic::Allocate => SideEffectStatus::NoSideEffect,
             Intrinsic::TypeinfoLookup
             | Intrinsic::TypeinfoMethodLookup
@@ -66,7 +70,7 @@ impl Intrinsic {
     }
     /// `intrinsicDerivesFromArguments()`.
     pub fn derives_from_arguments(self) -> bool {
-        matches!(self, Intrinsic::RecordNew | Intrinsic::RepresentationCast | Intrinsic::GeneratorPromise)
+        matches!(self, Intrinsic::RecordNew | Intrinsic::RepresentationCast | Intrinsic::GeneratorPromise | Intrinsic::GeneratorExcSlot)
     }
 }
 

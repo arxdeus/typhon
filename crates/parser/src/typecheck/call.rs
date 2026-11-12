@@ -918,7 +918,11 @@ impl<'a> TypecheckVisitor<'a> {
                                 }
                             } else if let Some(def) = p.default_value {
                                 // Case 4: Default is present
-                                if let Some(ai) = v.ast()[def].kind.as_id().map(|i| i.value.clone()) {
+                                let callsite = v.ast()[def].kind.as_id().is_some_and(|i| i.value == "__callsite_file__" || i.value == "__callsite_line__");
+                                if callsite && !partial {
+                                    let d = v.get_call_default(p)?;
+                                    st.args.push(CallArg::new(real_name, Some(d)));
+                                } else if let Some(ai) = v.ast()[def].kind.as_id().map(|i| i.value.clone()) {
                                     // Non-values (Ids / .default names)
                                     let slotv = v.find(&ai, 0);
                                     // Compiler-owned module slots keep definition-time values

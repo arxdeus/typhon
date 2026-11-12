@@ -412,6 +412,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             let sw = self.b.switch(susp, self.coro.suspend, 2);
             Builder::add_case(sw, self.b.c_i8(0), self.block);
             Builder::add_case(sw, self.b.c_i8(1), self.coro.cleanup);
+            self.check_pending_generator_exc();
             self.b.at_end(self.block);
         }
         let t = self.get_llvm_type(m, m.value_type(v));

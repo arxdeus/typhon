@@ -617,6 +617,8 @@ impl<'a> TypecheckVisitor<'a> {
                         // Do nothing. NoneExpr will be handled later (we don't want it
                         // to be converted to Optional call yet.)
                     }
+                } else if matches!(&self.cache.ast[d].kind, ExprKind::Id(i) if i.value == "__callsite_file__" || i.value == "__callsite_line__") {
+                    // Resolved per call site in `get_call_default`.
                 } else {
                     default_value = self.transform(default_value)?;
                 }
