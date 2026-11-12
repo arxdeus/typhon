@@ -1,0 +1,9 @@
+Typhon
+Copyright 2026 the Typhon authors
+
+Typhon is derived from Codon, licensed under the
+Apache License, Version 2.0 (see LICENSE).
+
+The original sources (including the Python standard library and test programs
+in stdlib/ and test/) were modified for Typhon: translated to Rust,
+renamed and adapted from the original work.

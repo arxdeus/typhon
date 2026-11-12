@@ -11,18 +11,18 @@ This reduces future source-tree growth without rewriting existing Git history.
 
 Handwritten algorithms:
 
-- `stdlib/internal/unicode/normalization.codon`: Unicode normalization.
-- `stdlib/internal/unicode/names.codon`: name search, decoding, and algorithmic names.
-- `stdlib/internal/numeric/float_dtoa.codon`: floating-point conversion, unrelated to Unicode.
+- `stdlib/internal/unicode/normalization.py`: Unicode normalization.
+- `stdlib/internal/unicode/names.py`: name search, decoding, and algorithmic names.
+- `stdlib/internal/numeric/float_dtoa.py`: floating-point conversion, unrelated to Unicode.
 
 Generated modules, relative to `build/stdlib` or the installed stdlib:
 
-- `internal/unicode/generated/properties.codon`: character predicates and case mappings.
-- `internal/unicode/generated/single_byte_codecs.codon`: single-byte codec tables.
-- `internal/unicode/generated/normalization.codon`: normalization tables.
-- `internal/unicode/generated/metadata.codon`: categories, numeric values, and other metadata.
-- `internal/unicode/generated/names.codon`: names, aliases, and named sequences.
-- `internal/numeric/generated/float_dtoa_tables.codon`: floating-point conversion tables.
+- `internal/unicode/generated/properties.py`: character predicates and case mappings.
+- `internal/unicode/generated/single_byte_codecs.py`: single-byte codec tables.
+- `internal/unicode/generated/normalization.py`: normalization tables.
+- `internal/unicode/generated/metadata.py`: categories, numeric values, and other metadata.
+- `internal/unicode/generated/names.py`: names, aliases, and named sequences.
+- `internal/numeric/generated/float_dtoa_tables.py`: floating-point conversion tables.
 
 The hot string properties remain separate from metadata, names, and normalization.
 Hangul names are algorithmic; CJK unified ideographs use exact assigned ranges
@@ -59,8 +59,8 @@ python3 scripts/unicode/test_tables.py
 CMake targets `unicode_data`, `unicode_data_verify`, and `unicode_data_regenerate`
 respectively extract, verify, and explicitly regenerate/repack the bundle.
 Regeneration requires the matching Python interpreter selected by CMake and the
-inputs in `CODON_UNICODE_UCD_DIR`; it updates the source archive and manifest.
-`CODON_UNICODE_ARCHIVE` may point to another local copy of the same archive, but
+inputs in `TYPHON_UNICODE_UCD_DIR`; it updates the source archive and manifest.
+`TYPHON_UNICODE_ARCHIVE` may point to another local copy of the same archive, but
 its checksum must still match the checked-in manifest. Missing build outputs are
 re-extracted, and bundle, manifest, or generator changes invalidate extraction.
 
