@@ -304,6 +304,7 @@ impl<'a> TypecheckVisitor<'a> {
             TargetOs::Android => "android",
             TargetOs::MacOs => "darwin",
             TargetOs::Ios => "ios",
+            TargetOs::Wasi => "wasi",
             TargetOs::Other if cfg!(unix) => "unix",
             TargetOs::Other => "",
         };

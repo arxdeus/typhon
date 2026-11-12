@@ -388,12 +388,25 @@ pub unsafe extern "C" fn seq_os_stat(
         f[4] = info.st_uid as i64;
         f[5] = info.st_gid as i64;
         f[6] = info.st_size as i64;
-        f[7] = info.st_atime as i64;
-        f[8] = info.st_mtime as i64;
-        f[9] = info.st_ctime as i64;
-        f[10] = info.st_atime_nsec as i64;
-        f[11] = info.st_mtime_nsec as i64;
-        f[12] = info.st_ctime_nsec as i64;
+        #[cfg(not(target_os = "wasi"))]
+        {
+            f[7] = info.st_atime as i64;
+            f[8] = info.st_mtime as i64;
+            f[9] = info.st_ctime as i64;
+            f[10] = info.st_atime_nsec as i64;
+            f[11] = info.st_mtime_nsec as i64;
+            f[12] = info.st_ctime_nsec as i64;
+        }
+        // WASI libc exposes timestamps only as `struct timespec st_[amc]tim`.
+        #[cfg(target_os = "wasi")]
+        {
+            f[7] = info.st_atim.tv_sec as i64;
+            f[8] = info.st_mtim.tv_sec as i64;
+            f[9] = info.st_ctim.tv_sec as i64;
+            f[10] = info.st_atim.tv_nsec as i64;
+            f[11] = info.st_mtim.tv_nsec as i64;
+            f[12] = info.st_ctim.tv_nsec as i64;
+        }
         f[13] = info.st_rdev as i64;
         0
     }
@@ -411,6 +424,10 @@ fn set_errno(v: c_int) {
     #[cfg(target_os = "android")]
     unsafe {
         *libc::__errno() = v
+    };
+    #[cfg(target_os = "wasi")]
+    unsafe {
+        *libc::__errno_location() = v
     };
 }
 
@@ -433,6 +450,21 @@ pub unsafe extern "C" fn seq_os_readdir(directory: *mut c_void) -> *const c_char
 /// `name` is NULL or NUL-terminated. Result is `malloc`ed (strdup) or NULL.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn seq_os_home(name: *const c_char) -> *mut c_char {
+    // WASI has no user database.
+    #[cfg(target_os = "wasi")]
+    {
+        let _ = name;
+        set_errno(libc::ENOENT);
+        core::ptr::null_mut()
+    }
+    #[cfg(not(target_os = "wasi"))]
+    unsafe {
+        seq_os_home_pw(name)
+    }
+}
+
+#[cfg(not(target_os = "wasi"))]
+unsafe fn seq_os_home_pw(name: *const c_char) -> *mut c_char {
     let mut buffer = vec![0 as c_char; 1024];
     unsafe {
         let mut record: libc::passwd = core::mem::zeroed();

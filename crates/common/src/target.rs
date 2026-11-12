@@ -9,6 +9,8 @@ pub enum TargetOs {
     Android,
     Linux,
     Windows,
+    /// `wasm32-wasip1` (WebAssembly System Interface, preview 1). See docs/wasm.md.
+    Wasi,
     Other,
 }
 
@@ -29,6 +31,8 @@ pub const TARGET_ALIASES: &[(&str, &str)] = &[
     ("android-x64", "x86_64-linux-android24"),
     ("ios-arm64", "arm64-apple-ios16.4"),
     ("ios-sim-arm64", "arm64-apple-ios16.4-simulator"),
+    ("wasi", "wasm32-wasip1"),
+    ("wasm32", "wasm32-wasip1"),
 ];
 
 /// Resolve an alias to an LLVM triple (non-aliases are returned unchanged).
@@ -55,6 +59,8 @@ impl TargetInfo {
             TargetOs::Windows
         } else if has("linux") {
             TargetOs::Linux
+        } else if has("wasi") {
+            TargetOs::Wasi
         } else {
             TargetOs::Other
         };
@@ -92,8 +98,13 @@ impl TargetInfo {
         matches!(self.arch.as_str(), "aarch64" | "arm64" | "arm64e")
     }
 
+    pub fn is_wasm(&self) -> bool {
+        matches!(self.arch.as_str(), "wasm32" | "wasm64")
+    }
+
     /// Compile-time defines `__apple__`, `__windows__`, `__linux__`, `__android__`,
-    /// `__ios__`, `__macos__` (`__linux__` is true for Android too, like the C macro).
+    /// `__ios__`, `__macos__`, `__wasm__`, `__wasi__` (`__linux__` is true for Android
+    /// too, like the C macro).
     pub fn defines(&self) -> Vec<(&'static str, bool)> {
         vec![
             ("__apple__", self.is_apple()),
@@ -102,6 +113,8 @@ impl TargetInfo {
             ("__android__", self.os == TargetOs::Android),
             ("__ios__", self.os == TargetOs::Ios),
             ("__macos__", self.os == TargetOs::MacOs),
+            ("__wasm__", self.is_wasm()),
+            ("__wasi__", self.os == TargetOs::Wasi),
         ]
     }
 
@@ -115,6 +128,7 @@ impl TargetInfo {
             TargetOs::Ios => format!("{arch}-apple-ios"),
             TargetOs::MacOs => format!("{arch}-apple-darwin"),
             TargetOs::Linux => format!("{arch}-unknown-linux-gnu"),
+            TargetOs::Wasi => format!("{arch}-wasip1"),
             _ => return None,
         })
     }
@@ -158,5 +172,7 @@ mod tests {
         assert_eq!(d("arm64-apple-macosx14.0"), vec!["__apple__", "__macos__"]);
         assert_eq!(d("x86_64-unknown-linux-gnu"), vec!["__linux__"]);
         assert_eq!(d("x86_64-pc-windows-msvc"), vec!["__windows__"]);
+        assert_eq!(d("wasi"), vec!["__wasm__", "__wasi__"]);
+        assert_eq!(TargetInfo::parse("wasm32").rust_triple().unwrap(), "wasm32-wasip1");
     }
 }
