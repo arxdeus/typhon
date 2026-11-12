@@ -32,8 +32,8 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "Apache-2.0"
-repository = "https://github.com/upstream/codon"
-authors = ["Typhon contributors (Rust port of upstream Codon)"]
+repository = "https://github.com/typhon-lang/typhon"
+authors = ["Typhon contributors"]
 
 [workspace.dependencies]
 # ---- internal crates ----
@@ -54,7 +54,7 @@ rustc-hash = "2.1"            # fast hashing (std::unordered_map)
 smallvec = "1.15"             # small vectors (llvm::SmallVector)
 bitflags = "2.13"             # flag sets (Logger flags, Attr flags)
 ordered-float = "5.5"         # float keys in maps
-ustr = "1.1"                  # interned strings (codon::InternedString)
+ustr = "1.1"                  # interned strings (interned identifiers)
 petgraph = "0.8"              # CFG / dominators (cir/analyze/dataflow)
 ena = "0.14"                  # union-find for type unification (LinkType)
 once_cell = "1.21"
@@ -97,7 +97,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 inkwell = { version = "0.11", default-features = false, features = ["llvm20-1", "target-aarch64", "target-x86", "target-arm", "target-nvptx"] }
 llvm-sys = { package = "llvm-sys", version = "201.1" }
 
-# ---- runtime (libcodonrt replacement) ----
+# ---- runtime (libtyphonrt) ----
 libc = "0.2"
 bdwgc-alloc = { version = "0.6", default-features = false, features = ["cmake"] } # bdwgc
 regex = "1.11"                # re2 (RE2 semantics: linear time, no backrefs)
@@ -121,11 +121,10 @@ crossbeam-utils = "0.8"      # CachePadded, Backoff
 crossbeam-deque = "0.8"      # work-stealing task queues
 cc = "1.2"                   # tiny C shim for the variadic __kmpc_fork_call
 
-# Jupyter kernel (jupyter/) and the Python @codon.jit bridge (jit/) are intentionally
-# out of scope for the port (user decision): no pyo3 / jupyter-protocol / zeromq deps.
+# Jupyter kernel and Python bridges are out of scope: no pyo3 / jupyter-protocol / zeromq deps.
 
 # ---- testing ----
-libtest-mimic = "0.8"         # googletest replacement (parametrized .codon tests)
+libtest-mimic = "0.8"         # parametrized .py tests
 insta = "1.43"
 pretty_assertions = "1.4"
 

@@ -1,6 +1,6 @@
 [package]
 name = "typhon-cli"
-description = "Typhon CLI (port of codon/app/main.cpp)"
+description = "Typhon CLI"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,8 +1,8 @@
-//! Port of `codon/runtime/numpy/sort.cpp` (Highway vqsort) using `glidesort` / std.
+//! numpy sort kernels using `glidesort` / std.
 //!
-//! PORT-NOTE: Highway's vqsort is replaced by `glidesort` for integers (stable, which is
-//! a strict superset of the unstable vqsort contract) and a NaN-aware total order for
-//! floats. Ordering semantics match the C++: `cnp_sort_float*` places NaNs last and
+//! Integers use `glidesort` (stable, which is
+//! a strict superset of an unstable sort contract) and a NaN-aware total order for
+//! floats. Ordering semantics: `cnp_sort_float*` places NaNs last and
 //! keeps `-0.0` before `+0.0`; `*_nan_last` places NaNs last.
 
 /// Compact non-NaN values to the front and fill the tail with canonical NaN.

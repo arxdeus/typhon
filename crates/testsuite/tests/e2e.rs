@@ -1,4 +1,4 @@
-//! End-to-end `.codon` suites (port of test/main.cpp). Run: `cargo test -p typhon-testsuite --test e2e -- core/`
+//! End-to-end `.py` suites. Run: `cargo test -p typhon-testsuite --test e2e -- core/`
 use libtest_mimic::{Arguments, Failed, Trial};
 use typhon_testsuite::{config::Config, runner, suites};
 

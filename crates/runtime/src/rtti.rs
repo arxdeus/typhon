@@ -1,4 +1,4 @@
-//! Port of `codon/runtime/rtti.h`: runtime type-information layout shared with
+//! Runtime type-information layout shared with
 //! compiler-emitted code.
 
 use core::ffi::c_void;
@@ -58,7 +58,7 @@ pub struct MethodSlot {
     pub target: *mut c_void,
 }
 
-/// Mirrors `codon::runtime::TypeInfo` field-for-field.
+/// Runtime type information record; layout must match the code generator.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct TypeInfo {

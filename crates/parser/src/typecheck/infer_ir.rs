@@ -276,7 +276,7 @@ impl<'a> TypecheckVisitor<'a> {
             }
             FuncKind::External
         } else {
-            FuncKind::Bodied { symbols: vec![], body: None, jit: false }
+            FuncKind::Bodied { symbols: vec![], body: None }
         };
         let f = module.borrow_mut().nr_func(rname.clone(), kind);
         if let Some(fd) = module.borrow_mut().func_mut(f) {

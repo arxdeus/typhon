@@ -1,4 +1,4 @@
-//! Port of `codon/runtime/lib.cpp`: init, GC allocation, time, OS helpers, locale,
+//! Runtime core: init, GC allocation, time, OS helpers, locale,
 //! float parsing, printing / output capture, and locks/condition variables.
 
 use core::ffi::{c_char, c_int, c_void};
@@ -71,7 +71,7 @@ static LAST_HEAP: AtomicUsize = AtomicUsize::new(0);
 
 /// bdwgc 8.3 (`bdwgc-alloc-sys`) `GC_should_collect()` forces a full collection
 /// right after every heap growth (`GC_last_heap_growth_gc_no == GC_gc_no`), which
-/// bdwgc 8.2.12 (C++ Codon) does not; on allocation-heavy programs that is ~4x more
+/// bdwgc 8.2.12 does not; on allocation-heavy programs that is ~4x more
 /// collections (float.py: 22 vs 6). Allocation-triggered collections go through
 /// `GC_default_stop_func` (`GC_collect_or_expand`); refusing to start one makes the
 /// collector expand the heap instead. We only veto that forced post-growth GC (the
@@ -79,7 +79,7 @@ static LAST_HEAP: AtomicUsize = AtomicUsize::new(0);
 /// bytes were allocated since the last GC than `in_use / (2 * free_space_divisor)`.
 /// Ordinary threshold-triggered GCs (8.3's own `min_bytes_allocd`, which already
 /// weights atomic data at 1/4) are never vetoed, so the heap stays as tight as
-/// Codon's (binary_trees 20: 263 MB vs 540 MB with the earlier `2*in_use/div` veto).
+/// the C++ baseline's (binary_trees 20: 263 MB vs 540 MB with the earlier `2*in_use/div` veto).
 /// Called with the allocator lock held; once a GC is allowed LAST_HEAP is updated so
 /// repeated calls during marking keep answering "continue".
 unsafe extern "C" fn gc_growth_stop_func() -> c_int {

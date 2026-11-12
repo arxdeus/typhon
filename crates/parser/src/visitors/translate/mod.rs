@@ -86,9 +86,8 @@ impl<'a> TranslateVisitor<'a> {
         Ok(Self { cache, ctx, module, src: SrcInfo::default() })
     }
 
-    /// `TranslateVisitor::apply(cache, stmts)`: returns the main (or JIT cell) function.
+    /// `TranslateVisitor::apply(cache, stmts)`: returns the main function.
     pub fn apply(cache: &mut Cache, stmts: StmtId) -> Result<FuncId> {
-        let jit = false; // AOT only: no JIT cells
         let none = cache
             .classes
             .get("NoneType")
@@ -98,27 +97,12 @@ impl<'a> TranslateVisitor<'a> {
         let module = cache.module.clone().ok_or_else(|| CompilerError::custom("cache's module is not set", SrcInfo::default()))?;
         let main = {
             let mut m = module.borrow_mut();
-            if jit {
-                let fn_name = format!("_jit_{}", cache.jit_cell);
-                let main = m.nr_bodied_func(fn_name.clone());
-                m.set_src_info(main.into(), SrcInfo::new("<jit>", 0, 0, 0));
-                m.set_global(main, true);
-                let t = m.unsafe_get_func_type(&fn_name, none, vec![], false);
-                m.realize_func(main, t, &[]);
-                if let Some(fd) = m.func_mut(main) {
-                    if let typhon_ir::FuncKind::Bodied { jit, .. } = &mut fd.kind {
-                        *jit = true;
-                    }
-                }
-                main
-            } else {
-                let main = m.main_func();
-                let t = m.unsafe_get_func_type("<internal_func_type>", none, vec![], false);
-                m.realize_func(main, t, &[]);
-                let path = cache.fs.as_ref().map(|fs| fs.borrow().module0().to_string_lossy().to_string()).unwrap_or_default();
-                m.set_src_info(main.into(), SrcInfo::new(&path, 0, 0, 0));
-                main
-            }
+            let main = m.main_func();
+            let t = m.unsafe_get_func_type("<internal_func_type>", none, vec![], false);
+            m.realize_func(main, t, &[]);
+            let path = cache.fs.as_ref().map(|fs| fs.borrow().module0().to_string_lossy().to_string()).unwrap_or_default();
+            m.set_src_info(main.into(), SrcInfo::new(&path, 0, 0, 0));
+            main
         };
         let block = module.borrow_mut().nr_named(ValueKind::SeriesFlow(Default::default()), "body");
         module.borrow_mut().set_func_body(main, Some(block));
@@ -137,7 +121,7 @@ impl<'a> TranslateVisitor<'a> {
         let mut v = TranslateVisitor::new(cache)?;
         v.initialize_globals()?;
         let suite = v.cache.ast[stmts].kind.as_suite().map(|s| s.items.clone());
-        let has_preamble = !jit && suite.as_ref().is_some_and(|s| !s.is_empty());
+        let has_preamble = suite.as_ref().is_some_and(|s| !s.is_empty());
         let block_len = |v: &TranslateVisitor| v.module.borrow().as_series_flow(block).map(|s| s.series.len()).unwrap_or(0);
         if has_preamble {
             v.transform_stmt(suite.as_ref().unwrap()[0])?;

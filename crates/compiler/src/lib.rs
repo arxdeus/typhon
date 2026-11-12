@@ -1,4 +1,4 @@
-//! typhon-compiler: port of `codon/compiler/compiler.{h,cpp}`.
+//! typhon-compiler: the compiler driver.
 //!
 //! [`Compiler`] owns the parser [`Cache`], the IR [`Module`], the IR [`PassManager`]
 //! and the LLVM codegen entry point. LLVM codegen needs an `inkwell::context::Context`
@@ -25,7 +25,7 @@ use typhon_parser::typecheck::TypecheckVisitor;
 
 pub use typhon_llvm;
 
-/// Port of `codon::Compiler`.
+/// Compiler driver.
 pub struct Compiler {
     input: String,
     options: Options,

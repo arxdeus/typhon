@@ -1,5 +1,5 @@
-//! Command-line option parsing compatible with the LLVM `cl::opt` style flags of
-//! `codon/app/main.cpp` and `codon/compiler/options.cpp` (single-dash long options,
+//! Command-line option parsing compatible with the LLVM `cl::opt` style flags
+//! (single-dash long options,
 //! `-o file`, `-D<name>=<val>`, `-numerics=py`, positional input, program args after it).
 
 use typhon_common::Options;
@@ -173,7 +173,7 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
             "cir" if build => cli.build_kind = BuildKind::Cir,
             "detect" if build => cli.build_kind = BuildKind::Detect,
             "std" | "std-version" => {
-                // PORT-NOTE: accepted for compatibility; no effect (as in Codon).
+                // Accepted for compatibility; no effect.
                 let _ = val;
             }
             "help" | "h" => {

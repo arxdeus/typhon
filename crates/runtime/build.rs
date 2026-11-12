@@ -13,7 +13,7 @@ fn main() {
     }
     if omp_libomp {
         let dir = env::var("TYPHON_LIBOMP_DIR")
-            .unwrap_or_else(|_| "/Users/mind/orca/toolchains/llvm-codon/lib".to_string());
+            .unwrap_or_else(|_| "/Users/mind/orca/toolchains/llvm20/lib".to_string());
         println!("cargo:rustc-link-search=native={dir}");
         println!("cargo:rustc-link-lib=dylib=omp");
         if target_os == "macos" || target_os == "linux" {

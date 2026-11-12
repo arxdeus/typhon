@@ -1,6 +1,4 @@
-//! Port of `codon/cir/llvm/native/{native.{h,cpp},targets/{target.h,aarch64,arm,x86}.*}`.
-//!
-//! Host CPU / feature detection and the `ArchNativePass` that stamps
+//! //! Host CPU / feature detection and the `ArchNativePass` that stamps
 //! `target-cpu` / `target-features` / `frame-pointer` on every function.
 
 use inkwell::module::Module;
@@ -77,7 +75,7 @@ impl Triple {
     }
 }
 
-/// Port of `codon::ir::Target`.
+/// Host target description.
 pub trait NativeTarget {
     fn cpu(&self, triple: &Triple) -> String;
     fn features(&self, triple: &Triple) -> String;

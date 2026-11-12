@@ -69,8 +69,6 @@ fn bodied_func_query_and_replace() {
     let f = m.nr_bodied_func("");
     let t = ift(&mut m);
     m.realize_func(f, t, &[]);
-    m.func_mut(f).unwrap().set_jit(true);
-    assert!(m.func(f).unwrap().is_jit());
     assert_eq!(None, m.func_body(f));
     assert_eq!(0, m.used_values(f.into()).len());
     let body = m.nr_series_flow();
@@ -100,7 +98,6 @@ fn bodied_func_cloning() {
     let f = m.nr_bodied_func("fn");
     let t = ift(&mut m);
     m.realize_func(f, t, &[]);
-    m.func_mut(f).unwrap().set_jit(true);
     let b = m.nr_series_flow();
     m.set_func_body(f, Some(b));
     let c = cv.force_clone_var(&mut m, f);

@@ -476,7 +476,7 @@ mod tests {
         for tid in 0..nth {
             let (last, mut lo, mut hi, stride) = static_bounds(sched, tid, nth, lb, ub, st, chunk);
             lasts += i32::from(last);
-            // chunked loops step by stride (Codon's _static_chunked template)
+            // chunked loops step by stride (stdlib _static_chunked)
             loop {
                 let mut i = lo;
                 while (st > 0 && i <= hi.min(ub)) || (st < 0 && i >= hi.max(ub)) {

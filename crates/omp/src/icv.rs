@@ -1,6 +1,6 @@
 //! Internal control variables (ICVs) and their environment initialization.
 //!
-//! PORT-NOTE: libomp keeps most ICVs per task (data environment). Codon only sets
+//! libomp keeps most ICVs per task (data environment). Typhon only sets
 //! them from the initial thread (`omp.set_num_threads`, `omp.set_schedule`, ...),
 //! so this runtime keeps them process-global; values set inside a parallel region
 //! are therefore visible to all threads, not just the setting task.

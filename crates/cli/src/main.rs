@@ -1,4 +1,4 @@
-//! `typhon` CLI: port of `codon/app/main.cpp` (modes `run`, `build`, `doc`, `version`).
+//! `typhon` CLI (modes `run`, `build`, `doc`, `version`).
 //! `jit` and `jupyter` modes are out of scope for typhon.
 
 mod args;

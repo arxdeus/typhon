@@ -295,7 +295,7 @@ int main(int argc, char **argv) {
     assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
     // arith(2,3)=6, loops(5)=10+5, rec, gsum()=1+2+3, exceptions caught in compiled code
     assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "6 15 1 100 6 42 111");
-    // Uncaught exception: Codon-style report on stderr and abnormal exit.
+    // Uncaught exception: Typhon-style report on stderr and abnormal exit.
     let out = common::build_and_run(&module, &opts(), &driver, "small_uncaught", &["boom"]);
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(!out.status.success(), "should fail: {err}");

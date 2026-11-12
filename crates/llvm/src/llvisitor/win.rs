@@ -246,7 +246,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         }
         for (body, name) in exports {
             ll::remove_string_attr(body, "typhon-c-export");
-            ll::set_name(body, &format!("{name}.codon"));
+            ll::set_name(body, &format!("{name}.typhon"));
             ll::set_linkage(body, llvm_sys::LLVMLinkage::LLVMPrivateLinkage);
             ll::set_dll_storage(body, llvm_sys::LLVMDLLStorageClass::LLVMDefaultStorageClass);
             if let Some(&wrapper) = self.win_callbacks.get(&(body as usize)) {

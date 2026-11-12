@@ -1,6 +1,6 @@
 [package]
 name = "typhon-runtime"
-description = "Codon runtime library libtyphonrt (port of codon/runtime/**): GC allocation, exceptions/personality, I/O, strings, regex, numpy kernels"
+description = "Typhon runtime library libtyphonrt: GC allocation, exceptions/personality, I/O, strings, regex, numpy kernels"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

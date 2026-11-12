@@ -48,7 +48,7 @@ Predicates on `ValueKind`: `is_const()`, `is_flow()`, `is_instr()`, `is_control_
 is just `m.as_x(v).is_some()` or `matches!(m.kind(v), ValueKind::X(_))`.
 
 `FuncData { unmangled_name, generator, is_async, parent_type: Option<TypeId>, args: Vec<VarId>, kind: FuncKind }`,
-`FuncKind::{Bodied{symbols, body: Option<ValueId>, jit}, External, Internal{intrinsic: Intrinsic, intrinsic_type: Option<TypeId>}, Llvm{literals: Vec<Generic>, declarations, body}}`.
+`FuncKind::{Bodied{symbols, body: Option<ValueId>}, External, Internal{intrinsic: Intrinsic, intrinsic_type: Option<TypeId>}, Llvm{literals: Vec<Generic>, declarations, body}}`.
 `Intrinsic` enum = `InternalFunc::Intrinsic` with `name()`, `is_type_query()`.
 
 `TypeKind::{Int{len,sign}, Float, Float32, Float16, BFloat16, Float128, Bool, Record{fields: Vec<Field{name,ty}>}, Ref{contents: TypeId, polymorphic}, Func{ret, args, variadic}, Pointer{base}, Optional{base}, Generator{base}, Vector{count, base}, Union{types}, Custom(Rc<dyn CustomType>)}`

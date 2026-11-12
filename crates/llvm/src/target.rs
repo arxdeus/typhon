@@ -1,5 +1,4 @@
-//! Port of the target-machine half of `codon/cir/llvm/optimize.{h,cpp}`
-//! (`getTargetMachine`, `getFeaturesStr`).
+//! Target-machine construction and feature strings.
 
 use std::sync::Once;
 
@@ -167,7 +166,7 @@ pub(crate) fn string_attr_value(f: ffi::V, key: &str) -> Option<String> {
 
 /// Host target machine honoring `-march/-mcpu/-mattr` like `EngineBuilder::selectTarget`.
 /// An empty `mcpu` selects the host CPU and host features (EngineBuilder behaviour
-/// with `setMCPU("")` is the generic CPU; Codon's JIT then overrides per-function
+/// with `setMCPU("")` is the generic CPU; per-function overrides apply
 /// attributes through the native pass, so we match the effective result).
 pub fn host_target_machine(options: &Options, pic: bool) -> Result<TargetMachine> {
     host_target_machine_with_model(options, pic, CodeModel::Default)

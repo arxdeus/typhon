@@ -1,8 +1,8 @@
-//! Port of `codon/cir/llvm/optimize.{h,cpp}`: the Codon LLVM pass pipeline.
+//! The Typhon LLVM pass pipeline.
 //!
 //! # Pass ordering relative to the standard pipeline
 //!
-//! C++ registers custom passes in `PassBuilder` extension points. The LLVM C API
+//! Custom passes would normally hook into `PassBuilder` extension points. The LLVM C API
 //! can only run textual pipelines (`LLVMRunPasses`), so each `runLLVMOptimizationPasses`
 //! invocation is emulated as:
 //!
@@ -20,9 +20,9 @@
 //!    InstCombine), so allocations exposed by inlining are still demoted;
 //! 7. `CoroUnrollControl::cleanup`, `applyDebugTransformations`.
 //!
-//! PORT-NOTE: every Codon pass therefore runs at most twice per pipeline
+//! Every custom pass therefore runs at most twice per pipeline
 //! invocation rather than at each extension point instance inside the O3
-//! pipeline; `optimize()` still runs the whole pipeline twice (opt1/opt2) like C++.
+//! pipeline; `optimize()` still runs the whole pipeline twice (opt1/opt2) .
 
 pub mod alloc;
 pub mod coro;
@@ -36,7 +36,7 @@ use crate::{ffi, gpu, native, target};
 
 pub use coro::GLOBAL_CTOR_NAME;
 
-/// Public entry points to the individual Codon passes.
+/// Public entry points to the individual passes.
 pub mod passes {
     pub use super::alloc::{
         AllocInfo, allocation_auto_free, allocation_hoister, allocation_hoister_with, allocation_remover,
@@ -48,7 +48,7 @@ pub mod passes {
     };
 }
 
-/// Mirrors the C++ `PassBuilder` extension points at which Codon
+/// The `PassBuilder` extension points at which Typhon
 /// passes are registered.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PassStage {
@@ -171,7 +171,7 @@ pub fn verify(module: &Module) -> Result<()> {
         let _ = module.print_to_file("_dump.ll");
         return Err(CompilerError::Llvm(format!(
             "Generated LLVM IR is invalid and has been dumped to '_dump.ll'. Please submit a bug report at \
-             https://github.com/upstream/codon including the code and generated LLVM IR.\n{e}"
+             https://github.com/typhon-lang/typhon including the code and generated LLVM IR.\n{e}"
         )));
     }
     Ok(())

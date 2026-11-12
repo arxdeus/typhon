@@ -22,7 +22,7 @@ fn main_body_len(m: &Module) -> usize {
 #[test]
 fn definitions_and_new_import() {
     let mut c = Compiler::new(Options::with_argv0("build/typhon_test"), None);
-    c.parse_code("parse_code_test.codon", "print(42)\n", 0, 0, &HashMap::new()).expect("parse");
+    c.parse_code("parse_code_test.py", "print(42)\n", 0, 0, &HashMap::new()).expect("parse");
     let m = c.module().clone();
     let before = main_body_len(&m.borrow());
     let ctx = typhon_parser::visitors::translate::ctx::existing_codegen_ctx(&c.cache().borrow()).expect("codegen ctx");
@@ -93,7 +93,7 @@ fn imports_from_ir_pass_run_before_user_code() {
         o.debug = debug;
         o.standalone = true;
         let mut c = Compiler::new(o, None);
-        c.parse_code("parse_code_test.codon", "print(42)\n", 0, 0, &HashMap::new()).expect("parse");
+        c.parse_code("parse_code_test.py", "print(42)\n", 0, 0, &HashMap::new()).expect("parse");
         c.pass_manager().register_pass(Box::new(ParseImportPass), "core-pipeline-lowering", vec![], vec![]);
         c.run_passes();
         let ctx = Context::create();

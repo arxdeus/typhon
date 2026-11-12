@@ -1,4 +1,4 @@
-//! Port of the allocation passes in `codon/cir/llvm/optimize.cpp`:
+//! Allocation passes:
 //! `AllocInfo`, `AllocationRemover`, `AllocationHoister`, `AllocationAutoFree`.
 
 use llvm_sys::LLVMOpcode as Op;

@@ -40,7 +40,7 @@ fn rejects_uninitialized_fields() {
     ] {
         for debug in [false, true] {
             let src = format!("class {name}:\n  values: list[int]\n  def __init__(self, flag: bool):\n{body}{name}(False)\n");
-            let (_, r) = compile(&src, "field_initialization.codon", |o| o.debug = debug);
+            let (_, r) = compile(&src, "field_initialization.py", |o| o.debug = debug);
             expect_err(&r, &format!("field '{name}.values' may be uninitialized when __init__ returns"), name);
         }
     }
@@ -86,7 +86,7 @@ Inherits()
 Unchecked()
 Value(1).__init__()
 "#;
-    let (_, r) = compile(src, "field_initialization.codon", |_| {});
+    let (_, r) = compile(src, "field_initialization.py", |_| {});
     expect_ok(&r, "helpers");
 }
 
@@ -117,7 +117,7 @@ assert instance.left == 11
 assert instance.right == 12
 assert instance.own == 13
 "#;
-            let (_, r) = compile(&src, "field_initialization_super.codon", |o| o.debug = debug);
+            let (_, r) = compile(&src, "field_initialization_super.py", |o| o.debug = debug);
             if cooperative {
                 expect_ok(&r, "cooperative");
             } else {
@@ -138,7 +138,7 @@ fn tracks_virtual_initialization() {
                 src += if child_writes { "    self.value = 42\n" } else { "    pass\n" };
                 src += "\ndef initialize_base(instance: Base):\n  instance.initialize()\nChild()\n";
                 let ctx = format!("base_writes={base_writes} child_writes={child_writes} debug={debug}");
-                let (c, r) = compile(&src, "field_initialization_virtual.codon", |o| o.debug = debug);
+                let (c, r) = compile(&src, "field_initialization_virtual.py", |o| o.debug = debug);
                 if child_writes {
                     expect_ok(&r, &ctx);
                     if !base_writes {
@@ -171,7 +171,7 @@ fn rejects_deferred_writes() {
                     src += "    yield 1\n";
                 }
                 src += "Record()\n";
-                let (_, r) = compile(&src, "field_initialization_deferred.codon", |o| o.debug = debug);
+                let (_, r) = compile(&src, "field_initialization_deferred.py", |o| o.debug = debug);
                 expect_err(&r, "field 'Record.value' may be uninitialized", &format!("async={asynchronous} ctor={constructor}"));
             }
         }
@@ -193,7 +193,7 @@ fn rejects_rebound_aliases() {
     for body in bodies {
         for debug in [false, true] {
             let src = format!("{head}{body}Record(Record())\n");
-            let (_, r) = compile(&src, "field_initialization_alias.codon", |o| o.debug = debug);
+            let (_, r) = compile(&src, "field_initialization_alias.py", |o| o.debug = debug);
             expect_err(&r, "field 'Record.value' may be uninitialized", body);
         }
     }
@@ -214,7 +214,7 @@ fn checks_finally_exit_overrides() {
     for (body, valid) in bodies {
         for debug in [false, true] {
             let src = format!("def fail():\n  raise ValueError()\nclass Record:\n  value: int\n  def __init__(self):\n{body}Record()\n");
-            let (_, r) = compile(&src, "field_initialization_finally.codon", |o| o.debug = debug);
+            let (_, r) = compile(&src, "field_initialization_finally.py", |o| o.debug = debug);
             if valid {
                 expect_ok(&r, body);
             } else {
@@ -231,7 +231,7 @@ fn checks_late_realizations() {
         src += if initialized { "    self.value = 42\n" } else { "    pass\n" };
         src += "\ndef make() -> int:\n  return Late().value\n";
         let ctx = format!("initialized={initialized}");
-        let (c, r) = compile(&src, "field_initialization_late.codon", |_| {});
+        let (c, r) = compile(&src, "field_initialization_late.py", |_| {});
         expect_ok(&r, &ctx);
         let m = c.module().clone();
         let got = m.borrow_mut().get_or_realize_func("make", &[], &[], "").is_some();
@@ -267,13 +267,13 @@ class Pair:
 assert Record(1).value == 49
 assert Pair().first == 1 and Pair().second == 2
 "#;
-    let (_, r) = compile(&src, "field_initialization_shared.codon", |_| {});
+    let (_, r) = compile(&src, "field_initialization_shared.py", |_| {});
     expect_ok(&r, "shared");
 }
 
 #[test]
 fn rejects_tuple_init_option() {
-    let (_, r) = compile("\n@tuple(check_init=False)\nclass Value:\n  number: int\n", "tuple_init_option.codon", |_| {});
+    let (_, r) = compile("\n@tuple(check_init=False)\nclass Value:\n  number: int\n", "tuple_init_option.py", |_| {});
     expect_err(&r, "class decorator got unexpected argument", "tuple option");
 }
 
@@ -289,7 +289,7 @@ fn enum_bounds_helper_realizations() {
     }
     src += "assert Explicit(31) is Explicit.MEMBER_31\nassert Automatic(32) is Automatic.MEMBER_31\n";
     for unordered in [false, true] {
-        let (c, r) = compile(&src, "enum_construction.codon", |o| {
+        let (c, r) = compile(&src, "enum_construction.py", |o| {
             o.debug = false;
             o.unordereddict = unordered;
         });
@@ -324,7 +324,7 @@ class ExplicitEmpty:
         pass
 ExplicitEmpty(1)
 "#;
-    let (c, r) = compile(src, "enum_lookup_initialization.codon", |_| {});
+    let (c, r) = compile(src, "enum_lookup_initialization.py", |_| {});
     expect_ok(&r, "enum lookup");
     let cache = c.cache().borrow();
     let enum_init = format!("{}.__init__:", typhon_common::mangle::mangled_class("std.enum", "Enum", 0));

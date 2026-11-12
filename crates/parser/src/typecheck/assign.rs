@@ -7,7 +7,7 @@ use crate::ast::{
     AssignMemberStmt, AssignStmt, Attr, BinaryExpr, BoolExpr, ExprStmt, ExprTag, IndexExpr, IntExpr, SliceExpr, StmtExpr,
     StringExpr, SuiteStmt, UpdateMode,
 };
-use crate::cache::{FN_SETTER_SUFFIX, STDLIB_IMPORT, VAR_USED_SUFFIX, fn_optional_unwrap, var_argc, var_argv};
+use crate::cache::{FN_SETTER_SUFFIX, VAR_USED_SUFFIX, fn_optional_unwrap, var_argc, var_argv};
 use crate::ids::{ExprId, StmtId};
 use crate::types::LiteralKind;
 
@@ -474,22 +474,14 @@ impl<'a> TypecheckVisitor<'a> {
             self.set_done_stmt(a);
         }
 
-        // Register all toplevel variables as global in JIT mode
-        //   OR if they are in imported module (not toplevel)
-        let jit = false; // AOT only: no JIT cells
-        let (is_g, is_gen, module) = {
+        // Register variables of imported modules (not toplevel) as global
+        let (is_g, module) = {
             let v = val.borrow();
-            (v.is_global(), v.is_generic(), v.module().to_string())
+            (v.is_global(), v.module().to_string())
         };
-        let is_global = (jit && is_g && !is_gen) || canonical == var_argv() || canonical == var_argc() || (is_g && !module.is_empty());
+        let is_global = canonical == var_argv() || canonical == var_argc() || (is_g && !module.is_empty());
         if is_global && val.borrow().is_var(&types) {
             self.register_global(&canonical);
-            if jit {
-                let un = self.get_unmangled_name(&val.borrow().canonical_name);
-                if let Some(sc) = self.cache.imports.get(STDLIB_IMPORT).and_then(|i| i.ctx.clone()) {
-                    sc.borrow_mut().add_toplevel(&un, val.clone());
-                }
-            }
         }
         Ok(Some(a))
     }

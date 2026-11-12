@@ -1,9 +1,6 @@
 //! typhon-llvm: LLVM backend infrastructure.
 //!
-//! Ported from:
-//! - `codon/cir/llvm/optimize.{h,cpp}` -> [`target`], [`optimize`]
-//! - `codon/cir/llvm/gpu.{h,cpp}` -> [`gpu`]
-//! - `codon/cir/llvm/native/**` -> [`native`]
+//! Modules: [`target`] and [`optimize`] (pass pipeline), [`gpu`], [`native`].
 //!
 //! See `API.md` for the public surface used by the IR->LLVM visitor. Output is AOT only (object/exe/lib).
 

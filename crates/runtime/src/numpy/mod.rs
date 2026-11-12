@@ -1,4 +1,4 @@
-//! numpy runtime kernels (port of `codon/runtime/numpy/*`).
+//! numpy runtime kernels .
 
 pub mod loops;
 pub mod sort;

@@ -1,4 +1,4 @@
-//! Port of `codon/cir/llvm/gpu.{h,cpp}`: NVPTX module preparation, PTX
+//! NVPTX module preparation, PTX
 //! generation and host-module patching.
 
 use inkwell::module::Module;
@@ -70,7 +70,7 @@ pub(crate) fn delete_body(f: V) {
 /// Port of `GVExtractor(named, deleteStuff=false)::run`: keep only `named`.
 ///
 /// PORT-NOTE: global aliases are only made visible, never replaced by
-/// declarations (the C API cannot erase an alias); Codon never emits aliases.
+/// declarations (the C API cannot erase an alias); Typhon never emits aliases.
 fn gv_extract_keep(m: LLVMModuleRef, named: &FxHashSet<V>) {
     unsafe { LLVMSetModuleInlineAsm2(m, c"".as_ptr(), 0) };
     for gv in ffi::globals(m) {
@@ -194,7 +194,7 @@ fn copy_prototype(f: V, name: &str, external: bool) -> V {
 
 fn make_no_op(f: V) -> V {
     let m = ffi::global_module(f);
-    let dummy_name = format!(".codon.gpu.dummy.{}", ffi::name(f));
+    let dummy_name = format!(".typhon.gpu.dummy.{}", ffi::name(f));
     if let Some(d) = ffi::get_function(m, &dummy_name) {
         return d;
     }
@@ -519,7 +519,7 @@ fn codegen_fill_in(ir: &Ir, args: &[V], kind: FillIn) {
 
 fn make_fill_in(f: V, kind: FillIn) -> V {
     let m = ffi::global_module(f);
-    let name = format!(".codon.gpu.fillin.{}", ffi::name(f));
+    let name = format!(".typhon.gpu.fillin.{}", ffi::name(f));
     if let Some(g) = ffi::get_function(m, &name) {
         return g;
     }

@@ -31,7 +31,7 @@ pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_s
     let mut paths: Vec<String> = vec![];
     let parent = Path::new(relative_to).parent().map(|p| p.to_path_buf()).unwrap_or_default();
     let gen_ = |p: PathBuf| p.to_string_lossy().replace('\\', "/");
-    if what != "<jit>" && !force_stdlib {
+    if !force_stdlib {
         let f = fs.borrow();
         for p in [
             replace_ext(parent.join(what), "py"),

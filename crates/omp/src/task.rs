@@ -2,7 +2,7 @@
 //! `crossbeam-deque` work-stealing queues, taskwait, taskgroup and task
 //! reductions (`__kmpc_taskred_modifier_init` & co).
 //!
-//! Task memory layout (Codon allocates it with the GC, sized by the Codon-specific
+//! Task memory layout (Typhon allocates it with the GC, sized by the Typhon-specific
 //! `__kmpc_omp_task_alloc_size`): `[TaskHdr][kmp_task_t + privates][shareds]`.
 //! While a task is queued or running its address is kept in a GC root slot, so the
 //! collector never frees a task whose only reference lives in a runtime queue.
@@ -19,7 +19,7 @@ use crate::gc::{self, RootedBlock};
 use crate::team::{Frame, Spinner, current, gtid};
 use crate::{Ident, TaskRoutine};
 
-/// `kmp_task_t` prefix (Codon's `Task`).
+/// `kmp_task_t` prefix (the stdlib `Task`).
 #[repr(C)]
 pub struct KmpTask {
     pub shareds: *mut c_void,
@@ -163,14 +163,14 @@ fn wait_until(frame: &Frame, done: impl Fn() -> bool) {
 
 /* ------------------------------------------------------------------ C ABI --- */
 
-/// Codon-specific: bytes to allocate for a task with the given sizes.
+/// Typhon-specific: bytes to allocate for a task with the given sizes.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn __kmpc_omp_task_alloc_size(size_of_task: i64, size_of_shareds: i64) -> i64 {
     (HDR + round8(size_of_task.max(0) as usize) + size_of_shareds.max(0) as usize) as i64
 }
 
 /// `kmp_task_t *__kmpc_omp_task_alloc(ident_t*, gtid, flags, sizeof_kmp_task_t,
-///   sizeof_shareds, task_entry, taskdata)`: Codon passes a GC block of
+///   sizeof_shareds, task_entry, taskdata)`: Typhon passes a GC block of
 /// `__kmpc_omp_task_alloc_size` bytes as the extra `taskdata` argument; when it is
 /// NULL (standard libomp ABI) the runtime mallocs and frees the block itself.
 #[unsafe(no_mangle)]
@@ -272,7 +272,7 @@ pub unsafe extern "C" fn __kmpc_end_taskgroup(_loc: *mut Ident, _gtid: i32) {
 
 /* -------------------------------------------------------- task reductions --- */
 
-/// `kmp_taskred_input_t` (Codon's `TaskReductionInput`).
+/// `kmp_taskred_input_t` (the stdlib `TaskReductionInput`).
 #[repr(C)]
 pub struct TaskRedInput {
     pub reduce_shar: *mut c_void,
@@ -408,7 +408,7 @@ pub unsafe extern "C" fn __kmpc_taskred_modifier_init(
     let tg = cur_task().taskgroup.borrow().clone().unwrap_or_else(|| unreachable!("taskgroup just created"));
     let inp = inputs(num, data);
     if frame.team.nproc > 1 && !inp.is_empty() {
-        // PORT-NOTE: libomp keeps separate parallel/worksharing slots (is_ws); Codon
+        // libomp keeps separate parallel/worksharing slots (is_ws); Typhon
         // only uses is_ws = 0, so one team slot is kept.
         let shared = {
             let mut slot = frame.team.red.lock();
@@ -452,7 +452,7 @@ pub unsafe extern "C" fn __kmpc_task_reduction_get_th_data(
     let tid = frame.tid as usize;
     let mut tg: Option<Arc<TaskGroup>> = cur_task().taskgroup.borrow().clone();
     if !tskgrp.is_null() {
-        // Prefer the explicit group when it is in our chain (it always is for Codon).
+        // Prefer the explicit group when it is in our chain (it always is for Typhon).
         let mut g = tg.clone();
         while let Some(x) = g {
             if Arc::as_ptr(&x) as *mut c_void == tskgrp {

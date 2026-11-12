@@ -252,8 +252,7 @@ pub fn set_dll_storage(g: V, c: llvm_sys::LLVMDLLStorageClass) {
     unsafe { LLVMSetDLLStorageClass(g, c) }
 }
 pub fn set_dso_local(g: V) {
-    // PORT-NOTE: the C API has no `setDSOLocal`; JIT globals use default visibility,
-    // which ORC resolves identically for externally-initialized definitions.
+    // The C API has no `setDSOLocal`; globals keep default visibility.
     let _ = g;
 }
 pub fn name(v: V) -> String {

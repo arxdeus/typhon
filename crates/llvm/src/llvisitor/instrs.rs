@@ -242,7 +242,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             self.value = self.codegen_type_query(m, f);
             return;
         }
-        // Function values use native entry points on Win64. A direct Codon call keeps
+        // Function values use native entry points on Win64. A direct call keeps
         // the logical signature, so do not lower its callee as a first-class value.
         let mut f = match direct {
             Some(d) => self.get_func(m, d),
@@ -597,7 +597,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
     }
 }
 
-/// `runtime::TypeInfoField` indices (codon/runtime/rtti.h).
+/// `runtime::TypeInfoField` indices (runtime rtti layout).
 pub(super) mod rtti_field {
     pub const TYPE_ID: u32 = 0;
     pub const MRO_COUNT: u32 = 1;

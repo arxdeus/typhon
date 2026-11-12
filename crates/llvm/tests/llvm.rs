@@ -283,12 +283,12 @@ exit:
 
 !0 = distinct !{!0, !1, !2}
 !1 = !{!"llvm.loop.unroll.disable"}
-!2 = !{!"codon.test.preserve"}
+!2 = !{!"typhon.test.preserve"}
 "#,
     );
     let hints = first_loop_hints(&m, "user_unroll_guard").expect("loop id");
     assert!(hints.contains(&"llvm.loop.unroll.disable".to_string()), "{hints:?}");
-    assert!(hints.contains(&"codon.test.preserve".to_string()), "{hints:?}");
+    assert!(hints.contains(&"typhon.test.preserve".to_string()), "{hints:?}");
 }
 
 #[test]

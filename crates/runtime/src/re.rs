@@ -1,7 +1,7 @@
-//! Port of `codon/runtime/re.cpp` (RE2-backed `re` module) on top of `regex-automata`
-//! (the engine behind the `regex` crate; same linear-time guarantees as RE2).
+//! The `re` module runtime on top of `regex-automata` (the engine behind the `regex`
+//! crate; linear-time guarantees like RE2).
 //!
-//! PORT-NOTE: behavioral differences vs RE2:
+//! Behavioral notes relative to RE2:
 //! - Error messages come from `regex-syntax` and differ in wording from RE2's.
 //! - `\w`, `\d`, `\s`, `\b` are Unicode-aware for `str` patterns (RE2: ASCII-only),
 //!   which is closer to Python. `ASCII` flag switches them to ASCII.
@@ -23,7 +23,7 @@ use regex_automata::{Anchored, Input, PatternID};
 use crate::lib_rt::seq_alloc_atomic;
 use crate::types::{SeqBytes, SeqInt};
 
-// Flags: must match Codon's `re` module.
+// Flags: must match the stdlib `re` module.
 pub const ASCII: SeqInt = 1 << 0;
 pub const DEBUG: SeqInt = 1 << 1;
 pub const IGNORECASE: SeqInt = 1 << 2;
@@ -46,7 +46,7 @@ pub struct Span {
 
 const NO_SPAN: Span = Span { start: -1, end: -1 };
 
-/// Compiled pattern handle (the opaque `cobj` handed to Codon code).
+/// Compiled pattern handle (the opaque `cobj` handed to Typhon code).
 pub struct Pattern {
     re: Option<Regex>,
     full: Option<Regex>,

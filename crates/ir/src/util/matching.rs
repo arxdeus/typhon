@@ -73,12 +73,11 @@ impl<'a> Matcher<'a> {
             return self.compare_vars(x, y);
         };
         match (&fx.kind, &fy.kind) {
-            (FuncKind::Bodied { symbols: sx, body: bx, jit: jx }, FuncKind::Bodied { symbols: sy, body: by, jit: jy }) => {
+            (FuncKind::Bodied { symbols: sx, body: bx }, FuncKind::Bodied { symbols: sy, body: by }) => {
                 self.compare_funcs(x, y)
                     && sx.len() == sy.len()
                     && sx.iter().zip(sy).all(|(a, b)| self.var(*a, *b))
                     && self.values(*bx, *by)
-                    && jx == jy
             }
             (FuncKind::External, FuncKind::External) => {
                 fx.unmangled_name == fy.unmangled_name && self.compare_funcs(x, y)

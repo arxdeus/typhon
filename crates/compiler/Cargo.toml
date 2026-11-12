@@ -1,6 +1,6 @@
 [package]
 name = "typhon-compiler"
-description = "Compiler driver (port of codon/compiler/compiler.{h,cpp})"
+description = "Compiler driver"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

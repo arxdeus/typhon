@@ -1,4 +1,4 @@
-//! Integration tests: drive the C ABI exactly like Codon-compiled code does
+//! Integration tests: drive the C ABI exactly like compiled Typhon code does
 //! (outlined microtasks as `extern "C" fn`, args passed as one pointer).
 
 use std::collections::HashSet;
@@ -429,7 +429,7 @@ fn reductions_and_atomics() {
 
 /* ------------------------------------------------------------------ tasks -- */
 
-/// Codon's `TaskWithPrivates[(i64, *const TaskArg)]` with no shareds.
+/// The stdlib `TaskWithPrivates[(i64, *const TaskArg)]` with no shareds.
 #[repr(C)]
 struct TaskThunk {
     shareds: *mut c_void,
@@ -478,7 +478,7 @@ fn spawn_task(g: i32, i: i64, a: &TaskArg) {
 }
 
 fn libc_calloc(n: usize) -> *mut c_void {
-    // leaked on purpose (GC-allocated in Codon)
+    // leaked on purpose (GC-allocated in Typhon)
     Box::leak(vec![0u64; n.div_ceil(8)].into_boxed_slice()).as_mut_ptr().cast()
 }
 
@@ -494,7 +494,7 @@ unsafe extern "C" fn tasks_body(gtid: *mut i32, _b: *mut i32, a: *mut c_void) {
     let a: &TaskArg = arg(a);
     let g = unsafe { *gtid };
     let n = a.hits.len() as i64;
-    let mut local = 0i64; // per-thread shared reduction var (Codon: info.local)
+    let mut local = 0i64; // per-thread shared reduction var (stdlib: info.local)
     if a.use_red {
         let input = TaskRedInput {
             reduce_shar: (&mut local as *mut i64).cast(),
@@ -507,7 +507,7 @@ unsafe extern "C" fn tasks_body(gtid: *mut i32, _b: *mut i32, a: *mut c_void) {
         };
         let tg = unsafe { __kmpc_taskred_modifier_init(loc(), g, 0, 1, (&input as *const TaskRedInput).cast_mut().cast()) };
         if unsafe { __kmpc_single(loc(), g) } != 0 {
-            // Codon passes &local of the spawning (single) thread as the shared item
+            // Typhon passes &local of the spawning (single) thread as the shared item
             unsafe { *a.tg.get() = tg };
             unsafe { *a.shar.get() = &mut local as *mut i64 };
         }
@@ -529,7 +529,7 @@ unsafe extern "C" fn tasks_body(gtid: *mut i32, _b: *mut i32, a: *mut c_void) {
     }
     if a.use_red {
         unsafe { __kmpc_task_reduction_modifier_fini(loc(), g, 0) };
-        // combine per-thread `local` into the result (Codon's _loop_reductions)
+        // combine per-thread `local` into the result (stdlib _loop_reductions)
         static LCK: [i32; 8] = [0; 8];
         unsafe {
             __kmpc_critical(loc(), g, &LCK as *const _ as *mut _);

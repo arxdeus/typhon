@@ -1,7 +1,6 @@
 # typhon-llvm public API (backend infrastructure)
 
-Port of `codon/cir/llvm/{optimize,gpu,native/*}` and
-`codon/compiler/{engine,memory_manager,debug_listener}`. The IR->LLVM visitor
+Optimization, GPU and native-target support. The IR->LLVM visitor
 (`src/llvisitor/`) is a separate lane and builds on the items below.
 
 All fallible functions return `typhon_common::Result<T>`; LLVM failures map to
@@ -73,7 +72,7 @@ pub fn run_passes(module: &Module, passes: &str, tm: Option<&TargetMachine>) -> 
 pub const GLOBAL_CTOR_NAME: &str = ".main.ctor";
 ```
 
-Individual Codon passes are public in `typhon_llvm::optimize::passes`
+Individual passes are public in `typhon_llvm::optimize::passes`
 (`allocation_remover`, `allocation_hoister`, `allocation_auto_free`,
 `coro_branch_simplifier`, `coro_unroll_control`, `coro_unroll_cleanup`,
 `coro_resume_inliner`, `openmp_thread_id_optimizer`, `apply_debug_transformations`,

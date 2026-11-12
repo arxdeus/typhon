@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use typhon_common::fs::{DiskFileSystem, FileSystem};
 
-/// Workspace default: `<repo>/stdlib` (the Codon stdlib, reused read-only).
+/// Workspace default: `<repo>/stdlib` (the Typhon stdlib).
 pub const WORKSPACE_STDLIB: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../stdlib");
 
 #[cfg(feature = "embed-stdlib")]
@@ -67,7 +67,7 @@ pub fn default_filesystem(argv0: &str) -> Rc<RefCell<dyn FileSystem>> {
         return Rc::new(RefCell::new(fs));
     }
     let mut fs = DiskFileSystem::new(argv0, "");
-    // PORT-NOTE: C++ `Filesystem` only knows CODON_PATH and exe-relative paths; the
+    // Lookup order: exe-relative paths, then the
     // first valid stdlib directory found here is put in front so it wins import lookup.
     if let Some(dir) = found {
         let mut paths: Vec<String> = fs.search_paths().iter().map(|p| p.to_string_lossy().into_owned()).collect();

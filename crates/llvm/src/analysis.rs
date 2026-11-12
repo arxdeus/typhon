@@ -318,7 +318,7 @@ impl Loop {
     }
 }
 
-/// Port of the subset of `LoopInfo` used by Codon's passes.
+/// Port of the subset of `LoopInfo` used by the passes.
 pub struct LoopInfo {
     pub loops: Vec<Loop>,
     /// Innermost loop of each block.

@@ -145,7 +145,6 @@ pub struct Class {
     pub mro: Vec<TypeId>,
     /// Classes whose base is this class.
     pub descendants: FxHashSet<String>,
-    pub jit_cell: i32,
 }
 
 impl Class {
@@ -263,7 +262,6 @@ pub struct Cache {
     /// Realizations that must be restarted due to a widened slot.
     pub empty_literal_restarts: BTreeSet<String>,
 
-    pub jit_cell: i32,
 
     pub generated_tuples: FxHashSet<usize>,
     pub generated_kw_tuples: FxHashMap<String, i32>,
@@ -310,7 +308,6 @@ impl Cache {
             empty_literal_unions: BTreeMap::new(),
             empty_literal_slots: BTreeMap::new(),
             empty_literal_restarts: BTreeSet::new(),
-            jit_cell: 0,
             generated_tuples: FxHashSet::default(),
             generated_kw_tuples: FxHashMap::default(),
             errors: ParserErrors::default(),
@@ -602,7 +599,7 @@ impl Cache {
     }
 
     /// `parseCode(code)`: parse, scope, typecheck and translate a code snippet into the
-    /// current IR module (used by IR passes / JIT).
+    /// current IR module (used by IR passes).
     pub fn parse_code(&mut self, code: &str) -> Result<Vec<typhon_ir::ValueId>> {
         let parse = self.hooks.parse_code.clone().ok_or_else(|| CompilerError::custom("no parser hook installed", SrcInfo::default()))?;
         let node = parse(self, "<internal>", code, 0)?;

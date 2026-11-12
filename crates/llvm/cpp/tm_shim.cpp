@@ -1,6 +1,6 @@
 // Tiny shim for LLVM C++ APIs not reachable through the LLVM C API.
 
-// Port of the TargetParser part of codon `Aarch64::getFeatures`:
+// AArch64 feature list from the TargetParser:
 // `parseCpu` + `addCPUDefaults` + `addArchDefaults` + `toLLVMFeatureList`.
 // Writes a comma-separated "+a,-b" list (NUL-terminated, truncated to cap) and
 // returns its full length, or -1 if the CPU is unknown.

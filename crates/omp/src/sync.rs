@@ -1,5 +1,5 @@
 //! Mutual exclusion and reductions: critical, single, master, `__kmpc_reduce*`,
-//! the `__kmpc_atomic_*` entry points used by Codon, and flush.
+//! the `__kmpc_atomic_*` entry points used by Typhon, and flush.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU64, Ordering, fence};
@@ -14,11 +14,11 @@ use crate::team::{barrier, current};
 /* -------------------------------------------------------------- critical --- */
 
 /// Locks for `critical` / reductions, keyed by the address of the compiler-provided
-/// `kmp_critical_name` (Codon's 32-byte `Lock`). The `Lock` memory itself is never
+/// `kmp_critical_name` (the stdlib 32-byte `Lock`). The `Lock` memory itself is never
 /// written.
 ///
 /// PORT-NOTE: libomp lazily stores a lock pointer inside the `kmp_critical_name`
-/// words; we key a side table by address instead (Codon's `Lock` is only 4-aligned).
+/// words; we key a side table by address instead (the stdlib `Lock` is only 4-aligned).
 static CRIT_LOCKS: Lazy<Mutex<HashMap<usize, &'static RawMutex>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 fn crit_lock(key: *const ()) -> &'static RawMutex {
@@ -80,7 +80,7 @@ pub unsafe extern "C" fn __kmpc_flush(_loc: *mut Ident) {
 // PORT-NOTE: reduction method. libomp picks critical / atomic / tree per platform and
 // team size. This runtime always uses the *critical* method: `__kmpc_reduce[_nowait]`
 // returns 1 with the reduction lock held and the caller combines its partial result
-// non-atomically, then `__kmpc_end_reduce[_nowait]` releases the lock. Codon's
+// non-atomically, then `__kmpc_end_reduce[_nowait]` releases the lock. The stdlib's
 // generated code handles 1 (and 2 = atomic, never returned here); with a team of one
 // thread no lock is taken (libomp's empty_reduce_block is also 1).
 

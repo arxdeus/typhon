@@ -1,5 +1,4 @@
-//! Port of the coroutine / OpenMP / debug / fast-math passes in
-//! `codon/cir/llvm/optimize.cpp`: `CoroBranchSimplifier`, `CoroUnrollControl`,
+//! Coroutine / OpenMP / debug / fast-math passes: `CoroBranchSimplifier`, `CoroUnrollControl`,
 //! `CoroResumeInliner`, `OpenMPThreadIdOptimizer`, `applyDebugTransformations`,
 //! `applyFastMathTransformations`.
 

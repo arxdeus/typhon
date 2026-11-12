@@ -1,6 +1,6 @@
 [package]
 name = "typhon-llvm"
-description = "LLVM backend: CIR -> LLVM IR codegen, optimization pipeline, GPU, native target features (port of codon/cir/llvm)"
+description = "LLVM backend: CIR -> LLVM IR codegen, optimization pipeline, GPU, native target features"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

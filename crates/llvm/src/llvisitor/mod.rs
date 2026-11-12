@@ -45,7 +45,7 @@ use self::ll::{BB, Builder, DiBuilder, Md, Ty, V};
 const MAIN_UNCLASH: &str = ".main.unclash";
 const MAIN_CTOR: &str = ".main.ctor";
 
-/// `SEQ_FLAG_*` (codon/runtime/lib.h).
+/// `SEQ_FLAG_*` (runtime flags).
 const SEQ_FLAG_DEBUG: i64 = 1 << 0;
 const SEQ_FLAG_STANDALONE: i64 = 1 << 2;
 /// `SEQ_EXCEPTION_CLASS`.
@@ -65,7 +65,7 @@ fn llvm_c_call_attr() -> String {
 }
 
 /// `seq_exc_offset()`: offset from the `_Unwind_Exception` back to the start of the
-/// Codon exception object `{ void *obj; Backtrace bt; _Unwind_Exception ue; }`.
+/// Typhon exception object `{ void *obj; Backtrace bt; _Unwind_Exception ue; }`.
 ///
 /// PORT-NOTE: C++ calls the runtime function at compile time; the compiler does not
 /// link the runtime here, so the layout (16-byte aligned `_Unwind_Exception` after
@@ -181,7 +181,7 @@ struct FieldOffsetResolver {
     function: V,
 }
 
-/// Port of `codon::ir::LLVMVisitor`.
+/// IR to LLVM visitor.
 pub struct LlvmVisitor<'ctx> {
     // NOTE: `db` must drop before `module` (the DIBuilder references the module).
     db: DebugInfo,
@@ -483,7 +483,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
     /// `makeModule`: a new module initialized for the host (or `march`/`mcpu`) target.
     fn make_module(&mut self, src: Option<SrcInfo>) -> Result<LlModule<'ctx>> {
         let tm = crate::target::host_target_machine(&self.options, false)?;
-        let module = self.ctx.create_module("codon");
+        let module = self.ctx.create_module("typhon");
         module.set_triple(&tm.get_triple());
         module.set_data_layout(&tm.get_target_data().get_data_layout());
         let src_file = src.as_ref().map(Self::src_file).unwrap_or_else(|| "<internal>".to_string());
@@ -688,8 +688,8 @@ impl<'ctx> LlvmVisitor<'ctx> {
         if let Some(t) = ll::get_function(self.m(), thunk_name) {
             return (filter_ty, t);
         }
-        // Reference an in-module thunk (within the JIT image window) and reach the
-        // real filter through a 64-bit pointer (see C++ comment).
+        // Reference an in-module thunk and reach the real filter through a
+        // 64-bit pointer (keeps the thunk within short-branch range).
         let ptr_global = ll::new_global(self.m(), self.b.ptr(), true, LLVMPrivateLinkage, Some(real), "seq_exc_filter.addr");
         let thunk = ll::get_or_insert_function(self.m(), thunk_name, filter_ty);
         ll::set_linkage(thunk, LLVMPrivateLinkage);
@@ -996,7 +996,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         // Put the entire program in a new function
         {
             let proxy_ty = ll::fn_ty(self.b.void(), &[], false);
-            let proxy = ll::get_or_insert_function(self.m(), "codon.proxy_main", proxy_ty);
+            let proxy = ll::get_or_insert_function(self.m(), "typhon.proxy_main", proxy_ty);
             ll::set_linkage(proxy, LLVMPrivateLinkage);
             let (_, pers) = self.make_personality_func();
             ll::set_personality(proxy, pers);
@@ -1312,10 +1312,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         self.set_debug_info_for_node(m, Some(f.into()));
         let func = self.func;
         let fd = m.func(f).unwrap();
-        if fd.is_jit() {
-            ll::add_string_attr(func, ll::FN_INDEX, "jit", "");
-        }
-        if fd.is_jit() || irtools::is_export(m, f) {
+        if irtools::is_export(m, f) {
             ll::set_linkage(func, LLVMExternalLinkage);
         } else {
             ll::set_linkage(func, LLVMPrivateLinkage);

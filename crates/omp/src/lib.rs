@@ -1,6 +1,6 @@
 //! Rust implementation of the OpenMP runtime ABI (`__kmpc_*`, `omp_*`) that
-//! Codon-compiled code and `stdlib/openmp.codon` call. Replaces the GC-patched
-//! LLVM `libomp` that the C++ build links (omp lane: see ../../DESIGN.md).
+//! Typhon-compiled code and the stdlib openmp module call. Replaces the GC-patched
+//! LLVM `libomp` (see ../../DESIGN.md).
 //!
 //! Layout:
 //! * [`icv`]   - internal control variables + environment (`OMP_*`).

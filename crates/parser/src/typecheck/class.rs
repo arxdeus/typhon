@@ -1349,12 +1349,10 @@ impl<'a> TypecheckVisitor<'a> {
             self.cache.ast[cast].attrs = self.cache.ast[s].attrs.clone();
             let bc = self.cache.ast[s].kind.as_class().unwrap().base_classes.clone();
             self.cache.ast[cast].kind.as_class_mut().unwrap().base_classes = bc;
-            let jit_cell = self.cache.jit_cell;
             {
                 let cls = self.cache.classes.get_mut(canonical_name).unwrap();
                 cls.ast = Some(cast);
                 cls.module = mpath;
-                cls.jit_cell = jit_cell;
             }
 
             // Codegen default magic methods
@@ -1800,23 +1798,12 @@ impl<'a> TypecheckVisitor<'a> {
             }
 
             // Mark parent classes as polymorphic as well.
-            let (has_rtti, jit_cell, mro_len) = {
+            let (has_rtti, mro_len) = {
                 let c = self.cache.get_class_by_type(cls_typ).unwrap();
                 let an = self.cache.ast[cached_ast].kind.as_class().unwrap().name.clone();
-                (c.has_rtti(&an), c.jit_cell, c.mro.len())
+                (c.has_rtti(&an), c.mro.len())
             };
             if !has_rtti {
-                let jit = false; // AOT only: no JIT cells
-                if jit && jit_cell != self.cache.jit_cell {
-                    let src = self.cache.ast[*cls].src;
-                    let n = self.get_unmangled_name(&cls_name);
-                    typhon_common::bail_e!(
-                        ErrorKind::CUSTOM,
-                        src,
-                        "cannot inherit from a non-RTTI class defined in previous cell '{}' in JIT mode",
-                        n
-                    );
-                }
                 let object = st.object.clone();
                 if cls_name != object && mro_len == 1 {
                     let object_type = self.get_stdlib_type(&object)?;

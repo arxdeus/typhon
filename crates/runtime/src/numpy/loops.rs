@@ -1,10 +1,8 @@
-//! Port of `codon/runtime/numpy/loops.cpp` (Highway SIMD ufunc loops).
+//! numpy ufunc loops.
 //!
-//! PORT-NOTE: Highway's dynamic-dispatch vector math (`hwy/contrib/math`) is replaced by
-//! scalar loops over std/libm functions with a contiguous fast path that LLVM can
-//! auto-vectorize. Results are correctly rounded libm values rather than Highway's
-//! approximations (which are within a few ulp), so outputs may differ in the last ulp.
-//! Strides are in bytes, as in the C++ API.
+//! Scalar loops over std/libm functions with a contiguous fast path that LLVM can
+//! auto-vectorize. Results are correctly rounded libm values, so outputs may
+//! differ from SIMD approximations in the last ulp. Strides are in bytes.
 
 macro_rules! unary {
     ($($name:ident: $t:ty => $f:expr),* $(,)?) => {$(

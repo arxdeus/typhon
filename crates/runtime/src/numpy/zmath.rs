@@ -1,4 +1,4 @@
-//! Port of `codon/runtime/numpy/zmath.cpp`: single-precision complex math wrappers that
+//! Single-precision complex math wrappers that
 //! sidestep ABI issues with `complex<float>` returns.
 
 /// C `float _Complex` layout (two floats; HFA on aarch64, packed SSE on x86-64).

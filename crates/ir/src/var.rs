@@ -74,7 +74,7 @@ impl Intrinsic {
 #[derive(Clone, Debug)]
 pub enum FuncKind {
     /// `BodiedFunc`.
-    Bodied { symbols: Vec<VarId>, body: Option<ValueId>, jit: bool },
+    Bodied { symbols: Vec<VarId>, body: Option<ValueId> },
     /// `ExternalFunc`.
     External,
     /// `InternalFunc`.
@@ -85,7 +85,7 @@ pub enum FuncKind {
 
 impl FuncKind {
     pub fn bodied() -> Self {
-        FuncKind::Bodied { symbols: Vec::new(), body: None, jit: false }
+        FuncKind::Bodied { symbols: Vec::new(), body: None }
     }
     pub fn internal() -> Self {
         FuncKind::Internal { intrinsic: Intrinsic::None, intrinsic_type: None }
@@ -151,14 +151,6 @@ impl FuncData {
     pub fn set_body(&mut self, b: Option<ValueId>) {
         if let FuncKind::Bodied { body, .. } = &mut self.kind {
             *body = b;
-        }
-    }
-    pub fn is_jit(&self) -> bool {
-        matches!(self.kind, FuncKind::Bodied { jit: true, .. })
-    }
-    pub fn set_jit(&mut self, v: bool) {
-        if let FuncKind::Bodied { jit, .. } = &mut self.kind {
-            *jit = v;
         }
     }
     pub fn intrinsic(&self) -> Intrinsic {

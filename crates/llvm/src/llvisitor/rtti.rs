@@ -107,7 +107,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
     pub(super) fn get_runtime_type_info(&mut self, m: &Module, t: TypeId) -> V {
         let t = m.actual_type(t);
         let info = Self::runtime_info_or_panic(m, t).clone();
-        let name = format!(".codon.typeinfo.{}", info.id);
+        let name = format!(".typhon.typeinfo.{}", info.id);
         if let Some(g) = ll::get_global(self.m(), &name) {
             return g;
         }
@@ -296,7 +296,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
                     resolver.constant = offsets.iter().all(|e| e.1 == resolver.offset);
                     if !resolver.constant {
                         let fty = ll::fn_ty(self.b.i64(), &[self.b.i64()], false);
-                        let f = ll::add_function(self.m(), &format!(".codon.field.offset.{}.{}", key.0, key.1), fty);
+                        let f = ll::add_function(self.m(), &format!(".typhon.field.offset.{}.{}", key.0, key.1), fty);
                         ll::set_linkage(f, LLVMPrivateLinkage);
                         ll::set_memory_none(f);
                         ll::add_fn_attr(f, "nounwind");
@@ -340,7 +340,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             }
         }
         // Open-world lookup through one non-inlined resolver.
-        let rname = ".codon.field.offset.dynamic";
+        let rname = ".typhon.field.offset.dynamic";
         let resolver = match ll::get_function(self.m(), rname) {
             Some(f) => f,
             None => self.make_dynamic_field_resolver(rname),

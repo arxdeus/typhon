@@ -1,4 +1,4 @@
-//! Port of `codon/runtime/exc.cpp`: Itanium-ABI exceptions for compiled Codon code
+//! Itanium-ABI exceptions for compiled Typhon code
 //! (`seq_alloc_exc`, `seq_throw`, `seq_personality` with hand-written LSDA parsing,
 //! `seq_terminate`) and backtraces.
 
@@ -199,8 +199,7 @@ unsafe fn base_of(exc: *mut c_void) -> *mut BaseExceptionData {
     unsafe { (exc as *mut u8).offset(seq_exc_offset() as isize) as *mut BaseExceptionData }
 }
 
-/// Port of `seq_exc_init`. Executables carry their own unwind tables, so there is
-/// nothing to register (the C++ runtime's fake mach header only served JIT code).
+/// Executables carry their own unwind tables, so there is nothing to register.
 pub fn seq_exc_init(_flags: c_int) {}
 
 unsafe fn seq_delete_exc(exp: *mut UnwindException) {
@@ -244,7 +243,7 @@ pub extern "C" fn seq_alloc_exc(obj: *mut c_void) -> *mut c_void {
     }
 }
 
-/// Port of `codon::runtime::makeBacktraceFrameString`.
+/// Format one backtrace frame.
 pub fn make_backtrace_frame_string(pc: usize, func: &str, file: &str, line: i32, col: i32) -> String {
     let mut buf = format!("[\x1b[33m0x{pc:x}\x1b[0m]");
     if !func.is_empty() {
@@ -657,7 +656,7 @@ mod tests {
 
     #[test]
     fn frame_string() {
-        let s = make_backtrace_frame_string(0xab, "f", "x.codon", 3, 0);
-        assert_eq!(s, "[\x1b[33m0xab\x1b[0m] \x1b[32mf\x1b[0m at \x1b[36mx.codon\x1b[0m:\x1b[33m3\x1b[0m");
+        let s = make_backtrace_frame_string(0xab, "f", "x.py", 3, 0);
+        assert_eq!(s, "[\x1b[33m0xab\x1b[0m] \x1b[32mf\x1b[0m at \x1b[36mx.py\x1b[0m:\x1b[33m3\x1b[0m");
     }
 }

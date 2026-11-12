@@ -15,7 +15,7 @@ fn compiler() -> Compiler {
 #[test]
 fn cir_module_canonicalizes_checked_optional_types() {
     let mut c = compiler();
-    c.parse_code("optional_types.codon", "pass\n", 0, 0, &HashMap::new()).expect("parse");
+    c.parse_code("optional_types.py", "pass\n", 0, 0, &HashMap::new()).expect("parse");
     let m = c.module().clone();
     let mut m = m.borrow_mut();
     let none = m.get_none_type();
@@ -96,7 +96,7 @@ class AsyncBool:
         );
     }
     let mut c = compiler();
-    c.parse_code("context_manager_lowering.codon", &source, 0, 0, &HashMap::new()).expect("parse");
+    c.parse_code("context_manager_lowering.py", &source, 0, 0, &HashMap::new()).expect("parse");
     let m = c.module().borrow();
     let mut checked = 0;
     for var in m.vars() {

@@ -10,7 +10,7 @@ libtest-mimic.workspace = true
 tempfile.workspace = true
 regex.workspace = true
 
-# End-to-end `.codon` suites (port of test/main.cpp). Uses libtest-mimic.
+# End-to-end `.py` suites. Uses libtest-mimic.
 [[test]]
 name = "e2e"
 path = "tests/e2e.rs"

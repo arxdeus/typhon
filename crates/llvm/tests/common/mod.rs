@@ -54,7 +54,7 @@ pub fn build_and_run(module: &Module, options: &Options, driver_c: &str, tag: &s
     out
 }
 
-/// C declarations matching the runtime ABI used by the drivers: a minimal Codon
+/// C declarations matching the runtime ABI used by the drivers: a minimal Typhon
 /// exception object `{ TypeInfo*, ExceptionHeader }` (see `typhonrt::rtti::TypeInfo`
 /// and `typhonrt::exc::ExceptionHeader`).
 pub const C_PRELUDE: &str = r#"

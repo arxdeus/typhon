@@ -384,13 +384,12 @@ impl CloneVisitor {
             self.force_remap(m, (*a).into(), b.into());
         }
         match &fd.kind {
-            FuncKind::Bodied { body, jit, .. } => {
+            FuncKind::Bodied { body, .. } => {
                 self.force_remap(m, v.into(), res.into());
                 if let Some(b) = body {
                     let nb = self.clone_value(m, *b);
                     m.set_func_body(res, Some(nb));
                 }
-                m.func_mut(res).unwrap().set_jit(*jit);
             }
             FuncKind::Internal { .. } => {
                 m.func_mut(res).unwrap().parent_type = fd.parent_type;

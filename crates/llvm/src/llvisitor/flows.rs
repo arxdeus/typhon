@@ -535,7 +535,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
                     true,
                     llvm_sys::LLVMLinkage::LLVMPrivateLinkage,
                     Some(ll::const_array(self.b.i32(), &id_consts)),
-                    "codon.win.catchids",
+                    "typhon.win.catchids",
                 );
                 let (mt, mf) = self.decl("seq_exc_match", self.b.i32(), &[self.b.ptr(), self.b.ptr(), self.b.i32()]);
                 selector = self.b.call(mt, mf, &[unwind_exception, gv, self.b.c_i32(id_consts.len() as i64)]);
@@ -575,7 +575,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         self.b.at_end(external_exc_block);
         self.b.unreachable();
 
-        // reroute Codon exceptions
+        // reroute Typhon exceptions
         self.b.at_end(tc.exception_route_block);
         let pad = self.b.load(pad_type, tc.catch_store);
         unwind_exception = self.b.extract_value(pad, 0);

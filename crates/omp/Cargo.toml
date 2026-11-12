@@ -1,6 +1,6 @@
 [package]
 name = "typhon-omp"
-description = "OpenMP runtime in Rust: implements the __kmpc_* / omp_* C ABI used by Codon's stdlib/openmp.codon (replaces LLVM libomp)"
+description = "OpenMP runtime in Rust: implements the __kmpc_* / omp_* C ABI used by the stdlib openmp module (replaces LLVM libomp)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
