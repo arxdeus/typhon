@@ -702,3 +702,32 @@ fn concurrent_roots() {
         assert_eq!(h.join().unwrap(), 600);
     }
 }
+
+#[test]
+fn omp_simple_lock() {
+    use typhon_omp::sync::*;
+    let mut l: usize = 0xdead;
+    let p = &mut l as *mut usize as usize;
+    unsafe {
+        omp_init_lock(p as *mut usize);
+        assert_eq!(omp_test_lock(p as *mut usize), 1);
+        assert_eq!(omp_test_lock(p as *mut usize), 0);
+        omp_unset_lock(p as *mut usize);
+    }
+    let n = std::sync::Arc::new(AtomicUsize::new(0));
+    let hs: Vec<_> = (0..4)
+        .map(|_| {
+            let n = n.clone();
+            std::thread::spawn(move || {
+                for _ in 0..1000 {
+                    unsafe { omp_set_lock(p as *mut usize) };
+                    let v = n.load(Ordering::Relaxed);
+                    n.store(v + 1, Ordering::Relaxed);
+                    unsafe { omp_unset_lock(p as *mut usize) };
+                }
+            })
+        })
+        .collect();
+    hs.into_iter().for_each(|h| h.join().unwrap());
+    assert_eq!(n.load(Ordering::Relaxed), 4000);
+}

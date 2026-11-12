@@ -24,6 +24,20 @@ struct Callbacks {
 }
 
 static CALLBACKS: OnceLock<Callbacks> = OnceLock::new();
+static UNREGISTER: OnceLock<unsafe extern "C" fn() -> c_int> = OnceLock::new();
+
+/// `GC_unregister_my_thread`, called by a worker before it exits. Workers of a hot team
+/// whose forking thread exits (e.g. a foreign thread calling a `-lib`) do exit; a dead
+/// thread left registered makes the next collection `pthread_kill` it.
+pub fn set_unregister_callback(f: unsafe extern "C" fn() -> c_int) {
+    let _ = UNREGISTER.set(f);
+}
+
+pub fn unregister_current_thread() {
+    if let Some(f) = UNREGISTER.get() {
+        unsafe { f() };
+    }
+}
 
 /// Install the GC hooks (GC-aware libomp extension).
 #[unsafe(no_mangle)]

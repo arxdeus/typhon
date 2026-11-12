@@ -36,6 +36,35 @@ pub unsafe extern "C" fn __kmpc_end_critical(_loc: *mut Ident, _gtid: i32, crit:
     unsafe { crit_lock(crit as *const ()).unlock() };
 }
 
+/* ------------------------------------------------------- omp simple locks --- */
+
+/// `omp_lock_t` is one pointer wide (libomp); the 1-byte `RawMutex` lives in place
+/// (all-zero = unlocked, so `omp_init_lock` just zeroes it). Used by OpenBLAS.
+const _: () = assert!(size_of::<RawMutex>() <= size_of::<usize>());
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn omp_init_lock(l: *mut usize) {
+    unsafe { l.write(0) };
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn omp_destroy_lock(_l: *mut usize) {}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn omp_set_lock(l: *mut usize) {
+    unsafe { (*(l as *const RawMutex)).lock() };
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn omp_unset_lock(l: *mut usize) {
+    unsafe { (*(l as *const RawMutex)).unlock() };
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn omp_test_lock(l: *mut usize) -> i32 {
+    i32::from(unsafe { (*(l as *const RawMutex)).try_lock() })
+}
+
 /* -------------------------------------------------------- single / master --- */
 
 /// Returns 1 for exactly one thread of the team per encountered `single`.

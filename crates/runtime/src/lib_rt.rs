@@ -130,6 +130,8 @@ pub fn gc_init() {
             gc::GC_add_roots,
             gc::GC_remove_roots,
         );
+        #[cfg(feature = "omp-rust")]
+        typhon_omp::gc::set_unregister_callback(gc::GC_unregister_my_thread);
         #[cfg(feature = "openmp-libomp")]
         __kmpc_set_gc_callbacks(
             gc::GC_get_stack_base,

@@ -334,6 +334,9 @@ fn spawn_worker() -> Arc<WorkerHandle> {
                     Mail::Run(job) => run_member(job.team, job.tid, job.level, job.active_level, job.parent),
                 }
             }
+            if GC_REGISTERED.with(|r| r.get()) {
+                gc::unregister_current_thread();
+            }
         })
         .expect("typhon-omp: failed to spawn worker thread");
     h
