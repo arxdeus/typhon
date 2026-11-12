@@ -105,6 +105,8 @@ because bionic only has `clogf` from API 26.
 
 Libraries: `seq_register_current_thread()` registers the calling thread with the GC. It is
 idempotent and calls `seq_init(0)` if needed. The thread is unregistered when it exits.
-`-lib` builds call it at the entry of every exported function, because foreign threads
-(e.g. Dart isolates) can call in. bdwgc finds the static data of the `.so`/dylib itself
+`-lib` builds call it from a thin wrapper around every exported function, because foreign
+threads (e.g. Dart isolates) can call in. The hot path is a const-initialized
+thread-local `bool` (no GC lock), set once the thread is known to the GC and cleared when
+the exit-time destructor unregisters it. bdwgc finds the static data of the `.so`/dylib itself
 (dl_iterate_phdr / dyld image callbacks).

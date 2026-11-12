@@ -169,11 +169,23 @@ pub extern "C" fn seq_init(flags: c_int) {
 /// Called at the entry of every exported function in `-lib` builds.
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_register_current_thread() {
+    // Hot path (every exported call): one TLS load + branch, no GC lock.
+    if THREAD_REGISTERED.get() {
+        return;
+    }
+    register_current_thread_slow();
+}
+
+#[cold]
+#[inline(never)]
+fn register_current_thread_slow() {
     if !GC_INIT.is_completed() {
         seq_init(0);
     }
     unsafe {
         if gc::GC_thread_is_registered() != 0 {
+            // Main/initial thread (registered by GC_init) or registered elsewhere.
+            THREAD_REGISTERED.set(true);
             return;
         }
         seq_allow_register_threads();
@@ -183,6 +195,7 @@ pub extern "C" fn seq_register_current_thread() {
             // collector would signal (pthread_kill on a stale pthread_t aborts on
             // bionic): unregister from a TLS destructor at thread exit.
             FOREIGN_THREAD_GUARD.with(|g| g.set(true));
+            THREAD_REGISTERED.set(true);
         }
     }
 }
@@ -196,11 +209,16 @@ impl ForeignThreadGuard {
 impl Drop for ForeignThreadGuard {
     fn drop(&mut self) {
         if self.0.get() {
+            // Later TLS destructors calling exports must re-register.
+            let _ = THREAD_REGISTERED.try_with(|r| r.set(false));
             unsafe { gc::GC_unregister_my_thread() };
         }
     }
 }
 thread_local! {
+    /// Set once this thread is known to the collector; const-initialized and
+    /// without a destructor, so reading it is a plain TLS load.
+    static THREAD_REGISTERED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
     static FOREIGN_THREAD_GUARD: ForeignThreadGuard = const { ForeignThreadGuard(core::cell::Cell::new(false)) };
 }
 

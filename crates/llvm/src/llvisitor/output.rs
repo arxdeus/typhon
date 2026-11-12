@@ -172,9 +172,13 @@ impl<'ctx> LlvmVisitor<'ctx> {
         ll::new_global(mm, arr_ty, true, LLVMAppendingLinkage, Some(ll::const_array(entry_ty, &[entry])), "llvm.global_ctors");
     }
 
-    /// Library prologue for `@export` functions: call the idempotent
-    /// `seq_register_current_thread()` first so foreign threads (e.g. Dart
-    /// isolates) are known to the GC. Returns the exported symbol names.
+    /// Library entry points for `@export` functions. Each exported body is
+    /// renamed to an internal `<name>.typhon.body` (all internal callers,
+    /// including recursion, keep calling it directly) and a thin public wrapper
+    /// with the original symbol name and ABI calls the idempotent
+    /// `seq_register_current_thread()` (so foreign threads such as Dart isolates
+    /// are known to the GC) and then tail-calls the body. Returns the exported
+    /// symbol names.
     fn setup_library_exports(&mut self) -> Vec<String> {
         let mm = self.m();
         let exports: Vec<_> =
@@ -185,14 +189,30 @@ impl<'ctx> LlvmVisitor<'ctx> {
         let b = Builder::new(self.c);
         let reg = ll::get_or_insert_function(mm, "seq_register_current_thread", ll::fn_ty(b.void(), &[], false));
         let mut names = Vec::new();
-        for f in exports {
-            names.push(ll::name(f));
-            let first = unsafe { llvm_sys::core::LLVMGetFirstInstruction(ll::entry_block(f)) };
-            if first.is_null() {
-                continue;
-            }
-            b.before(first);
+        for body in exports {
+            let name = ll::name(body);
+            names.push(name.clone());
+            let fnty = ll::function_type(body);
+            ll::set_name(body, &format!("{name}.typhon.body"));
+            ll::set_linkage(body, LLVMInternalLinkage);
+            let wrapper = ll::add_function(mm, &name, fnty);
+            ll::copy_all_attrs(body, wrapper);
+            ll::set_fn_call_conv(wrapper, ll::fn_call_conv(body));
+            ll::set_linkage(wrapper, LLVMExternalLinkage);
+            ll::remove_enum_fn_attr(wrapper, "alwaysinline");
+            // Export markers move to the wrapper (Windows export handling keys off them).
+            ll::remove_string_attr(body, super::EXPORT_ATTR);
+            ll::remove_string_attr(body, "typhon-c-export");
+            b.at_end(ll::append_block(self.c, wrapper, "entry"));
             b.call(ll::function_type(reg), reg, &[]);
+            let call = b.call(fnty, body, &ll::params(wrapper));
+            ll::set_tail_call(call);
+            ll::set_call_conv(call, ll::fn_call_conv(body));
+            if ll::is_void(ll::fn_ret_ty(fnty)) {
+                b.ret_void();
+            } else {
+                b.ret(call);
+            }
         }
         names
     }

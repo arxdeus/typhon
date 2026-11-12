@@ -985,3 +985,40 @@ pub fn parse_and_link(dest: LLVMModuleRef, code: &str) -> Result<(), String> {
         Ok(())
     }
 }
+
+/// Copy every attribute (function, return and parameter) from `src` to `dst`.
+pub fn copy_all_attrs(src: V, dst: V) {
+    unsafe {
+        let n = LLVMCountParams(src);
+        let idxs = std::iter::once(FN_INDEX).chain(0..=n);
+        for idx in idxs {
+            let cnt = LLVMGetAttributeCountAtIndex(src, idx);
+            if cnt == 0 {
+                continue;
+            }
+            let mut attrs: Vec<LLVMAttributeRef> = vec![null_mut(); cnt as usize];
+            LLVMGetAttributesAtIndex(src, idx, attrs.as_mut_ptr());
+            for a in attrs {
+                LLVMAddAttributeAtIndex(dst, idx, a);
+            }
+        }
+    }
+}
+/// Remove an enum function attribute if present.
+pub fn remove_enum_fn_attr(f: V, kind: &str) {
+    unsafe { LLVMRemoveEnumAttributeAtIndex(f, FN_INDEX, attr_kind(kind)) }
+}
+/// Mark a call instruction as `tail`.
+pub fn set_tail_call(call: V) {
+    unsafe { LLVMSetTailCall(call, 1) }
+}
+/// Copy the calling convention of `src` to call/function `dst`.
+pub fn fn_call_conv(f: V) -> u32 {
+    unsafe { LLVMGetFunctionCallConv(f) }
+}
+pub fn set_call_conv(call: V, cc: u32) {
+    unsafe { LLVMSetInstructionCallConv(call, cc) }
+}
+pub fn set_fn_call_conv(f: V, cc: u32) {
+    unsafe { LLVMSetFunctionCallConv(f, cc) }
+}

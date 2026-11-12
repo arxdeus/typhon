@@ -78,9 +78,14 @@ Strings and memory ownership:
 ## Threading
 
 - Module top-level code runs in a library constructor when the library is loaded.
-- Every `@export` function first calls `seq_register_current_thread()`. This is
-  idempotent and registers the calling thread with the GC, so Dart isolates and
-  other foreign threads can call exported functions.
+- Every `@export` function `f` is emitted as a thin public wrapper `f` that calls
+  `seq_register_current_thread()` and then tail-calls the internal body
+  `f.typhon.body` (local symbol, never exported). Internal calls, including
+  recursion, go straight to the body, so registration is paid once per call from
+  outside, not per recursive call. Registration is idempotent and registers the
+  calling thread with the GC, so Dart isolates and other foreign threads can call
+  exported functions. After the first call on a thread it is a thread-local flag
+  check (no lock), so the per-call overhead is a few ns.
 - Exceptions must not escape an exported function. Catch them and return an error code.
 
 ## Compile-time defines and platform
