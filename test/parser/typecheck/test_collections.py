@@ -408,3 +408,22 @@ print [(1, 'a'), (2.0, 'b')]  #: [(1.0, 'a'), (2.0, 'b')]
 print [(None, 2.0), (0.5, None)]  #: [(None, 2.0), (0.5, None)]
 def f(p: Tuple[float, Optional[int]]): return p
 print f((1, None))  #: (1.0, None)
+
+#%% optional_generator_next,barebones
+class S:
+    gen: Optional[Generator[int]]
+    def __init__(self):
+        self.gen = None
+    def g(self, n: int):
+        for i in range(n):
+            yield i
+    def step(self) -> bool:
+        if self.gen is None:
+            self.gen = self.g(2)
+        try:
+            next(self.gen)
+            return True
+        except StopIteration:
+            return False
+s = S()
+print s.step(), s.step(), s.step()  #: True True False

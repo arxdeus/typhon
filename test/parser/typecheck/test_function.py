@@ -1262,3 +1262,20 @@ try:
     assert False
 except asyncio.CancelledError as error:
     assert error.message == 'cancelled result'
+
+#%% return_join_optional_numeric,barebones
+def f(x: float):
+    if x > 0:
+        return x
+    return None
+def k(x: int):
+    if x > 0:
+        return 1
+    elif x < -5:
+        return None
+    return 2.5
+def w(x: int):
+    if x > 0:
+        return None
+    return 2
+print f(1.0), f(-1.0), k(1), k(-9), k(-1), w(1), w(0)  #: 1.0 None 1.0 None 2.5 None 2

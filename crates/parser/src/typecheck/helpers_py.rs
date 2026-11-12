@@ -216,7 +216,8 @@ impl<'a> TypecheckVisitor<'a> {
                 let a = tv.id_n("Any");
                 Ok(tv.call_n(a, vec![e]))
             }));
-        } else if is(ec, "Generator") && !is(xc, &ecn) && !is_ellipsis {
+        } else if is(ec, "Generator") && !is(xc, &ecn) && !is_ellipsis && !(allow_unwrap && is(xc, &st.optional)) {
+            // (Optional[Generator[T]] is unwrapped below, not iterated via Optional.__iter__.)
             let x = xc.unwrap();
             let Some(m) = self.find_best_method_types(x, "__iter__", &[x])? else { return Ok((false, None, None)) };
             let it = self.instantiate_type(m, Some(x))?;

@@ -33,6 +33,34 @@ impl<'a> TypecheckVisitor<'a> {
         let st = stdlib();
         let left = if types.get_static(left).is_some() { types.non_static_type(left).unwrap_or(left) } else { left };
         let right = if types.get_static(right).is_some() { types.non_static_type(right).unwrap_or(right) } else { right };
+        // Numeric widening (CPython-like): int and float returns join to float.
+        let payload = |t: TypeId| if types.is(t, &st.optional) && types.generics_len(t) > 0 { types.generics(t)[0].ty() } else { t };
+        let (lp, rp) = (payload(left), payload(right));
+        let widen = (types.is(lp, "Int") && types.is(rp, "float")) || (types.is(lp, "float") && types.is(rp, "Int"));
+        if widen {
+            let fl = if types.is(lp, "float") { lp } else { rp };
+            if types.is(left, &st.optional) || types.is(right, &st.optional) {
+                let o = self.get_stdlib_type(&st.optional)?;
+                return Ok(Some(self.instantiate_type_with(o, &[fl])?));
+            }
+            return Ok(Some(fl));
+        }
+        // A `None` literal is `Optional[T]` with T unbound: join it like NoneType.
+        let bare_opt = |t: TypeId| types.is(t, &st.optional) && !types.can_realize(t);
+        if bare_opt(left) && !bare_opt(right) && types.can_realize(right) {
+            if types.is(right, &st.optional) {
+                return Ok(Some(right));
+            }
+            let o = self.get_stdlib_type(&st.optional)?;
+            return Ok(Some(self.instantiate_type_with(o, &[right])?));
+        }
+        if bare_opt(right) && !bare_opt(left) && types.can_realize(left) {
+            if types.is(left, &st.optional) {
+                return Ok(Some(left));
+            }
+            let o = self.get_stdlib_type(&st.optional)?;
+            return Ok(Some(self.instantiate_type_with(o, &[left])?));
+        }
         if types.is(right, &st.optional) {
             return Ok(Some(right));
         }
