@@ -17,6 +17,7 @@ from ._zeros import RootResults, bisect, brentq, brenth, ridder, newton, \
                     root_scalar
 from ._lsq import least_squares, curve_fit, fsolve, root
 from ._lsap import linear_sum_assignment
+from ._constraints import LinearConstraint, NonlinearConstraint
 
 def rosen(x):
     x = np.asarray(x)
