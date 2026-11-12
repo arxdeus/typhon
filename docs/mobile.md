@@ -118,3 +118,23 @@ Bundle the `.so` files under `android/app/src/main/jniLibs/<abi>/` (`arm64-v8a`,
 `x86_64`). On iOS, wrap the dylib in a framework or xcframework. Then open the
 library with `DynamicLibrary.open('libfoo.so')` (Android) or by framework path (iOS),
 and use `lookupFunction<Int64 Function(Int64, Int64), int Function(int, int)>('add')`.
+
+## Tested on Android
+
+The e2e suites run on an arm64 emulator (API 35) with
+`TYPHON_TEST_TARGET=android-arm64` (see `crates/testsuite/README.md`). Every case is built on
+the host, pushed with adb, and run in `/data/local/tmp`. numpy.linalg uses the Rust backend.
+
+| suite | passed | failed | notes |
+|---|---|---|---|
+| `core/` | 38/38 | 0 | |
+| `stdlib/` | 60/60 | 0 | on Android, tests copy files instead of hardlinking (SELinux denies `link(2)` in `/data/local/tmp`) and skip the locale grouping check (bionic `localeconv` is always C) |
+| `types/` | 620/620 | 0 | |
+| `opt/` | 26/26 | 0 | needed 64-byte TLS alignment (bionic loader requirement) |
+| `cnumerics/` | 8/8 | 0 | |
+| `numpy/` | 120/120 | 0 | includes linalg, dot/matmul, random legacy (SVD signs emulate LAPACK) |
+| `scipy/` | 28/38 | 10 | `dsyevr_`/`dsygvd_` are not yet in the Rust LAPACK (scipy.linalg, mne CSP); `test_signal` tf2sos is off by 1e-4 on an ill-conditioned root |
+
+Android fixes so far: `@thread_local` globals are aligned to 64 bytes, links pass
+`--allow-multiple-definition` so a program `@export` can override a runtime hook (as on ld64),
+and complex `log` avoids `clog`, which bionic only has from API 26.
