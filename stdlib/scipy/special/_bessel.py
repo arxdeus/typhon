@@ -1119,31 +1119,6 @@ def _iv_asymptotic_scaled(v: float, x: float) -> float:
             break
     return s * prefactor
 
-def jv(v: float, x: float) -> float:
-    if _isnan(v) or _isnan(x):
-        return NAN
-    if v != float(int(v)) and x < 0:
-        return NAN
-    return jv_cephes(v, x)
-
-def yv(v: float, x: float) -> float:
-    if _isnan(v) or _isnan(x):
-        return NAN
-    if x < 0:
-        return NAN
-    if x == 0:
-        return -INF
-    return yv_cephes(v, x)
-
-def jn(n: float, x: float) -> float:
-    return jv(n, x)
-
-def jve(v: float, x: float) -> float:
-    return jv(v, x)
-
-def yve(v: float, x: float) -> float:
-    return yv(v, x)
-
 # ------------------------------------------------------------------ spherical (xsf sph_bessel.h)
 def spherical_jn(nf: float, x: float) -> float:
     if _isnan(x):
@@ -1237,7 +1212,7 @@ def spherical_yn_d(nf: float, x: float) -> float:
     n = int(nf)
     if n == 0:
         return -spherical_yn(1.0, x)
-    return spherical_yn(nf - 1.0, x) - (n + 1) * spherical_yn(nf, x) / x
+    return spherical_yn(nf - 1.0, x) - K._ieee_div((n + 1) * spherical_yn(nf, x), x)
 
 def spherical_in_d(nf: float, z: float) -> float:
     n = int(nf)
@@ -1251,4 +1226,223 @@ def spherical_kn_d(nf: float, z: float) -> float:
     n = int(nf)
     if n == 0:
         return -spherical_kn(1.0, z)
-    return -spherical_kn(nf - 1.0, z) - (n + 1) * spherical_kn(nf, z) / z
+    return -spherical_kn(nf - 1.0, z) - K._ieee_div((n + 1) * spherical_kn(nf, z), z)
+
+# ------------------------------------------------------------------ J_v/Y_v by Temme's method (x <= 2) and
+# Steed's CF2 (x > 2) with CF1 for J'/J (Temme 1976; Barnett et al.), used for
+# non-integer Y_v and the negative-order reflections (scipy uses AMOS there).
+def _temme_jy(v: float, x: float):
+    """Returns (Y_v, Y_{v+1}) for |v| <= 1/2, 0 < x <= 2."""
+    gp = K.gamma(v + 1) - 1
+    gm = K.gamma(-v + 1) - 1
+    spv = sinpi(v)
+    spv2 = sinpi(v / 2)
+    xp = pow(x / 2, v)
+    a = log(x / 2)
+    sigma = -a * v
+    d = 1.0 if fabs(sigma) < 2.220446049250313e-16 else sinh(sigma) / sigma
+    e = 2 * spv2 * spv2 / v if fabs(v) >= 2.220446049250313e-16 else v * PI * PI / 2
+    g1 = -EULER if v == 0 else (gp - gm) / ((1 + gp) * (1 + gm) * 2 * v)
+    g2 = (2 + gp + gm) / ((1 + gp) * (1 + gm) * 2)
+    vspv = 1.0 / PI if fabs(v) < 2.220446049250313e-16 else v / spv
+    f = (g1 * cosh(sigma) - g2 * a * d) * 2 * vspv
+    p = vspv / (xp * (1 + gm))
+    q = vspv * xp / (1 + gp)
+    g = f + e * q
+    h = p
+    coef = 1.0
+    s = coef * g
+    s1 = coef * h
+    k = 1
+    while k < MAXITER * 4:
+        f = (k * f + p + q) / (k * k - v * v)
+        p /= k - v
+        q /= k + v
+        g = f + e * q
+        h = p - k * g
+        coef *= -x * x / (4 * k)
+        s += coef * g
+        s1 += coef * h
+        if fabs(coef * g) < fabs(s) * 2.220446049250313e-16:
+            break
+        k += 1
+    return (-s, -2 * s1 / x)
+
+def _cf1_jy(v: float, x: float):
+    """Returns (J'_v/J_v, sign) by modified Lentz."""
+    tiny = sqrt(2.2250738585072014e-308)
+    C = tiny
+    f = tiny
+    D = 0.0
+    s = 1
+    k = 1
+    while k < 100000000:
+        a = -1.0
+        b = 2 * (v + k) / x
+        C = b + a / C
+        D = b + a * D
+        if C == 0:
+            C = tiny
+        if D == 0:
+            D = tiny
+        D = 1 / D
+        delta = C * D
+        f *= delta
+        if D < 0:
+            s = -s
+        if fabs(delta - 1) < 2 * 2.220446049250313e-16:
+            break
+        k += 1
+    return (-f, s)
+
+def _cf2_jy(v: float, x: float):
+    """Steed's CF2 (Boost CF2_jy): returns (p, q)."""
+    tiny = sqrt(2.2250738585072014e-308)
+    tolerance = 2 * 2.220446049250313e-16
+    Cr = -0.5 / x
+    fr = Cr
+    Ci = 1.0
+    fi = 1.0
+    v2 = v * v
+    a = (0.25 - v2) / x
+    br = 2 * x
+    bi = 2.0
+    temp = Cr * Cr + 1
+    Ci = bi + a * Cr / temp
+    Cr = br + a / temp
+    Dr = br
+    Di = bi
+    if fabs(Cr) + fabs(Ci) < tiny:
+        Cr = tiny
+    if fabs(Dr) + fabs(Di) < tiny:
+        Dr = tiny
+    temp = Dr * Dr + Di * Di
+    Dr = Dr / temp
+    Di = -Di / temp
+    delta_r = Cr * Dr - Ci * Di
+    delta_i = Ci * Dr + Cr * Di
+    temp = fr
+    fr = temp * delta_r - fi * delta_i
+    fi = temp * delta_i + fi * delta_r
+    for k in range(2, 1000000):
+        a = float(k) - 0.5
+        a *= a
+        a -= v2
+        bi += 2
+        temp = Cr * Cr + Ci * Ci
+        Cr = br + a * Cr / temp
+        Ci = bi - a * Ci / temp
+        Dr = br + a * Dr
+        Di = bi + a * Di
+        if fabs(Cr) + fabs(Ci) < tiny:
+            Cr = tiny
+        if fabs(Dr) + fabs(Di) < tiny:
+            Dr = tiny
+        temp = Dr * Dr + Di * Di
+        Dr = Dr / temp
+        Di = -Di / temp
+        delta_r = Cr * Dr - Ci * Di
+        delta_i = Ci * Dr + Cr * Di
+        temp = fr
+        fr = temp * delta_r - fi * delta_i
+        fi = temp * delta_i + fi * delta_r
+        if fabs(delta_r - 1) + fabs(delta_i) < tolerance:
+            break
+    return (fr, fi)
+
+def bessel_jy(v: float, x: float):
+    """(J_v(x), Y_v(x)) for v >= 0, x > 0 via Temme (x<=2) or CF1+CF2
+    (x>2), the core of Boost's bessel_jy."""
+    n = int(c_round(v))
+    u = v - n
+    W = 2.0 / (x * PI)
+    if x <= 2:
+        r = _temme_jy(u, x)
+        prev = r[0]
+        current = r[1]
+        for k in range(1, n + 1):
+            nxt = 2 * (u + k) / x * current - prev
+            prev = current
+            current = nxt
+        Yv = prev
+        Yv1 = current
+        fv = _cf1_jy(v, x)[0]
+        Jv = W / (Yv * fv - Yv1)
+        return (Jv, Yv)
+    c1 = _cf1_jy(v, x)
+    fv = c1[0]
+    s = float(c1[1])
+    init = sqrt(2.2250738585072014e-308)
+    prev = fv * s * init
+    current = s * init
+    for kk in range(n, 0, -1):
+        nxt = 2 * (u + kk) * current / x - prev
+        if nxt == 0:
+            nxt = prev * 2.220446049250313e-16 / 2
+        prev = current
+        current = nxt
+    ratio = (s * init) / current
+    fu = prev / current
+    pq = _cf2_jy(u, x)
+    p = pq[0]
+    q = pq[1]
+    t = u / x - fu
+    gamma = (p - t) / q
+    if gamma == 0:
+        gamma = u * 2.220446049250313e-16 / x
+    Ju = sqrt(W / (q + gamma * (p - t)))
+    if current < 0:
+        Ju = -Ju
+    Jv = Ju * ratio
+    Yu = gamma * Ju
+    Yu1 = Yu * (u / x - p - q / gamma)
+    prev = Yu
+    current = Yu1
+    for k in range(1, n + 1):
+        nxt = 2 * (u + k) / x * current - prev
+        prev = current
+        current = nxt
+    return (Jv, prev)
+
+def _jy_nonneg(v: float, x: float):
+    # J_v, Y_v for v >= 0 non-integer, x > 0
+    return bessel_jy(v, x)
+
+def jv(v: float, x: float) -> float:
+    if _isnan(v) or _isnan(x):
+        return NAN
+    if v != K.floor(v) and x < 0:
+        return NAN
+    if v >= 0 or v == K.floor(v) or x == 0 or fabs(v) > 60 or x > 1e4:
+        return jv_cephes(v, x)
+    if v < 0:
+        av = -v
+        r = _jy_nonneg(av, x)
+        return cospi(av) * r[0] - sinpi(av) * r[1]
+    return _jy_nonneg(v, x)[0]
+
+def yv(v: float, x: float) -> float:
+    if _isnan(v) or _isnan(x):
+        return NAN
+    if x < 0:
+        return NAN
+    if x == 0:
+        return -INF
+    if v == K.floor(v) or fabs(v) > 60 or x > 1e4:
+        return yv_cephes(v, x)
+    if v < 0:
+        av = -v
+        r = _jy_nonneg(av, x)
+        # rotate_jy(y, j, -v) for Y_{-v}: cos(pi v) Y + sin(pi v) J
+        return cospi(av) * r[1] + sinpi(av) * r[0]
+    return _jy_nonneg(v, x)[1]
+
+def jn(n: float, x: float) -> float:
+    return jv(n, x)
+
+def jve(v: float, x: float) -> float:
+    return jv(v, x)
+
+def yve(v: float, x: float) -> float:
+    return yv(v, x)
+
