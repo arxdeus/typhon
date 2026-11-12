@@ -26,6 +26,11 @@ BENCH = {
     "float": ["10000000"], "go": [], "mandelbrot": ["512"], "nbody": ["3000000"],
     "primes": ["30000"], "set_partition": ["14"], "spectral_norm": ["40"],
 }
+BENCH_NP = {
+    "np_matmul": ["2048", "60"], "np_solve_chol": ["2000", "40"], "np_eigh_svd": ["1000", "25"],
+    "np_small_linalg": ["500000"], "np_arc_distance": ["10000000", "15"],
+    "np_jacobi_2d": ["700", "2000"], "np_covariance": ["4000", "5000"],
+}
 TRIVIAL = {"empty": "pass\n", "hello": 'print("hello")\n'}
 
 
@@ -38,7 +43,9 @@ def build(backend, name, src, tdir):
     d.mkdir(parents=True, exist_ok=True)
     exe = d / name
     tool = CODON if backend == "codon" else Path(tdir) / "typhon"
-    p = sh([str(tool), "build", "-release", "-exe", "-o", str(exe), str(src)])
+    link = (["-linker-flags", "-framework Accelerate"]
+            if backend == "codon" and src.parent.name == "src_np" and sys.platform == "darwin" else [])
+    p = sh([str(tool), "build", "-release", "-exe"] + link + ["-o", str(exe), str(src)])
     if p.returncode:
         raise RuntimeError(f"build {backend}/{name}: {p.stderr[-1500:]}")
     if backend == "typhon":
@@ -71,14 +78,15 @@ def main():
     ap.add_argument("--label", default="")
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--cpython", action="store_true")
+    ap.add_argument("--set", choices=["scalar", "numpy"], default="scalar")
     ap.add_argument("names", nargs="*")
     a = ap.parse_args()
     (SCRATCH / "src").mkdir(parents=True, exist_ok=True)
     progs = {}
     for n, text in TRIVIAL.items():
         f = SCRATCH / "src" / f"{n}.py"; f.write_text(text); progs[n] = (f, [])
-    for n, args in BENCH.items():
-        progs[n] = (SRC / f"{n}.py", args)
+    for n, args in (BENCH_NP if a.set == "numpy" else BENCH).items():
+        progs[n] = ((HERE / "src_np" if a.set == "numpy" else SRC) / f"{n}.py", args)
     if a.names:
         progs = {k: v for k, v in progs.items() if k in a.names}
     backends = ["codon", "typhon"] + (["cpython"] if a.cpython else [])

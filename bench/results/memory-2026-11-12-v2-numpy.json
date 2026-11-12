@@ -1,0 +1,196 @@
+{
+ "uptime_start": "21:18  up 3 days,  2:20, 7 users, load averages: 1.80 2.81 4.34",
+ "typhon_dir": "/Users/mind/orca/codon/typhon/target/release",
+ "runs": 3,
+ "rows": {
+  "empty": {
+   "codon": {
+    "rss": 7585792,
+    "footprint": 2507136,
+    "rss_all": [
+     7585792,
+     7585792,
+     7585792
+    ]
+   },
+   "typhon": {
+    "rss": 2785280,
+    "footprint": 2195816,
+    "rss_all": [
+     2785280,
+     2785280,
+     2785280
+    ]
+   },
+   "uptime": "21:18  up 3 days,  2:21, 7 users, load averages: 1.74 2.78 4.32"
+  },
+  "hello": {
+   "codon": {
+    "rss": 7602176,
+    "footprint": 2523520,
+    "rss_all": [
+     7585792,
+     7651328,
+     7602176
+    ]
+   },
+   "typhon": {
+    "rss": 2785280,
+    "footprint": 2212200,
+    "rss_all": [
+     2785280,
+     2785280,
+     2785280
+    ]
+   },
+   "uptime": "21:18  up 3 days,  2:21, 7 users, load averages: 1.74 2.78 4.32"
+  },
+  "np_matmul": {
+   "codon": {
+    "rss": 187596800,
+    "footprint": 180175448,
+    "rss_all": [
+     187596800,
+     187547648,
+     221708288
+    ]
+   },
+   "typhon": {
+    "rss": 220151808,
+    "footprint": 213467760,
+    "rss_all": [
+     220168192,
+     152895488,
+     220151808
+    ]
+   },
+   "uptime": "21:19  up 3 days,  2:21, 7 users, load averages: 1.92 2.71 4.23"
+  },
+  "np_solve_chol": {
+   "codon": {
+    "rss": 244547584,
+    "footprint": 237126280,
+    "rss_all": [
+     148865024,
+     244547584,
+     277200896
+    ]
+   },
+   "typhon": {
+    "rss": 211763200,
+    "footprint": 205046384,
+    "rss_all": [
+     275529728,
+     189382656,
+     211763200
+    ]
+   },
+   "uptime": "21:19  up 3 days,  2:22, 7 users, load averages: 2.03 2.67 4.17"
+  },
+  "np_eigh_svd": {
+   "codon": {
+    "rss": 110329856,
+    "footprint": 102728280,
+    "rss_all": [
+     119570432,
+     110329856,
+     94879744
+    ]
+   },
+   "typhon": {
+    "rss": 133234688,
+    "footprint": 126370440,
+    "rss_all": [
+     94388224,
+     133234688,
+     142098432
+    ]
+   },
+   "uptime": "21:20  up 3 days,  2:22, 7 users, load averages: 1.97 2.59 4.09"
+  },
+  "np_small_linalg": {
+   "codon": {
+    "rss": 12255232,
+    "footprint": 4686208,
+    "rss_all": [
+     12271616,
+     12255232,
+     12238848
+    ]
+   },
+   "typhon": {
+    "rss": 11763712,
+    "footprint": 4899224,
+    "rss_all": [
+     11780096,
+     11763712,
+     11763712
+    ]
+   },
+   "uptime": "21:20  up 3 days,  2:22, 7 users, load averages: 1.84 2.53 4.04"
+  },
+  "np_arc_distance": {
+   "codon": {
+    "rss": 1039532032,
+    "footprint": 1032668528,
+    "rss_all": [
+     1005944832,
+     1199898624,
+     1039532032
+    ]
+   },
+   "typhon": {
+    "rss": 805044224,
+    "footprint": 804553832,
+    "rss_all": [
+     805044224,
+     805044224,
+     805027840
+    ]
+   },
+   "uptime": "21:21  up 3 days,  2:23, 7 users, load averages: 1.62 2.41 3.95"
+  },
+  "np_jacobi_2d": {
+   "codon": {
+    "rss": 21889024,
+    "footprint": 14451120,
+    "rss_all": [
+     21905408,
+     21872640,
+     21889024
+    ]
+   },
+   "typhon": {
+    "rss": 15056896,
+    "footprint": 14074240,
+    "rss_all": [
+     15056896,
+     15056896,
+     15056896
+    ]
+   },
+   "uptime": "21:21  up 3 days,  2:23, 7 users, load averages: 1.98 2.43 3.91"
+  },
+  "np_covariance": {
+   "codon": {
+    "rss": 299008000,
+    "footprint": 291685000,
+    "rss_all": [
+     299024384,
+     298991616,
+     299008000
+    ]
+   },
+   "typhon": {
+    "rss": 298483712,
+    "footprint": 291799688,
+    "rss_all": [
+     298483712,
+     298483712,
+     298500096
+    ]
+   },
+   "uptime": "21:21  up 3 days,  2:24, 7 users, load averages: 2.63 2.54 3.90"
+  }
+ }
+}

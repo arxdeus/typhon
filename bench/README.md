@@ -58,6 +58,13 @@ calls ILP64 Accelerate symbols and does not link the framework itself. Typhon li
 CPython uses NumPy 2.5.4 wheels, which also use Accelerate, so every backend uses the same BLAS.
 The float tolerance is 1e-5 relative.
 
+## Latest results
+
+`results/2026-11-12-v2-summary.md` (typhon a5b41837): scalar Typhon/Codon geomean
+1.002 (22.6x vs CPython for both), NumPy set 1.067 (np_arc_distance 1.32 is the outlier).
+Full tables in `results/2026-11-12-v2{,-numpy}.md`, memory in
+`results/memory-2026-11-12-v2{,-numpy}.md` (`memory.py --set numpy` for the NumPy set).
+
 ## Method
 
 * Timings: each program's internal timer (its last printed line) is the primary
