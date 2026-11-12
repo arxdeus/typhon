@@ -66,6 +66,57 @@ def _balanced_weight(yenc: List[float], n_classes: int) -> List[float]:
           for k in range(n_classes)]
     return [cw[int(v)] for v in yenc]
 
+def _set_tree_params(obj, criterion: str, splitter: str, max_depth: Optional[int],
+                     min_samples_split, min_samples_leaf, min_weight_fraction_leaf: float,
+                     max_features, max_leaf_nodes: Optional[int],
+                     min_impurity_decrease: float, ccp_alpha: float, monotonic_cst):
+    """Normalizes the (dynamically typed in sklearn) tree hyper-parameters into
+    static fields; shared by trees, forests, bagging and gradient boosting."""
+    if criterion == "friedman_mse":
+        criterion = "squared_error"
+    obj.criterion = criterion
+    obj.splitter = splitter
+    obj.max_depth = max_depth
+    obj.min_samples_split = float(min_samples_split)
+    obj._mss_int = isinstance(min_samples_split, int)
+    obj.min_samples_leaf = float(min_samples_leaf)
+    obj._msl_int = isinstance(min_samples_leaf, int)
+    obj.min_weight_fraction_leaf = min_weight_fraction_leaf
+    obj._mf_value = 0.0
+    if max_features is None:
+        obj.max_features = "none"
+    elif isinstance(max_features, str):
+        obj.max_features = max_features
+    elif isinstance(max_features, int):
+        obj.max_features = "int"
+        obj._mf_value = float(max_features)
+    else:
+        obj.max_features = "float"
+        obj._mf_value = float(max_features)
+    obj.max_leaf_nodes = max_leaf_nodes
+    obj.min_impurity_decrease = min_impurity_decrease
+    obj.ccp_alpha = ccp_alpha
+    if monotonic_cst is None:
+        obj.monotonic_cst = List[int]()
+    else:
+        obj.monotonic_cst = [int(v) for v in monotonic_cst]
+
+def _copy_tree_params(dst, src):
+    dst.criterion = src.criterion
+    dst.splitter = src.splitter
+    dst.max_depth = src.max_depth
+    dst.min_samples_split = src.min_samples_split
+    dst._mss_int = src._mss_int
+    dst.min_samples_leaf = src.min_samples_leaf
+    dst._msl_int = src._msl_int
+    dst.min_weight_fraction_leaf = src.min_weight_fraction_leaf
+    dst.max_features = src.max_features
+    dst._mf_value = src._mf_value
+    dst.max_leaf_nodes = src.max_leaf_nodes
+    dst.min_impurity_decrease = src.min_impurity_decrease
+    dst.ccp_alpha = src.ccp_alpha
+    dst.monotonic_cst = src.monotonic_cst
+
 class BaseDecisionTree:
     criterion: str
     splitter: str
@@ -99,30 +150,10 @@ class BaseDecisionTree:
                  max_features, random_state: Optional[int], max_leaf_nodes: Optional[int],
                  min_impurity_decrease: float, class_weight, ccp_alpha: float, monotonic_cst):
         self._is_clf = is_clf
-        if criterion == "friedman_mse":
-            criterion = "squared_error"
-        self.criterion = criterion
-        self.splitter = splitter
-        self.max_depth = max_depth
-        self.min_samples_split = float(min_samples_split)
-        self._mss_int = isinstance(min_samples_split, int)
-        self.min_samples_leaf = float(min_samples_leaf)
-        self._msl_int = isinstance(min_samples_leaf, int)
-        self.min_weight_fraction_leaf = min_weight_fraction_leaf
-        self._mf_value = 0.0
-        if max_features is None:
-            self.max_features = "none"
-        elif isinstance(max_features, str):
-            self.max_features = max_features
-        elif isinstance(max_features, int):
-            self.max_features = "int"
-            self._mf_value = float(max_features)
-        else:
-            self.max_features = "float"
-            self._mf_value = float(max_features)
+        _set_tree_params(self, criterion, splitter, max_depth, min_samples_split,
+                         min_samples_leaf, min_weight_fraction_leaf, max_features,
+                         max_leaf_nodes, min_impurity_decrease, ccp_alpha, monotonic_cst)
         self.random_state = random_state
-        self.max_leaf_nodes = max_leaf_nodes
-        self.min_impurity_decrease = min_impurity_decrease
         self._class_weight_dict = Dict[int, float]()
         if class_weight is None:
             self.class_weight = ""
@@ -132,11 +163,6 @@ class BaseDecisionTree:
             self.class_weight = "dict"
             for k, v in class_weight.items():
                 self._class_weight_dict[int(k)] = float(v)
-        self.ccp_alpha = ccp_alpha
-        if monotonic_cst is None:
-            self.monotonic_cst = List[int]()
-        else:
-            self.monotonic_cst = [int(v) for v in monotonic_cst]
         self.n_features_in_ = 0
         self.n_outputs_ = 1
         self.max_features_ = 0
@@ -362,7 +388,9 @@ def _r2(y_true, y_pred) -> float:
     return 1.0 - num / den
 
 class DecisionTreeClassifier(_ClfTree):
-    _estimator_type: Literal[str] = "classifier"
+    @property
+    def _estimator_type(self) -> str:
+        return "classifier"
 
     def __init__(self, *, criterion: str = "gini", splitter: str = "best",
                  max_depth: Optional[int] = None, min_samples_split = 2, min_samples_leaf = 1,
@@ -377,7 +405,9 @@ class DecisionTreeClassifier(_ClfTree):
 
 
 class DecisionTreeRegressor(_RegTree):
-    _estimator_type: Literal[str] = "regressor"
+    @property
+    def _estimator_type(self) -> str:
+        return "regressor"
 
     def __init__(self, *, criterion: str = "squared_error", splitter: str = "best",
                  max_depth: Optional[int] = None, min_samples_split = 2, min_samples_leaf = 1,
@@ -392,7 +422,9 @@ class DecisionTreeRegressor(_RegTree):
 
 
 class ExtraTreeClassifier(_ClfTree):
-    _estimator_type: Literal[str] = "classifier"
+    @property
+    def _estimator_type(self) -> str:
+        return "classifier"
 
     def __init__(self, *, criterion: str = "gini", splitter: str = "random",
                  max_depth: Optional[int] = None, min_samples_split = 2, min_samples_leaf = 1,
@@ -406,7 +438,9 @@ class ExtraTreeClassifier(_ClfTree):
                                   class_weight, ccp_alpha, monotonic_cst)
 
 class ExtraTreeRegressor(_RegTree):
-    _estimator_type: Literal[str] = "regressor"
+    @property
+    def _estimator_type(self) -> str:
+        return "regressor"
 
     def __init__(self, *, criterion: str = "squared_error", splitter: str = "random",
                  max_depth: Optional[int] = None, min_samples_split = 2, min_samples_leaf = 1,
