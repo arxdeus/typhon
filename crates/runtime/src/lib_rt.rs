@@ -3,7 +3,6 @@
 
 use core::ffi::{c_char, c_int, c_void};
 use std::ffi::CStr;
-use std::sync::Mutex as StdMutex;
 use std::sync::Once;
 use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -577,8 +576,6 @@ pub extern "C" fn seq_stderr() -> *mut c_void {
     unsafe { c_stderr.cast() }
 }
 
-static CAPTURE: StdMutex<Vec<u8>> = StdMutex::new(Vec::new());
-
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_print(s: SeqStr) {
     unsafe { seq_print_full(s, c_stdout) }
@@ -590,21 +587,12 @@ pub extern "C" fn seq_print(s: SeqStr) {
 pub unsafe extern "C" fn seq_print_full(s: SeqStr, fo: *mut libc::FILE) {
     let utf8 = s.encode();
     unsafe {
-        if flags() & SEQ_FLAG_CAPTURE_OUTPUT != 0 && (fo == c_stdout || fo == c_stderr) {
-            CAPTURE.lock().unwrap_or_else(|e| e.into_inner()).extend_from_slice(&utf8);
-        } else if !utf8.is_empty() {
+        if !utf8.is_empty() {
             libc::fwrite(utf8.as_ptr().cast(), 1, utf8.len(), fo);
         }
     }
 }
 
-/// Port of `codon::runtime::getCapturedOutput`: take and clear captured output.
-pub fn get_captured_output() -> String {
-    let mut g = CAPTURE.lock().unwrap_or_else(|e| e.into_inner());
-    let out = String::from_utf8_lossy(&g).into_owned();
-    g.clear();
-    out
-}
 
 /*
  * Threading

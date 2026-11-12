@@ -4,7 +4,7 @@
 
 use core::ffi::{c_int, c_void};
 
-use crate::lib_rt::{flags, get_captured_output, seq_alloc, seq_alloc_atomic, seq_free};
+use crate::lib_rt::{flags, seq_alloc, seq_alloc_atomic, seq_free};
 use crate::rtti::{BASE_EXCEPTION_SELECTOR, CATCH_ALL_SELECTOR, TypeInfo, isinstance};
 use crate::types::*;
 
@@ -301,9 +301,6 @@ pub unsafe extern "C" fn seq_terminate(exc: *mut c_void) {
         let f = flags();
 
         let mut buf = String::new();
-        if f & SEQ_FLAG_CAPTURE_OUTPUT != 0 {
-            buf += &get_captured_output();
-        }
         buf += "\x1b[1m";
         buf += from_last_dot(&ty);
         if !msg.is_empty() {

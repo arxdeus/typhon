@@ -19,7 +19,7 @@ pub const GLOBAL_CTOR_NAME: &str = ".main.ctor";
 // ------------------------------------------------------------------ debug / fast-math
 
 /// Port of `applyDebugTransformations`.
-pub fn apply_debug_transformations(module: llvm_sys::prelude::LLVMModuleRef, debug: bool, jit: bool) {
+pub fn apply_debug_transformations(module: llvm_sys::prelude::LLVMModuleRef, debug: bool) {
     if debug {
         for f in ffi::functions(module) {
             if ffi::is_declaration(f) {
@@ -27,7 +27,7 @@ pub fn apply_debug_transformations(module: llvm_sys::prelude::LLVMModuleRef, deb
                 // every function; keep identical behaviour for definitions only for
                 // linkage (declarations must stay external anyway).
             }
-            if !jit && ffi::name(f) != GLOBAL_CTOR_NAME && !ffi::is_declaration(f) {
+            if ffi::name(f) != GLOBAL_CTOR_NAME && !ffi::is_declaration(f) {
                 ffi::set_linkage(f, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
             }
             if ffi::intrinsic_id(f) != 0 {

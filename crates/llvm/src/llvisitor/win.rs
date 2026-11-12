@@ -179,7 +179,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         let mm = self.m();
         let sig = ll::function_type(body);
         let wrapper = ll::get_or_insert_function(mm, name, signature(mm, sig));
-        if exported && !self.options.jit {
+        if exported {
             ll::set_dll_storage(wrapper, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
         }
         if ll::has_blocks(wrapper) {
@@ -224,19 +224,11 @@ impl<'ctx> LlvmVisitor<'ctx> {
         if !exported && signature(mm, ll::function_type(body)) == ll::function_type(body) {
             return body;
         }
-        // An earlier JIT cell already emitted an exported function's native wrapper.
-        if self.options.jit && exported && ll::is_declaration(body) {
-            return ll::get_or_insert_function(mm, &Self::get_name_for_function(m, f), signature(mm, ll::function_type(body)));
-        }
         if let Some(&w) = self.win_callbacks.get(&(body as usize)) {
             return w;
         }
         let wrapper = self.make_win_export_wrapper(&format!("{}.c_callback", ll::name(body)), body, false);
-        // JIT cells can take the same function's address repeatedly.
-        ll::set_linkage(
-            wrapper,
-            if self.options.jit { llvm_sys::LLVMLinkage::LLVMWeakODRLinkage } else { llvm_sys::LLVMLinkage::LLVMPrivateLinkage },
-        );
+        ll::set_linkage(wrapper, llvm_sys::LLVMLinkage::LLVMPrivateLinkage);
         self.win_callbacks.insert(body as usize, wrapper);
         wrapper
     }
@@ -255,18 +247,13 @@ impl<'ctx> LlvmVisitor<'ctx> {
         for (body, name) in exports {
             ll::remove_string_attr(body, "typhon-c-export");
             ll::set_name(body, &format!("{name}.codon"));
-            ll::set_linkage(
-                body,
-                if self.options.jit { llvm_sys::LLVMLinkage::LLVMExternalLinkage } else { llvm_sys::LLVMLinkage::LLVMPrivateLinkage },
-            );
+            ll::set_linkage(body, llvm_sys::LLVMLinkage::LLVMPrivateLinkage);
             ll::set_dll_storage(body, llvm_sys::LLVMDLLStorageClass::LLVMDefaultStorageClass);
             if let Some(&wrapper) = self.win_callbacks.get(&(body as usize)) {
                 ll::set_name(wrapper, &name);
                 ll::set_linkage(wrapper, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
                 ll::add_string_attr(wrapper, ll::FN_INDEX, "typhon-abi-body", &ll::name(body));
-                if !self.options.jit {
-                    ll::set_dll_storage(wrapper, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
-                }
+                ll::set_dll_storage(wrapper, llvm_sys::LLVMDLLStorageClass::LLVMDLLExportStorageClass);
             } else {
                 self.make_win_export_wrapper(&name, body, true);
             }

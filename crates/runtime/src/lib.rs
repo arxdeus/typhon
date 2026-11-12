@@ -25,7 +25,6 @@ pub mod types;
 
 pub mod gc;
 pub use exc::make_backtrace_frame_string;
-pub use lib_rt::get_captured_output;
 
 // Force the compression crates (pure-symbol providers) into the link.
 pub use libbz2_rs_sys;

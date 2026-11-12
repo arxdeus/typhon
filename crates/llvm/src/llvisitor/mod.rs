@@ -47,7 +47,6 @@ const MAIN_CTOR: &str = ".main.ctor";
 
 /// `SEQ_FLAG_*` (codon/runtime/lib.h).
 const SEQ_FLAG_DEBUG: i64 = 1 << 0;
-const SEQ_FLAG_CAPTURE_OUTPUT: i64 = 1 << 1;
 const SEQ_FLAG_STANDALONE: i64 = 1 << 2;
 /// `SEQ_EXCEPTION_CLASS`.
 const SEQ_EXCEPTION_CLASS: u64 = 0x6f62_6a00_7365_7100;
@@ -202,12 +201,6 @@ pub struct LlvmVisitor<'ctx> {
     field_offset_resolvers: BTreeMap<(i64, i64), FieldOffsetResolver>,
     virtual_lookup_types: FxHashMap<usize, TypeId>,
     virtual_targets: BTreeMap<(i64, i64), Vec<(i64, V)>>,
-    emitted_type_info: FxHashSet<i64>,
-    emitted_type_methods: FxHashMap<i64, BTreeMap<usize, Id>>,
-    type_info_updates: Vec<(V, V)>,
-    emitted_type_registry: bool,
-    runtime_initializer_count: usize,
-    runtime_initializer_name: String,
     coro: CoroData,
     loops: Vec<LoopData>,
     trycatch: Vec<TryCatchData>,
@@ -240,12 +233,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
             field_offset_resolvers: BTreeMap::new(),
             virtual_lookup_types: FxHashMap::default(),
             virtual_targets: BTreeMap::new(),
-            emitted_type_info: FxHashSet::default(),
-            emitted_type_methods: FxHashMap::default(),
-            type_info_updates: Vec::new(),
-            emitted_type_registry: false,
-            runtime_initializer_count: 0,
-            runtime_initializer_name: String::new(),
             coro: CoroData::default(),
             loops: Vec::new(),
             trycatch: Vec::new(),
@@ -267,14 +254,8 @@ impl<'ctx> LlvmVisitor<'ctx> {
     pub fn set_debug(&mut self, v: bool) {
         self.options.debug = v;
     }
-    pub fn set_jit(&mut self, v: bool) {
-        self.options.jit = v;
-    }
     pub fn set_standalone(&mut self, v: bool) {
         self.options.standalone = v;
-    }
-    pub fn set_capture(&mut self, v: bool) {
-        self.options.capture = v;
     }
     pub fn context(&self) -> &'ctx Context {
         self.ctx
@@ -319,10 +300,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
     /// Debug-info builder and compile unit (`getDebugInfo()`).
     pub fn debug_info(&self) -> (LLVMDIBuilderRef, LLVMMetadataRef) {
         (self.db.builder.as_ref().map(|b| b.0).unwrap_or(null_mut()), self.db.unit)
-    }
-    /// `getRuntimeInitializerName()`.
-    pub fn runtime_initializer_name(&self) -> &str {
-        &self.runtime_initializer_name
     }
     /// `getGlobalCtorName()`.
     pub fn global_ctor_name() -> &'static str {
@@ -391,11 +368,8 @@ impl<'ctx> LlvmVisitor<'ctx> {
 
     /// `getLLVMNameForFunction`.
     fn get_llvm_name_for_function(&mut self, m: &Module, f: FuncId) -> String {
-        if self.options.jit && self.needs_win_export_wrapper(m, f) {
-            return Self::get_name_for_function(m, f) + ".codon";
-        }
         let fd = m.func(f).expect("not a function");
-        if self.options.jit || fd.is_external() || irtools::is_export(m, f) || irtools::is_gpu_kernel(m, f) {
+        if fd.is_external() || irtools::is_export(m, f) || irtools::is_gpu_kernel(m, f) {
             return Self::get_name_for_function(m, f);
         }
         let uid = m.var_uid(f);
@@ -440,17 +414,13 @@ impl<'ctx> LlvmVisitor<'ctx> {
             }
             let external = m.is_external(var);
             let tls = m.is_thread_local(var);
-            let linkage = if self.options.jit || external { LLVMExternalLinkage } else { LLVMPrivateLinkage };
+            let linkage = if external { LLVMExternalLinkage } else { LLVMPrivateLinkage };
             let init = (!external).then(|| ll::const_null(llvm_type));
             let storage = ll::new_global(self.m(), llvm_type, false, linkage, init, &Self::get_name_for_var(m, var));
             self.insert_var(m.var_uid(var), storage);
             let triple = ll::triple(self.m());
             if external {
-                if self.options.jit {
-                    ll::set_dso_local(storage);
-                } else {
-                    ll::set_unnamed_addr(storage, llvm_sys::LLVMUnnamedAddr::LLVMLocalUnnamedAddr);
-                }
+                ll::set_unnamed_addr(storage, llvm_sys::LLVMUnnamedAddr::LLVMLocalUnnamedAddr);
             } else if !(tls && ll::is_windows_triple(&triple)) {
                 // debug info
                 let src = Self::src_info(m, var.into());
@@ -477,40 +447,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
     fn get_var(&mut self, m: &Module, var: VarId) -> V {
         let var = m.actual_var(var);
         let uid = m.var_uid(var);
-        if self.options.jit && m.is_global(var) {
-            match self.vars.get(&uid).copied() {
-                Some(v) if v.is_null() => {
-                    // from another module
-                    let priv_name = Self::get_name_for_var(m, var);
-                    if let Some(g) = ll::get_named_value(self.m(), &priv_name) {
-                        return g;
-                    }
-                    let llvm_type = self.get_llvm_type(m, m.var_type(var).unwrap());
-                    let storage = ll::new_global(self.m(), llvm_type, false, LLVMExternalLinkage, None, &priv_name);
-                    ll::set_externally_initialized(storage, true);
-                    let src = Self::src_info(m, var.into());
-                    let file = self.db.file(&Self::src_file(&src));
-                    let ty = self.get_di_type(m, m.var_type(var).unwrap());
-                    let gve = self.db.b().global_var_expr(
-                        self.db.unit,
-                        &Self::get_debug_name_for_variable(m, var),
-                        m.var_name(var),
-                        file,
-                        src.line.max(0) as u32,
-                        ty,
-                        true,
-                    );
-                    ll::add_global_debug_info(storage, gve);
-                    self.insert_var(uid, storage);
-                    return storage;
-                }
-                Some(_) => {}
-                None => {
-                    self.register_global(m, var);
-                    return self.vars.get(&uid).copied().unwrap_or(null_mut());
-                }
-            }
-        }
         self.vars.get(&uid).copied().unwrap_or(null_mut())
     }
 
@@ -538,26 +474,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
             tmp.ret(q);
             self.funcs.insert(uid, wrapper);
             return wrapper;
-        }
-        if self.options.jit {
-            match existing {
-                Some(v) if v.is_null() => {
-                    let name = self.get_llvm_name_for_function(m, f);
-                    if let Some(g) = ll::get_function(self.m(), &name) {
-                        return g;
-                    }
-                    // Reuse native import signatures, without re-emitting earlier LLVM
-                    // bodies or attaching their definition's debug metadata.
-                    let g = self.make_llvm_function(m, f, true);
-                    self.funcs.insert(uid, g);
-                    return g;
-                }
-                Some(_) => {}
-                None => {
-                    self.register_global(m, f);
-                    return self.funcs.get(&uid).copied().unwrap_or(null_mut());
-                }
-            }
         }
         existing.unwrap_or(null_mut())
     }
@@ -645,9 +561,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
                 if m.is_func(var) && to_process.contains(&m.var_uid(var)) {
                     self.process_func(m, var);
                 }
-            }
-            if self.options.jit {
-                self.prepare_runtime_type_info(m);
             }
         }
         self.prepare_win_exports();
@@ -1077,7 +990,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
         self.b.store(len, argc_storage);
 
         let flags = (if self.options.debug { SEQ_FLAG_DEBUG } else { 0 })
-            | (if self.options.capture { SEQ_FLAG_CAPTURE_OUTPUT } else { 0 })
             | (if self.options.standalone { SEQ_FLAG_STANDALONE } else { 0 });
         self.b.call(init_ty, init_func, &[self.b.c_i32(flags)]);
 

@@ -205,7 +205,7 @@ declare double @g(double)
 "#,
     );
     passes::apply_fast_math_transformations(m.as_mut_ptr());
-    passes::apply_debug_transformations(m.as_mut_ptr(), true, false);
+    passes::apply_debug_transformations(m.as_mut_ptr(), true);
     m.verify().unwrap();
     let ir = m.print_to_string().to_string();
     assert!(ir.contains("fadd fast double"), "{ir}");

@@ -5,8 +5,7 @@ use crate::lib_rt::{seq_alloc_atomic, seq_free};
 
 /// Compiled/running in debug mode.
 pub const SEQ_FLAG_DEBUG: i32 = 1 << 0;
-/// Capture writes to stdout/stderr.
-pub const SEQ_FLAG_CAPTURE_OUTPUT: i32 = 1 << 1;
+// Bit 1 was SEQ_FLAG_CAPTURE_OUTPUT (JIT/Jupyter output capture); unused.
 /// Compiled as a standalone object/binary.
 pub const SEQ_FLAG_STANDALONE: i32 = 1 << 2;
 

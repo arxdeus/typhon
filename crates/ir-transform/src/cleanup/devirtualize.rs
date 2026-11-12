@@ -119,7 +119,6 @@ struct Context {
 struct Specializer<'a> {
     m: &'a mut Module,
     reaching: &'a RDResult,
-    jit: bool,
     growth: usize,
     summary_depth: usize,
     bodies: HashMap<Id, BodyInfo>,
@@ -440,10 +439,8 @@ impl<'a> Specializer<'a> {
         let c = self.m.as_call_instr(value)?;
         let (callee, args) = (c.callee, c.args.clone());
         let function = direct_callee(self.m, callee)?;
-        // Exact object layout is stable in the JIT, but method tables can be refreshed.
-        // Only AOT compilation may bind a virtual slot to its target.
         let fd = self.m.func(function)?;
-        if self.jit || !fd.is_internal() || fd.intrinsic() != Intrinsic::VirtualLookup || args.len() != 2 {
+        if !fd.is_internal() || fd.intrinsic() != Intrinsic::VirtualLookup || args.len() != 2 {
             return None;
         }
         let ty = self.get(ctx, args[0], &Vec::new())?;
@@ -598,11 +595,9 @@ impl Pass for DevirtualizationPass {
     fn run(&mut self, m: &mut Module, ctx: &dyn PassContext) {
         // Note: the reference dereferences a missing result; here the pass is a no-op.
         let Some(result) = ctx.get_analysis::<RDResult>(&self.reaching_key) else { return };
-        let jit = ctx.options().map(|o| o.jit).unwrap_or(false);
         let mut s = Specializer {
             m,
             reaching: result,
-            jit,
             growth: 0,
             summary_depth: 0,
             bodies: HashMap::new(),

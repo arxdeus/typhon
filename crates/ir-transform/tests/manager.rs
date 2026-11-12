@@ -174,10 +174,6 @@ fn standard_pipelines_order() {
     assert!(!dbg.has_pass("core-folding-pass-group"));
 
     o.debug = false;
-    o.jit = true;
-    let jit = PassManager::new(o.clone());
-    assert!(!jit.execution_order().iter().any(|k| k == "core-folding-pass-group:2"));
-    o.jit = false;
     let rel = PassManager::new(o);
     let order = rel.execution_order();
     assert_eq!(order[0], "core-pythonic-dict-arithmetic-opt");

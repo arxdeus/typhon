@@ -25,9 +25,9 @@ sqrt(100.0)  #! name 'sqrt' is not defined
 
 #%% import_c_dylib,barebones
 from internal.dlopen import dlext
-RT = "typhonrt.dll" if dlext() == "dll" else "./libtyphonrt." + dlext()
-from C import RT.seq_print(str) -> None as sp
-sp("hello\n")  #: hello
+LIBC = "msvcrt.dll" if dlext() == "dll" else ("libc.dylib" if dlext() == "dylib" else "libc.so.6")
+from C import LIBC.puts(cobj) -> i32 as cputs
+cputs("hello".c_str())  #: hello
 
 #%% import_c_dylib_error,barebones
 from C import "".seq_print(str) as sp
@@ -170,10 +170,9 @@ run()
 #: a.sub.foo
 
 #%% import_c_dylib_abi,barebones
-from internal.dlopen import dlext
-RT = "typhonrt.dll" if dlext() == "dll" else "./libtyphonrt." + dlext()
-from C import RT.seq_locale_decimal_point() -> str as decimal_point
-from C import RT.seq_pid() -> int as pid
+# The runtime is linked statically into every program: import its C ABI directly.
+from C import seq_locale_decimal_point() -> str as decimal_point
+from C import seq_pid() -> int as pid
 assert decimal_point.__raw__() != cobj()
 print(decimal_point())  #: .
 assert pid() > 0

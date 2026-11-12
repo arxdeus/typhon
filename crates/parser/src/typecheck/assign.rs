@@ -476,7 +476,7 @@ impl<'a> TypecheckVisitor<'a> {
 
         // Register all toplevel variables as global in JIT mode
         //   OR if they are in imported module (not toplevel)
-        let jit = self.cache.options.as_ref().is_some_and(|o| o.jit);
+        let jit = false; // AOT only: no JIT cells
         let (is_g, is_gen, module) = {
             let v = val.borrow();
             (v.is_global(), v.is_generic(), v.module().to_string())

@@ -4,7 +4,6 @@
 use std::collections::BTreeMap;
 use std::ptr::null_mut;
 
-use llvm_sys::LLVMIntPredicate::*;
 use llvm_sys::LLVMLinkage::*;
 use typhon_ir::ids::{FuncId, TypeId};
 use typhon_ir::module::Module;
@@ -113,13 +112,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             return g;
         }
         let rtt = self.get_runtime_type_info_type();
-        let jit = self.options.jit;
-        let result = ll::new_global(self.m(), rtt, !jit, if jit { LLVMExternalLinkage } else { LLVMPrivateLinkage }, None, &name);
-        let previously_emitted = self.emitted_type_info.contains(&info.id);
-        let method_ids: BTreeMap<usize, i64> = info.methods.iter().map(|(k, f)| (*k, m.var_uid(*f))).collect();
-        if jit && previously_emitted && self.emitted_type_methods.get(&info.id) == Some(&method_ids) {
-            return result;
-        }
+        let result = ll::new_global(self.m(), rtt, true, LLVMPrivateLinkage, None, &name);
 
         let kind = m.type_kind(t).clone();
         let reference = kind.is_ref();
@@ -249,61 +242,8 @@ impl<'ctx> LlvmVisitor<'ctx> {
             self.b.c_i64(system_exit_offset),
         ];
         let initializer = ll::const_struct(self.c, &fields);
-        // Refresh an old descriptor in place when the cell initializes.
-        if jit && previously_emitted {
-            self.type_info_updates.push((result, initializer));
-        } else {
-            ll::set_initializer(result, initializer);
-        }
-        self.emitted_type_info.insert(info.id);
-        self.emitted_type_methods.insert(info.id, method_ids);
+        ll::set_initializer(result, initializer);
         result
-    }
-
-    /// `getRuntimeTypeRegistry`.
-    fn get_runtime_type_registry(&mut self) -> V {
-        let name = ".codon.typeinfo.registry";
-        if let Some(g) = ll::get_global(self.m(), name) {
-            return g;
-        }
-        let ty = ll::struct_ty(self.c, &[self.b.i64(), self.b.ptr()]);
-        let init = (!self.emitted_type_registry).then(|| ll::const_null(ty));
-        let g = ll::new_global(self.m(), ty, false, LLVMExternalLinkage, init, name);
-        self.emitted_type_registry = true;
-        g
-    }
-
-    /// `prepareRuntimeTypeInfo`: JIT initializer refreshing method tables and
-    /// publishing the registry.
-    pub(super) fn prepare_runtime_type_info(&mut self, m: &Module) {
-        let mut entries: Vec<V> = Vec::new();
-        for t in m.types() {
-            let Some(info) = m.runtime_info(t) else { continue };
-            let id = info.id as usize;
-            if entries.len() <= id {
-                entries.resize(id + 1, self.b.null_ptr());
-            }
-            entries[id] = self.get_runtime_type_info(m, t);
-        }
-        let ptr = self.b.ptr();
-        let at = ll::array_ty(ptr, entries.len() as u64);
-        let table = ll::new_global(self.m(), at, true, LLVMPrivateLinkage, Some(ll::const_array(ptr, &entries)), ".codon.typeinfo.table");
-        let registry = self.get_runtime_type_registry();
-        self.runtime_initializer_name = format!(".codon.typeinfo.initialize.{}", self.runtime_initializer_count);
-        self.runtime_initializer_count += 1;
-        let init_ty = ll::fn_ty(self.b.void(), &[], false);
-        let initializer = ll::add_function(self.m(), &self.runtime_initializer_name.clone(), init_ty);
-        let b = Builder::new(self.c);
-        b.at_end(ll::append_block(self.c, initializer, "entry"));
-        let rtt = self.get_runtime_type_info_type();
-        for (dest, contents) in std::mem::take(&mut self.type_info_updates) {
-            for field in [rtti_field::METHOD_COUNT, rtti_field::METHODS] {
-                b.store(ll::aggregate_element(contents, field), b.struct_gep(rtt, dest, field));
-            }
-        }
-        let reg_val = ll::const_struct(self.c, &[self.b.c_i64(entries.len() as i64), table]);
-        b.store(reg_val, registry);
-        b.ret_void();
     }
 
     /// `loadRuntimeField`.
@@ -334,7 +274,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
             return self.b.gep(i8t, object, &[self.b.c_i64((off + local_offset) as i64)]);
         }
         let owner_id = Self::runtime_info_or_panic(m, owner).id;
-        if !self.options.jit {
+        {
             let key = (metadata.id, owner_id);
             if !self.field_offset_resolvers.contains_key(&key) {
                 let mut offsets: Vec<(i64, u64)> = Vec::new();
@@ -542,27 +482,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
             Intrinsic::Typeinfo => Some(self.get_runtime_type_info(m, it.expect("missing type"))),
             Intrinsic::TypeinfoLookup => {
                 let arg = args[0];
-                if self.options.jit {
-                    // Reload the registry so earlier cells can resolve newly added IDs.
-                    let registry = self.get_runtime_type_registry();
-                    let rt = ll::global_value_type(registry);
-                    let count = self.b.load(self.b.i64(), self.b.struct_gep(rt, registry, 0));
-                    let valid = self.new_block_pub("typeinfo.valid");
-                    let found = self.new_block_pub("typeinfo.found");
-                    let missing = self.new_block_pub("typeinfo.missing");
-                    self.b.cond_br(self.b.icmp(LLVMIntULT, arg, count), valid, missing);
-                    self.b.at_end(valid);
-                    let table = self.b.load(self.b.ptr(), self.b.struct_gep(rt, registry, 1));
-                    let info = self.b.load(self.b.ptr(), self.b.gep(self.b.ptr(), table, &[arg]));
-                    self.b.cond_br(self.b.is_not_null(info), found, missing);
-                    self.b.at_end(missing);
-                    let (tt, tf) = ll::intrinsic(self.m(), "llvm.trap", &[]);
-                    self.b.call(tt, tf, &[]);
-                    self.b.unreachable();
-                    self.b.at_end(found);
-                    self.block = found;
-                    return Some(info);
-                }
                 // AOT knows the full ID set.
                 let missing = self.new_block_pub("typeinfo.missing");
                 let sel = self.b.switch(arg, missing, 0);

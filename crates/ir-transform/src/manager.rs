@@ -371,16 +371,12 @@ mod lanes {
             pr(pm, omp, &[], &[&cfg, &global]);
         }
 
-        if !pm.options().jit {
-            // Don't demote globals in JIT mode, since they might be used later
-            // by another user input.
-            pr(
-                pm,
-                Box::new(FoldingPassGroup::new(se2.clone(), rd.clone(), global.clone(), 5, true)),
-                &[&se2, &rd, &global],
-                &[&se2, &rd, &cfg, &global],
-            );
-        }
+        pr(
+            pm,
+            Box::new(FoldingPassGroup::new(se2.clone(), rd.clone(), global.clone(), 5, true)),
+            &[&se2, &rd, &global],
+            &[&se2, &rd, &cfg, &global],
+        );
         pr(pm, Box::new(DevirtualizationPass::new(rd.clone())), &[&rd], &[&cfg, &rd, &global]);
     }
 

@@ -1806,7 +1806,7 @@ impl<'a> TypecheckVisitor<'a> {
                 (c.has_rtti(&an), c.jit_cell, c.mro.len())
             };
             if !has_rtti {
-                let jit = self.cache.options.as_ref().is_some_and(|o| o.jit);
+                let jit = false; // AOT only: no JIT cells
                 if jit && jit_cell != self.cache.jit_cell {
                     let src = self.cache.ast[*cls].src;
                     let n = self.get_unmangled_name(&cls_name);

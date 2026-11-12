@@ -255,8 +255,8 @@ impl<'ctx> LlvmVisitor<'ctx> {
         let func_type = self.get_llvm_func_type(m, m.value_type(x.callee));
         let mut targets: Vec<(i64, V)> = Vec::new();
         let mut dynamic_id: V = null_mut();
-        // Virtual dispatch specialization (AOT only).
-        if !self.options.jit && ll::is_call(f) {
+        // Virtual dispatch specialization.
+        if ll::is_call(f) {
             let lookup = f;
             let called = ll::called_value(lookup);
             let receiver = self.virtual_lookup_types.get(&(called as usize)).copied();

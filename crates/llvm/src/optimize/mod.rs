@@ -107,7 +107,7 @@ fn peephole(m: LLVMModuleRef, options: &Options, tm: LLVMTargetMachineRef) -> Re
 /// Port of `runLLVMOptimizationPasses`.
 fn run_llvm_optimization_passes(module: &Module, options: &Options) -> Result<()> {
     let m = module.as_mut_ptr();
-    coro::apply_debug_transformations(m, options.debug, options.jit);
+    coro::apply_debug_transformations(m, options.debug);
     if options.fastmath {
         coro::apply_fast_math_transformations(m);
     }
@@ -161,7 +161,7 @@ fn run_llvm_optimization_passes(module: &Module, options: &Options) -> Result<()
     }
 
     coro::coro_unroll_cleanup(m);
-    coro::apply_debug_transformations(m, options.debug, options.jit);
+    coro::apply_debug_transformations(m, options.debug);
     Ok(())
 }
 

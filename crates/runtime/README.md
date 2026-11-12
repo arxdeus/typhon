@@ -1,5 +1,43 @@
 # typhon-runtime (libtyphonrt)
 
+## Linking
+
+The runtime is built **only as a static library** (`crate-type = ["rlib", "staticlib"]`;
+`cargo build --release` puts `target/release/libtyphonrt.a` next to `typhon`). There is no
+`libtyphonrt.dylib/.so` and no JIT: every program is compiled ahead of time and the
+archive is linked into it.
+
+* `typhon build -exe` and `typhon run` (which builds into a temp dir and execs the binary)
+  produce a single self-contained executable. `typhon build -lib` produces a shared
+  library that embeds its own copy of the runtime (two such libraries in one process
+  would mean two GCs).
+* The archive is located like this: `TYPHON_LIB_DIR`, else the directory of the `typhon`
+  binary, `../lib`, `../lib/typhon`. Install layout: `bin/typhon` + `lib/typhon/libtyphonrt.a`
+  (or both in one directory).
+* Link line (`crates/llvm/src/llvisitor/output.rs`, `RUNTIME_NATIVE_LIBS` and
+  `LINK_GC_FLAGS`), after the program object and user `-l` libs, then `-linker-flags`:
+  * macOS: `c++ prog.o -L<dirs> -l<user> -Wl,-dead_strip -Wl,-dead_strip_dylibs
+    <dir>/libtyphonrt.a -liconv -lm -framework Accelerate -o prog`
+  * Linux: `c++ prog.o -L<dirs> -l<user> -Wl,--gc-sections -Wl,--as-needed
+    <dir>/libtyphonrt.a -lgcc_s -lutil -lrt -lpthread -lm -ldl -lc -o prog -no-pie`
+  The system libs are what `cargo rustc -p typhon-runtime --release --crate-type staticlib
+  -- --print native-static-libs` reports (macOS: `-liconv -lSystem -lc -lm -framework
+  Accelerate`). zlib, bzip2, liblzma, bdwgc and OpenMP (`typhon-omp`) are inside the
+  archive; the C++ runtime is not needed (`-dead_strip_dylibs` / `--as-needed` drop the
+  `libc++` the `c++` driver adds). A stripped hello world is ~0.5 MB and depends only on
+  libSystem (macOS).
+* Dead stripping is safe because the compiled program references runtime functions
+  directly (`from C import f(...)` without a library is a plain external symbol). What
+  `dlsym(RTLD_DEFAULT, ...)` can reach at run time is only the program's *exported*
+  symbols: `from C import "lib".f` / `internal.dlopen.dlsym` with an empty library name
+  does not find runtime functions in an executable (it does find libc). Exporting the
+  whole runtime ABI (`-exported_symbols_list`, ~730 symbols) would grow hello world
+  from 0.5 to 1.2 MB; nothing in the stdlib needs it.
+* `.cargo/config.toml` sets `MACOSX_DEPLOYMENT_TARGET=11.0` so the archive's C objects
+  (bdwgc, liblzma, omp shim) match rustc's baseline and `ld` does not warn about objects
+  "built for newer macOS".
+
+
 ## Garbage collector
 
 bdwgc comes from the crates.io crate `bdwgc-alloc-sys` 0.6.16 (bdwgc 8.3 snapshot,

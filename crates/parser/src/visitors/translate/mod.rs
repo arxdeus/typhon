@@ -88,7 +88,7 @@ impl<'a> TranslateVisitor<'a> {
 
     /// `TranslateVisitor::apply(cache, stmts)`: returns the main (or JIT cell) function.
     pub fn apply(cache: &mut Cache, stmts: StmtId) -> Result<FuncId> {
-        let jit = cache.options.as_ref().is_some_and(|o| o.jit);
+        let jit = false; // AOT only: no JIT cells
         let none = cache
             .classes
             .get("NoneType")
