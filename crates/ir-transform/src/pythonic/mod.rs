@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/pythonic/*
 
 pub mod dict;
 pub mod enumerate;

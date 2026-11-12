@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/typecheck/cond.cpp
 
 use std::collections::BTreeMap;
 
@@ -148,7 +147,7 @@ impl<'a> TypecheckVisitor<'a> {
         let is = self.cache.ast[s].kind.as_if().unwrap().clone();
         let b = self.get_stdlib_type(&st.bool_)?;
         self.cache.ast[is.cond.unwrap()].expected_type = Some(b);
-        // PORT-NOTE: C++ reads `(*ci)[1]` after call reordering dropped the generic `T`
+        // Note: the reference implementation reads `(*ci)[1]` after call reordering dropped the generic `T`
         // slot from `items` (stale read past `size()` that yields the original type arg);
         // keep that original argument explicitly.
         let orig_type_arg = self.cache.ast[is.cond.unwrap()].kind.as_call().and_then(|c| c.items.get(1)).and_then(|a| a.value);
@@ -315,7 +314,7 @@ impl<'a> TypecheckVisitor<'a> {
     }
 
     /// `transformPattern(var, pattern, suite)`: transform a match pattern into a series of
-    /// if statements (see cond.cpp for the full list of rules).
+    /// if statements.
     pub fn transform_pattern(&mut self, var: ExprId, pattern: ExprId, suite: StmtId) -> Result<Option<StmtId>> {
         let st = stdlib();
         let mut suite = suite;

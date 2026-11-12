@@ -1,7 +1,7 @@
 //! Diagnostics printing. Port of `compilationError` / `compilationWarning` /
-//! `MessageGroupPos` from `codon/util/common.{h,cpp}`.
+//! `MessageGroupPos`.
 //!
-//! Output format is byte-compatible with the C++ implementation (ANSI bold header,
+//! Output format is byte-compatible with the the reference implementation implementation (ANSI bold header,
 //! `file:line (col-end): error: msg (see https://upstream.io/error/NNNN)`), so the
 //! test-suite expectations on stderr carry over. `codespan-reporting` is available
 //! for richer rendering via [`render_codespan`].
@@ -95,7 +95,7 @@ pub fn compilation_warning(
     }
 }
 
-/// Print every error in `errs` the way `codon/app/main.cpp` does.
+/// Print every error in `errs` in the standard compiler format.
 pub fn report_parser_errors(errs: &ParserErrors) {
     for bt in &errs.errors {
         let n = bt.trace.len();

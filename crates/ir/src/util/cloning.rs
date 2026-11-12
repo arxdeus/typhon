@@ -1,4 +1,4 @@
-//! Port of `codon/cir/util/cloning.{h,cpp}`: deep cloning of IR nodes.
+//! Deep cloning of IR nodes.
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -26,7 +26,7 @@ impl Operator for GatherLocals {
     }
     fn pre_hook(&mut self, m: &mut Module, n: NodeRef) {
         for v in m.used_variables(n) {
-            // PORT-NOTE: C++ collects duplicates and creates one clone per occurrence
+            // Note: the reference implementation collects duplicates and creates one clone per occurrence
             // (only the last remap survives); duplicates are skipped here so that no
             // unused clones are added to the target function.
             if !m.is_global(v) && self.seen.insert(m.var_uid(v)) {
@@ -36,7 +36,6 @@ impl Operator for GatherLocals {
     }
 }
 
-/// Port of `util::CloneVisitor`.
 pub struct CloneVisitor {
     ctx: FxHashMap<Id, NodeRef>,
     clone_loop: bool,

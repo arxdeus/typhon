@@ -1,7 +1,7 @@
 //! Read-only traversal with the exact visiting order of `util::Operator`
 //! (pre-order, `childrenFirst == false`), for analyses that only need `&Module`.
 //!
-//! PORT-NOTE: C++ analyses `const_cast` the module to run an `Operator`; in Rust
+//! Note: the reference implementation analyses `const_cast` the module to run an `Operator`; in Rust
 //! `typhon_ir::util::operator::Operator` needs `&mut Module`, so analyses use this walker.
 
 use rustc_hash::FxHashSet;

@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/typecheck/class.cpp.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -70,7 +69,7 @@ impl<'a> TypecheckVisitor<'a> {
 
     /// `getClassMethods(stmt)`: all statements within a class suite (recursively).
     /// Assumes that each statement is either a function, a class or a docstring.
-    /// PORT-NOTE: returns `Result` (C++ throws CLASS_BAD_ATTR); only class.rs calls it.
+    /// Note: returns `Result` (throws CLASS_BAD_ATTR); only class.rs calls it.
     pub fn get_class_methods(&self, s: StmtId) -> Result<Vec<StmtId>> {
         let a = &self.cache.ast;
         let mut v = vec![];
@@ -1207,7 +1206,7 @@ impl<'a> TypecheckVisitor<'a> {
                 }
                 let sk = self.cache.ast.get_static_generic(a.ty);
                 if sk != LiteralKind::Runtime {
-                    // PORT-NOTE: C++ checks `st == LiteralKind::Runtime` inside `if (st)`,
+                    // Note: the reference implementation checks `st == LiteralKind::Runtime` inside `if (st)`,
                     // which is unreachable; kept as a no-op.
                     types.with_link_mut(generic, |l| l.static_kind = sk);
                     let val = TypeContext::add_var(self.cache, &self.ctx, &a.name, &var_name, generic, 0, Default::default());
@@ -1403,7 +1402,7 @@ impl<'a> TypecheckVisitor<'a> {
                 if is_setter && nvalues == 2 {
                     let f = self.cache.ast[sp].kind.as_function_mut().unwrap();
                     f.name = format!("{}{}", FN_SETTER_SUFFIX, fp.name);
-                    // PORT-NOTE: C++ nulls the decorator slot; Rust decorators are non-null ids.
+                    // Note: the reference implementation nulls the decorator slot; Rust decorators are non-null ids.
                     f.decorators.remove(di);
                     break;
                 }

@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/translate/{translate,translate_ctx}.{h,cpp} (translate lane).
 //!
 //! `TranslateVisitor` lowers the typechecked AST into `typhon_ir` nodes. Entry points:
 //! * [`TranslateVisitor::apply`]: build `main` + globals from the fully typechecked program;

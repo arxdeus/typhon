@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/cleanup/dead_code.{h,cpp}
 
 use typhon_common::log_flag;
 use typhon_ir::pass::{Pass, PassContext, run_operator_pass};

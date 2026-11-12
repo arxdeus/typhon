@@ -1,4 +1,4 @@
-//! Port of codon/parser/visitors/typecheck/typecheck.cpp, part 1: `apply`,
+//! Part 1: `apply`,
 //! `loadStdLibrary`, `transform*`, node dispatch and the statements owned by
 //! typecheck.cpp (`SuiteStmt`, `ExprStmt`, `StmtExpr`, `CommentStmt`,
 //! `DirectiveStmt`). Helpers are in [`super::helpers`].

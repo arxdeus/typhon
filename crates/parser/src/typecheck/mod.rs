@@ -1,6 +1,5 @@
-//! Port of codon/parser/visitors/typecheck/** (`TypecheckVisitor`).
 //!
-//! File -> module map (one `impl TypecheckVisitor` block per C++ file):
+//! File -> module map (one `impl TypecheckVisitor` block per the reference implementation file):
 //! `typecheck.cpp` -> [`typecheck`] (transform/apply/dispatch) + [`helpers`] (the rest),
 //! `infer.cpp` -> [`infer`], `basic.cpp` -> [`basic`], `ctx.{h,cpp}` -> [`ctx`],
 //! `access/assign/call/class/collections/cond/error/function/import/loops/op/special.cpp`
@@ -43,7 +42,7 @@ pub use ctx::{Base, CtxRef, ItemRef, Loop, TypeContext, TypecheckItem};
 /// Statements to prepend before the current statement (shared between nested visitors).
 pub type PrependStmts = Rc<RefCell<Vec<StmtId>>>;
 
-/// `TypecheckVisitor::PartialCallData` (call.cpp).
+/// `TypecheckVisitor::PartialCallData`.
 #[derive(Clone, Debug, Default)]
 pub struct PartialCallData {
     /// True if the call is partial.
@@ -77,7 +76,7 @@ pub enum AstNode {
 }
 
 /// Visitor that infers expression types and performs type-guided transformations.
-/// Modifies the AST in place (C++ semantics).
+/// Modifies the AST in place (semantics).
 pub struct TypecheckVisitor<'a> {
     /// Shared cache (owns the AST and type arenas).
     pub cache: &'a mut Cache,

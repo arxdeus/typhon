@@ -1,4 +1,4 @@
-//! Port of codon/cir/transform/cleanup/* (canonicalization, DCE, devirtualization,
+//! (canonicalization, DCE, devirtualization,
 //! global demotion, physical replacement).
 
 pub mod canonical;

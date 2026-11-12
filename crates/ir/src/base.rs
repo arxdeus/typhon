@@ -1,4 +1,3 @@
-//! Port of `codon/cir/base.{h,cpp}` (node data common to every IR node).
 
 use crate::attribute::AttributeMap;
 

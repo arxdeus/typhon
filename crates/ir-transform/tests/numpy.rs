@@ -1,7 +1,6 @@
 //! Unit tests for the pure parts of the NumPy optimizations (port of
-//! codon/cir/transform/numpy/*).
 //!
-//! PORT-NOTE: parsing real ndarray expressions, fusion codegen, inlining and the
+//! Note: parsing real ndarray expressions, fusion codegen, inlining and the
 //! lifetime pass need a `TypeRealizer` (ndarray generics, `std.numpy.fusion`
 //! helpers) and are validated only by the end-to-end suite (`test/numpy/**`).
 

@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/pythonic/io.{h,cpp}
 
 use typhon_ir::util::cloning::CloneVisitor;
 use typhon_ir::util::irtools;
@@ -27,7 +26,7 @@ fn optimize_print(m: &mut Module, v: ValueId) {
     }
     let s = m.get_string_type();
     let pt = m.value_type_mut(cat.args[0]);
-    // PORT-NOTE: C++ dereferences a possibly-null `realCat`; we bail out instead.
+    // Note: the reference implementation dereferences a possibly-null `realCat`; we bail out instead.
     let Some(real_cat) = m.get_or_realize_method(s, "cat", &[pt], &[]) else { return };
     if m.var_uid(real_cat) != m.var_uid(cat_func) {
         return;

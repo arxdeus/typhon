@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/cleanup/global_demote.{h,cpp}
 
 use indexmap::IndexMap;
 use typhon_ir::pass::{Pass, PassContext};
@@ -55,7 +54,7 @@ impl Pass for GlobalDemotionPass {
     }
     fn run(&mut self, m: &mut Module, _ctx: &dyn PassContext) {
         self.num_demotions = 0;
-        // PORT-NOTE: insertion-ordered map instead of `unordered_map` for determinism.
+        // Note: insertion-ordered map instead of `unordered_map` for determinism.
         let mut local_globals: IndexMap<Id, (VarId, Option<FuncId>)> = IndexMap::new();
 
         let mut worklist = vec![m.main_func()];

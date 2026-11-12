@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/pythonic/generator.{h,cpp}
 //!
 //! Two complementary rewrites avoid the generator protocol: turn direct
 //! sum/any/all calls into ordinary functions, and splice a producer's body into

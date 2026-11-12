@@ -1,4 +1,3 @@
-//! Port of the expression/statement `visit` methods of `ScopingVisitor` (scoping.cpp).
 
 use rustc_hash::FxHashMap;
 use typhon_common::ErrorKind;
@@ -27,7 +26,7 @@ impl AstCtx for ScopingVisitor<'_> {
 }
 
 impl ScopingVisitor<'_> {
-    /// Run `f` with a different context (C++ nested `ScopingVisitor v; v.ctx = c;`).
+    /// Run `f` with a different context (nested `ScopingVisitor v; v.ctx = c;`).
     /// The nested visitor's errors are kept separate (returned with the context).
     pub(crate) fn in_ctx<R>(
         &mut self,
@@ -151,7 +150,7 @@ impl Visitor for ScopingVisitor<'_> {
         self.ctx.renames.push(FxHashMap::default());
         let s = self.cache.ast.generator_final_suite(id);
         let ok = self.transform_s(s);
-        // PORT-NOTE: C++ `CHECK` skips the restore on failure (the SetInScope destructor still
+        // Note: the reference implementation `CHECK` skips the restore on failure (the SetInScope destructor still
         // restores `tempScope`); renames are popped unconditionally here.
         self.ctx.renames.pop();
         self.ctx.temp_scope = o;
@@ -192,7 +191,7 @@ impl Visitor for ScopingVisitor<'_> {
 
     fn visit_lambda(&mut self, id: ExprId) {
         let l = self.cache.ast[id].kind.as_lambda().unwrap().clone();
-        // PORT-NOTE: C++ uses stack-allocated dummy `FunctionStmt("lambda")` and `SuiteStmt`;
+        // Note: the reference implementation uses stack-allocated dummy `FunctionStmt("lambda")` and `SuiteStmt`;
         // here they are allocated (and then abandoned) in the arena.
         let src = self.src.clone();
         let f = self.cache.ast.alloc_stmt(crate::ast::Stmt::new(
@@ -351,7 +350,7 @@ impl Visitor for ScopingVisitor<'_> {
                 m.insert(e.var.clone(), new_name.clone());
                 self.ctx.renames.push(m);
                 self.cache.ast[a].kind.as_except_mut().unwrap().var = new_name.clone();
-                // PORT-NOTE: C++ dereferences `getException()` unconditionally.
+                // Note: the reference implementation dereferences `getException()` unconditionally.
                 let src = e.exc.map(|x| self.cache.ast[x].src.clone()).unwrap_or_else(|| self.cache.ast[a].src.clone());
                 self.visit_name(&new_name, true, Some(Node::Stmt(a)), &src);
             }

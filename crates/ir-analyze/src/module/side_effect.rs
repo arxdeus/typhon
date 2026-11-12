@@ -1,4 +1,3 @@
-//! Port of codon/cir/analyze/module/side_effect.{h,cpp}.
 
 use rustc_hash::FxHashMap;
 use typhon_ir::pass::{Analysis, AnalysisResult, PassContext};
@@ -14,7 +13,6 @@ use crate::util::walk::ConstWalker;
 
 type Status = SideEffectStatus;
 
-/// Port of `SideEffectResult`.
 #[derive(Clone, Debug, Default)]
 pub struct SideEffectResult {
     /// node uid (values and functions) -> status
@@ -37,7 +35,6 @@ impl AnalysisResult for SideEffectResult {
     }
 }
 
-/// Port of `SideEffectAnalysis`.
 #[derive(Clone, Debug)]
 pub struct SideEffectAnalysis {
     cap_analysis_key: String,
@@ -86,7 +83,7 @@ impl Analysis for SideEffectAnalysis {
         Self::KEY.to_string()
     }
     fn run(&mut self, m: &Module, ctx: &dyn PassContext) -> Box<dyn AnalysisResult> {
-        // PORT-NOTE: the capture analysis is recomputed when missing from the context.
+        // Note: the capture analysis is recomputed when missing from the context.
         let owned;
         let cr = match ctx.get_analysis::<CaptureResult>(&self.cap_analysis_key) {
             Some(c) => c,
@@ -309,7 +306,7 @@ impl Analyzer<'_> {
                             Some(info) => {
                                 !info.iter().any(|i| i.extern_captures || i.modified || !i.arg_captures.is_empty())
                             }
-                            // PORT-NOTE: C++ asserts the function is in the capture results.
+                            // Note: the reference implementation asserts the function is in the capture results.
                             None => false,
                         };
                         if pure {

@@ -1,4 +1,4 @@
-//! Port of `codon/cir/{value,const,flow,instr}.{h,cpp}` and `VarValue`/`PointerValue`
+//! And `VarValue`/`PointerValue`
 //! from `var.h`: value node payloads.
 
 use crate::base::NodeBase;
@@ -6,7 +6,6 @@ use crate::dsl::{CustomCategory, CustomNode};
 use crate::ids::{Id, TypeId, ValueId, VarId};
 use crate::schedule::OMPSched;
 
-/// Port of `TemplatedConst<T>`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TemplatedConst<T> {
     pub val: T,
@@ -86,7 +85,6 @@ pub struct IfFlow {
     pub false_branch: Option<ValueId>,
 }
 
-/// Port of `TryCatchFlow::Catch`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Catch {
     pub handler: ValueId,
@@ -102,7 +100,7 @@ pub struct TryCatchFlow {
     pub finally: Option<ValueId>,
 }
 
-/// Port of `PipelineFlow::Stage`. `None` args are the pipeline placeholder (`...`).
+/// `None` args are the pipeline placeholder (`...`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stage {
     pub callee: ValueId,
@@ -300,7 +298,7 @@ impl ValueKind {
     pub fn is_any(&self) -> bool {
         matches!(self, ValueKind::Any { .. })
     }
-    /// Name of the C++ class (diagnostics, matching).
+    /// Name of the original (diagnostics, matching).
     pub fn kind_name(&self) -> &'static str {
         match self {
             ValueKind::IntConst(_) => "IntConst",
@@ -400,7 +398,6 @@ impl ValueKind {
         }
     }
 
-    /// Port of `doGetUsedTypes()`.
     pub fn used_types(&self) -> Vec<TypeId> {
         match self {
             ValueKind::IntConst(c) => vec![c.ty],
@@ -416,7 +413,6 @@ impl ValueKind {
         }
     }
 
-    /// Port of `doGetUsedVariables()`.
     pub fn used_variables(&self) -> Vec<VarId> {
         match self {
             ValueKind::VarValue(v) => vec![v.var],

@@ -1,12 +1,4 @@
-//! Shared foundation for the Typhon compiler (Rust port of upstream Codon).
-//!
-//! Ported from:
-//! - `codon/util/common.{h,cpp}`        -> [`logger`], [`diag`]
-//! - `codon/compiler/error.{h,cpp}`     -> [`error`], [`srcinfo`]
-//! - `codon/parser/ast/error.h`         -> [`srcinfo`], [`error`]
-//! - `codon/parser/common.{h,cpp}`      -> [`strings`], [`mangle`], [`fs`]
-//! - `codon/compiler/options.{h,cpp}`   -> [`options`]
-//! - `codon/config/config.h`            -> [`config`]
+//! Shared foundation for the Typhon compiler.
 
 pub mod config;
 pub mod diag;
@@ -34,7 +26,7 @@ macro_rules! seqassert {
 /// Port of `E(error::Error, SrcInfo, args...)`: build a parser error and return it
 /// as `Err(CompilerError::Parser(..))` from the current function.
 ///
-/// C++ throws `exc::ParserException`; Rust code returns `Result<T, CompilerError>`.
+/// the reference implementation throws `exc::ParserException`; Rust code returns `Result<T, CompilerError>`.
 #[macro_export]
 macro_rules! bail_e {
     ($kind:expr, $src:expr $(, $arg:expr)* $(,)?) => {

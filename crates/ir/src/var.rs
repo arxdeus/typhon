@@ -1,11 +1,10 @@
-//! Port of `codon/cir/var.{h,cpp}` and `codon/cir/func.{h,cpp}` (data part).
+//! (data part).
 
 use crate::base::NodeBase;
 use crate::ids::{Id, TypeId, ValueId, VarId};
 use crate::types::Generic;
 use crate::util::side_effect::SideEffectStatus;
 
-/// Port of `InternalFunc::Intrinsic`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Intrinsic {
     #[default]
@@ -96,7 +95,6 @@ impl FuncKind {
     }
 }
 
-/// Port of `Func` (and subclasses via `kind`).
 #[derive(Clone, Debug)]
 pub struct FuncData {
     pub unmangled_name: String,

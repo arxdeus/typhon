@@ -1,6 +1,6 @@
 [package]
 name = "typhon-ir-analyze"
-description = "Codon IR analyses (CFG, dominators, reaching defs, capture, side effects, global vars) and inlining/outlining utilities"
+description = "Typhon IR analyses (CFG, dominators, reaching defs, capture, side effects, global vars) and inlining/outlining utilities"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

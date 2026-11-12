@@ -25,7 +25,7 @@ def t1(N: int = 1000):
     print(len(A), A == list(range(N)))
 t1()
 "#;
-    let mut c = Compiler::new(Options::with_argv0("build/codon_test"), None);
+    let mut c = Compiler::new(Options::with_argv0("build/typhon_test"), None);
     c.parse_code("omp_sched.codon", src, 0, 0, &HashMap::new()).expect("compile");
     let m = c.module().borrow();
     let scheds: Vec<_> = m

@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/typecheck/op.cpp
 
 use typhon_common::mangle::{self, stdlib};
 use typhon_common::strings::{utf8_strlen, utf8_substr};
@@ -453,7 +452,7 @@ impl<'a> TypecheckVisitor<'a> {
         }
 
         // Case: static integers
-        // PORT-NOTE: C++ checks `getBoolStatic()` of the lhs twice (typo); kept as is.
+        // Note: the reference implementation checks `getBoolStatic()` of the lhs twice (typo); kept as is.
         let lhs_bool = types.get_bool_static(lt).is_some();
         if types.get_static(lt).is_some() && types.get_static(rt).is_some() {
             let lvalue = if types.get_int_static(lt).is_some() { self.get_int_literal(lt, 0) } else { self.get_bool_literal(lt, 0) as i64 };
@@ -1237,7 +1236,7 @@ impl<'a> TypecheckVisitor<'a> {
     }
 
     /// `translateIndex(idx, len, clamp)`: Python indexing rules for static tuple indices.
-    /// PORT-NOTE: C++ throws `TUPLE_RANGE_BOUNDS` from this `const` helper; the signature is
+    /// Note: the reference implementation throws `TUPLE_RANGE_BOUNDS` from this `const` helper; the signature is
     /// infallible here, so out-of-range indices are returned unchanged and callers check
     /// bounds (see [`translate_index_raw`]).
     pub fn translate_index(&self, idx: i64, len: i64, clamp: bool) -> i64 {
@@ -1248,7 +1247,7 @@ impl<'a> TypecheckVisitor<'a> {
 
     /// `sliceAdjustIndices(length, start, stop, step)`: Python slice indexing rules;
     /// returns the slice length.
-    /// PORT-NOTE: `step == 0` (C++ `SLICE_STEP_ZERO`) returns 0 here; the fallible check is
+    /// Note: `step == 0` (`SLICE_STEP_ZERO`) returns 0 here; the fallible check is
     /// done by callers through `slice_adjust_indices_checked`.
     pub fn slice_adjust_indices(&self, length: i64, start: &mut i64, stop: &mut i64, step: i64) -> i64 {
         if step == 0 {

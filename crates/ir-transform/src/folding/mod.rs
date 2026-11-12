@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/folding/* (constant folding and propagation).
 
 pub mod const_fold;
 pub mod const_prop;

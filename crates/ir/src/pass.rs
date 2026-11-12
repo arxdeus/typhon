@@ -1,4 +1,4 @@
-//! Port of `codon/cir/transform/pass.{h,cpp}` and `codon/cir/analyze/analysis.{h,cpp}`.
+//! .
 //!
 //! `PassManager` lives in `typhon-ir-transform`; passes access it through the
 //! [`PassContext`] trait object passed to `run` (replaces `Pass::manager`).
@@ -10,7 +10,6 @@ use typhon_common::Options;
 use crate::module::Module;
 use crate::util::operator::{Operator, run_operator};
 
-/// Port of `analyze::Result`.
 pub trait AnalysisResult: Any {
     fn as_any(&self) -> &dyn Any;
 }
@@ -43,7 +42,6 @@ impl PassContext for NullPassContext {
     }
 }
 
-/// Port of `transform::Pass`.
 pub trait Pass {
     /// `getKey()`.
     fn key(&self) -> String;
@@ -58,13 +56,12 @@ pub trait Pass {
         false
     }
     /// Sub-passes (`PassGroup`) so that managers can register nested passes
-    /// (C++ `setManager` recursion).
+    /// (`setManager` recursion).
     fn sub_passes(&mut self) -> Option<&mut Vec<Box<dyn Pass>>> {
         None
     }
 }
 
-/// Port of `transform::PassGroup`.
 pub struct PassGroup {
     pub key: String,
     pub repeat: i32,
@@ -103,12 +100,11 @@ impl Pass for PassGroup {
     }
 }
 
-/// Port of `OperatorPass::run`: resets the operator and processes the module.
+/// resets the operator and processes the module.
 pub fn run_operator_pass<O: Operator + ?Sized>(op: &mut O, m: &mut Module) {
     run_operator(op, m);
 }
 
-/// Port of `analyze::Analysis`.
 pub trait Analysis {
     fn key(&self) -> String;
     fn run(&mut self, m: &Module, ctx: &dyn PassContext) -> Box<dyn AnalysisResult>;

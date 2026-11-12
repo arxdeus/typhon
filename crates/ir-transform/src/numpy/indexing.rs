@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/numpy/indexing.{h,cpp}
 
 use rustc_hash::FxHashMap;
 use typhon_common::mangle;
@@ -14,7 +13,6 @@ use typhon_ir_analyze::dataflow::reaching::{RDInspector, RDResult};
 use super::numpy::Walk;
 use super::{FUSION_MODULE, numpy_should_run};
 
-/// Port of the anonymous `Term`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TermKind {
     Int,
@@ -420,7 +418,7 @@ impl Pass for NumPyBoundsCheckElisionPass {
     }
     fn run(&mut self, m: &mut Module, ctx: &dyn PassContext) {
         // Collect (loop, parent function) pairs first, then rewrite.
-        // PORT-NOTE: C++ rewrites during the operator walk; replacements made here
+        // Note: the reference implementation rewrites during the operator walk; replacements made here
         // only touch the loop body's index calls, so deferring is equivalent.
         let mut loops = vec![];
         Walk::new().run_module(m, &mut |w, m, v| {

@@ -1,4 +1,3 @@
-//! Port of `test/cir/{base,constant,value,var,type}.cpp`.
 
 mod common;
 
@@ -22,7 +21,6 @@ impl ConstVisitor for ConstTestVisitor {
     fn visit_bool_const(&mut self, _m: &Module, _v: ValueId) {}
 }
 
-// ---- base.cpp ----
 
 #[test]
 fn node_no_replacement_rtti() {
@@ -91,7 +89,6 @@ fn node_non_replaceable_fails() {
     m.replace_all_value(n, n);
 }
 
-// ---- constant.cpp ----
 
 #[test]
 fn const_type_query_and_replace() {
@@ -114,7 +111,6 @@ fn const_cloning() {
     assert_eq!(i, m.value_type(c));
 }
 
-// ---- value.cpp ----
 
 #[test]
 fn value_query_methods_delegate() {
@@ -168,7 +164,6 @@ fn value_replace_methods_delegate() {
     assert_eq!(m.value_uid(original), m.value_uid(replacement3));
 }
 
-// ---- var.cpp ----
 
 #[test]
 fn var_query_methods_delegate() {
@@ -196,7 +191,6 @@ fn var_replace_methods_delegate() {
     assert_eq!(m.var_uid(original), m.var_uid(replacement));
 }
 
-// ---- type.cpp ----
 
 #[test]
 fn record_type_query() {

@@ -1,6 +1,6 @@
-//! Port of `codon/compiler/error.{h,cpp}` and `codon/parser/ast/error.h`.
+//! .
 //!
-//! C++ uses exceptions (`exc::ParserException`) plus `llvm::Error` wrappers
+//! the reference implementation uses exceptions (`exc::ParserException`) plus `llvm::Error` wrappers
 //! (`ParserErrorInfo`, `RuntimeErrorInfo`, `PluginErrorInfo`, `IOErrorInfo`).
 //! Rust uses a single `thiserror` enum [`CompilerError`] carried in `Result`.
 
@@ -9,7 +9,7 @@ use std::fmt::{self, Display};
 
 pub type Result<T, E = CompilerError> = std::result::Result<T, E>;
 
-/// Port of `codon::error::Error`. Discriminants match the C++ enum order (used as
+/// Discriminants match the the reference implementation enum order (used as
 /// error codes in `https://upstream.io/error/{:04}` links).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(i32)]
@@ -41,7 +41,7 @@ pub enum ErrorKind {
     MAX_REALIZATION, CUSTOM,
 }
 
-/// Substitute positional `{}` placeholders (C++ `fmt::format(fmt::runtime(..), args...)`).
+/// Substitute positional `{}` placeholders (`fmt::format(fmt::runtime(..), args...)`).
 /// `{{` / `}}` are literal braces.
 pub fn format_runtime(fmt_str: &str, args: &[&dyn Display]) -> String {
     let mut out = String::with_capacity(fmt_str.len() + 16);
@@ -172,7 +172,7 @@ pub fn emsg(e: ErrorKind, args: &[&dyn Display]) -> String {
         COMPILER_NO_FILE => f("cannot open file '{}' for parsing"),
         COMPILER_NO_STDLIB => f("cannot locate standard library"),
         MAX_REALIZATION => f("maximum realization depth reached during the realization of '{}'"),
-        // C++ `Eformat(args...)`: first arg is the format string, rest are its args.
+        // the reference implementation `Eformat(args...)`: first arg is the format string, rest are its args.
         CUSTOM => match args.split_first() {
             Some((fmt0, rest)) => format_runtime(&fmt0.to_string(), rest),
             None => String::new(),
@@ -180,7 +180,6 @@ pub fn emsg(e: ErrorKind, args: &[&dyn Display]) -> String {
     }
 }
 
-/// Port of `codon::ErrorMessage`.
 #[derive(Clone, Debug)]
 pub struct ErrorMessage {
     pub msg: String,
@@ -207,7 +206,7 @@ impl PartialEq for ErrorMessage {
 }
 
 impl Display for ErrorMessage {
-    /// C++ `ErrorMessage::toString()`: `file:line:col: msg`.
+    /// the reference implementation `ErrorMessage::toString()`: `file:line:col: msg`.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !self.file().is_empty() {
             write!(f, "{}", self.file())?;
@@ -223,7 +222,7 @@ impl Display for ErrorMessage {
     }
 }
 
-/// One error with its note/backtrace chain (C++ `ParserErrors::Backtrace`).
+/// One error with its note/backtrace chain .
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Backtrace {
     pub trace: Vec<ErrorMessage>,
@@ -235,7 +234,6 @@ impl Backtrace {
     }
 }
 
-/// Port of `codon::ParserErrors`.
 #[derive(Clone, Debug, Default)]
 pub struct ParserErrors {
     pub errors: Vec<Backtrace>,
@@ -261,7 +259,7 @@ impl ParserErrors {
             self.add_error(bt.clone());
         }
     }
-    /// First message of first error (C++ `getMessage()`).
+    /// First message of first error (`getMessage()`).
     pub fn message(&self) -> String {
         self.errors
             .first()
@@ -304,7 +302,7 @@ pub enum CompilerError {
 }
 
 impl CompilerError {
-    /// C++ `E(Error, SrcInfo, args...)` without the throw.
+    /// the reference implementation `E(Error, SrcInfo, args...)` without the throw.
     pub fn parser(kind: ErrorKind, src: SrcInfo, args: &[&dyn Display]) -> Self {
         let msg = emsg(kind, args);
         CompilerError::Parser(ParserErrors::from_message(ErrorMessage::with_code(

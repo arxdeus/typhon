@@ -1,6 +1,6 @@
 [package]
 name = "typhon-ir-transform"
-description = "Codon IR transformations and the pass manager (port of codon/cir/transform/**)"
+description = "Typhon IR transformations and the pass manager "
 version.workspace = true
 edition.workspace = true
 license.workspace = true

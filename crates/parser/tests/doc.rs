@@ -17,7 +17,7 @@ fn json_format_like_cpp() {
 #[test]
 fn module_with_function_and_variable() {
     let mut cache = Cache::new(None);
-    let s = SrcInfo::new("m.codon", 1, 1, 3);
+    let s = SrcInfo::new("m.py", 1, 1, 3);
     let doc = cache.ast.new_expr(StringExpr::new("Docs", ""), s.clone());
     let ds = cache.ast.new_stmt(ExprStmt { expr: Some(doc) }, s.clone());
     let body = cache.ast.new_stmt(SuiteStmt { items: vec![ds] }, s.clone());
@@ -28,7 +28,7 @@ fn module_with_function_and_variable() {
     let top = cache.ast.new_stmt(SuiteStmt { items: vec![f, a] }, s);
 
     let mut shared = DocShared::new("typhon", cache);
-    let ctx = shared.new_context("m.codon");
+    let ctx = shared.new_context("m.py");
     DocVisitor::new(&mut shared, ctx).transform_module(top).unwrap();
     let j = serde_json::Value::Object(shared.j.clone());
     assert_eq!(j["1"]["kind"], "function");

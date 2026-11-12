@@ -1,4 +1,4 @@
-//! Typed node handles and the `IdMixin` id counter (port of `codon/cir/base.{h,cpp}` ids).
+//! Typed node handles and the `IdMixin` id counter.
 
 use std::cell::Cell;
 
@@ -8,7 +8,7 @@ use crate::types::TypeData;
 use crate::value::ValueData;
 use crate::var::VarData;
 
-/// Port of `codon::ir::id_t`: the `IdMixin` unique id of values and variables.
+/// the `IdMixin` unique id of values and variables.
 pub type Id = i64;
 
 /// Handle of a value (`Value*`).
@@ -67,13 +67,12 @@ impl NodeRef {
 }
 
 thread_local! {
-    // PORT-NOTE: C++ `IdMixin::currentId` is a process-wide static. It is thread-local here
+    // Note: the reference implementation `IdMixin::currentId` is a process-wide static. It is thread-local here
     // so that independent modules compiled on different threads (and parallel unit
     // tests) do not interfere; ids are only compared within one module.
     static CURRENT_ID: Cell<Id> = const { Cell::new(0) };
 }
 
-/// Port of `IdMixin::resetId()`.
 pub fn reset_id() {
     CURRENT_ID.with(|c| c.set(0));
 }

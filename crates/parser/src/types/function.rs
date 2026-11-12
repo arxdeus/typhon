@@ -1,4 +1,4 @@
-//! Port of codon/parser/ast/types/function.{h,cpp}: `FuncType`.
+//! `FuncType`.
 
 use typhon_common::Result;
 
@@ -211,7 +211,7 @@ impl TypeArena {
     }
 
     /// `FuncType::isInstantiated`.
-    /// PORT-NOTE: C++ temporarily nulls `retType->funcParent` if it points back to `this`;
+    /// Note: the reference implementation temporarily nulls `retType->funcParent` if it points back to `this`;
     /// here the back edge is skipped through `skip_parent_of`.
     pub(crate) fn func_is_instantiated(&self, this: TypeId, skip_parent_of: Option<TypeId>) -> bool {
         let f = self.func_data(this);

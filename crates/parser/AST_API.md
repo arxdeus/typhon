@@ -14,7 +14,7 @@ translate and doc lanes. Keep it in sync with `src/ast/**`.
 | `ast::arena` (`AstArena`, constructors, clone, generator helpers, misc methods) | `Cache::N<T>`, copy ctors `T(const T&, bool clean)`, `ast/{expr,stmt}.cpp` logic |
 | `ast::sexpr` (`AstArena::expr_to_string/stmt_to_string`) | `toString(int)` |
 | `ast::python_string` (`AstArena::expr_to_python/stmt_to_python`, `py_quote`, ...) | `toPythonString`, `pyNode`, `pyList`, ... |
-| `ast::codon_string` (`AstArena::expr_to_codon/stmt_to_codon`, `format_float`) | `ast/codon_string.cpp` |
+| `ast::debug_string` (`AstArena::expr_to_debug/stmt_to_debug`, `format_float`) | `ast/debug_string.cpp` |
 | `ast::serial` (`AstArena::serialize_*`/`deserialize`) | `util/serialize.h`, `tser.h` |
 | `visitors::visitor` (`AstCtx`, `Visitor`, `walk_*`, `IdMapper`) | `ASTVisitor`, `CallbackASTVisitor`, `ReplacingCallbackASTVisitor` |
 | `visitors::format` (`FormatVisitor`, `FormatCacheHooks`) | `visitors/format/format.{h,cpp}` |
@@ -137,9 +137,9 @@ Methods: `set(a)`, `set_int`, `set_str`, `set_value(a, AttrValue)`, `has`, `get`
 ## Printing
 
 * `arena.expr_to_string(id, indent)`, `arena.stmt_to_string(id, indent)` — S-expressions, exact C++ format (`indent=-1` = one line).
-* `arena.expr_to_codon(id, attributes, indent, level)`, `stmt_to_codon` — `toCodonString`.
+* `arena.expr_to_debug(id, attributes, indent, level)`, `stmt_to_debug` — `toCodonString`.
 * `arena.expr_to_python(id, attrs, indent, level)`, `stmt_to_python` — `toPythonString`.
-* `codon_string::format_float(f64)` — Python `repr(float)`.
+* `debug_string::format_float(f64)` — Python `repr(float)`.
 * `FormatVisitor::apply_stmt(&arena, id, Option<&dyn FormatCacheHooks>, html)` / `apply_expr` — source-like
   text / HTML. `FormatCacheHooks` (cache lane implements) supplies function/class realizations.
 
@@ -205,7 +205,7 @@ serialized (as in C++). `orig_expr` is dropped by `import_*`.
 | `getOrigExpr/setOrigExpr` | `arena[e].orig_expr` |
 | `getExpectedType/setExpectedType` | `arena[e].expected_type` |
 | `e->toString(indent)` | `arena.expr_to_string(e, indent)` |
-| `toCodonString(a, i, l)` | `arena.expr_to_codon(e, a, i, l)` |
+| `toCodonString(a, i, l)` | `arena.expr_to_debug(e, a, i, l)` |
 | `toPythonString(a, i, l)` | `arena.expr_to_python(e, a, i, l)` |
 | `setAttribute(Attr::X)` | `arena[e].attrs.set(Attr::X)` |
 | `getAttribute<ir::StringValueAttribute>(k)->value` | `attrs.get_str(k)` |

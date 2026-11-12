@@ -1,8 +1,7 @@
-//! Port of `codon/compiler/options.{h,cpp}`.
 //!
 //! Lives in `typhon-common` (not `typhon-compiler`) because IR passes, the LLVM
 //! backend and the parser all read options, and Rust forbids the include cycles
-//! the C++ code relies on.
+//! the the reference implementation code relies on.
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum GlobalCtorMode {
@@ -40,6 +39,10 @@ pub struct Options {
     pub march: String,
     pub mcpu: String,
     pub mattrs: Vec<String>,
+    /// Link executables against `libtyphonrt.a` instead of the shared runtime
+    /// (`build -exe` default; `-dynamic-runtime` turns it off). Libraries,
+    /// Python extensions and the JIT always use the shared runtime.
+    pub static_runtime: bool,
 }
 
 impl Default for Options {
@@ -71,6 +74,7 @@ impl Default for Options {
             march: String::new(),
             mcpu: String::new(),
             mattrs: Vec::new(),
+            static_runtime: false,
         }
     }
 }

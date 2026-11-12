@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/typecheck/import.cpp.
 
 use typhon_common::fs::ImportFile;
 use typhon_common::mangle::{self, stdlib};
@@ -176,7 +175,7 @@ impl<'a> TypecheckVisitor<'a> {
     }
 
     /// `parseExpr(cache, code, src)` through the `parse_code` hook.
-    /// PORT-NOTE: `CacheHooks` has no expression parser; parse `code` as a one-line module
+    /// Note: `CacheHooks` has no expression parser; parse `code` as a one-line module
     /// and take the expression of its single `ExprStmt`.
     fn parse_expr_via_hook(&mut self, code: &str, src: SrcInfo) -> Result<ExprId> {
         let parse = self.cache.hooks.parse_code.clone().ok_or_else(|| CompilerError::custom("no parser hook installed", src))?;

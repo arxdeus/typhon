@@ -1,4 +1,3 @@
-//! Port of codon/parser/ast/stmt.h (node definitions).
 
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -11,7 +10,7 @@ use super::expr::{CallArg, Param};
 use super::src_serde;
 use crate::ids::{ExprId, StmtId};
 
-/// Base statement node (C++ `ast::Stmt`).
+/// Base statement node (`ast::Stmt`).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Stmt {
     pub kind: StmtKind,
@@ -285,7 +284,7 @@ pub struct CommentStmt {
 
 macro_rules! stmt_kinds {
     ($($variant:ident($ty:ident) => $as:ident, $as_mut:ident;)*) => {
-        /// Statement node kinds (one per C++ `*Stmt` class).
+        /// Statement node kinds (one per the reference implementation `*Stmt` class).
         #[derive(Clone, Debug, Serialize, Deserialize)]
         pub enum StmtKind { $($variant($ty)),* }
 
@@ -344,7 +343,7 @@ stmt_kinds! {
 }
 
 impl StmtTag {
-    /// C++ class name (e.g. `"ForStmt"`).
+    /// original name (e.g. `"ForStmt"`).
     pub fn class_name(self) -> &'static str {
         use StmtTag::*;
         match self {

@@ -1,4 +1,3 @@
-//! Port of test/types.cpp `TypeCoreTest.*`.
 
 use typhon_parser::ast::{AstArena, FunctionStmt, Param, ParamStatus};
 use typhon_parser::cache::FunctionRealization;

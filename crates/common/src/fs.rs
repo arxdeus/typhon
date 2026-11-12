@@ -1,7 +1,7 @@
 //! Import-path resolution filesystem. Port of `IFilesystem`, `Filesystem`,
-//! `ResourceFilesystem`, `ImportFile` and `library_path` from `codon/parser/common.{h,cpp}`.
+//! `ResourceFilesystem`, `ImportFile` and `library_path`.
 //!
-//! The C++ `ResourceFilesystem` embeds the stdlib with `cmrc`; the Rust port uses
+//! The the reference implementation `ResourceFilesystem` embeds the stdlib with `cmrc`; the Rust port uses
 //! `include_dir` via [`EmbeddedStdlib`] (the embedding itself is done by the crate
 //! that owns the `include_dir!` call, usually `typhon-compiler`).
 
@@ -15,7 +15,6 @@ pub enum ImportStatus {
     Package,
 }
 
-/// Port of `ImportFile`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImportFile {
     pub status: ImportStatus,
@@ -23,7 +22,6 @@ pub struct ImportFile {
     pub module: String,
 }
 
-/// Port of `IFilesystem`.
 pub trait FileSystem: Send + Sync {
     fn read_lines(&self, path: &Path) -> Result<Vec<String>, CompilerError>;
     fn exists(&self, path: &Path) -> bool;
@@ -36,7 +34,7 @@ pub trait FileSystem: Send + Sync {
         weakly_canonical(p)
     }
 
-    /// C++ `IFilesystem::get_root`.
+    /// the reference implementation `IFilesystem::get_root`.
     fn root_of(&self, sp: &Path) -> ImportFile {
         let s = sp.to_string_lossy().replace('\\', "/");
         let mut root = String::new();
@@ -88,7 +86,7 @@ pub fn weakly_canonical(p: &Path) -> PathBuf {
     out
 }
 
-/// Port of `Filesystem` (real disk + `CODON_PATH` + paths relative to the executable).
+/// Port of `Filesystem` (real disk + `TYPHON_PATH` + paths relative to the executable).
 #[derive(Clone, Debug, Default)]
 pub struct DiskFileSystem {
     pub argv0: String,
@@ -144,7 +142,7 @@ impl FileSystem for DiskFileSystem {
     }
 }
 
-/// Port of `ResourceFilesystem`: stdlib served from an embedded directory tree
+/// stdlib served from an embedded directory tree
 /// (`include_dir::Dir`) mounted at `/stdlib`, falling back to disk when allowed.
 pub struct EmbeddedStdlib {
     pub dir: &'static include_dir::Dir<'static>,
@@ -199,7 +197,7 @@ impl FileSystem for EmbeddedStdlib {
     }
 }
 
-/// Directory containing the running binary or shared library (C++ `library_path`).
+/// Directory containing the running binary or shared library (`library_path`).
 pub fn library_path() -> PathBuf {
     std::env::current_exe()
         .ok()

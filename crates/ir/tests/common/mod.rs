@@ -1,4 +1,3 @@
-//! Port of `test/cir/test.h` (`CIRCoreTest` fixture).
 #![allow(dead_code)]
 
 use typhon_ir::util::cloning::CloneVisitor;

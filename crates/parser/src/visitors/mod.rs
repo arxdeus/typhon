@@ -1,9 +1,8 @@
-//! Port of codon/parser/visitors/*
 //!
 //! - `visitor` : visitors/visitor.{h,cpp} (AST lane)
 //! - `format`  : visitors/format/format.{h,cpp} (AST lane)
-//! - `scoping`, `doc` : visitors/scoping/*, visitors/doc/* (scoping-doc lane)
-//! - `translate` : visitors/translate/* (translate lane)
+//! - `scoping`, `doc` : visitors/scoping/*, visitors/doc/*
+//! - `translate` : visitors/translate/*
 
 pub mod doc;
 pub mod format;

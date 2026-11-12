@@ -1,4 +1,4 @@
-//! Port of codon/parser/ast/codon_string.cpp: `ASTNode::toCodonString` (native Codon AST
+//! `ASTNode::debug dump` (native Typhon AST
 //! dump with optional attributes and pretty-printing).
 
 use std::cell::RefCell;
@@ -10,7 +10,7 @@ use super::expr::*;
 use super::stmt::*;
 use crate::ids::{ExprId, StmtId, TypeId};
 
-/// `detail::CodonString`.
+/// debug dump helpers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Formatted {
     pub value: String,
@@ -42,7 +42,7 @@ fn format_items(items: Vec<String>, simple: bool, max_items: usize, indent: i32,
     Formatted { value: prefix(indent, level) + &items.join(&separator(indent, level)), simple: false }
 }
 
-/// `quote` (codon_string.cpp): Python-style repr quoting.
+/// `quote`: Python-style repr quoting.
 pub fn quote(value: &str) -> String {
     let use_double = value.contains('\'') && !value.contains('"');
     let delim = if use_double { b'"' } else { b'\'' };
@@ -199,7 +199,7 @@ fn format_attribute(a: &AttrValue, indent: i32, level: i32) -> Formatted {
 fn format_attributes(attrs: &Attrs, indent: i32, level: i32) -> Formatted {
     let mut values: Vec<(&str, Formatted)> = attrs
         .iter()
-        .filter_map(|(k, v)| k.codon_name().map(|n| (n, format_attribute(v, indent, level + 2))))
+        .filter_map(|(k, v)| k.display_name().map(|n| (n, format_attribute(v, indent, level + 2))))
         .collect();
     if values.is_empty() {
         return empty();
@@ -574,20 +574,20 @@ impl Ctx<'_> {
 }
 
 impl AstArena {
-    /// `Expr::toCodonString(attributes, indent, level)`.
-    pub fn expr_to_codon(&self, id: ExprId, attributes: bool, indent: i32, level: i32) -> String {
+    /// `Expr::debug dump(attributes, indent, level)`.
+    pub fn expr_to_debug(&self, id: ExprId, attributes: bool, indent: i32, level: i32) -> String {
         Ctx { a: self, attributes, indent, active: RefCell::default() }.expr(id, level).value
     }
-    /// `Stmt::toCodonString(attributes, indent, level)`.
-    pub fn stmt_to_codon(&self, id: StmtId, attributes: bool, indent: i32, level: i32) -> String {
+    /// `Stmt::debug dump(attributes, indent, level)`.
+    pub fn stmt_to_debug(&self, id: StmtId, attributes: bool, indent: i32, level: i32) -> String {
         Ctx { a: self, attributes, indent, active: RefCell::default() }.stmt(id, level).value
     }
-    /// `formatCodonString` for an expression (value + simplicity flag).
-    pub fn expr_format_codon(&self, id: ExprId, attributes: bool, indent: i32, level: i32) -> Formatted {
+    /// `debug formatting` for an expression (value + simplicity flag).
+    pub fn expr_format_debug(&self, id: ExprId, attributes: bool, indent: i32, level: i32) -> Formatted {
         Ctx { a: self, attributes, indent, active: RefCell::default() }.expr(id, level)
     }
-    /// `formatCodonString` for a statement.
-    pub fn stmt_format_codon(&self, id: StmtId, attributes: bool, indent: i32, level: i32) -> Formatted {
+    /// `debug formatting` for a statement.
+    pub fn stmt_format_debug(&self, id: StmtId, attributes: bool, indent: i32, level: i32) -> Formatted {
         Ctx { a: self, attributes, indent, active: RefCell::default() }.stmt(id, level)
     }
 }

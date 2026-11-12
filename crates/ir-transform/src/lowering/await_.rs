@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/lowering/await.{h,cpp}
 
 use typhon_ir::util::cloning::CloneVisitor;
 use typhon_ir::util::irtools;

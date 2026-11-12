@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/numpy/numpy.h (numpy lane)
 //!
 //! File map:
 //! - `mod.rs`      : numpy.h shared declarations (`NumPyType`, `NumPyPrimitiveTypes`,
@@ -36,7 +35,7 @@ pub const FUSION_MODULE: &str = "std.numpy.fusion";
 /// The `llvm::cl` options of numpy.cpp (`-npfuse-always`, `-npfuse-never`,
 /// `-npfuse-matmul`, `-npfree-threshold`, `-npfuse-verbose`).
 ///
-/// PORT-NOTE: C++ reads these from LLVM's global command line. Here they are a
+/// Note: the reference implementation reads these from LLVM's global command line. Here they are a
 /// thread-local configuration (defaults identical) that the driver may override with
 /// [`set_numpy_options`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,7 +87,7 @@ macro_rules! xlog {
 pub(crate) use xlog;
 
 // ---------------------------------------------------------------------------
-// Type predicates (numpy.cpp anonymous namespace)
+// Type predicates
 // ---------------------------------------------------------------------------
 
 /// `isArrayType(t)`: a realized `std.numpy.ndarray.ndarray[...]` record.
@@ -124,7 +123,6 @@ fn is_opt(m: &Module, t: TypeId, other: Option<TypeId>) -> bool {
 // NumPyPrimitiveTypes / NumPyType
 // ---------------------------------------------------------------------------
 
-/// Port of `NumPyPrimitiveTypes`.
 #[derive(Clone, Copy, Debug)]
 pub struct NumPyPrimitiveTypes {
     pub none: TypeId,
@@ -140,7 +138,7 @@ pub struct NumPyPrimitiveTypes {
     pub f16: TypeId,
     pub f32: TypeId,
     pub f64: TypeId,
-    /// PORT-NOTE: `M->getType(...)` may return null in C++ too; kept optional.
+    /// Note: `M->getType(...)` may return null in the reference implementation too; kept optional.
     pub c64: Option<TypeId>,
     pub c128: Option<TypeId>,
 }
@@ -167,7 +165,6 @@ impl NumPyPrimitiveTypes {
     }
 }
 
-/// Port of `NumPyType::TypeCode`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(i32)]
 pub enum TypeCode {
@@ -252,7 +249,6 @@ impl TypeCode {
     }
 }
 
-/// Port of `NumPyType`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct NumPyType {
     pub dtype: TypeCode,
@@ -295,7 +291,7 @@ impl NumPyType {
 
     /// `NumPyType::get(t, T)`.
     ///
-    /// PORT-NOTE: C++ asserts on malformed ndarray generics; here such a type maps to
+    /// Note: the reference implementation asserts on malformed ndarray generics; here such a type maps to
     /// the "none" NumPy type (not optimizable) since generics need a `TypeRealizer`.
     pub fn get(m: &mut Module, t: TypeId, types: &NumPyPrimitiveTypes) -> NumPyType {
         let elems = Self::element_types(types);
@@ -348,7 +344,7 @@ impl fmt::Display for NumPyType {
 // NumPyOptimizationUnit
 // ---------------------------------------------------------------------------
 
-/// Port of `NumPyOptimizationUnit`. Expression nodes live in the owning
+/// Expression nodes live in the owning
 /// [`ExprArena`] (shared by all units of one function so forwarding can move
 /// subtrees between units).
 #[derive(Clone, Debug)]

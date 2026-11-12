@@ -1,4 +1,3 @@
-//! Port of codon/cir/analyze/module/global_vars.{h,cpp}.
 
 use rustc_hash::FxHashMap;
 use typhon_ir::pass::{Analysis, AnalysisResult, PassContext};
@@ -6,7 +5,6 @@ use typhon_ir::{Id, Module};
 
 use crate::util::walk::ConstWalker;
 
-/// Port of `GlobalVarsResult`.
 #[derive(Clone, Debug, Default)]
 pub struct GlobalVarsResult {
     /// global var uid -> uid of its single assigned value, `-1` if assigned several times or address taken
@@ -19,7 +17,6 @@ impl AnalysisResult for GlobalVarsResult {
     }
 }
 
-/// Port of `GlobalVarsAnalyses`.
 #[derive(Clone, Debug, Default)]
 pub struct GlobalVarsAnalyses;
 

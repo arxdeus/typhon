@@ -1,4 +1,4 @@
-//! Port of codon/parser/visitors/typecheck/infer.cpp, part 3: `makeIRType`,
+//! Part 3: `makeIRType`,
 //! `makeIRFunction`, `realizeIRFunc`.
 
 use std::collections::BTreeMap;

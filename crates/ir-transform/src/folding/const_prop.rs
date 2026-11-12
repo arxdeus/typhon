@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/folding/const_prop.{h,cpp}
 
 use typhon_ir::magic;
 use typhon_ir::pass::{Pass, PassContext, run_operator_pass};

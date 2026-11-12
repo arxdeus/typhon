@@ -1,6 +1,6 @@
 [package]
 name = "typhon-common"
-description = "Shared foundation: source locations, diagnostics, logging, string utils, name mangling, options (port of codon/util, codon/compiler/error, codon/parser/common)"
+description = "Shared foundation: source locations, diagnostics, logging, string utils, name mangling, options "
 version.workspace = true
 edition.workspace = true
 license.workspace = true

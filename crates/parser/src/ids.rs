@@ -44,10 +44,10 @@ macro_rules! arena_id {
 }
 
 arena_id!(
-    /// Handle to an AST expression in [`crate::ast::AstArena`] (C++ `ast::Expr *`).
+    /// Handle to an AST expression in [`crate::ast::AstArena`] (`ast::Expr *`).
     ExprId => crate::ast::Expr
 );
 arena_id!(
-    /// Handle to an AST statement in [`crate::ast::AstArena`] (C++ `ast::Stmt *`).
+    /// Handle to an AST statement in [`crate::ast::AstArena`] (`ast::Stmt *`).
     StmtId => crate::ast::Stmt
 );

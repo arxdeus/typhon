@@ -6,7 +6,7 @@ use typhon_parser::cache::Cache;
 use typhon_parser::visitors::scoping::{ScopingVisitor, install_hooks};
 
 fn src(line: i32) -> SrcInfo {
-    SrcInfo::new("t.codon", line, 1, 1)
+    SrcInfo::new("t.py", line, 1, 1)
 }
 fn id(c: &mut Cache, n: &str, l: i32) -> ExprId {
     c.ast.new_expr(IdExpr::new(n), src(l))
@@ -88,7 +88,7 @@ fn errors_match_cpp() {
     let a = assign(&mut c, "x", 1, 3);
     let f = func(&mut c, "f", vec![u, a], 1);
     let top = suite(&mut c, vec![f]);
-    assert_eq!(err(&mut c, top), "local variable 'x' referenced before assignment at t.codon:3:1");
+    assert_eq!(err(&mut c, top), "local variable 'x' referenced before assignment at t.py:3:1");
 }
 
 #[test]

@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/typecheck/call.cpp.
 
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
@@ -17,7 +16,7 @@ use crate::types::class::partial_flag;
 
 thread_local! {
     /// `(callee, call)` pairs of calls whose callee is being transformed.
-    /// PORT-NOTE: C++ reads `ctx->getParentNode()` in `visit(DotExpr*)`; the Rust node stack
+    /// Note: the reference implementation reads `ctx->getParentNode()` in `visit(DotExpr*)`; the Rust node stack
     /// only stores source locations, so `visit_call` registers the parent call here.
     static PARENT_CALLS: RefCell<Vec<(ExprId, ExprId)>> = const { RefCell::new(Vec::new()) };
 }
@@ -1074,7 +1073,7 @@ impl<'a> TypecheckVisitor<'a> {
             let c = self.call_n(nt, vec![tu, ki]);
             let kwe = self.tr(c)?;
             self.ast_mut()[kwe].attrs.set(Attr::ExprKwStarArgument);
-            // PORT-NOTE: C++ assigns an `Expr*` to the whole `CallArg` (implicit
+            // Note: the reference implementation assigns an `Expr*` to the whole `CallArg` (implicit
             // conversion drops the name); the name is cleared to match.
             if st.partial {
                 part.kw_args = Some(kwe);

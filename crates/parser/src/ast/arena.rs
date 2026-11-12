@@ -1,5 +1,4 @@
-//! The AST arena (C++ `Cache::N<T>` node storage) plus node logic from
-//! codon/parser/ast/{expr,stmt}.cpp: constructors with normalization, deep clone,
+//! The AST arena (node storage) plus node logic: constructors with normalization, deep clone,
 //! suite helpers, generator helpers and FunctionStmt/ClassStmt helpers.
 
 use std::collections::HashSet;
@@ -16,7 +15,7 @@ use super::stmt::*;
 use crate::ids::{ExprId, StmtId, TypeId};
 
 /// `types::LiteralKind`.
-// PORT-NOTE: defined here because the types lane is not ported yet; the types module
+// Note: defined here because the types lane is not ported yet; the types module
 // should re-export (or replace) it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LiteralKind {
@@ -48,12 +47,12 @@ pub trait TypeFormatter {
     fn is_func(&self, ty: TypeId) -> bool;
 }
 
-/// Owner of all AST nodes. C++ never frees individual nodes; neither does this arena.
+/// Owner of all AST nodes. the reference implementation never frees individual nodes; neither does this arena.
 #[derive(Default)]
 pub struct AstArena {
     exprs: Arena<Expr>,
     stmts: Arena<Stmt>,
-    /// Type printer used by `toString`/`toCodonString`/format (falls back to `T<n>`).
+    /// Type printer used by `toString`/`debug dump`/format (falls back to `T<n>`).
     pub type_fmt: Option<Rc<dyn TypeFormatter>>,
 }
 
@@ -86,7 +85,7 @@ impl IndexMut<StmtId> for AstArena {
     }
 }
 
-/// Location of the final statement of a generator (C++ `Stmt **getFinalStmt()`).
+/// Location of the final statement of a generator (`Stmt **getFinalStmt()`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GenSlot {
     /// `GeneratorExpr::loops` itself.
@@ -144,7 +143,7 @@ impl AstArena {
         StmtId(self.stmts.alloc(s))
     }
 
-    /// `cache->NS<T>(src, args...)` for expressions. Applies C++ constructor side effects
+    /// `cache->NS<T>(src, args...)` for expressions. Applies original side effects
     /// (PipeExpr marks call ellipses as `Pipe`; DictExpr item validation).
     pub fn new_expr(&mut self, kind: impl Into<ExprKind>, src: SrcInfo) -> ExprId {
         let mut kind = kind.into();
@@ -177,7 +176,7 @@ impl AstArena {
     }
 
     /// `cache->NS<T>(src, args...)` for statements. Suite slots are wrapped with
-    /// [`AstArena::wrap_suite`] as the C++ constructors do.
+    /// [`AstArena::wrap_suite`] as the original do.
     pub fn new_stmt(&mut self, kind: impl Into<StmtKind>, src: SrcInfo) -> StmtId {
         let mut kind = kind.into();
         struct Wrap<'a>(&'a mut AstArena);
@@ -538,7 +537,7 @@ impl AstArena {
         self[f].attrs.get_key_value(Attr::FunctionAttributes).is_some_and(|m| m.contains_key(attr))
     }
 
-    /// True if an `IdExpr` named `what` occurs in the subtree (C++ `IdSearchVisitor`,
+    /// True if an `IdExpr` named `what` occurs in the subtree (the reference implementation `IdSearchVisitor`,
     /// which does not look inside f-string parts).
     pub fn contains_id(&self, e: ExprId, what: &str) -> bool {
         use super::children::{Child, ChildCollector};
@@ -586,7 +585,7 @@ impl AstArena {
 
     // ---------------------------------------------------------------- cloning
 
-    /// Deep copy (C++ `ast::clone(e, clean)`): `clean` strips `ty`, `expected_type` and
+    /// Deep copy (`ast::clone(e, clean)`): `clean` strips `ty`, `expected_type` and
     /// `done`. `orig_expr` is copied as a reference (not cloned), attributes are cloned.
     pub fn clone_expr(&mut self, id: ExprId, clean: bool) -> ExprId {
         let mut e = self[id].clone();
@@ -604,7 +603,7 @@ impl AstArena {
         }
         e.kind.map_ids(&mut M { a: self, clean });
         if let ExprKind::String(s) = &mut e.kind {
-            // C++ StringExpr copy ctor clones part expressions with clean=false.
+            // the reference implementation StringExpr copy ctor clones part expressions with clean=false.
             for p in &mut s.strings {
                 if let Some(x) = p.expr {
                     p.expr = Some(self.clone_expr(x, false));
@@ -623,7 +622,7 @@ impl AstArena {
         id.map(|i| self.clone_expr(i, clean))
     }
 
-    /// Deep copy of a statement (C++ `ast::clone(s, clean)`).
+    /// Deep copy of a statement (`ast::clone(s, clean)`).
     pub fn clone_stmt(&mut self, id: StmtId, clean: bool) -> StmtId {
         let mut s = self[id].clone();
         struct M<'a> {
@@ -643,7 +642,7 @@ impl AstArena {
             f.non_inferrable_generics = None;
             f.call_layout = None;
         }
-        // PORT-NOTE: C++ ExceptStmt's copy constructor does not reset `done` on clean.
+        // Note: the reference implementation ExceptStmt's copy constructor does not reset `done` on clean.
         if clean && s.kind.as_except().is_none() {
             s.done = false;
         }
@@ -663,7 +662,7 @@ impl AstArena {
             ParamStatus::Generic => 1,
             ParamStatus::HiddenGeneric => 2,
         };
-        // PORT-NOTE: C++ Param::clone does not copy the source location.
+        // Note: the reference implementation Param::clone does not copy the source location.
         self.new_param(SrcInfo::default(), p.name.clone(), ty, d, hint, p.kind)
     }
 

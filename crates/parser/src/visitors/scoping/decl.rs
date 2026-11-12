@@ -1,4 +1,3 @@
-//! Port of `ScopingVisitor::visit(ImportStmt|FunctionStmt|ClassStmt)` (scoping.cpp).
 
 use std::collections::BTreeMap;
 
@@ -276,7 +275,7 @@ impl ScopingVisitor<'_> {
         self.cache.ast[id].attrs.set_value(Attr::Bindings, AttrValue::Bindings(b));
 
         if !c.class_deduce.1.is_empty() {
-            // PORT-NOTE: C++ iterates an unordered_set; insertion order is used here.
+            // Note: the reference implementation iterates an unordered_set; insertion order is used here.
             let v: Vec<String> = c.class_deduce.1.iter().cloned().collect();
             self.cache.ast[id].attrs.set_value(Attr::ClassDeduce, AttrValue::StrList(v));
         }

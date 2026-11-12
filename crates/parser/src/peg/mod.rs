@@ -1,4 +1,3 @@
-//! Port of codon/parser/peg/{peg.{h,cpp},rules.h,grammar.peg,openmp.peg} (grammar lane)
 //!
 //! Driver functions mirroring `peg.h`: [`parse_code`], [`parse_expr`], [`parse_file`],
 //! [`parse_openmp`].
@@ -43,7 +42,7 @@ pub fn parse_code(
 ) -> Result<StmtId> {
     let code = format!("{code}\n");
     let st = ParseState::new(arena, opts, file, &code, line_offset, 0);
-    let r = grammar::codon::program(&code, &st);
+    let r = grammar::python::program(&code, &st);
     finish(&st, r, file)
 }
 
@@ -58,11 +57,11 @@ pub fn parse_expr(
     let code = code.trim_start_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c']).to_string();
     let file = offset.file.as_str().to_string();
     let st = ParseState::new(arena, opts, &file, &code, offset.line, offset.col);
-    let r = grammar::codon::fstring(&code, &st);
+    let r = grammar::python::fstring(&code, &st);
     finish(&st, r, &file)
 }
 
-/// `parseFile(cache, file)`. Returns the AST and the file lines (C++ stores them into
+/// `parseFile(cache, file)`. Returns the AST and the file lines (the reference implementation stores them into
 /// `cache->imports[file].content`; the caller does that here).
 pub fn parse_file(
     arena: &mut AstArena,
@@ -74,7 +73,7 @@ pub fn parse_file(
     let mut code = lines.join("\n");
     code.push('\n');
     let st = ParseState::new(arena, opts, file, &code, 0, 0);
-    let r = grammar::codon::program(&code, &st);
+    let r = grammar::python::program(&code, &st);
     let s = finish(&st, r, file)?;
     Ok((s, lines))
 }
@@ -97,7 +96,7 @@ pub fn parse_openmp(
                     if tok.is_empty() {
                         "syntax error.".to_string()
                     } else {
-                        // PORT-NOTE: cpp-peglib also lists expected tokens here; they are
+                        // Note: cpp-peglib also lists expected tokens here; they are
                         // not reproducible from rust-peg and only the prefix is kept.
                         format!("syntax error, unexpected '{tok}'")
                     }

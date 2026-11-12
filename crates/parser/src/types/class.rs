@@ -1,4 +1,4 @@
-//! Port of codon/parser/ast/types/class.{h,cpp}: `ClassType` and `ClassType::Generic`.
+//! `ClassType` and `ClassType::Generic`.
 
 use std::collections::BTreeSet;
 

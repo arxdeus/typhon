@@ -1,6 +1,6 @@
-//! Port of `codon/cir/dsl/nodes.{h,cpp}`: custom node extension points.
+//! Custom node extension points.
 //!
-//! C++ `dsl::CustomConst/CustomFlow/CustomInstr` are abstract subclasses; here they are a
+//! the reference implementation `dsl::CustomConst/CustomFlow/CustomInstr` are abstract subclasses; here they are a
 //! single trait object stored in `ValueKind::Custom`. The LLVM backend obtains builders by
 //! downcasting through `as_any()` to a trait it defines (`typhon_llvm::LlvmHooks`).
 
@@ -15,7 +15,7 @@ use crate::types::TypeData;
 use crate::util::cloning::CloneVisitor;
 use crate::util::side_effect::SideEffectStatus;
 
-/// Which C++ base class a custom value derives from.
+/// Which the reference implementation base class a custom value derives from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CustomCategory {
     Const,
@@ -23,10 +23,9 @@ pub enum CustomCategory {
     Instr,
 }
 
-/// Port of `CustomConst` / `CustomFlow` / `CustomInstr`.
 pub trait CustomValue: fmt::Debug {
     /// Result type (`doGetType`). `None` means the module's none type (default for
-    /// flows/instrs, like C++ `Flow::doGetType`/`Instr::doGetType`).
+    /// flows/instrs, like the reference implementation `Flow::doGetType`/`Instr::doGetType`).
     fn ty(&self, _m: &Module) -> Option<TypeId> {
         None
     }
@@ -75,7 +74,6 @@ impl CustomNode {
     }
 }
 
-/// Port of `dsl::CustomType`.
 pub trait CustomType: fmt::Debug {
     /// `match(const Type*)`.
     fn matches(&self, other: &TypeData) -> bool;

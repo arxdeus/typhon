@@ -1,9 +1,7 @@
-//! Port of `codon/cir/transform/parallel/schedule.{h,cpp}`.
 
 use crate::ids::{Id, ValueId};
 use crate::module::Module;
 
-/// Port of `transform::parallel::OMPSched`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OMPSched {
     pub code: i32,
@@ -29,7 +27,6 @@ impl Default for OMPSched {
     }
 }
 
-/// Port of anonymous `getScheduleCode`.
 pub fn schedule_code(schedule: &str, chunked: bool, ordered: bool, monotonic: bool) -> i32 {
     let modifier: i32 = if monotonic { 1 << 29 } else { 1 << 30 };
     match schedule {

@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/pythonic/list.{h,cpp}
 
 use typhon_common::mangle::stdlib;
 use typhon_ir::util::cloning::CloneVisitor;
@@ -129,7 +128,7 @@ impl ElementHandler {
                     .expect("could not find literal list append helper");
                 let mut first = true;
                 for var in &self.vars {
-                    // PORT-NOTE: C++ reuses the same `result` node for every call; we
+                    // Note: the reference implementation reuses the same `result` node for every call; we
                     // create a fresh VarValue per call after the first (same semantics).
                     let r = if first {
                         first = false;
@@ -181,7 +180,7 @@ fn optimize(m: &mut Module, parent: Option<FuncId>, r: &InspectionResult) -> Opt
     let mut handlers = Vec::new();
     for v in &r.args {
         let c = cv.clone_value(m, *v);
-        // PORT-NOTE: C++ stores a null handler on type mismatch and would crash
+        // Note: the reference implementation stores a null handler on type mismatch and would crash
         // later; we bail out instead.
         handlers.push(ElementHandler::get(m, c, ty)?);
     }

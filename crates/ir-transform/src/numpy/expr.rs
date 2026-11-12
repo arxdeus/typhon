@@ -1,8 +1,7 @@
-//! Port of codon/cir/transform/numpy/expr.cpp
 //!
-//! PORT-NOTE: C++ `NumPyExpr` is a tree of `unique_ptr`s and maps are keyed by
+//! Note: the reference implementation `NumPyExpr` is a tree of `unique_ptr`s and maps are keyed by
 //! `NumPyExpr*`. Here all nodes of one function live in an [`ExprArena`] and are
-//! referenced by [`ExprId`] (stable identity, like the C++ pointers). `replace`
+//! referenced by [`ExprId`] (stable identity, like the the reference implementation pointers). `replace`
 //! copies the node fields (including child ids) and resets the source node.
 
 use rustc_hash::FxHashMap;
@@ -12,12 +11,11 @@ use typhon_ir::{FuncId, Generic, Module, NodeRef, TypeId, ValueId, VarId, magic}
 
 use super::{FUSION_MODULE, NumPyPrimitiveTypes, NumPyType, TypeCode, gstr, gty};
 
-/// Index of a node in an [`ExprArena`] (C++ `NumPyExpr*`).
+/// Index of a node in an [`ExprArena`] (`NumPyExpr*`).
 pub type ExprId = usize;
 
 macro_rules! ops {
     ($($v:ident => $s:literal, $c:expr;)*) => {
-        /// Port of `NumPyExpr::Op`.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         pub enum Op { $($v,)* }
         impl Op {
@@ -123,7 +121,6 @@ ops! {
     Amax => "amax", 1;
 }
 
-/// Port of `BroadcastInfo`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BroadcastInfo {
     Unknown,
@@ -503,7 +500,6 @@ pub(crate) fn decide_types(m: &mut Module, op: Op, ty: NumPyType, lhs: NumPyType
 // codegen
 // ---------------------------------------------------------------------------
 
-/// Port of `CodegenContext`.
 #[derive(Clone, Debug)]
 pub struct CodegenContext {
     pub series: ValueId,

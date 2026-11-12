@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/typecheck/collections.cpp.
 
 use std::collections::BTreeMap;
 

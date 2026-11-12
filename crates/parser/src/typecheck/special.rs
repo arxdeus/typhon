@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/typecheck/special.cpp.
 //!
 //! Split into submodules (all `impl TypecheckVisitor` blocks):
 //! * [`vtables`]: `vTableSignature`, `valueMethodId`, `prepareVTables`;

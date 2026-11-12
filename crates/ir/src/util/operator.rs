@@ -1,4 +1,3 @@
-//! Port of `codon/cir/util/operator.h`.
 //!
 //! `util::Operator` is a pre/post-order walker over the IR with per-kind `handle`
 //! callbacks, a parent stack and series-flow insertion support. In Rust the walker
@@ -41,7 +40,6 @@ macro_rules! handlers {
     };
 }
 
-/// Port of `util::Operator`.
 pub trait Operator {
     fn state(&self) -> &OperatorState;
     fn state_mut(&mut self) -> &mut OperatorState;
@@ -196,7 +194,7 @@ pub trait Operator {
     #[doc(hidden)]
     fn process_children(&mut self, m: &mut Module, v: ValueId) {
         self.state_mut().node_stack.push(v.into());
-        // CallInstr: snapshot of args followed by callee (matches C++ explicit branch).
+        // CallInstr: snapshot of args followed by callee (matches the reference implementation explicit branch).
         let children: Vec<ValueId> = match m.as_call_instr(v) {
             Some(call) => {
                 let mut c = call.args.clone();

@@ -81,7 +81,7 @@ impl<'a> TypecheckVisitor<'a> {
                 let te = self.extract_type_expr(typ_expr);
                 let mut probe = Unification::new();
                 let r = types.unify(te, *ut, Some(&mut probe), self)?;
-                // PORT-NOTE: C++ `unify(.., nullptr)` is destructive on success; we keep the
+                // Note: the reference implementation `unify(.., nullptr)` is destructive on success; we keep the
                 // successful unification (same effect) and only undo failed attempts.
                 if r >= 0 {
                     tag = ui as i64;

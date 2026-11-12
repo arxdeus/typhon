@@ -1,11 +1,10 @@
-//! Port of codon/parser/peg/grammar.peg (and the generated `codon_rules.cpp`).
 //!
 //! Every cpp-peglib rule maps to one rust-peg rule with the same name. Semantic
-//! actions build the AST through [`ParseState`] (C++ `ParseContext`). `LOC` (the
+//! actions build the AST through [`ParseState`] (`ParseContext`). `LOC` (the
 //! source span of the whole rule match) is taken with `p:position!() ... q:position!()`
 //! at the start/end of every alternative.
 //!
-//! PORT-NOTE: cpp-peglib enables packrat parsing on `program`, memoizing all rules that
+//! Note: cpp-peglib enables packrat parsing on `program`, memoizing all rules that
 //! are not `__NOPACKRAT`/side-effecting. rust-peg's `#[cache]` keys only on the input
 //! position; it is enabled on the pure expression rules (whose results only depend on
 //! the position and on `parens`, which is constant for a given position in practice).
@@ -22,7 +21,7 @@ pub type FStringResult = (ExprId, FormatSpec);
 /// `from_id` value: (what, params, return type, is_function).
 type FromId = (ExprId, Vec<Param>, Option<ExprId>, bool);
 
-/// `primary_tail` value (C++ `pair<int, any>`).
+/// `primary_tail` value (`pair<int, any>`).
 pub enum Tail {
     Dot(String),
     Gen(ExprId),
@@ -31,7 +30,7 @@ pub enum Tail {
 }
 
 peg::parser! {
-pub grammar codon(st: &Ctx<'_>) for str {
+pub grammar python(st: &Ctx<'_>) for str {
 
 // ------------------------------------------------------------------ helpers
 
@@ -391,7 +390,7 @@ rule match_pattern() -> ExprId
         }
     }
 rule directive() -> StmtId
-    = p:position!() "##" _ "codon:" _ n:NAME() _ "=" _ v:(INT() / NAME()) q:position!() {
+    = p:position!() "##" _ "typhon:" _ n:NAME() _ "=" _ v:(INT() / NAME()) q:position!() {
         st.s(DirectiveStmt { key: n, value: v }, (p, q))
     }
 
@@ -653,9 +652,9 @@ rule STR() -> String
     / "'" s:$((!("'" / EOL()) CHAR())*) "'" { s.to_string() }
 rule CHAR() = "\\" [_] / [_]
 rule COMMENT() = !directive_lookahead() "#" [^ '\r' | '\n']*
-/// PORT-NOTE: `!directive` would build AST nodes from a predicate; an equivalent pure
+/// Note: `!directive` would build AST nodes from a predicate; an equivalent pure
 /// lookahead of the `directive` syntax is used instead.
-rule directive_lookahead() = "##" _ "codon:" _ NAME() _ "=" _ (INT() / NAME())
+rule directive_lookahead() = "##" _ "typhon:" _ NAME() _ "=" _ (INT() / NAME())
 rule ws() -> usize = s:$([' ' | '\t']*) { s.len() }
 rule INDENT() = p:position!() n:ws() x:#{cond(st.indent_pred(p, n))}
 rule SAMEDENT() = n:ws() x:#{cond(st.samedent_pred(n))}

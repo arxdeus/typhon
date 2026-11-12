@@ -9,7 +9,7 @@ use crate::ids::{ExprId, TypeId};
 use crate::types::LiteralKind;
 
 impl<'a> TypecheckVisitor<'a> {
-    /// `extractFunction(arg0 type)` or the C++ "expected a function" error.
+    /// `extractFunction(arg0 type)` or the the reference implementation "expected a function" error.
     fn sp_expect_function(&self, t: TypeId, shown: TypeId) -> Result<TypeId> {
         match self.extract_function(t) {
             Some(f) => Ok(f),
@@ -191,7 +191,7 @@ impl<'a> TypecheckVisitor<'a> {
         let Some(typ) = self.expr_class(ex) else { return Ok(None) };
 
         let mut tuple_items = vec![];
-        // PORT-NOTE: C++ reuses `expr->begin()->value` (the original, untransformed slot) as
+        // Note: the reference implementation reuses `expr->begin()->value` (the original, untransformed slot) as
         // the receiver of each `DotExpr`; we do the same.
         let recv = self.sp_arg(e, 0);
         for (idx, f) in self.get_class_fields(typ).into_iter().enumerate() {
@@ -272,7 +272,7 @@ impl<'a> TypecheckVisitor<'a> {
         let func_typ = types.get_func(self.sp_callee_type(e)).expect("not a function");
         let fmt = self.get_str_literal(self.extract_func_generic(func_typ, 0), 0);
         let arg = self.get_str_literal(self.extract_func_generic(func_typ, 1), 0);
-        // PORT-NOTE: C++ replaces each `%%` with `{}` and formats with fmt::vformat; other
+        // Note: the reference implementation replaces each `%%` with `{}` and formats with fmt::vformat; other
         // braces in the format string are fmt syntax too. We substitute `%%` directly and
         // handle `{{`/`}}` escapes the same way fmt would.
         let r = fmt.replace("{{", "\u{0}").replace("}}", "\u{1}").replace("%%", &arg.replace('{', "\u{2}").replace('}', "\u{3}"));

@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/typecheck/access.cpp.
 
 use typhon_common::mangle::{self, stdlib};
 use typhon_common::{CompilerError, ErrorKind, Result};
@@ -192,7 +191,7 @@ impl<'a> TypecheckVisitor<'a> {
     pub fn visit_dot(&mut self, e: ExprId) -> Result<()> {
         // Check if this is being called from CallExpr (e.g., foo.bar(...))
         // and mark it as such (to inline useless partial expression)
-        // PORT-NOTE: the node stack keeps only source locations; the parent call is
+        // Note: the node stack keeps only source locations; the parent call is
         // registered by `visit_call` (see `call::parent_call_of`).
         let parent_call = super::call::parent_call_of(e).filter(|c| self.ast()[*c].attrs.has(Attr::ParentCallExpr));
 
@@ -450,9 +449,9 @@ impl<'a> TypecheckVisitor<'a> {
         }
     }
 
-    /// `getImport(chain)` (access.cpp overload): check if a chain (a.b.c.d...) contains an
+    /// `getImport(chain)`: check if a chain (a.b.c.d...) contains an
     /// import or a class prefix.
-    /// PORT-NOTE: renamed from `getImport` to avoid clashing with `getImport(string)`.
+    /// Note: renamed from `getImport` to avoid clashing with `getImport(string)`.
     pub fn get_import_chain(&mut self, chain: &[String]) -> Result<(usize, Option<ItemRef>)> {
         let types = self.types();
         let mut import_end = 0usize;

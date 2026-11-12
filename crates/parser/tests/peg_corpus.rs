@@ -1,5 +1,5 @@
-//! Corpus test: parse every `.codon`/`.py` under ../stdlib and ../test with the PEG
-//! parser, then round-trip (stmt_to_codon -> parse -> compare S-expressions).
+//! Corpus test: parse every `.py`/`.py` under ../stdlib and ../test with the PEG
+//! parser, then round-trip (stmt_to_debug -> parse -> compare S-expressions).
 
 use std::path::{Path, PathBuf};
 
@@ -23,7 +23,7 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Splits test files into `#%%` sections (test/main.cpp `getTypeTests`); other files
+/// Splits test files into `#%%` sections; other files
 /// are one unit. Sections with a `#! syntax error` / `unexpected` expectation that is
 /// produced by the parser are skipped (they intentionally fail to parse).
 fn units(path: &Path, text: &str) -> Vec<(usize, String)> {
@@ -54,7 +54,7 @@ fn expects_syntax_error(code: &str) -> bool {
             let m = &l[i + 3..];
             m.starts_with("syntax error") || m.contains("unexpected indentation") || m.contains("unexpected dedent")
                 || m.contains("invalid code in a string")
-                // FunctionStmt::parseParams errors are raised while parsing (C++ ctor).
+                // FunctionStmt::parseParams errors are raised while parsing (ctor).
                 || m.contains("must follow positional parameters")
                 || m.contains("named arguments must follow bare")
                 || m.contains("may appear only once")
@@ -85,13 +85,13 @@ fn peg_corpus() {
             match parse_code(&mut arena, &opts, &f.to_string_lossy(), &code, line as i32) {
                 Ok(s) => {
                     parsed += 1;
-                    // PORT-NOTE: `stmt_to_codon` (C++ toCodonString) is an AST dump, not
+                    // Note: `stmt_to_debug` (debug dump) is an AST dump, not
                     // re-parseable source, so the round-trip is: parse again and compare
-                    // both the S-expression and the Codon dump (determinism + printers).
-                    let d1 = (arena.stmt_to_string(s, 0), arena.stmt_to_codon(s, false, -1, 0));
+                    // both the S-expression and the Typhon dump (determinism + printers).
+                    let d1 = (arena.stmt_to_string(s, 0), arena.stmt_to_debug(s, false, -1, 0));
                     let mut a2 = AstArena::new();
                     match parse_code(&mut a2, &opts, &f.to_string_lossy(), &code, line as i32) {
-                        Ok(s2) if (a2.stmt_to_string(s2, 0), a2.stmt_to_codon(s2, false, -1, 0)) == d1 => rt_ok += 1,
+                        Ok(s2) if (a2.stmt_to_string(s2, 0), a2.stmt_to_debug(s2, false, -1, 0)) == d1 => rt_ok += 1,
                         _ => {
                             rt_bad += 1;
                             eprintln!("ROUNDTRIP MISMATCH {}:{line}", f.display());

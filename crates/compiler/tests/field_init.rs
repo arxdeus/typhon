@@ -11,7 +11,7 @@ use typhon_common::Options;
 use typhon_compiler::Compiler;
 
 fn compile(src: &str, file: &str, f: impl FnOnce(&mut Options)) -> (Compiler, Result<(), String>) {
-    let mut o = Options::with_argv0("build/codon_test");
+    let mut o = Options::with_argv0("build/typhon_test");
     f(&mut o);
     let mut c = Compiler::new(o, None);
     let r = c.parse_code(file, src, 0, 0, &HashMap::new()).map_err(|e| e.to_string());

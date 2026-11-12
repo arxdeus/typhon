@@ -1,4 +1,3 @@
-//! Port of `DocVisitor::visit(FunctionStmt|ClassStmt|ImportStmt|AssignStmt)` (doc.cpp).
 
 use serde_json::{Map, Value};
 use typhon_common::Result;

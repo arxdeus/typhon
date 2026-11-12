@@ -1,4 +1,4 @@
-//! Unit tests for the PEG parser (port of codon/parser/peg/grammar.peg).
+//! Unit tests for the PEG parser .
 
 use typhon_common::SrcInfo;
 use typhon_parser::ast::*;
@@ -9,12 +9,12 @@ fn sx(code: &str) -> String {
 }
 fn sx_opts(code: &str, o: &ParseOptions) -> String {
     let mut a = AstArena::new();
-    let s = parse_code(&mut a, o, "t.codon", code, 0).unwrap_or_else(|e| panic!("{code}: {e}"));
+    let s = parse_code(&mut a, o, "t.py", code, 0).unwrap_or_else(|e| panic!("{code}: {e}"));
     a.stmt_to_string(s, 0).split_whitespace().collect::<Vec<_>>().join(" ")
 }
 fn err(code: &str) -> String {
     let mut a = AstArena::new();
-    match parse_code(&mut a, &ParseOptions::default(), "t.codon", code, 0) {
+    match parse_code(&mut a, &ParseOptions::default(), "t.py", code, 0) {
         Ok(s) => panic!("expected error, got {}", a.stmt_to_string(s, 0)),
         Err(e) => e.to_string().trim().to_string(),
     }
@@ -111,7 +111,7 @@ fn peg_line_continuation_and_comments() {
     has("x = (1 +\n 2)", "(binary \"+\" (int 1) (int 2))");
     has("x = 1 + \\\n 2", "(binary \"+\" (int 1) (int 2))");
     has("x = 1  # comment\n", "(assign 'x (int 1))");
-    has("## codon: foo = 1\n", "(directive");
+    has("## typhon: foo = 1\n", "(directive");
 }
 
 #[test]
@@ -127,12 +127,12 @@ fn peg_srcinfo() {
 
 #[test]
 fn peg_errors() {
-    assert_eq!(err("x = = 1"), "t.codon:1:5: syntax error, unexpected '='");
-    assert_eq!(err("if x:\npass\n"), "t.codon:2:1: unexpected indentation");
+    assert_eq!(err("x = = 1"), "t.py:1:5: syntax error, unexpected '='");
+    assert_eq!(err("if x:\npass\n"), "t.py:2:1: unexpected indentation");
     assert!(err("x = 1\n  y = 2\n").contains("syntax error"));
     assert!(err("def f(*, a, *, b): pass").contains("'*' may appear only once"));
-    assert_eq!(err("x = '\\xZZ'"), "t.codon:1:5: invalid code in a string: invalid \\x code");
-    assert_eq!(err("def f():\n    x\n  y\n"), "t.codon:3:3: syntax error, unexpected 'y'");
+    assert_eq!(err("x = '\\xZZ'"), "t.py:1:5: invalid code in a string: invalid \\x code");
+    assert_eq!(err("def f():\n    x\n  y\n"), "t.py:3:3: syntax error, unexpected 'y'");
 }
 
 #[test]

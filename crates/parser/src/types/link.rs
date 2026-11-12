@@ -1,4 +1,4 @@
-//! Port of codon/parser/ast/types/link.{h,cpp}: `LinkType` operations.
+//! `LinkType` operations.
 
 use typhon_common::Result;
 
@@ -198,7 +198,7 @@ impl TypeArena {
         let me = self.link(this).unwrap();
         let mut visited = Visited::default();
         let mut stack = vec![typ];
-        // PORT-NOTE: iterative DFS instead of recursive std::function (same visit order
+        // Note: iterative DFS instead of recursive std::function (same visit order
         // is irrelevant for the boolean result and level adjustments).
         while let Some(t) = stack.pop() {
             if !visited.insert(t) {
@@ -235,7 +235,7 @@ impl TypeArena {
                     }
                 }
                 TypeKind::Trait(tk) => {
-                    // C++ `typ->getClass()` is null for traits -> false; but the trait's
+                    // the reference implementation `typ->getClass()` is null for traits -> false; but the trait's
                     // own unbound args are not visited either.
                     let _ = tk;
                 }

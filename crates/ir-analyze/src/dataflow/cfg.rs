@@ -1,6 +1,6 @@
-//! Port of codon/cir/analyze/dataflow/cfg.{h,cpp}: control-flow graph construction.
+//! Control-flow graph construction.
 //!
-//! C++ blocks hold `const Value*` pointers that are either real IR values or synthetic
+//! the reference implementation blocks hold `const Value*` pointers that are either real IR values or synthetic
 //! instructions owned by the graph (`SyntheticAssignInstr`, `SyntheticPhiInstr`, plus the
 //! temporary `CallInstr`/`VarValue`/`ForFlow`/`SeriesFlow` nodes created when converting
 //! pipelines to loops). Here they are [`CfValue::Real`] / [`CfValue::Synth`]; synthetic
@@ -76,7 +76,6 @@ pub struct SyntheticVar {
     pub name: String,
 }
 
-/// Port of `SyntheticAssignInstr::Kind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SyntheticAssignKind {
     Unknown,
@@ -85,7 +84,6 @@ pub enum SyntheticAssignKind {
     Add,
 }
 
-/// Port of `SyntheticAssignInstr`.
 #[derive(Clone, Debug)]
 pub struct SyntheticAssignInstr {
     pub lhs: CfVar,
@@ -94,14 +92,12 @@ pub struct SyntheticAssignInstr {
     pub diff: i64,
 }
 
-/// Port of `SyntheticPhiInstr::Predecessor`.
 #[derive(Clone, Debug)]
 pub struct PhiPredecessor {
     pub pred: BlockId,
     pub result: CfValue,
 }
 
-/// Port of `SyntheticPhiInstr`.
 #[derive(Clone, Debug, Default)]
 pub struct SyntheticPhiInstr {
     pub preds: Vec<PhiPredecessor>,
@@ -149,7 +145,6 @@ impl SyntheticValue {
     }
 }
 
-/// Port of `CFBlock`.
 #[derive(Clone, Debug)]
 pub struct CFBlock {
     pub uid: Id,
@@ -192,7 +187,6 @@ impl CFBlock {
     }
 }
 
-/// Port of `CFGraph`.
 #[derive(Debug)]
 pub struct CFGraph {
     blocks: Vec<CFBlock>,
@@ -437,7 +431,6 @@ impl CFGraph {
     }
 }
 
-/// Port of `CFResult`.
 #[derive(Clone, Debug, Default)]
 pub struct CFResult {
     /// map from function id to control-flow graph
@@ -450,7 +443,6 @@ impl AnalysisResult for CFResult {
     }
 }
 
-/// Port of `CFAnalysis`.
 #[derive(Clone, Debug, Default)]
 pub struct CFAnalysis;
 
@@ -501,9 +493,9 @@ thread_local! {
     static CF_BUILDERS: RefCell<FxHashMap<StdTypeId, CfBuilderFn>> = RefCell::new(FxHashMap::default());
 }
 
-/// Registers the CFG builder of a DSL custom node type (C++ `CustomFlow/CustomInstr::getCFBuilder`).
+/// Registers the CFG builder of a DSL custom node type (`CustomFlow/CustomInstr::getCFBuilder`).
 ///
-/// PORT-NOTE: `typhon_ir::dsl::CustomValue` has no CF-builder hook, so DSL plugins register
+/// Note: `typhon_ir::dsl::CustomValue` has no CF-builder hook, so DSL plugins register
 /// one per concrete type here. Unregistered custom nodes process their used values and are
 /// then inserted as ordinary values.
 pub fn register_cf_builder<T: CustomValue + 'static>(f: impl Fn(&T, ValueId, &mut CFVisitor<'_>) + 'static) {
@@ -523,7 +515,6 @@ struct Loop {
     tc_index: i32,
 }
 
-/// Port of `CFVisitor`.
 pub struct CFVisitor<'a> {
     m: &'a Module,
     graph: &'a mut CFGraph,
@@ -808,7 +799,7 @@ impl<'a> CFVisitor<'a> {
                 self.process(i.false_value);
                 let cur = self.graph.current_block();
                 self.graph.successors_insert(cur, end);
-                // PORT-NOTE: like C++, predecessors are the branch entry blocks.
+                // Note: like C++, predecessors are the branch entry blocks.
                 let phi = self.graph.add_synthetic(
                     Some(NodeRef::Value(v)),
                     SyntheticKind::Phi(SyntheticPhiInstr {
@@ -929,7 +920,7 @@ impl<'a> CFVisitor<'a> {
         match loop_ {
             Some(l) => {
                 let id = self.m.value_uid(l);
-                // PORT-NOTE: C++ dereferences `end()` if the loop is not found; fall back
+                // Note: the reference implementation dereferences `end()` if the loop is not found; fall back
                 // to the innermost loop instead.
                 self.loop_stack.iter().find(|x| x.loop_id == id).or(self.loop_stack.last()).copied()
             }

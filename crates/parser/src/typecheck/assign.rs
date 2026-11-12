@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/typecheck/assign.cpp
 
 use typhon_common::mangle::{self, stdlib};
 use typhon_common::{ErrorKind, Result};
@@ -57,7 +56,7 @@ impl<'a> TypecheckVisitor<'a> {
         }
 
         self.result_stmt = self.transform_assignment(s, must_update)?;
-        // PORT-NOTE: C++ re-reads `stmt->getLhs()`; transformAssignment may have replaced it.
+        // Note: the reference implementation re-reads `stmt->getLhs()`; transformAssignment may have replaced it.
         let lhs = self.as_assign(s).lhs.unwrap();
         if self.cache.ast[lhs].attrs.has(Attr::ExprDominatedUsed) {
             // If this is dominated, set __used__ if needed
@@ -331,7 +330,7 @@ impl<'a> TypecheckVisitor<'a> {
         if let Some(te) = type_expr {
             if types.is(self.extract_type_expr(te), &st.thread_local) {
                 is_thread_local = true;
-                // PORT-NOTE: C++ inspects the original (pre-transform) annotation node, which
+                // Note: the reference implementation inspects the original (pre-transform) annotation node, which
                 // is transformed in place; the original id is used here.
                 match orig_type.and_then(|o| self.cache.ast[o].kind.as_index().cloned()) {
                     Some(ti) => type_expr = self.tr_type_opt(ti.index)?,
@@ -709,7 +708,7 @@ impl<'a> TypecheckVisitor<'a> {
 
         // Case: in-place updates (e.g., `a += b`).
         // They are stored as `Update(a, Binary(a + b, inPlace=true))`
-        // PORT-NOTE: C++ `cast<...>(nullptr)` tolerates annotation-only updates (`x: T`
+        // Note: the reference implementation `cast<...>(nullptr)` tolerates annotation-only updates (`x: T`
         // dominated by an earlier binding): no rhs means no special update case applies.
         let Some(rhs) = stmt.rhs else { return Ok((false, None)) };
         if let Some(bin) = self.cache.ast[rhs].kind.as_binary().cloned().filter(|b| b.in_place) {

@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/cleanup/replacer.{h,cpp}
 
 use indexmap::IndexSet;
 use typhon_ir::pass::{Pass, PassContext};
@@ -53,7 +52,7 @@ impl Pass for ReplaceCleanupPass {
         Self::KEY.to_string()
     }
     fn run(&mut self, m: &mut Module, _ctx: &dyn PassContext) {
-        // PORT-NOTE: accessors resolve forwarding, so `used_*` already return
+        // Note: accessors resolve forwarding, so `used_*` already return
         // resolved ids for most nodes; the pass still rewrites stored ids where the
         // IR exposes the raw slot and removes nodes that carry a replacement.
         let mut del = ToDelete::default();

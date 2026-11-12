@@ -1,4 +1,4 @@
-//! Port of codon/parser/visitors/typecheck/typecheck.cpp, part 3: method lookup, call
+//! Part 3: method lookup, call
 //! matching (`canCall`, `matchCallable`, `reorderNamedArgs`), class generics, fields.
 
 use std::cell::RefCell;
@@ -14,7 +14,7 @@ use crate::ids::{ExprId, TypeId};
 use crate::types::{LinkKind, LiteralKind, Unification, class::partial_flag};
 
 thread_local! {
-    /// Journals of probing `matchCallable` calls (C++ `static thread_local probes`).
+    /// Journals of probing `matchCallable` calls (`static thread_local probes`).
     static PROBES: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
 }
 

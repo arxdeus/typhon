@@ -1,4 +1,4 @@
-//! Port of codon/parser/ast/types/traits.{h,cpp}: `CallableTrait`, `TypeTrait`.
+//! `CallableTrait`, `TypeTrait`.
 
 use typhon_common::Result;
 use typhon_common::mangle::stdlib;

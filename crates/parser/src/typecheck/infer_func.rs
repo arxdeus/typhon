@@ -1,4 +1,4 @@
-//! Port of codon/parser/visitors/typecheck/infer.cpp, part 2: `realizeFunc`,
+//! Part 2: `realizeFunc`,
 //! `realizeFuncOnce`.
 
 use std::cell::RefCell;

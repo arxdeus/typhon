@@ -1,4 +1,3 @@
-//! Port of the AST parts of codon/util/serialize.h + codon/util/tser.h:
 //! binary (de)serialization of AST subtrees, using `serde` + `postcard`.
 
 use serde::{Deserialize, Serialize};

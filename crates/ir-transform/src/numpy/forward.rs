@@ -1,8 +1,7 @@
-//! Port of codon/cir/transform/numpy/forward.cpp
 //!
-//! PORT-NOTE: units are referenced by their index in the function's unit vector
-//! (C++ `NumPyOptimizationUnit*`), expression nodes by [`ExprId`]. DAGs are
-//! `IndexMap`s so iteration order is deterministic (C++ uses `unordered_map`).
+//! Note: units are referenced by their index in the function's unit vector
+//! (`NumPyOptimizationUnit*`), expression nodes by [`ExprId`]. DAGs are
+//! `IndexMap`s so iteration order is deterministic (uses `unordered_map`).
 
 use indexmap::IndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -17,7 +16,6 @@ use super::NumPyOptimizationUnit;
 use super::expr::{ExprArena, ExprId};
 use super::numpy::{Walk, has_owned_result_m};
 
-/// Port of `Forwarding`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Forwarding {
     pub dst: usize,
@@ -95,7 +93,7 @@ fn block_of(cfg: &CFGraph, m: &Module, v: ValueId) -> Option<BlockId> {
 }
 
 /// Synthetic CFG values: an assignment to a tracked variable blocks forwarding.
-/// PORT-NOTE: C++ runs the operator on synthetic instructions; they carry no
+/// Note: the reference implementation runs the operator on synthetic instructions; they carry no
 /// side-effect result, so only their (real) assigned variable is checked here.
 fn ok_synthetic(cfg: &CFGraph, m: &Module, v: CfValue, vids: &FxHashSet<Id>) -> bool {
     if let CfValue::Synth(s) = v
@@ -354,7 +352,6 @@ fn build_forwarding_dag(
     dag
 }
 
-/// Port of `UnionFind`.
 #[derive(Clone, Debug)]
 pub struct UnionFind {
     parent: Vec<usize>,

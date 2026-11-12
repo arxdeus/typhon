@@ -1,17 +1,16 @@
-//! Port of codon/parser/ast/types/** (sema-core lane).
 //!
-//! C++ uses `std::shared_ptr<Type>` with in-place mutation (binding of `LinkType`s,
+//! the reference implementation uses `std::shared_ptr<Type>` with in-place mutation (binding of `LinkType`s,
 //! `ClassType::generics[i].type = ...`, `_rn` caches). Here every type is a slot in a
 //! [`TypeArena`] addressed by a `Copy` [`TypeId`]; slots are mutable through interior
 //! mutability (`RefCell`) and never freed. All arena methods take `&self` and only hold
 //! the internal borrow for the duration of a single slot access, so type operations may
 //! freely re-enter the type checker (see [`TypeHost`]).
 //!
-//! Identity: C++ `shared_from_this()` == the same `TypeId`; `std::make_shared<X>(...)`
+//! Identity: the reference implementation `shared_from_this()` == the same `TypeId`; `std::make_shared<X>(...)`
 //! == a fresh slot (`TypeArena::new_*`).
 //!
 //! Module map:
-//! | C++ | Rust |
+//! | the reference implementation | Rust |
 //! |---|---|
 //! | `type.{h,cpp}` (Type, Unification, LiteralKind helpers) | this file |
 //! | `link.{h,cpp}` (LinkType) | [`link`] |
@@ -40,7 +39,7 @@ pub use crate::ast::LiteralKind;
 use crate::ids::StmtId;
 pub use crate::ids::TypeId;
 
-/// C++ `InstantiationCache` (generic id -> instantiated type).
+/// the reference implementation `InstantiationCache` (generic id -> instantiated type).
 pub type InstantiationCache = FxHashMap<i32, TypeId>;
 
 /// `LinkType::Kind`.
@@ -51,7 +50,7 @@ pub enum LinkKind {
     Link,
 }
 
-/// Port of `LinkType`: an unbound type variable, a generic, or a link to another type.
+/// an unbound type variable, a generic, or a link to another type.
 #[derive(Clone, Debug)]
 pub struct LinkType {
     /// Current state.
@@ -74,7 +73,6 @@ pub struct LinkType {
     pub pass_through: bool,
 }
 
-/// Port of `ClassType::Generic`.
 #[derive(Clone, Debug)]
 pub struct Generic {
     /// Generic name (canonical).
@@ -91,7 +89,7 @@ impl Generic {
     pub fn new(name: impl AsRef<str>, ty: Option<TypeId>, id: i32, static_kind: LiteralKind) -> Self {
         Self { name: Ustr::from(name.as_ref()), id, ty, static_kind }
     }
-    /// `getType()` (panics if null, which C++ would dereference anyway).
+    /// `getType()` (panics if null, which the reference implementation would dereference anyway).
     pub fn ty(&self) -> TypeId {
         self.ty.expect("generic without type")
     }
@@ -109,7 +107,7 @@ pub struct FuncData {
     pub func_parent: Option<TypeId>,
 }
 
-/// The dynamic class of a [`ClassType`] (C++ subclasses of `ClassType`).
+/// The dynamic class of a [`ClassType`] (subclasses of `ClassType`).
 #[derive(Clone, Debug)]
 pub enum ClassKind {
     /// Plain `ClassType`.
@@ -126,7 +124,6 @@ pub enum ClassKind {
     BoolStatic(bool),
 }
 
-/// Port of `ClassType` (and, through [`ClassKind`], its subclasses).
 #[derive(Clone, Debug)]
 pub struct ClassType {
     /// Canonical type name.
@@ -194,7 +191,7 @@ pub enum TypeKind {
     Trait(TraitKind),
 }
 
-/// One arena slot (C++ `Type` object).
+/// One arena slot (`Type` object).
 #[derive(Clone, Debug)]
 pub struct TypeData {
     pub kind: TypeKind,
@@ -211,7 +208,7 @@ pub struct FuncAstInfo {
     pub allow_pass_through: bool,
 }
 
-/// Port of `Type::Unification`: list of destructive unification steps that can be
+/// list of destructive unification steps that can be
 /// undone later.
 #[derive(Clone, Debug, Default)]
 pub struct Unification {
@@ -230,7 +227,7 @@ impl Unification {
         Self::default()
     }
     /// `Unification::undo()`.
-    /// PORT-NOTE: the journal is drained (C++ keeps it; replaying it twice is a no-op there
+    /// Note: the journal is drained (the reference implementation keeps it; replaying it twice is a no-op there
     /// in practice).
     pub fn undo(&mut self, arena: &TypeArena) {
         for t in self.linked.drain(..).rev() {
@@ -254,7 +251,7 @@ impl Unification {
     }
 }
 
-/// Callbacks into the type checker that some type operations need (C++ types construct a
+/// Callbacks into the type checker that some type operations need (the reference implementation types construct a
 /// `TypecheckVisitor(cache->typeCtx)` internally).
 pub trait TypeHost {
     /// `CallableTrait::unify` -> `TypecheckVisitor::matchCallable(typ, args, ret, us)`;
@@ -290,7 +287,7 @@ impl TypeHost for NoHost {
 /// Resolver for `cache->findClass(name)` used by `StaticType::getNonStaticType`.
 pub type ClassResolver = Rc<dyn Fn(&str) -> Option<TypeId>>;
 
-/// Owner of all type-checker types (C++ `shared_ptr<Type>` heap) plus the bits of `Cache`
+/// Owner of all type-checker types (`shared_ptr<Type>` heap) plus the bits of `Cache`
 /// that type printing needs (reverse identifier lookup, generated tuple names, unbound
 /// counter).
 pub struct TypeArena {
@@ -376,7 +373,7 @@ impl TypeArena {
         v
     }
 
-    /// `cache->rev(s)` (empty string if unknown, C++ asserts).
+    /// `cache->rev(s)` (empty string if unknown, the reference implementation asserts).
     pub fn rev(&self, s: &str) -> String {
         match self.reverse_lookup.borrow().get(s) {
             Some(r) => r.clone(),
@@ -861,7 +858,7 @@ impl TypeArena {
         }
     }
 
-    /// `getUnbounds(includeGenerics)` (C++ order: later generics first).
+    /// `getUnbounds(includeGenerics)` (order: later generics first).
     pub fn get_unbounds(&self, id: TypeId, include_generics: bool) -> Vec<TypeId> {
         match self.kind(id) {
             TypeKind::Link(l) => match l.kind {

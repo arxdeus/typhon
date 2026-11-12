@@ -1,7 +1,7 @@
-//! typhon-ir: Rust port of the Codon IR (CIR) core (`codon/cir/*`, `cir/util/*`,
-//! `cir/dsl/nodes`, pass/analysis traits, OpenMP schedule, rewriter).
+//! typhon-ir: the Typhon IR core (nodes, types, module, util, pass/analysis traits,
+//! OpenMP schedule, rewriter).
 //!
-//! See `API.md` in the crate root for the public API and the C++ -> Rust name table.
+//! See `API.md` in the crate root for the public API 
 
 pub mod attribute;
 pub mod base;

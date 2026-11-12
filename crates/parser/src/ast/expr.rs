@@ -1,4 +1,3 @@
-//! Port of codon/parser/ast/expr.h (node definitions).
 
 use serde::{Deserialize, Serialize};
 use typhon_common::SrcInfo;
@@ -7,7 +6,7 @@ use super::attr::Attrs;
 use super::src_serde;
 use crate::ids::{ExprId, StmtId, TypeId};
 
-/// Base expression node (C++ `ast::Expr`). Owned by [`super::AstArena`].
+/// Base expression node (`ast::Expr`). Owned by [`super::AstArena`].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Expr {
     pub kind: ExprKind,
@@ -56,8 +55,8 @@ pub enum ParamStatus {
     HiddenGeneric,
 }
 
-/// Function/lambda/class parameter (C++ `ast::Param`). Build with
-/// [`super::AstArena::new_param`] to get C++ generic-status inference.
+/// Function/lambda/class parameter (`ast::Param`). Build with
+/// [`super::AstArena::new_param`] to get the reference implementation generic-status inference.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Param {
     pub name: String,
@@ -120,7 +119,7 @@ impl IntExpr {
     pub fn parse(value: &str, suffix: impl Into<String>) -> Self {
         let value: String = value.chars().filter(|&c| c != '_').collect();
         let lower = value.to_ascii_lowercase();
-        // C++ uses std::stoull (unsigned, out_of_range -> no value); the result is then
+        // the reference implementation uses std::stoull (unsigned, out_of_range -> no value); the result is then
         // stored into int64 (wrapping).
         let parsed = if let Some(r) = lower.strip_prefix("0b") {
             u64::from_str_radix(r, 2).ok()
@@ -474,11 +473,11 @@ pub struct InstantiateExpr {
 
 macro_rules! expr_kinds {
     ($($variant:ident($ty:ident) => $as:ident, $as_mut:ident;)*) => {
-        /// Expression node kinds (one per C++ `*Expr` class).
+        /// Expression node kinds (one per the reference implementation `*Expr` class).
         #[derive(Clone, Debug, Serialize, Deserialize)]
         pub enum ExprKind { $($variant($ty)),* }
 
-        /// Discriminant of [`ExprKind`] (C++ `NodeId`).
+        /// Discriminant of [`ExprKind`] (`NodeId`).
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
         pub enum ExprTag { $($variant),* }
 
@@ -537,7 +536,7 @@ expr_kinds! {
 }
 
 impl ExprTag {
-    /// C++ class name (e.g. `"CallExpr"`).
+    /// original name (e.g. `"CallExpr"`).
     pub fn class_name(self) -> &'static str {
         use ExprTag::*;
         match self {

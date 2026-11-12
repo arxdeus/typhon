@@ -1,6 +1,5 @@
-//! Port of codon/cir/transform/folding/rule.h
 //!
-//! Generic rewrite rules used by the constant folder. C++ templates over the
+//! Generic rewrite rules used by the constant folder. the reference implementation templates over the
 //! constant type become generics over [`FoldConst`].
 
 use typhon_ir::rewrite::RewriteRule;
@@ -14,7 +13,7 @@ pub trait FoldConst: ConstValue + Copy + 'static {
     fn make(m: &mut Module, src: ValueId, val: Self, ty: TypeId) -> ValueId;
 }
 
-/// Copies the source info of `src` onto `v` (C++ `N<T>(src->getSrcInfo(), ...)`).
+/// Copies the source info of `src` onto `v` (`N<T>(src->getSrcInfo(), ...)`).
 pub(crate) fn with_src(m: &mut Module, v: ValueId, src: ValueId) -> ValueId {
     let s = m.src_info(src.into());
     m.set_src_info(v.into(), s);
@@ -116,7 +115,7 @@ pub struct DoubleConstantBinaryRule<C: FoldConst, O: FoldConst> {
     input_type: TypeId,
     result_type: TypeId,
     magic: String,
-    /// `DoubleConstantBinaryRuleExcludeRHSZero` (const_fold.cpp).
+    /// `DoubleConstantBinaryRuleExcludeRHSZero`.
     exclude_rhs_zero: Option<C>,
 }
 

@@ -1,4 +1,4 @@
-//! Port of codon/cir/util/outlining.{h,cpp}: outline a region of a series flow into a new function.
+//! Outline a region of a series flow into a new function.
 
 use indexmap::IndexSet;
 use rustc_hash::FxHashSet;
@@ -7,7 +7,6 @@ use typhon_ir::util::irtools::{call, derived_func_name, ptr_load, ptr_store};
 use typhon_ir::util::operator::{Operator, OperatorState};
 use typhon_ir::{FuncId, FuncKind, Id, Module, NodeRef, ValueId, ValueKind, VarId, magic};
 
-/// Port of `OutlineResult::ArgKind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ArgKind {
     /// Argument is not modified by outlined function
@@ -16,7 +15,6 @@ pub enum ArgKind {
     Modified,
 }
 
-/// Port of `OutlineResult`.
 #[derive(Clone, Debug, Default)]
 pub struct OutlineResult {
     pub func: Option<FuncId>,

@@ -1,4 +1,4 @@
-//! AST tests: construction, cloning, S-expression / Codon / Python printing,
+//! AST tests: construction, cloning, S-expression / Typhon / Python printing,
 //! serialization. Includes `ASTFormattingTest` from test/types.cpp.
 
 use typhon_common::SrcInfo;
@@ -44,7 +44,7 @@ fn ast_formatting_float_values() {
         let e = FloatExpr::new(v);
         let raw = e.raw_data().0;
         let x = a.new_expr(e, s());
-        assert_eq!(a.expr_to_codon(x, false, -1, 0), format!("FloatExpr(value='{raw}', float_value={expected})"));
+        assert_eq!(a.expr_to_debug(x, false, -1, 0), format!("FloatExpr(value='{raw}', float_value={expected})"));
     }
 }
 
@@ -148,7 +148,7 @@ fn function_params_and_clone() {
     assert_ne!(s1, s0);
 }
 
-/// Helper: a `pass` is an empty suite in Codon.
+/// Helper: a `pass` is an empty suite in Typhon.
 struct PassLike;
 impl PassLike {
     fn pass() -> SuiteStmt {
@@ -201,31 +201,31 @@ fn generator() {
 }
 
 #[test]
-fn codon_string_forms() {
+fn debug_string_forms() {
     let mut a = AstArena::new();
     let x = id(&mut a, "x");
     let one = int(&mut a, 1);
     let b = a.new_expr(BinaryExpr { op: "+".into(), lexpr: Some(x), rexpr: Some(one), in_place: false }, s());
     assert_eq!(
-        a.expr_to_codon(b, false, -1, 0),
+        a.expr_to_debug(b, false, -1, 0),
         "BinaryExpr(lexpr=IdExpr(value='x'), op='+', rexpr=IntExpr(value='1', int_value=1), in_place=False)"
     );
     assert_eq!(
-        a.expr_to_codon(b, false, 2, 0),
+        a.expr_to_debug(b, false, 2, 0),
         "BinaryExpr(\n  lexpr=IdExpr(value='x'),\n  op='+',\n  rexpr=IntExpr(\n    value='1',\n    int_value=1),\n  in_place=False)"
     );
     a[x].attrs.set_str(Attr::Module, "m");
     a[x].attrs.set(Attr::ExprVirtual);
-    assert_eq!(a.expr_to_codon(x, true, -1, 0), "IdExpr(value='x', attrs=(Module='m'))");
+    assert_eq!(a.expr_to_debug(x, true, -1, 0), "IdExpr(value='x', attrs=(Module='m'))");
     let es = a.new_stmt(ExprStmt { expr: Some(one) }, s());
     let br = a.new_stmt(BreakStmt, s());
     let suite = a.new_stmt(SuiteStmt { items: vec![es, br] }, s());
-    assert_eq!(a.stmt_to_codon(suite, false, -1, 0), "[ExprStmt(expr=IntExpr(value='1', int_value=1)), BreakStmt()]");
+    assert_eq!(a.stmt_to_debug(suite, false, -1, 0), "[ExprStmt(expr=IntExpr(value='1', int_value=1)), BreakStmt()]");
     let empty = a.new_stmt(SuiteStmt::default(), s());
-    assert_eq!(a.stmt_to_codon(empty, false, -1, 0), "");
+    assert_eq!(a.stmt_to_debug(empty, false, -1, 0), "");
     // orig_expr cycles are cut
     a[x].orig_expr = Some(x);
-    assert_eq!(a.expr_to_codon(x, false, -1, 0), "IdExpr(value='x')");
+    assert_eq!(a.expr_to_debug(x, false, -1, 0), "IdExpr(value='x')");
 }
 
 #[test]
@@ -258,14 +258,14 @@ fn serialization_roundtrip() {
     part.format.spec = ">3".into();
     let st = a.new_expr(StringExpr::from_parts(vec![part]), s());
     let es = a.new_stmt(ExprStmt { expr: Some(st) }, s());
-    let asg = a.new_stmt(AssignStmt { lhs: Some(x), rhs: Some(one), ..Default::default() }, SrcInfo::new("f.codon", 3, 4, 5));
+    let asg = a.new_stmt(AssignStmt { lhs: Some(x), rhs: Some(one), ..Default::default() }, SrcInfo::new("f.py", 3, 4, 5));
     a[asg].attrs.set_str(Attr::Module, "mod");
     let p = a.new_param(s(), "a", None, Some(one), 0, ParamKind::Normal);
     let f = a.new_function(s(), "fn", None, vec![p], Some(asg), vec![], false).unwrap();
     let top = a.new_stmt(SuiteStmt { items: vec![es, f] }, s());
     let bytes = a.serialize_stmt(top).unwrap();
     let (b, root) = AstArena::deserialize_stmt(&bytes).unwrap();
-    assert_eq!(b.stmt_to_codon(root, true, 2, 0), a.stmt_to_codon(top, true, 2, 0));
+    assert_eq!(b.stmt_to_debug(root, true, 2, 0), a.stmt_to_debug(top, true, 2, 0));
     assert_eq!(b.stmt_to_string(root, 0), a.stmt_to_string(top, 0));
     let mut c = AstArena::new();
     let r2 = c.import_stmt(&b, root);
@@ -278,7 +278,7 @@ fn serialization_roundtrip() {
 
     let eb = a.serialize_expr(st).unwrap();
     let (eb2, er) = AstArena::deserialize_expr(&eb).unwrap();
-    assert_eq!(eb2.expr_to_codon(er, false, -1, 0), a.expr_to_codon(st, false, -1, 0));
+    assert_eq!(eb2.expr_to_debug(er, false, -1, 0), a.expr_to_debug(st, false, -1, 0));
 }
 
 #[test]

@@ -1,4 +1,4 @@
-//! Port of codon/parser/visitors/typecheck/infer.cpp, part 1: `unify`,
+//! Part 1: `unify`,
 //! `joinNullableTypes`, `inferTypes`, `realize`, `realizeType`. Function realization is
 //! in [`super::infer_func`], IR stubs in [`super::infer_ir`].
 

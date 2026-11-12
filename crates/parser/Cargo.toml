@@ -1,6 +1,6 @@
 [package]
 name = "typhon-parser"
-description = "Codon front-end: AST, PEG grammar, scoping, type checking, IR translation (port of codon/parser/**)"
+description = "Typhon front-end: AST, PEG grammar, scoping, type checking, IR translation "
 version.workspace = true
 edition.workspace = true
 license.workspace = true

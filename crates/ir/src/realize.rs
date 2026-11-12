@@ -1,5 +1,5 @@
 //! `TypeRealizer`: the IR -> parser cache coupling (replaces `ast::Cache*` in
-//! `codon/cir/module.cpp` and `codon/cir/type.cpp`).
+//! the reference).
 
 use std::any::Any;
 use std::fmt;
@@ -36,8 +36,8 @@ impl fmt::Debug for AstTypeRef {
 
 /// Everything `cir/module.cpp` and `cir/type.cpp` need from `ast::Cache`.
 ///
-/// Errors returned as `Err` correspond to C++ `exc::ParserException`; the module logs
-/// them (`LOG_IR`) and returns `None`, exactly like the C++ `try/catch`.
+/// Errors returned as `Err` correspond to the reference implementation `exc::ParserException`; the module logs
+/// them (`LOG_IR`) and returns `None`, exactly like the the reference implementation `try/catch`.
 pub trait TypeRealizer {
     /// `cache->findClass(name)`.
     fn find_class(&mut self, name: &str) -> Option<AstTypeRef>;

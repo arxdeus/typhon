@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/pythonic/enumerate.{h,cpp}
 
 use rustc_hash::FxHashMap;
 use typhon_common::mangle;

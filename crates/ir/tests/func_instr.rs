@@ -1,4 +1,3 @@
-//! Port of `test/cir/{func,instr}.cpp`.
 
 mod common;
 
@@ -14,7 +13,6 @@ fn ift(m: &mut Module) -> TypeId {
     m.unsafe_get_func_type("<internal_func_type>", i, vec![], false)
 }
 
-// ---- func.cpp ----
 
 #[test]
 fn function_export_attributes() {
@@ -266,7 +264,6 @@ fn llvm_func_unmangled_name_query_and_replace() {
     assert_eq!(expected, m.used_types(alias.into()));
 }
 
-// ---- instr.cpp ----
 
 #[test]
 fn assign_instr_query_replace_and_cloning() {
@@ -409,7 +406,7 @@ fn virtual_call_construction_and_cloning() {
     let parent = m.nr_bodied_func("");
     let call_v = virtual_call(&mut m, callee, vec![receiver, argument], thunk_id, parent);
     m.set_name(call_v.into(), "virtual.call");
-    m.set_src_info(call_v.into(), typhon_common::SrcInfo::new("virtual.codon", 12, 3, 1));
+    m.set_src_info(call_v.into(), typhon_common::SrcInfo::new("virtual.py", 12, 3, 1));
     assert_eq!(i, m.value_type(call_v));
     let ci = m.as_call_instr(call_v).unwrap().clone();
     assert_eq!(argument, *ci.args.last().unwrap());

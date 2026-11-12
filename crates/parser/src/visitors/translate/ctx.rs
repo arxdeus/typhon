@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/translate/translate_ctx.{h,cpp}.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -11,7 +10,7 @@ use crate::typecheck::ctx::TypeContext;
 use crate::typecheck::TypecheckVisitor;
 
 /// `TranslateItem`: an identifier bound to an IR function, type or variable.
-/// PORT-NOTE: the C++ `base` pointer is never read by the translator; it is dropped.
+/// Note: the the reference implementation `base` pointer is never read by the translator; it is dropped.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TranslateItem {
     Func(FuncId),
@@ -31,7 +30,7 @@ impl TranslateItem {
     }
 }
 
-/// `TranslateContext`. The cache is passed explicitly to lookups (C++ stores `Cache*`).
+/// `TranslateContext`. The cache is passed explicitly to lookups (stores `Cache*`).
 pub struct TranslateContext {
     pub base: Context<TranslateItem>,
     /// Stack of function bases.

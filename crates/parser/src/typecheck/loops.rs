@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/typecheck/loops.cpp.
 
 use typhon_common::mangle::{self, stdlib};
 use typhon_common::{CompilerError, ErrorKind, Result, SrcInfo};
@@ -300,7 +299,7 @@ impl<'a> TypecheckVisitor<'a> {
             typhon_common::bail_e!(ErrorKind::LOOP_DECORATOR, src);
         }
         let mut args: Vec<CallArg> = vec![];
-        let openmp = String::new(); // PORT-NOTE: never assigned in C++ either
+        let openmp = String::new(); // Note: never assigned in the reference implementation either
         let mut omp: Vec<CallArg> = vec![];
         if let Some(c) = &call {
             for a in &c.items {
@@ -333,7 +332,7 @@ impl<'a> TypecheckVisitor<'a> {
     }
 
     /// `parseOpenMP(cache, code, loc)` (openmp.peg).
-    /// PORT-NOTE: hand-written recursive-descent equivalent of `openmp.peg` (the grammar
+    /// Note: hand-written recursive-descent equivalent of `openmp.peg` (the grammar
     /// lane's `crate::peg` has no OpenMP entry point yet). `collapse` takes `(n)` (the C++
     /// grammar rule reads a missing value).
     fn parse_openmp_pragma(&mut self, code: &str, loc: SrcInfo) -> Result<Vec<CallArg>> {

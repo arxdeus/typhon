@@ -1,4 +1,3 @@
-//! Port of `codon/cir/pyextension.h`.
 
 use crate::ids::{FuncId, TypeId};
 
@@ -11,7 +10,6 @@ pub enum PyFunctionType {
     Static,
 }
 
-/// Port of `PyFunction`.
 #[derive(Clone, Debug, Default)]
 pub struct PyFunction {
     pub name: String,
@@ -49,7 +47,6 @@ pub enum PyMemberType {
     PySsizeT = 19,
 }
 
-/// Port of `PyMember`.
 #[derive(Clone, Debug, Default)]
 pub struct PyMember {
     pub name: String,
@@ -59,7 +56,6 @@ pub struct PyMember {
     pub indexes: Vec<i32>,
 }
 
-/// Port of `PyGetSet`.
 #[derive(Clone, Debug, Default)]
 pub struct PyGetSet {
     pub name: String,
@@ -68,8 +64,8 @@ pub struct PyGetSet {
     pub set: Option<FuncId>,
 }
 
-/// Port of `PyType`. `base` is an index into `PyModule::types`
-/// (PORT-NOTE: C++ stores a `PyType*` into the same vector).
+/// `base` is an index into `PyModule::types`
+/// (Note: the reference implementation stores a `PyType*` into the same vector).
 #[derive(Clone, Debug, Default)]
 pub struct PyType {
     pub name: String,
@@ -130,7 +126,6 @@ pub struct PyType {
     pub type_ptr_hook: Option<FuncId>,
 }
 
-/// Port of `PyModule`.
 #[derive(Clone, Debug, Default)]
 pub struct PyModule {
     pub name: String,

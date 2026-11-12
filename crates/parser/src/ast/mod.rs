@@ -1,12 +1,11 @@
-//! Port of codon/parser/ast.h + codon/parser/ast/{node.h,attr.h,expr.{h,cpp},stmt.{h,cpp},
-//! codon_string.cpp}.
+//! debug_string.cpp}.
 //!
-//! See `../../AST_API.md` for the API contract and the C++ -> Rust name table.
+//! See `../../AST_API.md` for the API contract and the original -> Rust name table.
 
 pub mod arena;
 pub mod attr;
 pub mod children;
-pub mod codon_string;
+pub mod debug_string;
 pub mod expr;
 pub mod python_string;
 pub mod serial;

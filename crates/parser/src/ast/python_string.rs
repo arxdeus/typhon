@@ -1,6 +1,4 @@
-//! Port of the `toPythonString` printers (Python-`ast`-like dump) and the helpers
-//! `pyQuote`, `pyList`, `pyArguments`, `pyNode`, `pyAttrs` from codon/parser/ast/expr.cpp
-//! and codon/parser/ast/stmt.cpp.
+//! The `to_python_string` printers (Python-`ast`-like dump) and their helpers.
 
 use super::arena::AstArena;
 use super::attr::Attrs;

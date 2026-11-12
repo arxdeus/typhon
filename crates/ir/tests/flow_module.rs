@@ -1,4 +1,3 @@
-//! Port of `test/cir/{flow,module}.cpp`.
 
 mod common;
 
@@ -12,7 +11,6 @@ fn int_const(m: &mut Module, v: i64) -> ValueId {
     m.nr_int_const(v, i)
 }
 
-// ---- flow.cpp ----
 
 #[test]
 fn series_flow_insertion_erase_and_iterators() {
@@ -172,7 +170,6 @@ fn try_catch_flow_single_catch_query_and_replace() {
     assert_eq!(1, m.replace_used_value(f.into(), handler, h2));
 }
 
-// ---- module.cpp ----
 
 #[test]
 fn module_node_building_removal_and_iterators() {

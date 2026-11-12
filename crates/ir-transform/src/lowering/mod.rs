@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/lowering/*
 
 pub mod async_for;
 pub mod await_;
@@ -14,7 +13,7 @@ pub use pipeline::PipelineLowering;
 pub use return_::MissingReturnLowering;
 pub use throw::ThrowLowering;
 
-/// Implements `OperatorState` plumbing and `Pass` (C++ `OperatorPass`) for a struct
+/// Implements `OperatorState` plumbing and `Pass` (`OperatorPass`) for a struct
 /// with a `state: OperatorState` field and a `KEY` constant.
 macro_rules! operator_pass {
     ($t:ty) => {

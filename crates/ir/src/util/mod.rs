@@ -1,4 +1,3 @@
-//! Port of `codon/cir/util/*` (core utilities).
 
 pub mod cloning;
 pub mod context;

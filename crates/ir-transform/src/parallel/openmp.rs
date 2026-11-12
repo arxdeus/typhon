@@ -1,11 +1,10 @@
-//! Port of codon/cir/transform/parallel/openmp.{h,cpp}
 //!
 //! `OpenMPPass` lowers parallel `ForFlow`s / `ImperativeForFlow`s (those carrying an
 //! `OMPSched`) into outlined bodies plus calls into the `std.openmp` (and
 //! `std.internal.gpu`) loop templates, wiring up shared/private captures, reductions,
 //! schedules, chunking, collapse, task loops and GPU kernels.
 //!
-//! PORT-NOTE: full lowering requires a `TypeRealizer` (stdlib templates are realized
+//! Note: full lowering requires a `TypeRealizer` (stdlib templates are realized
 //! through the parser); it is validated by the e2e suite (`test/core/` parallel tests,
 //! `test/stdlib/openmp*`). Unit tests cover reduction detection, initial values,
 //! template selection and collapse preconditions on hand-built modules.
@@ -173,7 +172,6 @@ pub enum ReductionKind {
     Max,
 }
 
-/// Port of `Reduction`.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct Reduction {
     pub kind: ReductionKind,
@@ -217,7 +215,7 @@ impl Reduction {
                     K::Add | K::Sub => 0.0,
                     K::Mul => 1.0,
                     K::Min => f64::MAX,
-                    // PORT-NOTE: C++ uses numeric_limits<double>::min() (smallest positive); preserved.
+                    // Note: the reference implementation uses numeric_limits<double>::min() (smallest positive); preserved.
                     K::Max => f64::MIN_POSITIVE,
                     _ => return None,
                 };
@@ -258,7 +256,7 @@ impl Reduction {
         use ReductionKind as K;
         let lhs = util::ptr_load(m, ptr);
         let result = match self.kind {
-            // PORT-NOTE: C++ uses `+` for SUB as well (partial sums are added); preserved.
+            // Note: the reference implementation uses `+` for SUB as well (partial sums are added); preserved.
             K::Add | K::Sub => bin(m, lhs, magic::ADD, arg),
             K::Mul => bin(m, lhs, magic::MUL, arg),
             K::And => bin(m, lhs, magic::AND, arg),
@@ -308,7 +306,7 @@ impl Reduction {
             }
         } else {
             match (m.type_kind(ty), self.kind) {
-                // PORT-NOTE: C++ has no float SUB atomic (falls through to method lookup); preserved.
+                // Note: the reference implementation has no float SUB atomic (falls through to method lookup); preserved.
                 (TypeKind::Float, K::Add) => "_atomic_float_add",
                 (TypeKind::Float, K::Mul) => "_atomic_float_mul",
                 (TypeKind::Float, K::Min) => "_atomic_float_min",
@@ -368,7 +366,6 @@ impl Reduction {
     }
 }
 
-/// Port of `ReductionIdentifier`.
 pub struct ReductionIdentifier {
     state: OperatorState,
     pub shareds: Vec<VarId>,
@@ -793,7 +790,6 @@ impl ParallelCore {
     }
 }
 
-/// Port of `ImperativeLoopTemplateReplacer`.
 struct ImperativeLoopTemplateReplacer<'a> {
     state: OperatorState,
     core: ParallelCore,
@@ -905,7 +901,6 @@ impl Operator for ImperativeLoopTemplateReplacer<'_> {
     }
 }
 
-/// Port of `TaskLoopReductionVarReplacer`.
 struct TaskLoopReductionVarReplacer {
     state: OperatorState,
     reduction_remap: Vec<(VarId, VarId)>,
@@ -952,7 +947,6 @@ impl Operator for TaskLoopReductionVarReplacer {
     }
 }
 
-/// Port of `TaskLoopBodyStubReplacer`.
 struct TaskLoopBodyStubReplacer {
     state: OperatorState,
     replacement: Option<ValueId>,
@@ -1010,7 +1004,6 @@ impl Operator for TaskLoopBodyStubReplacer {
     }
 }
 
-/// Port of `TaskLoopRoutineStubReplacer`.
 struct TaskLoopRoutineStubReplacer {
     state: OperatorState,
     core: ParallelCore,
@@ -1267,7 +1260,6 @@ impl Operator for TaskLoopRoutineStubReplacer {
     }
 }
 
-/// Port of `GPULoopBodyStubReplacer`.
 struct GPULoopBodyStubReplacer {
     state: OperatorState,
     replacement: Option<ValueId>,
@@ -1308,7 +1300,6 @@ impl Operator for GPULoopBodyStubReplacer {
     }
 }
 
-/// Port of `GPULoopTemplateReplacer`.
 struct GPULoopTemplateReplacer {
     state: OperatorState,
     step: i64,
@@ -1505,7 +1496,6 @@ pub fn imperative_template_name(sched: &OMPSched) -> &'static str {
     }
 }
 
-/// Port of `OpenMPPass`.
 pub struct OpenMPPass {
     state: OperatorState,
 }

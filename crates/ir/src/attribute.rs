@@ -1,4 +1,3 @@
-//! Port of `codon/cir/attribute.{h,cpp}`.
 
 use std::any::Any;
 use std::collections::BTreeMap;
@@ -21,7 +20,7 @@ pub mod attr_id {
     pub const SRC_INFO: i32 = 107;
     pub const DOCSTRING: i32 = 108;
     pub const TUPLE_LITERAL: i32 = 109;
-    // NB: C++ assigns 111 to both list and set literal attributes; preserved.
+    // NB: the reference implementation assigns 111 to both list and set literal attributes; preserved.
     pub const LIST_LITERAL: i32 = 111;
     pub const SET_LITERAL: i32 = 111;
     pub const DICT_LITERAL: i32 = 112;
@@ -29,7 +28,7 @@ pub mod attr_id {
     pub const EXACT_TYPE: i32 = 114;
 }
 
-/// Extension point for attributes defined outside this crate (C++ subclasses of `Attribute`).
+/// Extension point for attributes defined outside this crate (subclasses of `Attribute`).
 pub trait CustomAttribute: fmt::Debug {
     /// Attribute key used when none is given explicitly.
     fn id(&self) -> i32;
@@ -46,7 +45,6 @@ pub trait CustomAttribute: fmt::Debug {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-/// Port of `KeyValueAttribute`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct KeyValueAttribute {
     pub attributes: FxHashMap<String, String>,
@@ -64,14 +62,12 @@ impl KeyValueAttribute {
     }
 }
 
-/// Port of `LiteralElement`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LiteralElement {
     pub value: ValueId,
     pub star: bool,
 }
 
-/// Port of `DictLiteralAttribute::KeyValuePair`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct KeyValuePair {
     pub key: ValueId,
@@ -146,7 +142,6 @@ impl Attribute {
         }
     }
 
-    /// Port of `Attribute::needsClone()`.
     pub fn needs_clone(&self) -> bool {
         match self {
             Attribute::PythonWrapper(_) | Attribute::ExactType(_) => false,
@@ -156,7 +151,7 @@ impl Attribute {
     }
 
     /// Whether this attribute references values (and therefore must be cloned through a
-    /// `CloneVisitor`; C++ asserts on plain `clone()` for these).
+    /// `CloneVisitor`; the reference implementation asserts on plain `clone()` for these).
     pub fn holds_values(&self) -> bool {
         matches!(
             self,
@@ -263,7 +258,7 @@ impl Attribute {
     }
 }
 
-/// Port of `AttributeMap`: small ordered association list keyed by attribute id.
+/// small ordered association list keyed by attribute id.
 #[derive(Clone, Debug, Default)]
 pub struct AttributeMap {
     values: SmallVec<[(i32, Attribute); 2]>,

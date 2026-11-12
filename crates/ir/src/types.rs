@@ -1,4 +1,3 @@
-//! Port of `codon/cir/type.{h,cpp}` (data part; behaviour lives on `Module`).
 
 use std::collections::BTreeMap;
 
@@ -7,7 +6,7 @@ use crate::dsl::CustomTypeRc;
 use crate::ids::{FuncId, TypeId};
 use crate::realize::AstTypeRef;
 
-/// Port of `Generic`: a static int, a static string or a type.
+/// a static int, a static string or a type.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Generic {
     Static(i64),
@@ -66,7 +65,6 @@ impl From<TypeId> for Generic {
     }
 }
 
-/// Port of `Type::RuntimeInfo`.
 #[derive(Clone, Debug, Default)]
 pub struct RuntimeInfo {
     pub id: i64,
@@ -82,7 +80,6 @@ pub struct RuntimeInfo {
     pub system_exit_base: Option<TypeId>,
 }
 
-/// Port of `MemberedType::Field`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Field {
     pub name: String,

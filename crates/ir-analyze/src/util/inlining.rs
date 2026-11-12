@@ -1,4 +1,3 @@
-//! Port of codon/cir/util/inlining.{h,cpp}.
 
 use typhon_common::SrcInfo;
 use typhon_ir::util::cloning::CloneVisitor;
@@ -7,7 +6,6 @@ use typhon_ir::util::operator::{Operator, OperatorState};
 use typhon_ir::{FuncId, Module, NodeRef, TypeKind, ValueId, ValueKind, VarId};
 use typhon_ir::{AssignInstr, BreakInstr, FlowInstr, SeriesFlow, VarValue, WhileFlow};
 
-/// Port of `InlineResult`.
 #[derive(Clone, Debug, Default)]
 pub struct InlineResult {
     /// the inlined value (flow or `FlowInstr`), `None` on failure

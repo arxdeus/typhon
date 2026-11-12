@@ -1,5 +1,5 @@
 //! Structural tests for `typhon_ir_transform::lowering` (no TypeRealizer).
-//! PORT-NOTE: paths needing stdlib realization (range/list lowering, async, await,
+//! Note: paths needing stdlib realization (range/list lowering, async, await,
 //! throw fallback, missing-return helpers) are covered by the end-to-end testsuite.
 
 use typhon_ir::pass::{NullPassContext, Pass};

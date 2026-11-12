@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/pythonic/dict.{h,cpp}
 
 use typhon_ir::util::cloning::CloneVisitor;
 use typhon_ir::util::irtools;
@@ -34,7 +33,7 @@ fn analyze_get(m: &Module, call: ValueId) -> Option<GetCall> {
         return None;
     }
     if unmangled == "get" && c.args.len() == 3 {
-        // PORT-NOTE: C++ `cast<Const>` may yield null (non-const default), which then
+        // Note: the reference implementation `cast<Const>` may yield null (non-const default), which then
         // behaves like the no-default case; preserved.
         let d = c.args[2];
         let dflt = if m.kind(d).is_const() { Some(d) } else { None };

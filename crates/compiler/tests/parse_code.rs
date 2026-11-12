@@ -21,7 +21,7 @@ fn main_body_len(m: &Module) -> usize {
 
 #[test]
 fn definitions_and_new_import() {
-    let mut c = Compiler::new(Options::with_argv0("build/codon_test"), None);
+    let mut c = Compiler::new(Options::with_argv0("build/typhon_test"), None);
     c.parse_code("parse_code_test.codon", "print(42)\n", 0, 0, &HashMap::new()).expect("parse");
     let m = c.module().clone();
     let before = main_body_len(&m.borrow());
@@ -89,7 +89,7 @@ print(string.ascii_lowercase)
 fn imports_from_ir_pass_run_before_user_code() {
     let dir = tempfile::tempdir().expect("tempdir");
     for debug in [true, false] {
-        let mut o = Options::with_argv0("build/codon_test");
+        let mut o = Options::with_argv0("build/typhon_test");
         o.debug = debug;
         o.standalone = true;
         let mut c = Compiler::new(o, None);

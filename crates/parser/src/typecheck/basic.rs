@@ -1,4 +1,4 @@
-//! Port of codon/parser/visitors/typecheck/basic.cpp: literal expressions.
+//! Literal expressions.
 
 use typhon_common::{ErrorKind, Result};
 use typhon_common::mangle::{self, stdlib};

@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/lowering/return.{h,cpp}
 
 use std::collections::{BTreeSet, VecDeque};
 

@@ -1,6 +1,6 @@
-//! Port of codon/parser/ctx.h: generic scoped identifier table `Context<T>`.
+//! Generic scoped identifier table `Context<T>`.
 //!
-//! PORT-NOTE: C++ keeps `BindingCheckpoint`s in a thread-local map keyed by the context
+//! Note: the reference implementation keeps `BindingCheckpoint`s in a thread-local map keyed by the context
 //! pointer and lets each checkpoint call a `saveState` callback. Here checkpoints are a
 //! stack owned by the context itself; the owner (e.g. `TypeContext`) snapshots its own
 //! extra state when [`Context::prepare_checkpoint`] reports newly prepared checkpoints

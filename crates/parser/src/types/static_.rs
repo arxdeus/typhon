@@ -1,4 +1,4 @@
-//! Port of codon/parser/ast/types/static.{h,cpp}: `IntStaticType`, `StrStaticType`,
+//! `IntStaticType`, `StrStaticType`,
 //! `BoolStaticType`.
 
 use typhon_common::Result;

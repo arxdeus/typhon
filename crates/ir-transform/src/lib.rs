@@ -1,4 +1,4 @@
-//! Codon IR transformations. Port of `codon/cir/transform/**`.
+//! Typhon IR transformations.
 //!
 //! Module ownership (one lane each, see ../../DESIGN.md):
 //! - `manager`                      : transform/manager.{h,cpp} (PassManager, standard pipeline)

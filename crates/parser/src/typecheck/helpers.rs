@@ -1,4 +1,4 @@
-//! Port of codon/parser/visitors/typecheck/typecheck.cpp, part 2: helpers (getters,
+//! Part 2: helpers (getters,
 //! extract*, instantiate*, find*, ...). Call matching / wrapping live in
 //! [`super::helpers_call`]; cythonization in [`super::helpers_py`].
 
@@ -14,9 +14,9 @@ use crate::cache::{Cache, ClassField, ClassRealizationRef, Class, Function, Impo
 use crate::ids::{ExprId, StmtId, TypeId};
 use crate::types::{Generic, InstantiationCache, LinkKind, LiteralKind, string_from_literal};
 
-/// `getImportFile(cache, what, relativeTo, forceStdlib)` (parser/common.cpp).
+/// `getImportFile(cache, what, relativeTo, forceStdlib)`.
 pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_stdlib: bool) -> Option<ImportFile> {
-    // C++ `path.replace_extension(ext)`: `Path::with_extension` is a no-op on paths ending
+    // the reference implementation `path.replace_extension(ext)`: `Path::with_extension` is a no-op on paths ending
     // in `..` (`from .. import x`), which would then match the parent *directory*.
     fn replace_ext(p: PathBuf, ext: &str) -> PathBuf {
         if p.file_name().is_some() {

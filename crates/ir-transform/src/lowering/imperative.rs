@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/lowering/imperative.{h,cpp}
 
 use typhon_common::mangle::stdlib;
 use typhon_ir::util::cloning::CloneVisitor;

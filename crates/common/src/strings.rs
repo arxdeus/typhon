@@ -1,11 +1,11 @@
-//! String helpers. Port of the free functions in `codon/parser/common.{h,cpp}`.
+//! String helpers. Port of the free functions.
 //!
-//! Many C++ helpers (`split`, `join`, `in`, `startswith`, `ltrim`, `tolower`, ...) map
+//! Many the reference implementation helpers (`split`, `join`, `in`, `startswith`, `ltrim`, `tolower`, ...) map
 //! directly onto `std` methods; only the non-trivial ones are reimplemented here.
 
 use std::fmt::Write as _;
 
-/// Error from [`unescape`] (C++ throws `std::invalid_argument`).
+/// Error from [`unescape`] (throws `std::invalid_argument`).
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("{0}")]
 pub struct UnescapeError(pub String);
@@ -37,7 +37,7 @@ fn push_cp(out: &mut Vec<u8>, cp: u32) {
     let mut buf = [0u8; 4];
     match char::from_u32(cp) {
         Some(ch) => out.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes()),
-        // Surrogates: encode like the C++ `utf8_append` (3-byte form) for fidelity.
+        // Surrogates: encode like the the reference implementation `utf8_append` (3-byte form) for fidelity.
         None => {
             out.push((0xE0 | (cp >> 12)) as u8);
             out.push((0x80 | ((cp >> 6) & 0x3F)) as u8);
@@ -120,7 +120,7 @@ pub fn unescape(s: &str, utf8: bool) -> Result<Vec<u8>, UnescapeError> {
     Ok(r)
 }
 
-/// Double `{` and `}` in `s[start..start+len]` (C++ `escapeFStringBraces`).
+/// Double `{` and `}` in `s[start..start+len]` .
 pub fn escape_fstring_braces(s: &str, start: usize, len: usize) -> String {
     let mut t = String::with_capacity(len);
     for c in s[start..start + len].chars() {
@@ -133,7 +133,7 @@ pub fn escape_fstring_braces(s: &str, start: usize, len: usize) -> String {
     t
 }
 
-/// C++ `findStar`: index after an opening paren or of the first non-space char.
+/// the reference implementation `findStar`: index after an opening paren or of the first non-space char.
 pub fn find_star(s: &str) -> usize {
     for (i, c) in s.bytes().enumerate() {
         if c == b'(' {
@@ -146,12 +146,12 @@ pub fn find_star(s: &str) -> usize {
     s.len()
 }
 
-/// Number of Unicode scalar values (C++ `utf8_strlen`).
+/// Number of Unicode scalar values (`utf8_strlen`).
 pub fn utf8_strlen(s: &str) -> usize {
     s.chars().count()
 }
 
-/// Code-point slice with Python step semantics (C++ `utf8_substr`).
+/// Code-point slice with Python step semantics (`utf8_substr`).
 pub fn utf8_substr(s: &str, start: usize, stop: usize, step: isize) -> String {
     assert!(step != 0, "step cannot be zero");
     let chars: Vec<char> = s.chars().collect();
@@ -176,12 +176,12 @@ pub fn utf8_substr(s: &str, start: usize, stop: usize, step: isize) -> String {
     out
 }
 
-/// Replace the first occurrence (C++ `replace`).
+/// Replace the first occurrence .
 pub fn replace_first(text: &str, pat: &str, with: &str) -> String {
     text.replacen(pat, with, 1)
 }
 
-/// C++ `isdigit(const std::string&)`: all ASCII digits (true for empty, like C++).
+/// the reference implementation `isdigit(const std::string&)`: all ASCII digits (true for empty, like C++).
 pub fn is_all_digits(s: &str) -> bool {
     s.bytes().all(|c| c.is_ascii_digit())
 }

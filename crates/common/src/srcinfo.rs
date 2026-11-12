@@ -1,11 +1,11 @@
-//! Source locations. Port of `codon::InternedString`, `codon::SrcInfo`, `codon::SrcObject`.
+//! Source locations. Port of `InternedString`, `SrcInfo`, `SrcObject`.
 
 use std::cmp::Ordering;
 use std::fmt;
 use std::sync::atomic::{AtomicI32, Ordering as AtomicOrdering};
 
-/// Interned file name (C++ `InternedString` / `SourceFile`). Backed by the `ustr` crate,
-/// which gives process-lifetime, pointer-comparable strings exactly like the C++ version.
+/// Interned file name (`InternedString` / `SourceFile`). Backed by the `ustr` crate,
+/// which gives process-lifetime, pointer-comparable strings exactly like the the reference implementation version.
 pub type SourceFile = ustr::Ustr;
 
 static NEXT_ID: AtomicI32 = AtomicI32::new(0);
@@ -68,7 +68,7 @@ impl PartialOrd for SrcInfo {
 }
 
 impl fmt::Display for SrcInfo {
-    /// `file_basename:line:col` (C++ `operator<<(ostream&, SrcInfo)`).
+    /// `file_basename:line:col` (`operator<<(ostream&, SrcInfo)`).
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = std::path::Path::new(self.file.as_str())
             .file_name()
@@ -78,7 +78,7 @@ impl fmt::Display for SrcInfo {
     }
 }
 
-/// Port of `codon::SrcObject`: anything carrying a source location.
+/// anything carrying a source location.
 pub trait SrcObject {
     fn src_info(&self) -> SrcInfo;
     fn set_src_info(&mut self, info: SrcInfo);

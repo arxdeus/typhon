@@ -1,4 +1,4 @@
-//! Port of `codon/cir/util/format.{h,cpp}`: the IR s-expression pretty printer.
+//! The IR s-expression pretty printer.
 
 use std::fmt::Write;
 
@@ -10,7 +10,6 @@ use crate::types::{Generic, TypeKind};
 use crate::value::ValueKind;
 use crate::var::FuncKind;
 
-/// Port of anonymous `escapeString`.
 pub fn escape_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
@@ -32,7 +31,7 @@ pub fn escape_string(s: &str) -> String {
     out
 }
 
-/// Formats a C++ `double` the way `fmt::format("{}", d)` does (shortest round-trip).
+/// Formats a the reference implementation `double` the way `fmt::format("{}", d)` does (shortest round-trip).
 pub fn format_float(f: f64) -> String {
     if f.is_nan() {
         return "nan".into();

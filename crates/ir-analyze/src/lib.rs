@@ -1,5 +1,4 @@
-//! typhon-ir-analyze: port of `codon/cir/analyze/{dataflow,module}` and
-//! `codon/cir/util/{inlining,outlining,side_effect}`. See `API.md`.
+//! typhon-ir-analyze: dataflow and module analyses plus inlining/outlining utilities. See `API.md`.
 
 pub mod dataflow;
 pub mod module;

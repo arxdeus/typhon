@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/folding/const_fold.{h,cpp}
 
 use typhon_ir::magic;
 use typhon_ir::pass::{Pass, PassContext, run_operator_pass};
@@ -124,7 +123,7 @@ impl FoldingPass {
         self.reg("int-double-neg", DoubleApplicationNoOpRule::new(M::NEG, int));
         self.reg("int-double-inv", DoubleApplicationNoOpRule::new(M::INVERT, int));
 
-        // PORT-NOTE: C++ integer overflow (UB) is folded with wrapping semantics;
+        // Note: the reference implementation integer overflow (UB) is folded with wrapping semantics;
         // shift counts are masked to 0..63.
         let ii = |f: fn(i64, i64) -> i64, mg: &str| DoubleConstantBinaryRule::<i64, i64>::new(f, mg, int, int);
         self.reg("int-constant-addition", ii(i64::wrapping_add, M::ADD));
@@ -246,7 +245,7 @@ impl Pass for FoldingPass {
         Self::KEY.to_string()
     }
     fn run(&mut self, m: &mut Module, ctx: &dyn PassContext) {
-        // PORT-NOTE: C++ dereferences `getOptions()`; without a manager the default
+        // Note: the reference implementation dereferences `getOptions()`; without a manager the default
         // (`pynum = false`) is used.
         let pynum = ctx.options().map(|o| o.pynum).unwrap_or(false);
         self.register_standard_rules(m, pynum);

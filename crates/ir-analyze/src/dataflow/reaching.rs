@@ -1,4 +1,4 @@
-//! Port of codon/cir/analyze/dataflow/reaching.{h,cpp}: reaching definitions.
+//! Reaching definitions.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -13,7 +13,6 @@ use typhon_ir::{Id, Module, ValueId};
 use crate::dataflow::cfg::{BlockId, CFAnalysis, CFGraph, CFResult, CfValue, CfVar, SyntheticAssignKind};
 use crate::util::bitset::BitSet;
 
-/// Port of `ReachingDef`.
 #[derive(Clone, Copy, Debug)]
 pub struct ReachingDef {
     /// the assignment instruction (`AssignInstr` or `SyntheticAssignInstr`)
@@ -109,7 +108,6 @@ struct BlockIndex {
     assignments: FxHashMap<Id, Vec<(usize, CfValue)>>,
 }
 
-/// Port of `RDInspector`.
 #[derive(Debug)]
 pub struct RDInspector {
     invalid: FxHashSet<Id>,
@@ -279,7 +277,6 @@ impl RDInspector {
     }
 }
 
-/// Port of `RDResult`.
 #[derive(Clone, Debug, Default)]
 pub struct RDResult {
     pub cfg_result: CFResult,
@@ -292,7 +289,6 @@ impl AnalysisResult for RDResult {
     }
 }
 
-/// Port of `RDAnalysis`.
 #[derive(Clone, Debug)]
 pub struct RDAnalysis {
     cf_analysis_key: String,
@@ -319,7 +315,7 @@ impl Analysis for RDAnalysis {
         Self::KEY.to_string()
     }
     fn run(&mut self, m: &Module, ctx: &dyn PassContext) -> Box<dyn AnalysisResult> {
-        // PORT-NOTE: recompute the CFG when the dependency is not available.
+        // Note: recompute the CFG when the dependency is not available.
         let owned;
         let cfg = match ctx.get_analysis::<CFResult>(&self.cf_analysis_key) {
             Some(c) => c,

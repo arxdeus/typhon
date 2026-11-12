@@ -1,4 +1,3 @@
-//! Ports of test/cir/analyze/{dominator,reaching}.cpp plus tests for CFG, capture,
 //! side effects, global vars, inlining and outlining.
 
 use std::rc::Rc;

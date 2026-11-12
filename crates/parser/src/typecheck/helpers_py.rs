@@ -1,4 +1,4 @@
-//! Port of codon/parser/visitors/typecheck/typecheck.cpp, part 4: `wrapExpr`,
+//! Part 4: `wrapExpr`,
 //! `canWrapExpr`, `unpackTupleTypes`, `extractNamedTuple`, `cythonize*`.
 
 use std::rc::Rc;
@@ -516,7 +516,7 @@ impl<'a> TypecheckVisitor<'a> {
         }
         for n in ["__from_py__", "__to_py__"] {
             let fnn = self.get_overloads(&c.methods[n])[0].clone();
-            // PORT-NOTE: re-pointing the old IR function body at the new realization is done
+            // Note: re-pointing the old IR function body at the new realization is done
             // by the translate lane (needs IR builders); here the realization is refreshed.
             let fty = self.cache.functions[&fnn].ty.unwrap();
             self.cache.functions.get_mut(&fnn).unwrap().realizations.clear();

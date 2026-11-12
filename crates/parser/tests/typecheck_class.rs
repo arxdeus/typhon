@@ -1,6 +1,6 @@
 //! Unit tests for typecheck class.rs / function.rs (stdlib-free parts).
 //!
-//! `FieldInitializationTest.*` and `EnumConstructionTest.*` (test/types.cpp) need the full
+//! `FieldInitializationTest.*` and `EnumConstructionTest.*` need the full
 //! compiler pipeline with the stdlib (`Compiler::parse_code`); they belong to the e2e lane.
 
 use typhon_parser::ast::{Attr, BreakStmt, ExprStmt, IdExpr, IntExpr, Param, ParamKind, StringExpr, SuiteStmt};

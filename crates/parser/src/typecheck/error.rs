@@ -1,4 +1,3 @@
-//! Port of codon/parser/visitors/typecheck/error.cpp.
 
 use typhon_common::mangle::{self, stdlib};
 use typhon_common::{ErrorKind, Result};
@@ -326,7 +325,7 @@ impl<'a> TypecheckVisitor<'a> {
         Ok(())
     }
 
-    /// `visit(WithStmt*)`: see error.cpp for the full lowering (manager saved, exit
+    /// `visit(WithStmt*)`: see the implementation for the full details(manager saved, exit
     /// callable saved, legacy-none / full cleanup branches, nested in reverse order).
     pub fn visit_with(&mut self, s: StmtId) -> Result<()> {
         let w = self.cache.ast[s].kind.as_with().unwrap().clone();
@@ -421,7 +420,7 @@ impl<'a> TypecheckVisitor<'a> {
             }
             let les = self.xm_expr_stmt(legacy_exit);
             let lfin = self.xm_suite(&[Some(les)]);
-            // PORT-NOTE: C++ shares the `body` node between both branches (AST is a DAG
+            // Note: the reference implementation shares the `body` node between both branches (AST is a DAG
             // there); Rust shares the same StmtId as well.
             let legacy_cleanup = self.n_stmt(TryStmt { items: vec![], suite: Some(body), else_suite: None, finally: Some(lfin) });
             let f = self.xm_id(&em("_context_exit_is_legacy_none"));

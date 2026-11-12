@@ -1,4 +1,4 @@
-//! Port of codon/parser/ast/types/union.{h,cpp}: `UnionType`.
+//! `UnionType`.
 
 use std::collections::{BTreeMap, BTreeSet};
 

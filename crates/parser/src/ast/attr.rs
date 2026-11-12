@@ -1,7 +1,7 @@
-//! Port of codon/parser/ast/attr.h (+ the `ir::Attribute` subclasses that the AST stores
+//! AST attributes: (the `ir::Attribute` subclasses that the AST stores
 //! and `BindingsAttribute` from visitors/scoping/scoping.h).
 //!
-//! PORT-NOTE: C++ AST nodes inherit `ir::Node` and store `ir::Attribute` objects. The Rust
+//! Note: the reference implementation AST nodes inherit `ir::Node` and store `ir::Attribute` objects. The Rust
 //! AST does not depend on `typhon-ir`; it keeps its own typed attribute map instead.
 
 use std::collections::BTreeMap;
@@ -13,7 +13,7 @@ pub const INDENT_SIZE: i32 = 2;
 
 macro_rules! attrs_enum {
     ($first:ident = $v:literal, $($name:ident),* $(,)?) => {
-        /// AST attribute keys (C++ `Attr::*`, values start at 201).
+        /// AST attribute keys (`Attr::*`, values start at 201).
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
         #[repr(i32)]
         pub enum Attr { $first = $v, $($name),* }
@@ -21,7 +21,7 @@ macro_rules! attrs_enum {
         impl Attr {
             /// All keys in declaration order.
             pub const ALL: &'static [Attr] = &[Attr::$first, $(Attr::$name),*];
-            /// The C++ identifier of the key.
+            /// The identifier of the key.
             pub fn name(self) -> &'static str {
                 match self { Attr::$first => stringify!($first), $(Attr::$name => stringify!($name)),* }
             }
@@ -93,7 +93,7 @@ attrs_enum!(
 );
 
 impl Attr {
-    /// C++ `attrName` (expr.cpp): names shown by `toPythonString`; empty for hidden keys.
+    /// the reference implementation `attrName`: names shown by `toPythonString`; empty for hidden keys.
     pub fn py_name(self) -> &'static str {
         use Attr::*;
         match self {
@@ -103,8 +103,8 @@ impl Attr {
             a => a.name(),
         }
     }
-    /// C++ `attributeName` (codon_string.cpp): names shown by `toCodonString`.
-    pub fn codon_name(self) -> Option<&'static str> {
+    /// the reference implementation `attributeName`: names shown by `debug dump`.
+    pub fn display_name(self) -> Option<&'static str> {
         match self {
             Attr::ExprVirtual | Attr::MaybeLiteral => None,
             a => Some(a.name()),
@@ -128,7 +128,6 @@ pub struct Binding {
     pub is_nonlocal: bool,
 }
 
-/// Port of `BindingsAttribute` (scoping.h). Maps are sorted (C++ uses unordered maps but
 /// every printer sorts the keys).
 #[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct BindingsAttr {
@@ -137,7 +136,7 @@ pub struct BindingsAttr {
     pub local_renames: BTreeMap<String, String>,
 }
 
-/// Attribute payload (C++ `ir::Attribute` subclass).
+/// Attribute payload (`ir::Attribute` subclass).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum AttrValue {
     /// Plain `ir::Attribute` (flag).
@@ -155,7 +154,7 @@ pub enum AttrValue {
 }
 
 impl AttrValue {
-    /// C++ `operator<<(ostream, Attribute)` (`doFormat`).
+    /// the reference implementation `operator<<(ostream, Attribute)` (`doFormat`).
     pub fn display(&self) -> String {
         match self {
             AttrValue::Flag => String::new(),
@@ -168,7 +167,7 @@ impl AttrValue {
     }
 }
 
-/// Insertion-ordered attribute map (C++ `ir::AttributeMap`, a small vector of pairs).
+/// Insertion-ordered attribute map (`ir::AttributeMap`, a small vector of pairs).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Attrs {
     values: Vec<(Attr, AttrValue)>,

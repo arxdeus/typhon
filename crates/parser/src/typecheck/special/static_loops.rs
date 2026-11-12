@@ -46,7 +46,7 @@ impl<'a> TypecheckVisitor<'a> {
                 }
                 None => None,
             };
-            // C++ clones a reused AssignStmt; a fresh node per iteration is equivalent.
+            // the reference implementation clones a reused AssignStmt; a fresh node per iteration is equivalent.
             let s = self.sp_assign_var(&vars[0], rhs, ty);
             block.push(self.cache.ast.clone_stmt(s, false));
         }
@@ -82,7 +82,7 @@ impl<'a> TypecheckVisitor<'a> {
         let st = self.get_int_literal(self.extract_func_generic(ft, 0), 0);
         let ed = self.get_int_literal(self.extract_func_generic(ft, 1), 0);
         let step = self.get_int_literal(self.extract_func_generic(ft, 2), 0);
-        // PORT-NOTE: C++ divides by `abs(step)` unguarded (UB for 0); treat step 0 as an error.
+        // Note: the reference implementation divides by `abs(step)` unguarded (UB for 0); treat step 0 as an error.
         if step == 0 || (st - ed).abs() / step.abs() > MAX_STATIC_ITER as i64 {
             let n = if step == 0 { i64::MAX } else { (st - ed).abs() / step.abs() };
             typhon_common::bail_e!(ErrorKind::STATIC_RANGE_BOUNDS, self.sp_loop_fn_src(iter), MAX_STATIC_ITER, n);
@@ -271,7 +271,7 @@ impl<'a> TypecheckVisitor<'a> {
                     let ty = self.sp_literal("int");
                     stmts.push(self.sp_assign_var(&vars[0], ie, Some(ty)));
                 }
-                // PORT-NOTE: C++ uses `vars[1]` regardless of `withIdx` (out of bounds without
+                // Note: the reference implementation uses `vars[1]` regardless of `withIdx` (out of bounds without
                 // an index); fall back to the only variable in that case.
                 let rn = types.realized_name(ut);
                 let te = self.sp_id(&rn);
@@ -330,9 +330,9 @@ impl<'a> TypecheckVisitor<'a> {
     }
 
     /// `populateStaticHeterogenousTupleLoop(iter, vars)`: the last element of the result is
-    /// the preamble (`None` in C++ when `iter` is an identifier).
+    /// the preamble (`None` in the reference implementation when `iter` is an identifier).
     ///
-    /// PORT-NOTE: C++ pushes a possibly-null preamble as the last element; Rust cannot store a
+    /// Note: the reference implementation pushes a possibly-null preamble as the last element; Rust cannot store a
     /// null `StmtId`, so an empty `SuiteStmt` stands in for the null preamble.
     pub fn populate_static_heterogenous_tuple_loop(&mut self, iter: ExprId, vars: &[String]) -> Result<Vec<StmtId>> {
         let types = self.types();

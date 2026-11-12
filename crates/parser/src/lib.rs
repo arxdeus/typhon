@@ -1,4 +1,4 @@
-//! Typhon front-end. Port of `codon/parser/**`.
+//! Typhon front-end: AST, PEG grammar, scoping, type checking and IR translation.
 //!
 //! Module ownership (see ../../DESIGN.md):
 //! - `ast`, `visitors::visitor`, `visitors::format`, `matching`  : AST lane

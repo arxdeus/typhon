@@ -1,6 +1,5 @@
-//! Port of codon/cir/analyze/dataflow/dominator.{h,cpp}.
 //!
-//! PORT-NOTE: the C++ iterative bit-vector algorithm is ported directly (it also gives
+//! Note: the the reference implementation iterative bit-vector algorithm is ported directly (it also gives
 //! unreachable blocks a defined dominator set, which `petgraph::algo::dominators` does not).
 
 use std::rc::Rc;
@@ -12,7 +11,6 @@ use typhon_ir::{Id, Module};
 use crate::dataflow::cfg::{BlockId, CFAnalysis, CFGraph, CFResult, CfValue};
 use crate::util::bitset::BitSet;
 
-/// Port of `DominatorInspector`.
 #[derive(Debug)]
 pub struct DominatorInspector {
     /// block -> set of blocks dominating it
@@ -76,7 +74,7 @@ impl DominatorInspector {
         let (v, dominator) = (v.into(), dominator.into());
         let cfg = &self.cfg;
         let (Some(vb), Some(db)) = (cfg.get_block(m, v), cfg.get_block(m, dominator)) else {
-            // PORT-NOTE: C++ dereferences null blocks here.
+            // Note: the reference implementation dereferences null blocks here.
             return false;
         };
         if vb == db {
@@ -91,7 +89,6 @@ impl DominatorInspector {
     }
 }
 
-/// Port of `DominatorResult`.
 #[derive(Clone, Debug, Default)]
 pub struct DominatorResult {
     pub cfg_result: CFResult,
@@ -104,7 +101,6 @@ impl AnalysisResult for DominatorResult {
     }
 }
 
-/// Port of `DominatorAnalysis`.
 #[derive(Clone, Debug)]
 pub struct DominatorAnalysis {
     cf_analysis_key: String,
@@ -131,7 +127,7 @@ impl Analysis for DominatorAnalysis {
         Self::KEY.to_string()
     }
     fn run(&mut self, m: &Module, ctx: &dyn PassContext) -> Box<dyn AnalysisResult> {
-        // PORT-NOTE: recompute the CFG when the dependency is not available.
+        // Note: recompute the CFG when the dependency is not available.
         let owned;
         let cfg = match ctx.get_analysis::<CFResult>(&self.cf_analysis_key) {
             Some(c) => c,

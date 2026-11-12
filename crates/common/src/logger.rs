@@ -1,4 +1,4 @@
-//! Port of `codon::Logger`, `getLogger`, `pushLogger`, `popLogger`, `codon::Timer`.
+//! Port of `Logger`, `getLogger`, `pushLogger`, `popLogger`, `Timer`.
 
 use bitflags::bitflags;
 use parking_lot::{Mutex, MutexGuard};
@@ -45,7 +45,7 @@ impl Logger {
 
 static LOGGERS: Mutex<Vec<Logger>> = Mutex::new(Vec::new());
 
-/// Current logger (C++ `getLogger()`).
+/// Current logger (`getLogger()`).
 pub fn logger() -> parking_lot::MappedMutexGuard<'static, Logger> {
     let mut g = LOGGERS.lock();
     if g.is_empty() {
@@ -67,12 +67,12 @@ pub fn pop_logger() -> bool {
     true
 }
 
-/// Write a debug line to the log stream (C++ `DBG`).
+/// Write a debug line to the log stream .
 pub fn log_line(msg: &str) {
     let _ = writeln!(std::io::stderr(), "{msg}");
 }
 
-/// Scoped timer (C++ `codon::Timer` + `TIME(name)`); logs on drop when TIME flag set.
+/// Scoped timer (`TIME(name)`); logs on drop when TIME flag set.
 pub struct Timer {
     name: String,
     start: Instant,

@@ -1,10 +1,10 @@
-//! Port of codon/parser/cache.{h,cpp}: data shared across front-end stages.
+//! Data shared across front-end stages.
 //!
 //! Ownership model (see `TYPECHECK_API.md`):
 //! * `Cache` is owned by the compiler (usually as `Rc<RefCell<Cache>>`, see
 //!   [`CacheRealizer`]); visitors borrow it as `&mut Cache` for their whole lifetime and
-//!   re-borrow it for nested visitors (C++ `TypecheckVisitor v(ctx, ...)`).
-//! * `Cache::ast` owns every AST node (C++ `N<T>` / `_nodes`), `Cache::types` owns every
+//!   re-borrow it for nested visitors (`TypecheckVisitor v(ctx, ...)`).
+//! * `Cache::ast` owns every AST node (`N<T>` / `_nodes`), `Cache::types` owns every
 //!   type-checker type (`Rc` so it can be used while `&mut Cache` is lent out).
 //! * Contexts are `Rc<RefCell<TypeContext>>` ([`CtxRef`]).
 //! * The IR module is `Rc<RefCell<typhon_ir::Module>>`.
@@ -190,7 +190,7 @@ pub struct Function {
 }
 
 /// Hooks into other front-end lanes that the cache needs (parser, scoping, translation).
-/// C++ calls these functions directly; Rust breaks the module cycle through hooks
+/// the reference implementation calls these functions directly; Rust breaks the module cycle through hooks
 /// installed by the compiler driver.
 #[derive(Clone, Default)]
 pub struct CacheHooks {
@@ -727,7 +727,7 @@ impl Cache {
 
     /// Run `f` with `self.module` temporarily pointing at `m` (used when the IR module
     /// calls back into the cache through [`TypeRealizer`] while it is itself borrowed).
-    /// PORT-NOTE: C++ simply shares raw pointers; here the borrowed module is moved into a
+    /// Note: the reference implementation simply shares raw pointers; here the borrowed module is moved into a
     /// temporary `Rc<RefCell<..>>` for the duration of the call and moved back afterwards.
     pub fn with_module<R>(&mut self, m: &mut IrModule, f: impl FnOnce(&mut Cache) -> R) -> R {
         let placeholder = IrModule::new("");
@@ -754,7 +754,7 @@ impl AstType {
     }
 }
 
-/// [`TypeRealizer`] implementation over a shared cache (C++ `ir::Module::cache`).
+/// [`TypeRealizer`] implementation over a shared cache .
 pub struct CacheRealizer(pub Rc<RefCell<Cache>>);
 
 impl CacheRealizer {

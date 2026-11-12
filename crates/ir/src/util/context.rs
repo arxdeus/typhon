@@ -1,6 +1,5 @@
-//! Port of `codon/cir/util/context.h`.
 
-/// Port of `util::CIRContext<Frame>`: a simple frame stack.
+/// a simple frame stack.
 #[derive(Clone, Debug)]
 pub struct CirContext<Frame> {
     frames: Vec<Frame>,

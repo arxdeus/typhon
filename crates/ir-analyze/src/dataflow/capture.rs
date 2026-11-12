@@ -1,4 +1,4 @@
-//! Port of codon/cir/analyze/dataflow/capture.{h,cpp}: capture / escape analysis.
+//! Capture / escape analysis.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -15,7 +15,7 @@ use crate::dataflow::dominator::{DominatorAnalysis, DominatorResult};
 use crate::dataflow::reaching::{RDAnalysis, RDInspector, RDResult};
 use crate::util::walk::ConstWalker;
 
-/// Port of `CaptureInfo`: capture information for one function argument.
+/// capture information for one function argument.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CaptureInfo {
     /// indices of arguments that capture this argument
@@ -69,7 +69,6 @@ fn should_track_value(m: &Module, v: ValueId) -> bool {
     }
 }
 
-/// Port of `CaptureResult`.
 #[derive(Clone, Debug, Default)]
 pub struct CaptureResult {
     pub rd_result: RDResult,
@@ -84,7 +83,6 @@ impl AnalysisResult for CaptureResult {
     }
 }
 
-/// Port of `CaptureAnalysis`.
 #[derive(Clone, Debug)]
 pub struct CaptureAnalysis {
     rd_analysis_key: String,
@@ -119,7 +117,7 @@ impl Analysis for CaptureAnalysis {
         Self::KEY.to_string()
     }
     fn run(&mut self, m: &Module, ctx: &dyn PassContext) -> Box<dyn AnalysisResult> {
-        // PORT-NOTE: dependencies are recomputed when missing from the context.
+        // Note: dependencies are recomputed when missing from the context.
         let rd = match ctx.get_analysis::<RDResult>(&self.rd_analysis_key) {
             Some(r) => r.clone(),
             None => RDAnalysis::compute(m, &CFAnalysis::compute(m)),
@@ -402,7 +400,7 @@ impl<'a> CaptureContext<'a> {
         }
         self.set(m, func, make_all_capture_info(m, func));
         let Some(mut ct) = CaptureTracker::for_func(self, m, func) else {
-            // PORT-NOTE: C++ asserts that every bodied function has a CFG; functions that
+            // Note: the reference implementation asserts that every bodied function has a CFG; functions that
             // are not listed in the module get conservative (unknown) results instead.
             return make_all_capture_info(m, func);
         };
@@ -446,7 +444,7 @@ fn extract_vars(cc: &CaptureContext<'_>, m: &Module, v: ValueId) -> (Vec<VarId>,
                     if let Some(func) = get_func(m, c.callee) {
                         let cap = self.cc.get(m, func);
                         for (i, arg) in args.into_iter().enumerate() {
-                            // PORT-NOTE: C++ reads `capInfo[i]` here even past the end (vararg
+                            // Note: the reference implementation reads `capInfo[i]` here even past the end (vararg
                             // C functions); the bounds-checked `info` is used instead.
                             let info = cap.get(i).cloned().unwrap_or_else(|| {
                                 CaptureInfo::unknown(m, func, Some(m.value_type(arg)))

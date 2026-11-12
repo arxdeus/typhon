@@ -1,10 +1,9 @@
-//! Port of `codon/cir/util/visitor.{h,cpp}`.
 //!
-//! C++ double dispatch (`node->accept(visitor)`) becomes [`accept`] (and the typed helpers
+//! the reference implementation double dispatch (`node->accept(visitor)`) becomes [`accept`] (and the typed helpers
 //! [`accept_value`], [`accept_var`], [`accept_type`]) which resolve replacements and call
 //! the `visit_*` method matching the node kind. Each method receives the module and the
 //! (already resolved) node id. Default implementations call `default_visit`, which is a
-//! no-op. PORT-NOTE: C++ `Visitor::defaultVisit` throws `"cannot visit node"`; every
+//! no-op. Note: the reference implementation `Visitor::defaultVisit` throws `"cannot visit node"`; every
 //! in-tree visitor overrides it or the relevant methods, so a no-op default is used.
 
 use crate::dsl::CustomCategory;

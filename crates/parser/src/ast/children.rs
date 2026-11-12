@@ -5,15 +5,15 @@ use super::expr::ExprKind;
 use super::stmt::StmtKind;
 use crate::ids::{ExprId, StmtId};
 
-/// Maps every child id of a node (in C++ visitor order) to a new id.
+/// Maps every child id of a node (in the reference implementation visitor order) to a new id.
 pub trait IdMapper {
     fn expr(&mut self, id: ExprId) -> ExprId;
     fn stmt(&mut self, id: StmtId) -> StmtId;
-    /// Slots that C++ keeps as `SuiteStmt *` (re-wrapped by the replacing visitor).
+    /// Slots that the reference implementation keeps as `SuiteStmt *` (re-wrapped by the replacing visitor).
     fn suite(&mut self, id: StmtId) -> StmtId {
         self.stmt(id)
     }
-    /// Whether `StringExpr` f-string part expressions are children. C++ visitors skip them
+    /// Whether `StringExpr` f-string part expressions are children. the reference implementation visitors skip them
     /// (`visit(StringExpr*) {}`); deep clone includes them.
     fn string_parts(&self) -> bool {
         false
@@ -56,7 +56,7 @@ fn params(m: &mut dyn IdMapper, ps: &mut [super::expr::Param]) {
 }
 
 impl ExprKind {
-    /// Map child ids in place (C++ visitor order).
+    /// Map child ids in place (visitor order).
     pub fn map_ids(&mut self, m: &mut dyn IdMapper) {
         use ExprKind::*;
         match self {
@@ -139,7 +139,7 @@ impl ExprKind {
 }
 
 impl StmtKind {
-    /// Map child ids in place (C++ visitor order).
+    /// Map child ids in place (visitor order).
     pub fn map_ids(&mut self, m: &mut dyn IdMapper) {
         use StmtKind::*;
         match self {

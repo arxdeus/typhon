@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/numpy/numpy.cpp
 //!
 //! Pipeline: expose small array helpers, extract expressions, forward eligible
 //! temporaries, then lower to fused loops or specialized runtime helpers.
@@ -817,7 +816,7 @@ fn optimize_helper(m: &mut Module, a: &mut ExprArena, ufunc: FuncId, e: ExprId, 
                 let seqt = m.nr_series_flow();
                 let fuse = m.nr_series_flow();
                 let branch = m.nr_if_flow(broadcasts, seqt, Some(fuse));
-                // PORT-NOTE: both evaluations work on the same arena; sequential eval
+                // Note: both evaluations work on the same arena; sequential eval
                 // does not mutate the tree, so fused eval sees the same expression.
                 c.series = seqt;
                 let sr = a.codegen_sequential_eval(m, c, x);
@@ -964,7 +963,7 @@ fn has_owned_result_with(m: Option<&Module>, a: &ExprArena, e: ExprId) -> bool {
     match x.op {
         Op::None | Op::Pos | Op::Transpose | Op::Conj => false,
         Op::Cast => {
-            // PORT-NOTE: needs the call's args; without a module only the 2-arg form
+            // Note: needs the call's args; without a module only the 2-arg form
             // (`copy`) cannot be distinguished, so the caller-module variant is used
             // wherever available (see `has_owned_result_m`).
             match (m, x.val) {
@@ -979,7 +978,7 @@ fn has_owned_result_with(m: Option<&Module>, a: &ExprArena, e: ExprId) -> bool {
     }
 }
 
-/// `hasOwnedResult(expr)` with access to the module (exact C++ semantics for casts).
+/// `hasOwnedResult(expr)` with access to the module (exact the reference implementation semantics for casts).
 pub fn has_owned_result_m(m: &Module, a: &ExprArena, e: ExprId) -> bool {
     has_owned_result_with(Some(m), a, e)
 }
@@ -1299,7 +1298,6 @@ pub type HelperResolver<'r> = dyn FnMut(&mut Module, ValueId, &mut Vec<ValueId>)
 
 type ValidationOrder = Vec<(ValueId, Option<ValueId>)>;
 
-/// Port of `NumPyFunctionExpressions::Expression`.
 #[derive(Clone, Debug)]
 pub struct Expression {
     /// Index of the root unit in `units`.
@@ -1308,7 +1306,6 @@ pub struct Expression {
     pub substitutions: Vec<(ValueId, ValueId)>,
 }
 
-/// Port of `NumPyFunctionExpressions` (and its base `ExtractArrayExpressions`).
 #[derive(Clone, Debug)]
 pub struct NumPyFunctionExpressions {
     pub func: FuncId,
@@ -1563,11 +1560,10 @@ impl NumPyFunctionExpressions {
 // NumPyExpressionAnalysis
 // ---------------------------------------------------------------------------
 
-/// Port of `NumPyExpressionResult`.
 ///
-/// PORT-NOTE: extraction needs `&mut Module` while analysis results are shared, so
+/// Note: extraction needs `&mut Module` while analysis results are shared, so
 /// the per-function cache uses interior mutability and is filled lazily by the
-/// passes (`get`/`take`), like the C++ lazy `get`.
+/// passes (`get`/`take`), like the the reference implementation lazy `get`.
 pub struct NumPyExpressionResult {
     pub reaching: RDResult,
     pub side_effects: Rc<SideEffectResult>,
@@ -1604,7 +1600,6 @@ impl NumPyExpressionResult {
     }
 }
 
-/// Port of `NumPyExpressionAnalysis`.
 pub struct NumPyExpressionAnalysis {
     reaching_def_key: String,
     side_effects_key: String,
@@ -1622,7 +1617,7 @@ impl Analysis for NumPyExpressionAnalysis {
         Self::KEY.to_string()
     }
     fn run(&mut self, m: &Module, ctx: &dyn PassContext) -> Box<dyn AnalysisResult> {
-        // PORT-NOTE: missing dependency results are computed here (C++ would crash).
+        // Note: missing dependency results are computed here (would crash).
         let rd = match ctx.get_analysis::<RDResult>(&self.reaching_def_key) {
             Some(r) => r.clone(),
             None => RDAnalysis::compute(m, &CFAnalysis::compute(m)),
@@ -1937,7 +1932,7 @@ impl NumPyLifetimePass {
 
         let types = NumPyPrimitiveTypes::new(m);
         let mut lt = LocalLifetime { types, candidates: vec![], replacements: Default::default(), uses: FxHashMap::default() };
-        // PORT-NOTE: C++ handle(AssignInstr) runs after preHook; AssignInstr nodes are
+        // Note: the reference implementation handle(AssignInstr) runs after preHook; AssignInstr nodes are
         // skipped by preHook, so dispatching both from one hook is equivalent.
         Walk::new().run_func(m, func, &mut |w, m, v| lt.pre_hook(w, m, v));
 
@@ -2325,7 +2320,6 @@ fn collect_bodied_callees(m: &mut Module, root: NodeRef) -> Vec<FuncId> {
     out
 }
 
-/// Port of `NumPyInlinePass`.
 pub struct NumPyInlinePass {
     expressions_key: String,
 }
@@ -2662,7 +2656,7 @@ impl Pass for NumPyInlinePass {
         for parent in bodied_funcs(m) {
             let mut remaining = MAX_CALLER_EXPANSIONS;
             let mut budget = MAX_CALLER_NODES;
-            // PORT-NOTE: calls are collected first, then rewritten in walk order;
+            // Note: calls are collected first, then rewritten in walk order;
             // inlined templates never contain template calls, so this is equivalent.
             let mut calls = vec![];
             Walk::new().run_func(m, parent, &mut |_, m, v| {

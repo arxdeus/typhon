@@ -1,9 +1,8 @@
-//! Port of `codon/cir/util/side_effect.{h,cpp}` (status enum and attribute names).
 
 use once_cell::sync::Lazy;
 use typhon_common::mangle::func;
 
-/// Port of `util::SideEffectStatus`. Ordered from strongest to weakest guarantee.
+/// Ordered from strongest to weakest guarantee.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SideEffectStatus {
     Pure = 0,

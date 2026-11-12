@@ -1,10 +1,9 @@
-//! Port of codon/parser/visitors/scoping/scoping.{h,cpp} (scoping-doc lane)
 //!
 //! `ScopingVisitor::apply` resolves name bindings (local/global/nonlocal, captures,
 //! comprehension renames, conditional-binding domination) before type checking and
 //! records them as `Attr::Bindings` (`BindingsAttr`) on the AST.
 //!
-//! PORT-NOTE: C++ copies the visitor for each `transform` call (sharing the context
+//! Note: the reference implementation copies the visitor for each `transform` call (sharing the context
 //! through a `shared_ptr` and collecting errors per copy). Here one visitor per
 //! context is used; the per-copy `SrcInfo` is saved/restored around every
 //! `transform`, and errors go to one list (deduplicated like `ParserErrors::append`).
@@ -29,7 +28,7 @@ pub use fstring::{ParseExprFn, set_parse_expr_hook};
 type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
 type FxIndexSet<K> = IndexSet<K, FxBuildHasher>;
 
-/// C++ `ASTNode *` used as a binding site (either an expression or a statement).
+/// the reference implementation `ASTNode *` used as a binding site (either an expression or a statement).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Node {
     Expr(ExprId),
@@ -68,7 +67,7 @@ impl Item {
 #[derive(Debug)]
 pub(crate) struct Context {
     pub scope: Vec<ScopeBlock>,
-    /// Name -> bindings (front = most recent; C++ `std::list`).
+    /// Name -> bindings (front = most recent; the reference implementation `std::list`).
     pub map: FxIndexMap<String, Vec<Item>>,
     pub captures: FxIndexMap<String, CaptureType>,
     /// For functions.
@@ -109,7 +108,6 @@ impl Context {
     }
 }
 
-/// Port of `ScopingVisitor`.
 pub struct ScopingVisitor<'a> {
     pub cache: &'a mut Cache,
     pub(crate) ctx: Context,

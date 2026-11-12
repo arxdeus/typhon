@@ -262,7 +262,7 @@ impl<'a> TypecheckVisitor<'a> {
                         let v = self.sp_argument_value(st, index, None, "args", "kwargs");
                         let matches = self.sp_tag_eq(v, argument_tag);
                         let c = selected_condition.map(|c| self.cache.ast.clone_expr(c, false));
-                        // PORT-NOTE: C++ builds `clone(nullptr) && matches`; a null condition
+                        // Note: the reference implementation builds `clone(nullptr) && matches`; a null condition
                         // never happens here because the union tag test is always present.
                         let cond = match c {
                             Some(c) => self.sp_bin(c, "&&", matches),
@@ -453,7 +453,7 @@ impl<'a> TypecheckVisitor<'a> {
             let w = self.sp_union_of(&typhon_common::mangle::class("", "Union"), &state.union_types);
             for (_, e) in candidates.iter_mut() {
                 let f = self.sp_id(&mm("Union", "_new"));
-                // PORT-NOTE: C++ shares one `w` node between candidates; arena nodes are
+                // Note: the reference implementation shares one `w` node between candidates; arena nodes are
                 // rewritten in place by the type checker, so each candidate gets a clone.
                 let wc = self.cache.ast.clone_expr(w, false);
                 *e = self.sp_call(f, vec![*e, wc]);

@@ -1,4 +1,3 @@
-//! Port of `codon/cir/util/irtools.{h,cpp}`.
 
 use once_cell::sync::Lazy;
 use typhon_common::mangle::func as mangled;

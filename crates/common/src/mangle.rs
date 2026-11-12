@@ -1,5 +1,5 @@
-//! Name mangling. Port of `getMangledClass/Func/Method/Var` from `codon/parser/common.cpp`
-//! and the `StdlibTypes` table from `codon/parser/cache.{h,cpp}`.
+//! Name mangling. Port of `getMangledClass/Func/Method/Var`
+//! and the `StdlibTypes` table.
 //!
 //! Placed in `typhon-common` because CIR passes (`cir/util/side_effect.cpp`,
 //! `cir/transform/numpy/*`, `cir/transform/lowering/*`) use these names and must not
@@ -42,7 +42,7 @@ pub fn mangled_var(module: &str, var: &str, id: usize) -> String {
     format!("{prefix}{var}{num}")
 }
 
-/// Shorthands with C++ default arguments (`overload = 0`, `id = 0`, `noCore = false`).
+/// Shorthands with the reference implementation default arguments (`overload = 0`, `id = 0`, `noCore = false`).
 pub fn class(module: &str, cls: &str) -> String {
     mangled_class(module, cls, 0)
 }
@@ -53,7 +53,6 @@ pub fn var(module: &str, v: &str) -> String {
     mangled_var(module, v, 0)
 }
 
-/// Port of `codon::ast::StdlibTypes`.
 pub struct StdlibTypes {
     pub any: String,
     pub array: String,

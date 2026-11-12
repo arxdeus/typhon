@@ -1,6 +1,6 @@
-//! Port of codon/parser/peg/rules.h (`ParseContext`) plus the helper functions of the
+//! Parser state (`ParseContext`) plus the helper functions of the
 //! grammar PREAMBLE (`setSI`, `chain`, `wrap_tuple`) and the hand-written cpp-peglib
-//! pieces of codon/parser/peg/peg.cpp (`NLP` predicate, parens enter/leave hooks,
+//! pieces (`NLP` predicate, parens enter/leave hooks,
 //! INDENT/SAMEDENT/DEDENT/EXTERNDENT predicates and actions, error reporting).
 
 use std::cell::{Cell, RefCell};
@@ -27,7 +27,7 @@ pub struct ParseState<'a> {
     pub parens: Cell<i32>,
     /// cpp-peglib `error_info.message_pos` / `message` (predicate messages).
     pub message: RefCell<Option<(usize, String)>>,
-    /// First exception thrown by an AST constructor inside an action (C++ throws
+    /// First exception thrown by an AST constructor inside an action (the reference implementation throws
     /// `ParserException` straight out of the parser).
     pub fatal: RefCell<Option<CompilerError>>,
     line_starts: Vec<usize>,
@@ -91,7 +91,7 @@ impl<'a> ParseState<'a> {
         (li + 1, col)
     }
 
-    /// C++ `LOC`.
+    /// the reference implementation `LOC`.
     pub fn loc(&self, sp: (usize, usize)) -> SrcInfo {
         let (l, c) = self.line_info(sp.0);
         SrcInfo::new(
@@ -304,7 +304,7 @@ impl<'a> ParseState<'a> {
             }
             None => {
                 let tok = heuristic_error_token(self.src, err_pos);
-                // PORT-NOTE: cpp-peglib appends ", expecting ..." which `parseCode` strips
+                // Note: cpp-peglib appends ", expecting ..." which `parseCode` strips
                 // whenever an unexpected token exists. At EOF there is no token and the
                 // expected list (rule names) cannot be reproduced from rust-peg; we emit
                 // "syntax error." there.
@@ -323,7 +323,7 @@ impl<'a> ParseState<'a> {
     }
 }
 
-/// PORT-NOTE: C++ keeps unescaped (bytes) literals as raw `std::string` bytes. Rust
+/// Note: the reference implementation keeps unescaped (bytes) literals as raw `std::string` bytes. Rust
 /// `String` must be UTF-8: valid UTF-8 is kept as is, other byte strings are mapped
 /// byte-for-char (Latin-1) so no information is lost.
 pub fn bytes_to_string(b: Vec<u8>) -> String {

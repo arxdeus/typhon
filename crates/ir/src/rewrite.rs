@@ -1,11 +1,10 @@
-//! Port of `codon/cir/transform/rewrite.h`.
 
 use indexmap::IndexMap;
 
 use crate::ids::ValueId;
 use crate::module::Module;
 
-/// Port of `transform::RewriteRule`: returns the replacement for a value, if any.
+/// returns the replacement for a value, if any.
 pub trait RewriteRule {
     fn apply(&mut self, m: &mut Module, v: ValueId) -> Option<ValueId>;
 }
@@ -16,10 +15,9 @@ impl<F: FnMut(&mut Module, ValueId) -> Option<ValueId>> RewriteRule for F {
     }
 }
 
-/// Port of `transform::Rewriter`.
 #[derive(Default)]
 pub struct Rewriter {
-    // PORT-NOTE: C++ uses an `unordered_map` (unspecified order); insertion order is
+    // Note: the reference implementation uses an `unordered_map` (unspecified order); insertion order is
     // used here for determinism.
     rules: IndexMap<String, Box<dyn RewriteRule>>,
     num_replacements: i32,

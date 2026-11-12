@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/cleanup/canonical.{h,cpp}
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -31,7 +30,7 @@ struct NodeRanker {
 
 impl NodeRanker {
     fn hash_combine(&mut self, s: &str) {
-        // PORT-NOTE: `std::hash<std::string>` replaced by `DefaultHasher` (fixed keys,
+        // Note: `std::hash<std::string>` replaced by `DefaultHasher` (fixed keys,
         // deterministic); only the ordering it induces matters.
         let mut h = DefaultHasher::new();
         s.hash(&mut h);
@@ -120,7 +119,7 @@ impl CanonOpChain {
     fn order_operands(m: &mut Module, operands: &mut Vec<ValueId>) {
         let mut ranked: Vec<(Rank, usize, ValueId)> =
             operands.iter().enumerate().map(|(i, v)| (get_rank(m, *v), i, *v)).collect();
-        // PORT-NOTE: C++ sorts (rank, pointer) pairs; ties are broken by original position.
+        // Note: the reference implementation sorts (rank, pointer) pairs; ties are broken by original position.
         ranked.sort();
         *operands = ranked.into_iter().map(|x| x.2).collect();
     }

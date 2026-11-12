@@ -1,4 +1,3 @@
-//! Port of test/cir/transform/manager.cpp (PassManager cases) and
 //! `PassManagerTest.HonorsDisabledPassesAtRegistration` from test/types.cpp.
 
 use std::cell::Cell;
@@ -141,7 +140,7 @@ fn disabled_at_registration() {
     assert!(!pm.is_disabled(PASS_KEY));
 }
 
-/// `PassManagerTest.HonorsDisabledPassesAtRegistration` (types.cpp).
+/// `PassManagerTest.HonorsDisabledPassesAtRegistration`.
 #[test]
 fn honors_disabled_passes_at_registration() {
     let mut o = Options::default();

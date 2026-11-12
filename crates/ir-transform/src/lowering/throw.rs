@@ -1,4 +1,3 @@
-//! Port of codon/cir/transform/lowering/throw.{h,cpp}
 
 use typhon_ir::util::irtools;
 use typhon_ir::util::operator::{Operator, OperatorState};

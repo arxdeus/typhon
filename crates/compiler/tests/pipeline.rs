@@ -9,7 +9,7 @@ use typhon_compiler::Compiler;
 use typhon_ir::{NodeRef, TypeKind};
 
 fn compiler() -> Compiler {
-    Compiler::new(Options::with_argv0("build/codon_test"), None)
+    Compiler::new(Options::with_argv0("build/typhon_test"), None)
 }
 
 #[test]

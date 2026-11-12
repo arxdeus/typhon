@@ -1,4 +1,4 @@
-//! Port of `codon/cir/module.{h,cpp}` plus the behaviour of `Node`, `Value`, `Var`,
+//! Plus the behaviour of `Node`, `Value`, `Var`,
 //! `Func`, `Type` (`base.cpp`, `value.cpp`, `var.cpp`, `func.cpp`, `type.cpp`,
 //! `const.cpp`, `flow.cpp`, `instr.cpp`) expressed as `Module` methods over ids.
 
@@ -101,7 +101,7 @@ struct ArenaFrame {
     types: Vec<String>,
 }
 
-/// Port of `ir::Module`: owner of every IR node.
+/// owner of every IR node.
 pub struct Module {
     base: NodeBase,
     values: Arena<ValueData>,
@@ -243,7 +243,7 @@ impl Module {
         });
         m.vars[argc].base.replaceable = false;
         m.argc_var = argc;
-        // PORT-NOTE: C++ realizes NoneType lazily through the cache; here the structural
+        // Note: the reference implementation realizes NoneType lazily through the cache; here the structural
         // fallback is created eagerly so that `value_type(&self)` works on flows/instrs.
         // A parser-realized `NoneType` registered later under the same name supersedes it.
         m.get_none_type();
@@ -310,7 +310,7 @@ impl Module {
         let id = self.types.alloc(data);
         self.type_listed.push(true);
         if let Some(old) = self.type_map.insert(name.clone(), id) {
-            // C++ keeps the old list entry; only the map is overwritten.
+            // the reference implementation keeps the old list entry; only the map is overwritten.
             let _ = old;
         }
         if let Some(a) = self.arenas.last_mut() {
@@ -833,7 +833,7 @@ impl Module {
     pub fn set_attribute_key(&mut self, n: NodeRef, a: Attribute, key: i32) {
         self.attributes_mut(n).insert(key, a);
     }
-    /// `eraseAttribute(key)`. PORT-NOTE: C++ erases on the node itself (not the actual);
+    /// `eraseAttribute(key)`. Note: the reference implementation erases on the node itself (not the actual);
     /// here the actual node is used for consistency with the other attribute accessors.
     pub fn erase_attribute(&mut self, n: NodeRef, key: i32) {
         self.attributes_mut(n).erase(key);
@@ -1103,7 +1103,7 @@ impl Module {
     /// `replaceUsedValue(id_t id, Value *new)`.
     ///
     /// Panics (after leaving the node untouched for that slot) if a flow-typed slot
-    /// would receive a non-flow value, like the C++ `seqassert`.
+    /// would receive a non-flow value, like the the reference implementation `seqassert`.
     pub fn replace_used_value_uid(&mut self, n: NodeRef, id: Id, new: Option<ValueId>) -> i32 {
         let new_is_flow = new.map(|v| self.is_flow(v)).unwrap_or(false);
         let failed = std::cell::Cell::new(false);
@@ -1879,7 +1879,7 @@ impl Module {
                 return t;
             }
         }
-        // PORT-NOTE: no cache attached (unit tests): use the structural type.
+        // Note: no cache attached (unit tests): use the structural type.
         self.unsafe_get_int_type(len, sign)
     }
     /// `getPointerType(base)` (base defaults to `UInt[8]`).
@@ -1985,7 +1985,7 @@ impl Module {
                 }
             }
         }
-        // PORT-NOTE: structural fallback without a parser cache.
+        // Note: structural fallback without a parser cache.
         let names: Vec<String> = args.iter().map(|a| self.type_name(*a).to_string()).collect();
         let name = format!("Tuple[{}]", names.join(","));
         if let Some(t) = self.get_type(&name) {
@@ -2129,7 +2129,7 @@ impl Module {
     }
 
     // ------------------------------------------------------------------
-    // Value operators (value.cpp)
+    // Value operators
     // ------------------------------------------------------------------
 
     /// `Value::doUnaryOp(name)`.
