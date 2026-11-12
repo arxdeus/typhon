@@ -9,6 +9,7 @@ members = [
     "crates/llvm",
     "crates/runtime",
     "crates/omp",
+    "crates/linalg",
     "crates/compiler",
     "crates/cli",
     "crates/testsuite",
@@ -22,6 +23,7 @@ default-members = [
     "crates/llvm",
     "crates/runtime",
     "crates/omp",
+    "crates/linalg",
     "crates/compiler",
     "crates/cli",
     "crates/testsuite",
@@ -45,6 +47,7 @@ typhon-parser = { path = "crates/parser" }
 typhon-llvm = { path = "crates/llvm" }
 typhon-runtime = { path = "crates/runtime" }
 typhon-omp = { path = "crates/omp" }
+typhon-linalg = { path = "crates/linalg" }
 typhon-compiler = { path = "crates/compiler" }
 
 # ---- core data structures ----

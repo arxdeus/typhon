@@ -1,0 +1,18 @@
+[package]
+name = "typhon-linalg"
+description = "Pure-Rust BLAS/LAPACK subset (CBLAS + Fortran LAPACK ABI, ILP64) on top of faer for numpy.linalg"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "typhon_linalg"
+crate-type = ["rlib"]
+
+[features]
+default = []
+# Allow faer to use a rayon thread pool when TYPHON_LINALG_THREADS > 1.
+rayon = ["faer/rayon"]
+
+[dependencies]
+faer = { version = "0.24.4", default-features = false, features = ["std", "linalg"] }
