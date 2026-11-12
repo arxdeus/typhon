@@ -1,0 +1,100 @@
+# Android and iOS libraries
+
+Typhon can cross-compile Python modules to native libraries that mobile apps
+(for example Flutter via `dart:ffi`) load at run time.
+
+## Targets
+
+| `-target` alias  | LLVM triple                       | Runtime (Rust triple)   | Output    |
+|------------------|-----------------------------------|-------------------------|-----------|
+| `android-arm64`  | `aarch64-linux-android24`         | `aarch64-linux-android` | `.so`     |
+| `android-x64`    | `x86_64-linux-android24`          | `x86_64-linux-android`  | `.so`     |
+| `ios-arm64`      | `arm64-apple-ios13.0`             | `aarch64-apple-ios`     | `.dylib`  |
+| `ios-sim-arm64`  | `arm64-apple-ios13.0-simulator`   | `aarch64-apple-ios-sim` | `.dylib`  |
+
+You can also pass any full LLVM triple. With a cross target, code is always PIC and
+uses generic per-target CPUs (`generic+neon` on Android arm64, `x86-64+sse4.2` on
+Android x64, `apple-a12` on iOS), never the host CPU. You can override this with
+`-mcpu`/`-mattr`. `-sysroot <dir>` overrides the NDK/SDK sysroot.
+
+## 1. Build the runtime
+
+```sh
+tools/build-runtime.sh aarch64-linux-android x86_64-linux-android aarch64-apple-ios aarch64-apple-ios-sim
+```
+
+`typhon` looks for `libtyphonrt.a` in these places, in order:
+
+1. `$TYPHON_LIB_DIR/<T>/libtyphonrt.a`
+2. `<dir of typhon>/../<T>/release/libtyphonrt.a`
+3. `<dir of typhon>/../lib/typhon/<T>/libtyphonrt.a`
+
+## 2. Build a library
+
+```sh
+typhon build -release -lib -target android-arm64 -o libfoo.so foo.py
+typhon build -release -lib -target ios-arm64     -o libfoo.dylib foo.py
+typhon build -release -exe -target android-arm64 -o foo foo.py   # CLI program
+```
+
+`-obj` and `-llvm` also accept `-target`, which is useful for static linking on iOS.
+
+Link details (set `TYPHON_LOG_COMMANDS=1` to print the command):
+
+- **Android**: NDK clang (`$ANDROID_NDK_HOME`, else the newest complete
+  `$ANDROID_HOME/ndk/*`) with `--target=<triple>`, `-shared -Wl,-soname,<file>`,
+  `-Wl,--gc-sections -Wl,--as-needed -Wl,-z,max-page-size=16384` (Android 15 uses
+  16 KB pages), and `-ldl -llog -lunwind -lm -lc`.
+- **iOS**: `xcrun --sdk iphoneos|iphonesimulator clang -target <triple> -isysroot <sdk>`,
+  install name `@rpath/<file>`, `-Wl,-dead_strip`, `-liconv -lc -lm -framework Accelerate`.
+- In both cases, only `@export` functions are exported (a version script on Android,
+  `-exported_symbols_list` on iOS). Runtime symbols stay hidden.
+- `TYPHON_CROSS_LINKER` overrides the linker driver.
+
+## Exported functions
+
+```python
+@export
+def add(a: int, b: int) -> int: return a + b
+
+@export
+def strlen(s: cobj) -> int: return len(str.from_ptr(s))
+```
+
+| Typhon      | C                                |
+|-------------|----------------------------------|
+| `int`       | `int64_t`                        |
+| `float`     | `double`                         |
+| `bool`      | `bool` (`uint8_t`)               |
+| `cobj`, `Ptr[byte]` | `void*` / `const char*` |
+
+Strings and memory ownership:
+
+- `str.from_ptr(p)` copies a NUL-terminated C string. The caller keeps ownership of `p`.
+- To return a string, return a `cobj` to memory that the C side frees. Allocate it
+  with libc `malloc`, never with the GC heap, and export a matching free function.
+  GC memory may move out of reach once no Typhon reference remains.
+
+## Threading
+
+- Module top-level code runs in a library constructor when the library is loaded.
+- Every `@export` function first calls `seq_register_current_thread()`. This is
+  idempotent and registers the calling thread with the GC, so Dart isolates and
+  other foreign threads can call exported functions.
+- Exceptions must not escape an exported function. Catch them and return an error code.
+
+## Compile-time defines and platform
+
+`__apple__` (macOS and iOS), `__macos__`, `__ios__`, `__android__`, `__linux__`
+(Linux and Android) and `__windows__` follow the target. `sys.platform` is
+`"android"` or `"ios"` on mobile (as in CPython 3.13+), and otherwise `"darwin"`,
+`"linux"` or `"win32"`.
+
+Limitations: numpy's linalg (BLAS/LAPACK) is not available on Android.
+
+## Flutter
+
+Bundle the `.so` files under `android/app/src/main/jniLibs/<abi>/` (`arm64-v8a`,
+`x86_64`). On iOS, wrap the dylib in a framework or xcframework. Then open the
+library with `DynamicLibrary.open('libfoo.so')` (Android) or by framework path (iOS),
+and use `lookupFunction<Int64 Function(Int64, Int64), int Function(int, int)>('add')`.

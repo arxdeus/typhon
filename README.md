@@ -51,6 +51,19 @@ typhon build -llvm program.py         # emit LLVM IR
 typhon doc file.py                    # JSON docs
 ```
 
+## Android and iOS
+
+Cross-compile `@export` functions to a library for `dart:ffi` / C:
+
+```sh
+tools/build-runtime.sh aarch64-linux-android      # once per target
+typhon build -release -lib -target android-arm64 -o libfoo.so foo.py
+typhon build -release -lib -target ios-arm64 -o libfoo.dylib foo.py
+```
+
+Targets: `android-arm64`, `android-x64`, `ios-arm64`, `ios-sim-arm64` (or any LLVM
+triple). See [docs/mobile.md](docs/mobile.md).
+
 ## Runtime
 
 `libtyphonrt` is always linked statically; there is no shared runtime library.
