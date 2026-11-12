@@ -11,7 +11,7 @@ use typhon_common::diag::{MessageGroupPos, compilation_error, compilation_warnin
 use typhon_common::{CompilerError, ParserErrors, logger};
 use typhon_compiler::Compiler;
 use typhon_compiler::typhon_llvm::inkwell::context::Context;
-use typhon_compiler::typhon_llvm::{EngineConfig, LlvmVisitor};
+use typhon_compiler::typhon_llvm::LlvmVisitor;
 
 const SUPPORTED_EXTENSIONS: [&str; 1] = [".py"];
 
@@ -137,29 +137,53 @@ fn codegen<'ctx>(compiler: &Compiler, ctx: &'ctx Context) -> LlvmVisitor<'ctx> {
     }
 }
 
-fn run_mode(argv0: &str, args: &[String]) -> i32 {
+/// `run`: ahead-of-time build into a private temp dir, then execute the binary with
+/// the program arguments, inheriting stdin/stdout/stderr and the environment.
+/// The child's exit status is returned; a fatal signal is re-raised on this process.
+fn run_mode(argv0: &str, exe_argv0: &str, args: &[String]) -> i32 {
     let mut cli = args::parse(argv0, args, false);
-    let Some(compiler) = process_source(&mut cli, false) else { return 1 };
+    let Some(compiler) = process_source(&mut cli, true) else { return 1 };
     let ctx = Context::create();
     let mut v = codegen(&compiler, &ctx);
-    let rt = match typhon_compiler::runtime::load_runtime() {
-        Ok(rt) => rt,
-        Err(e) => fatal(&e.to_string()),
+    let dir = match tempfile::Builder::new().prefix("typhon-run-").tempdir() {
+        Ok(d) => d,
+        Err(e) => fatal(&format!("cannot create temporary directory: {e}")),
     };
-    // PORT-NOTE: C++ loads `-l` libraries via DynamicLibrary::LoadLibraryPermanently; same here.
-    let mut prog_args = vec![compiler.input().to_string()];
-    prog_args.extend(cli.prog_args.iter().cloned());
-    v.set_jit_symbols(typhon_compiler::runtime::builtin_symbols());
-    let config = EngineConfig { gc_roots: rt.gc_roots, ..Default::default() };
-    let r = v.run(&prog_args, &cli.libs, config);
-    flush_c_stdio();
-    match r {
-        Ok(_) => 0,
-        Err(e) => {
-            report(&e);
-            1
-        }
+    let stem = Path::new(compiler.input()).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "main".into());
+    let exe = dir.path().join(if stem.is_empty() || stem == "-" { "main".to_string() } else { stem });
+    let exe_s = exe.to_string_lossy().into_owned();
+    if let Err(e) = v.write_to_executable(&exe_s, exe_argv0, false, &cli.libs, "") {
+        report(&e);
+        return 1;
     }
+    drop(v);
+    drop(compiler);
+    let mut cmd = std::process::Command::new(&exe);
+    cmd.args(&cli.prog_args);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.arg0(&cli.input);
+    }
+    let status = match cmd.status() {
+        Ok(s) => s,
+        Err(e) => fatal(&format!("cannot execute {exe_s}: {e}")),
+    };
+    drop(dir);
+    if let Some(code) = status.code() {
+        return code;
+    }
+    #[cfg(unix)]
+    if let Some(sig) = std::os::unix::process::ExitStatusExt::signal(&status) {
+        flush_c_stdio();
+        // SAFETY: restore the default action and re-raise so our parent sees the signal.
+        unsafe {
+            libc::signal(sig, libc::SIG_DFL);
+            libc::raise(sig);
+        }
+        return 128 + sig;
+    }
+    1
 }
 
 fn build_mode(argv0: &str, exe_argv0: &str, args: &[String]) -> i32 {
@@ -298,7 +322,7 @@ fn main() {
     let rest = &argv[2..];
     let argv0 = format!("{exe} {mode}");
     let code = match mode {
-        "run" => run_mode(&argv0, rest),
+        "run" => run_mode(&argv0, &exe, rest),
         "build" => build_mode(&argv0, &exe, rest),
         "doc" => doc_mode(&exe, rest),
         "version" | "--version" | "-version" => {
@@ -307,7 +331,7 @@ fn main() {
         }
         "jit" | "jupyter" => fatal(&format!("'{mode}' mode is not supported in typhon (only run, build and doc)")),
         "--help" | "-help" | "-h" => {
-            println!("USAGE: typhon <mode> [options]\n\nMODES:\n\n  run   - run a program interactively\n  build - build a program\n  doc   - generate program documentation\n");
+            println!("USAGE: typhon <mode> [options]\n\nMODES:\n\n  run   - build a program and run it\n  build - build a program\n  doc   - generate program documentation\n");
             0
         }
         _ => show_commands_and_exit(),

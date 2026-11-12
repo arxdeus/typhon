@@ -1,6 +1,8 @@
 //! Integration tests for the CIR -> LLVM IR visitor (port of llvisitor.cpp behaviour).
 //! Small CIR modules are built with typhon-ir builders, lowered, verified and (where
-//! possible) JIT-executed through `typhon_llvm::Engine` with the Rust runtime linked in.
+//! possible) compiled to an object, linked with a C driver and `libtyphonrt.a`, and run.
+
+mod common;
 
 use inkwell::context::Context;
 use typhon_common::Options;
@@ -8,7 +10,7 @@ use typhon_ir::ids::{FuncId, TypeId, ValueId};
 use typhon_ir::module::Module;
 use typhon_ir::util::irtools;
 use typhon_ir::var::FuncKind;
-use typhon_llvm::{Engine, EngineConfig, LlvmVisitor, optimize};
+use typhon_llvm::{LlvmVisitor, optimize};
 
 fn opts() -> Options {
     let mut o = Options::default();
@@ -60,8 +62,8 @@ fn series(m: &mut Module, items: &[ValueId]) -> ValueId {
     s
 }
 
-/// Lower `m`, verify, optimize and JIT; returns the address of `sym`.
-fn jit<'c>(ctx: &'c Context, m: &Module) -> (Engine, inkwell::module::Module<'c>) {
+/// Lower `m`, verify and optimize; the result is linked by `common::build_and_run`.
+fn lower<'c>(ctx: &'c Context, m: &Module) -> inkwell::module::Module<'c> {
     let mut v = LlvmVisitor::new(ctx, opts());
     v.visit_module(m).expect("codegen");
     let module = v.take_module(None, None).expect("take module");
@@ -69,26 +71,11 @@ fn jit<'c>(ctx: &'c Context, m: &Module) -> (Engine, inkwell::module::Module<'c>
         panic!("invalid module: {}\n{}", e.to_string(), module.print_to_string().to_string());
     }
     optimize(&module, &opts()).expect("optimize");
-    let engine = Engine::new(&opts(), EngineConfig::default()).expect("engine");
-    use typhonrt as rt;
-    let syms: Vec<(&str, u64)> = vec![
-        ("seq_personality", rt::exc::seq_personality as *const () as usize as u64),
-        ("seq_alloc_exc", rt::exc::seq_alloc_exc as *const () as usize as u64),
-        ("seq_throw", rt::exc::seq_throw as *const () as usize as u64),
-        ("seq_terminate", rt::exc::seq_terminate as *const () as usize as u64),
-        ("seq_alloc", rt::lib_rt::seq_alloc as *const () as usize as u64),
-        ("seq_alloc_atomic", rt::lib_rt::seq_alloc_atomic as *const () as usize as u64),
-        ("seq_free", rt::lib_rt::seq_free as *const () as usize as u64),
-        ("seq_init", rt::lib_rt::seq_init as *const () as usize as u64),
-    ];
-    engine.define_absolute(&syms).expect("define runtime symbols");
-    engine.add_module(&module).expect("add module");
-    (engine, module)
+    module
 }
 
 #[test]
-fn codegen_and_jit_small_programs() {
-    typhonrt::lib_rt::seq_init(0); // GC + JIT unwind-section registration
+fn codegen_and_run_small_programs() {
     let mut m = Module::new("test");
     let i = m.get_int_type();
     let b = m.get_bool_type();
@@ -285,107 +272,41 @@ fn codegen_and_jit_small_programs() {
     assert!(matches!(m.func(main).unwrap().kind, FuncKind::Bodied { .. }));
 
     let ctx = Context::create();
-    let (engine, _module) = jit(&ctx, &m);
-    unsafe {
-        let arith: extern "C" fn(i64, i64) -> i64 = std::mem::transmute(engine.lookup("arith").unwrap() as usize);
-        assert_eq!(arith(2, 3), 6);
-        let loops: extern "C" fn(i64) -> i64 = std::mem::transmute(engine.lookup("loops").unwrap() as usize);
-        assert_eq!(loops(5), 10 + 5);
-        let rec: extern "C" fn(i64, i64) -> i64 = std::mem::transmute(engine.lookup("rec").unwrap() as usize);
-        assert_eq!(rec(1, 2), 1);
-        assert_eq!(rec(3, 2), 100);
-        let gsum: extern "C" fn() -> i64 = std::mem::transmute(engine.lookup("gsum").unwrap() as usize);
-        assert_eq!(gsum(), 6);
-        // Exceptions thrown and caught inside JIT code (needs JIT EH frame registration).
-        let exc: extern "C" fn() -> i64 = std::mem::transmute(engine.lookup("exc").unwrap() as usize);
-        assert_eq!(exc(), 42);
-        let obj = fake_exception(b"ValueError", b"bad value");
-        let nested: extern "C" fn(*mut u8) -> i64 = std::mem::transmute(engine.lookup("nested").unwrap() as usize);
-        assert_eq!(nested(obj), 111);
-        let boom: extern "C" fn(*mut u8) -> i64 = std::mem::transmute(engine.lookup("boom").unwrap() as usize);
-        if std::env::var_os(UNCAUGHT_CHILD).is_some() {
-            // No Rust `catch_unwind` frame may sit between the throw and the end of the
-            // stack (Rust aborts on foreign exceptions), so call from a raw pthread:
-            // the unwinder reaches end-of-stack and `seq_throw` calls `seq_terminate`.
-            struct Arg(extern "C" fn(*mut u8) -> i64, *mut u8);
-            extern "C" fn start(a: *mut libc::c_void) -> *mut libc::c_void {
-                let a = unsafe { &*(a as *const Arg) };
-                (a.0)(a.1);
-                std::ptr::null_mut()
-            }
-            let arg = Arg(boom, obj);
-            let mut t: libc::pthread_t = std::mem::zeroed();
-            libc::pthread_create(&mut t, std::ptr::null(), start, &arg as *const Arg as *mut _);
-            libc::pthread_join(t, std::ptr::null_mut());
-            unreachable!("uncaught exception returned");
-        }
-    }
-    // Uncaught exception: run in a child process, expect a Codon-style report and failure.
-    let out = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["codegen_and_jit_small_programs", "--exact", "--nocapture", "--test-threads=1"])
-        .env(UNCAUGHT_CHILD, "1")
-        .output()
-        .unwrap();
+    let module = lower(&ctx, &m);
+    let driver = format!(
+        "{}{}",
+        common::C_PRELUDE,
+        r#"
+void seq_init(int);
+int64_t arith(int64_t, int64_t); int64_t loops(int64_t); int64_t rec(int64_t, int64_t);
+int64_t gsum(void); int64_t exc(void); int64_t nested(void *); int64_t boom(void *);
+int main(int argc, char **argv) {
+  seq_init(0);
+  void *obj = fake_exception("ValueError", "bad value");
+  if (argc > 1) { boom(obj); return 0; }  /* uncaught: seq_terminate aborts */
+  printf("%lld %lld %lld %lld %lld %lld %lld\n", (long long)arith(2, 3), (long long)loops(5),
+         (long long)rec(1, 2), (long long)rec(3, 2), (long long)gsum(), (long long)exc(),
+         (long long)nested(obj));
+  return 0;
+}
+"#
+    );
+    let out = common::build_and_run(&module, &opts(), &driver, "small", &[]);
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    // arith(2,3)=6, loops(5)=10+5, rec, gsum()=1+2+3, exceptions caught in compiled code
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "6 15 1 100 6 42 111");
+    // Uncaught exception: Codon-style report on stderr and abnormal exit.
+    let out = common::build_and_run(&module, &opts(), &driver, "small_uncaught", &["boom"]);
     let err = String::from_utf8_lossy(&out.stderr);
-    assert!(!out.status.success(), "child should fail: {err}");
+    assert!(!out.status.success(), "should fail: {err}");
     assert!(err.contains("ValueError") && err.contains("bad value") && err.contains("Raised from:"), "stderr: {err}");
 }
 
-const UNCAUGHT_CHILD: &str = "TYPHON_TEST_UNCAUGHT_CHILD";
-
-/// A minimal Codon exception object: `{ *TypeInfo, ExceptionHeader }`.
-fn fake_exception(ty: &'static [u8], msg: &'static [u8]) -> *mut u8 {
-    use typhonrt::exc::ExceptionHeader;
-    use typhonrt::rtti::TypeInfo;
-    use typhonrt::types::SeqStr;
-    let s = |b: &'static [u8]| SeqStr { ptr: b.as_ptr() as *mut u8, meta: b.len() as i64 };
-    let info = Box::leak(Box::new(TypeInfo {
-        id: 1,
-        n_mro: 0,
-        mro: std::ptr::null(),
-        offsets: std::ptr::null(),
-        sorted_mro: std::ptr::null(),
-        n_slots: 0,
-        slots: std::ptr::null(),
-        n_methods: 0,
-        methods: std::ptr::null(),
-        rtti: false,
-        raw_name: s(ty),
-        nice_name: s(ty),
-        base_name: s(ty),
-        n_params: 0,
-        params: std::ptr::null(),
-        size: 0,
-        reference: true,
-        inline_value: false,
-        exception_offset: 8,
-        system_exit_offset: -1,
-    }));
-    #[repr(C)]
-    struct Obj {
-        info: *const TypeInfo,
-        hdr: ExceptionHeader,
-    }
-    let hdr = ExceptionHeader {
-        msg: s(msg),
-        func: s(b"boom"),
-        file: s(b"test.codon"),
-        line: 3,
-        col: 5,
-        python_type: std::ptr::null_mut(),
-        cause: std::ptr::null_mut(),
-    };
-    Box::into_raw(Box::new(Obj { info, hdr })) as *mut u8
-}
-
-/// Regression: typed `except` under the JIT. The LSDA type table references the
-/// private `typhon.typeidx.*` globals via `ARM64_RELOC_POINTER_TO_GOT` on Mach-O;
-/// RTDyld used to drop the symbol offset (GOT entry -> section base), so the
-/// personality read the wrong type index and libunwind aborted in phase 2.
+/// Typed `except`: the LSDA type table references the private `typhon.typeidx.*`
+/// globals (via GOT relocations on Mach-O); the personality must read the real index.
 #[test]
-fn jit_typed_catch_reads_correct_type_index() {
+fn typed_catch_reads_correct_type_index() {
     use inkwell::memory_buffer::MemoryBuffer;
-    typhonrt::lib_rt::seq_init(0);
     // `@pad` precedes the type-info globals in `__const`, so a section-base
     // GOT entry would read 0 (catch-all) instead of the real index.
     let ir = r#"
@@ -422,34 +343,29 @@ lp:
     let ctx = Context::create();
     let buf = MemoryBuffer::create_from_memory_range_copy(ir.as_bytes(), "eh");
     let module = ctx.create_module_from_ir(buf).expect("parse");
-    let engine = Engine::new(&opts(), EngineConfig::default()).expect("engine");
-    use typhonrt as rt;
-    engine
-        .define_absolute(&[
-            ("seq_personality", rt::exc::seq_personality as *const () as usize as u64),
-            ("seq_alloc_exc", rt::exc::seq_alloc_exc as *const () as usize as u64),
-            ("seq_throw", rt::exc::seq_throw as *const () as usize as u64),
-        ])
-        .expect("define");
-    engine.add_module(&module).expect("add module");
-    let obj = fake_exception(b"ValueError", b"typed");
-    unsafe {
-        let padval: extern "C" fn() -> i64 = std::mem::transmute(engine.lookup("padval").unwrap() as usize);
-        assert_eq!(padval(), 0);
-        let typed: extern "C" fn(*mut u8) -> i64 = std::mem::transmute(engine.lookup("typed").unwrap() as usize);
-        // BASE_EXCEPTION_SELECTOR (-1) matches; the selector must be that index.
-        assert_eq!(typed(obj), -1);
-        assert_eq!(typed(obj), -1);
-    }
+    let driver = format!(
+        "{}{}",
+        common::C_PRELUDE,
+        r#"
+void seq_init(int); int64_t padval(void); int64_t typed(void *);
+int main(void) {
+  seq_init(0);
+  void *obj = fake_exception("ValueError", "typed");
+  /* BASE_EXCEPTION_SELECTOR (-1) matches; the selector must be that index. */
+  printf("%lld %lld %lld\n", (long long)padval(), (long long)typed(obj), (long long)typed(obj));
+  return 0;
+}
+"#
+    );
+    let out = common::build_and_run(&module, &opts(), &driver, "typed_catch", &[]);
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "0 -1 -1");
 }
 
-/// Thread-local globals must link under the JIT (MachO TLV / ELF TLS relocations
-/// are rejected by RTDyld; the engine lowers them to emulated TLS) and stay
-/// per-thread.
+/// Thread-local globals link (native TLS) and stay per-thread.
 #[test]
-fn jit_thread_local_global_links_and_is_per_thread() {
+fn thread_local_global_links_and_is_per_thread() {
     use inkwell::memory_buffer::MemoryBuffer;
-    typhonrt::lib_rt::seq_init(0);
     let ir = r#"
 @tls = thread_local global i64 0
 define i64 @bump() {
@@ -461,24 +377,21 @@ define i64 @bump() {
     let ctx = Context::create();
     let buf = MemoryBuffer::create_from_memory_range_copy(ir.as_bytes(), "tls");
     let module = ctx.create_module_from_ir(buf).expect("parse");
-    let engine = Engine::new(&opts(), EngineConfig::default()).expect("engine");
-    engine
-        .define_absolute(&[(
-            "__emutls_get_address",
-            typhonrt::emutls::__emutls_get_address as *const () as usize as u64,
-        )])
-        .expect("define");
-    engine.add_module(&module).expect("add module");
-    let addr = engine.lookup("bump").expect("lookup") as usize;
-    let bump: extern "C" fn() -> i64 = unsafe { std::mem::transmute(addr) };
-    assert_eq!(bump(), 1);
-    assert_eq!(bump(), 2);
-    let other = std::thread::spawn(move || {
-        let bump: extern "C" fn() -> i64 = unsafe { std::mem::transmute(addr) };
-        (bump(), bump())
-    })
-    .join()
-    .unwrap();
-    assert_eq!(other, (1, 2));
-    assert_eq!(bump(), 3);
+    let driver = r#"
+#include <pthread.h>
+#include <stdio.h>
+#include <stdint.h>
+void seq_init(int); int64_t bump(void);
+static void *other(void *r) { int64_t a = bump(); int64_t b = bump(); ((int64_t *)r)[0] = a; ((int64_t *)r)[1] = b; return 0; }
+int main(void) {
+  seq_init(0);
+  int64_t a = bump(), b = bump(), r[2];
+  pthread_t t; pthread_create(&t, 0, other, r); pthread_join(t, 0);
+  printf("%lld %lld %lld %lld %lld\n", (long long)a, (long long)b, (long long)r[0], (long long)r[1], (long long)bump());
+  return 0;
+}
+"#;
+    let out = common::build_and_run(&module, &opts(), driver, "tls", &[]);
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "1 2 1 2 3");
 }

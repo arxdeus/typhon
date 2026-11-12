@@ -7,7 +7,7 @@
 //! - `instrs.rs` : constants and instructions (calls, coroutines, throw, ...)
 //! - `rtti.rs`   : runtime type info, object layouts, field addresses, intrinsics
 //! - `win.rs`    : Win64 ABI wrappers (only active for `*-windows-msvc` triples)
-//! - `output.rs` : object/bitcode/ll/executable/python-extension writers, `run`
+//! - `output.rs` : object/bitcode/ll/executable/library writers, runtime link args
 //! - `ll.rs`     : thin `llvm-sys` helpers (IRBuilder / DIBuilder subset)
 //!
 //! PORT-NOTE: the C++ visitor builds IR with `llvm::IRBuilder<>` on raw `llvm::Value*`.
@@ -19,9 +19,9 @@ mod flows;
 mod instrs;
 pub mod ll;
 mod output;
+pub use output::{runtime_link_args, runtime_lib_dirs, static_runtime_archive};
 mod pyext;
 mod pyext_module;
-mod run;
 mod rtti;
 mod types;
 mod win;
@@ -216,7 +216,6 @@ pub struct LlvmVisitor<'ctx> {
     finally: Vec<TryCatchData>,
     catches: Vec<CatchData>,
     next_sequence_number: i64,
-    jit_symbols: Vec<(String, u64)>,
     error: Option<CompilerError>,
 }
 
@@ -255,7 +254,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
             finally: Vec::new(),
             catches: Vec::new(),
             next_sequence_number: 0,
-            jit_symbols: Vec::new(),
             error: None,
         }
     }
@@ -327,11 +325,6 @@ impl<'ctx> LlvmVisitor<'ctx> {
     /// `getRuntimeInitializerName()`.
     pub fn runtime_initializer_name(&self) -> &str {
         &self.runtime_initializer_name
-    }
-    /// Absolute symbols to define in the JIT before running (e.g. runtime functions
-    /// linked into the host process).
-    pub fn set_jit_symbols(&mut self, syms: Vec<(String, u64)>) {
-        self.jit_symbols = syms;
     }
     /// `getGlobalCtorName()`.
     pub fn global_ctor_name() -> &'static str {

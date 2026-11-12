@@ -9,15 +9,13 @@
 //! | `exc.cpp`                   | [`exc`]            |
 //! | `re.cpp`                    | [`re`]             |
 //! | `rtti.h`                    | [`rtti`]           |
-//! | `emutls.cpp`                | [`emutls`]         |
 //! | `numpy/{loops,sort,zmath}`  | [`numpy`]          |
 //!
-//! Third-party C ABIs re-exported from the cdylib (as the C++ build does): bdwgc
+//! Third-party C ABIs bundled into the static archive: bdwgc
 //! (`GC_*`), zlib (`gz*`, `inflate*`, ... via `libz-rs-sys`), bzip2 (`BZ2_*` via
 //! `libbz2-rs-sys`), liblzma (`lzma_*`), plus libomp / Accelerate linked dynamically.
 #![allow(clippy::missing_safety_doc)]
 
-pub mod emutls;
 pub mod exc;
 pub mod lib_rt;
 pub mod numpy;
@@ -26,7 +24,7 @@ pub mod rtti;
 pub mod types;
 
 pub mod gc;
-pub use exc::{JitError, make_backtrace_frame_string, set_jit_error_callback};
+pub use exc::make_backtrace_frame_string;
 pub use lib_rt::get_captured_output;
 
 // Force the compression crates (pure-symbol providers) into the link.

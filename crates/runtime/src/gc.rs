@@ -1,6 +1,6 @@
 //! Minimal FFI bindings for bdwgc (`gc.h`, built by the `bdwgc-alloc-sys` crate;
 //! see crates/runtime/README.md for its configuration). Only the API used by the
-//! runtime is declared; the full `GC_*` ABI is exported from the cdylib.
+//! runtime is declared; the full `GC_*` ABI is bundled whole into libtyphonrt.a.
 #![allow(non_camel_case_types, non_snake_case)]
 
 use core::ffi::{c_char, c_int, c_void};

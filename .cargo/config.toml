@@ -13,6 +13,9 @@ CFLAGS_x86_64_apple_darwin = { value = "-DLARGE_CONFIG", force = false }
 CFLAGS_x86_64_unknown_linux_gnu = { value = "-DLARGE_CONFIG", force = false }
 CFLAGS_aarch64_unknown_linux_gnu = { value = "-DLARGE_CONFIG", force = false }
 TYPHON_STDLIB_DIR = { value = "stdlib", relative = true, force = false }
+# Programs are linked against libtyphonrt.a: build its C parts (bdwgc, liblzma, omp shim)
+# for the same macOS baseline as rustc (11.0) so ld does not warn "built for newer macOS".
+MACOSX_DEPLOYMENT_TARGET = { value = "11.0", force = false }
 
 [build]
 target-dir = "target"

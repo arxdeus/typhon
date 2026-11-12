@@ -1,4 +1,4 @@
-//! Builds `cpp/tm_shim.cpp` (TargetMachine options missing from the LLVM C API).
+//! Builds `cpp/tm_shim.cpp` (LLVM C++ APIs missing from the LLVM C API).
 fn main() {
     let prefix = std::env::var("LLVM_SYS_201_PREFIX").unwrap_or_else(|_| "/Users/mind/orca/toolchains/llvm-codon".into());
     println!("cargo:rerun-if-changed=cpp/tm_shim.cpp");

@@ -17,5 +17,7 @@ typhon-common.workspace = true
 typhon-compiler.workspace = true
 typhon-llvm.workspace = true
 typhon-ir.workspace = true
-# PORT-NOTE: libtyphonrt is loaded at run time (dlopen) / linked by `build -exe`; it is
-# built by `cargo build` (default-members) into target/<profile>, next to `typhon`.
+tempfile.workspace = true
+libc.workspace = true
+# libtyphonrt.a is linked into every program built by `run`/`build`; `cargo build`
+# (default-members) puts it into target/<profile>, next to `typhon`.

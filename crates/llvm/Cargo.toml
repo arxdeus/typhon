@@ -1,6 +1,6 @@
 [package]
 name = "typhon-llvm"
-description = "LLVM backend: CIR -> LLVM IR codegen, optimization pipeline, GPU, native target features, ORC JIT engine (port of codon/cir/llvm, codon/compiler/{engine,memory_manager,debug_listener})"
+description = "LLVM backend: CIR -> LLVM IR codegen, optimization pipeline, GPU, native target features (port of codon/cir/llvm)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,14 +15,11 @@ rustc-hash.workspace = true
 thiserror.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
-gimli.workspace = true
-object.workspace = true
-# DWARF symbolization for JIT backtraces (replaces llvm::symbolize::LLVMSymbolizer).
-addr2line = { version = "0.27", default-features = false, features = ["std"] }
 
 [dev-dependencies]
-# No openmp/blas: rpath link args of the runtime do not propagate to test binaries.
-typhon-runtime = { path = "../runtime", default-features = false }
+# Execution tests link objects with `libtyphonrt.a` from target/<profile> (build
+# it first: `cargo build -p typhon-runtime`).
+tempfile.workspace = true
 
 [build-dependencies]
 cc = "1"

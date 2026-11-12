@@ -8,7 +8,8 @@ build = "build.rs"
 
 [lib]
 name = "typhonrt"
-crate-type = ["rlib", "staticlib", "cdylib"]
+# Static only: executables and `-lib` outputs embed libtyphonrt.a.
+crate-type = ["rlib", "staticlib"]
 
 [features]
 default = ["omp-rust", "blas"]

@@ -1,9 +1,8 @@
 //! Port of `codon/runtime/exc.cpp`: Itanium-ABI exceptions for compiled Codon code
 //! (`seq_alloc_exc`, `seq_throw`, `seq_personality` with hand-written LSDA parsing,
-//! `seq_terminate`), backtraces, and the Apple-silicon fake mach header for JIT code.
+//! `seq_terminate`) and backtraces.
 
 use core::ffi::{c_int, c_void};
-use std::sync::{Mutex, OnceLock};
 
 use crate::lib_rt::{flags, get_captured_output, seq_alloc, seq_alloc_atomic, seq_free};
 use crate::rtti::{BASE_EXCEPTION_SELECTOR, CATCH_ALL_SELECTOR, TypeInfo, isinstance};
@@ -201,78 +200,9 @@ unsafe fn base_of(exc: *mut c_void) -> *mut BaseExceptionData {
     unsafe { (exc as *mut u8).offset(seq_exc_offset() as isize) as *mut BaseExceptionData }
 }
 
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-mod apple {
-    //! https://github.com/llvm/llvm-project/issues/49036: a minimal mach header for
-    //! JIT'd code so libunwind accepts its dynamically registered unwind sections.
-    #[repr(C)]
-    pub struct MachHeader64 {
-        magic: u32,
-        cputype: i32,
-        cpusubtype: i32,
-        filetype: u32,
-        ncmds: u32,
-        sizeofcmds: u32,
-        flags: u32,
-        reserved: u32,
-    }
-
-    pub static FAKE_MACH_HEADER: MachHeader64 = MachHeader64 {
-        magic: 0xfeed_facf,   // MH_MAGIC_64
-        cputype: 0x0100_000c, // CPU_TYPE_ARM64
-        cpusubtype: 0,        // CPU_SUBTYPE_ARM64_ALL
-        filetype: 0x6,        // MH_DYLIB
-        ncmds: 0,
-        sizeofcmds: 0,
-        flags: 0,
-        reserved: 0,
-    };
-
-    #[repr(C)]
-    pub struct UnwDynamicUnwindSections {
-        dso_base: usize,
-        dwarf_section: usize,
-        dwarf_section_length: usize,
-        compact_unwind_section: usize,
-        compact_unwind_section_length: usize,
-    }
-
-    pub unsafe extern "C" fn find_dynamic_unwind_sections(
-        _addr: usize,
-        info: *mut UnwDynamicUnwindSections,
-    ) -> core::ffi::c_int {
-        unsafe {
-            (*info).dso_base = &FAKE_MACH_HEADER as *const _ as usize;
-            (*info).dwarf_section = 0;
-            (*info).dwarf_section_length = 0;
-            (*info).compact_unwind_section = 0;
-            (*info).compact_unwind_section_length = 0;
-        }
-        1
-    }
-
-    pub type FindFn = unsafe extern "C" fn(usize, *mut UnwDynamicUnwindSections) -> core::ffi::c_int;
-}
-
-/// Port of `seq_exc_init` (C++-mangled internal in the original; not exported).
-pub fn seq_exc_init(flags: c_int) {
-    // PORT-NOTE: C++ registers a callback reporting only the fake mach header
-    // (JITLink's UnwindInfoManager supplies the sections there). Typhon's RTDyld
-    // JIT registers a real per-object callback (typhon-llvm `eh_frames`); this
-    // catch-all one claims every PC with empty sections and, being registered
-    // first, would shadow it, so it is disabled unless explicitly requested.
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    if flags & SEQ_FLAG_STANDALONE == 0 && std::env::var_os("TYPHON_RT_FAKE_UNWIND_SECTIONS").is_some() {
-        unsafe {
-            let sym = libc::dlsym(libc::RTLD_DEFAULT, c"__unw_add_find_dynamic_unwind_sections".as_ptr());
-            if !sym.is_null() {
-                let add: unsafe extern "C" fn(apple::FindFn) -> c_int = core::mem::transmute(sym);
-                add(apple::find_dynamic_unwind_sections);
-            }
-        }
-    }
-    let _ = flags;
-}
+/// Port of `seq_exc_init`. Executables carry their own unwind tables, so there is
+/// nothing to register (the C++ runtime's fake mach header only served JIT code).
+pub fn seq_exc_init(_flags: c_int) {}
 
 unsafe fn seq_delete_exc(exp: *mut UnwindException) {
     unsafe {
@@ -313,26 +243,6 @@ pub extern "C" fn seq_alloc_exc(obj: *mut c_void) -> *mut c_void {
         }
         (&mut (*e).unwind_exception as *mut UnwindException).cast()
     }
-}
-
-/// Port of `codon::runtime::JITError`.
-#[derive(Clone, Debug, Default)]
-pub struct JitError {
-    pub output: String,
-    pub what: String,
-    pub ty: String,
-    pub file: String,
-    pub line: i32,
-    pub col: i32,
-    pub backtrace: Vec<usize>,
-}
-
-type JitCallback = Box<dyn Fn(&JitError) + Send + Sync>;
-static JIT_ERROR_CALLBACK: OnceLock<Mutex<Option<JitCallback>>> = OnceLock::new();
-
-/// Port of `codon::runtime::setJITErrorCallback`.
-pub fn set_jit_error_callback(cb: Option<JitCallback>) {
-    *JIT_ERROR_CALLBACK.get_or_init(|| Mutex::new(None)).lock().unwrap_or_else(|e| e.into_inner()) = cb;
 }
 
 /// Port of `codon::runtime::makeBacktraceFrameString`.
@@ -426,31 +336,8 @@ pub unsafe extern "C" fn seq_terminate(exc: *mut c_void) {
             }
         }
 
-        if f & SEQ_FLAG_STANDALONE != 0 {
-            write_stderr(buf.as_bytes());
-            libc::abort();
-        }
-        let backtrace = if f & SEQ_FLAG_DEBUG != 0 { base.bt.frames().iter().map(|x| x.pc).collect() } else { Vec::new() };
-        let e = JitError {
-            output: buf,
-            what: msg,
-            ty,
-            file,
-            line: hdr.line as i32,
-            col: hdr.col as i32,
-            backtrace,
-        };
-        let guard = JIT_ERROR_CALLBACK.get_or_init(|| Mutex::new(None)).lock().unwrap_or_else(|e| e.into_inner());
-        match guard.as_ref() {
-            Some(cb) => cb(&e),
-            None => {
-                // PORT-NOTE: the C++ runtime `throw`s a C++ JITError here; Rust cannot
-                // unwind through the C ABI, so without a registered callback we print
-                // the report and abort.
-                write_stderr(e.output.as_bytes());
-                libc::abort();
-            }
-        }
+        write_stderr(buf.as_bytes());
+        libc::abort();
     }
 }
 

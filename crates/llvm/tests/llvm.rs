@@ -8,7 +8,9 @@ use inkwell::values::AsValueRef;
 use typhon_common::Options;
 use typhon_llvm::optimize::passes;
 use typhon_llvm::test_support::*;
-use typhon_llvm::{Engine, EngineConfig, optimize};
+
+mod common;
+use typhon_llvm::optimize;
 
 fn parse<'c>(ctx: &'c Context, ir: &str) -> Module<'c> {
     let buf = MemoryBuffer::create_from_memory_range_copy(ir.as_bytes(), "test");
@@ -667,40 +669,23 @@ define ptr @host() {
     let _ = std::fs::remove_file(dir);
 }
 
-// ------------------------------------------------------------------ engine
+// ------------------------------------------------------------------ AOT
 
 #[test]
-fn engine_add_lookup_call() {
+fn aot_object_links_with_runtime_and_libc() {
     let ctx = Context::create();
-    let m = parse(&ctx, "define i64 @answer() {\n  ret i64 42\n}\n");
-    let mut o = opts();
-    o.jit = true;
-    let engine = Engine::new(&o, EngineConfig { gc_roots: None, optimize_on_add: true }).expect("engine");
-    engine.add_module(&m).expect("add");
-    let addr = engine.lookup("answer").expect("lookup");
-    assert_ne!(addr, 0);
-    let f: extern "C" fn() -> i64 = unsafe { std::mem::transmute(addr as usize) };
-    assert_eq!(f(), 42);
-    // symbolization of JIT code
-    assert!(!engine.debug_listener().is_empty());
-    let info = engine.debug_listener().symbolize(addr as usize).expect("symbolized");
-    assert!(info.function.contains("answer"), "{info:?}");
-
-    // second module referencing the first + process symbols + absolute symbols
-    extern "C" fn host_seven() -> i64 {
-        7
-    }
-    engine.define_absolute(&[("host_seven", host_seven as *const () as usize as u64)]).unwrap();
-    let ctx2 = Context::create();
-    let m2 = parse(
-        &ctx2,
-        "declare i64 @answer()\ndeclare i64 @host_seven()\ndeclare i64 @labs(i64)\n\
-         define i64 @plus() {\n  %a = call i64 @answer()\n  %b = call i64 @host_seven()\n  %c = call i64 @labs(i64 -1)\n  \
-         %s = add i64 %a, %b\n  %t = add i64 %s, %c\n  ret i64 %t\n}\n",
+    let m = parse(
+        &ctx,
+        "declare i64 @host_seven()\ndeclare i64 @labs(i64)\ndeclare ptr @seq_alloc(i64)\n\
+         define i64 @plus() {\n  %a = call i64 @host_seven()\n  %b = call i64 @labs(i64 -35)\n  \
+         %p = call ptr @seq_alloc(i64 16)\n  store i64 %b, ptr %p\n  %c = load i64, ptr %p\n  \
+         %s = add i64 %a, %c\n  ret i64 %s\n}\n",
     );
-    let rt = engine.add_module_tracked(&m2).unwrap();
-    let f2: extern "C" fn() -> i64 = unsafe { std::mem::transmute(engine.lookup("plus").unwrap() as usize) };
-    assert_eq!(f2(), 50);
-    rt.remove().unwrap();
-    assert!(engine.lookup("plus").is_err());
+    optimize(&m, &opts()).expect("optimize");
+    let driver = "#include <stdio.h>\n#include <stdint.h>\nvoid seq_init(int); int64_t plus(void);\n\
+                  int64_t host_seven(void) { return 7; }\n\
+                  int main(void) { seq_init(0); printf(\"%lld\\n\", (long long)plus()); return 0; }\n";
+    let out = common::build_and_run(&m, &opts(), driver, "aot_plus", &[]);
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "42");
 }

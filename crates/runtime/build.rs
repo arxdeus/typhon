@@ -25,26 +25,10 @@ fn main() {
         println!("cargo:rustc-link-lib=framework=Accelerate");
     }
 
-    // C libraries linked statically (bdwgc, liblzma) are not exported from a Rust
-    // cdylib by default, and only referenced archive members are linked. The C++
-    // libtyphonrt exports them in full: link whole archives and re-export by pattern.
-    // (Search paths are emitted by bdwgc-alloc-sys / liblzma-sys build scripts.)
+    // C libraries linked statically (bdwgc, liblzma): link whole archives so every
+    // `GC_*` / `lzma_*` symbol the stdlib may reach via `from C import` is in
+    // libtyphonrt.a. (Search paths come from bdwgc-alloc-sys / liblzma-sys.)
     println!("cargo:rustc-link-lib=static:+whole-archive=gc");
     println!("cargo:rustc-link-lib=static:+whole-archive=lzma");
-    // The Rust OpenMP runtime (typhon-omp rlib; its C shim is bundled whole-archive
-    // by typhon-omp's build script) is exported by pattern as well.
-    if target_os == "macos" {
-        let omp_pats: &[&str] = if omp_rust { &["___kmpc_*", "_omp_*"] } else { &[] };
-        for pat in ["_GC_*", "_lzma_*"].iter().chain(omp_pats) {
-            println!("cargo:rustc-cdylib-link-arg=-Wl,-exported_symbol,{pat}");
-        }
-    } else if target_os == "linux" {
-        println!("cargo:rustc-cdylib-link-arg=-Wl,--export-dynamic-symbol=GC_*");
-        println!("cargo:rustc-cdylib-link-arg=-Wl,--export-dynamic-symbol=lzma_*");
-        if omp_rust {
-            println!("cargo:rustc-cdylib-link-arg=-Wl,--export-dynamic-symbol=__kmpc_*");
-            println!("cargo:rustc-cdylib-link-arg=-Wl,--export-dynamic-symbol=omp_*");
-        }
-    }
+    let _ = omp_rust;
 }
-

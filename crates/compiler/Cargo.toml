@@ -18,7 +18,6 @@ typhon-ir-transform.workspace = true
 typhon-parser.workspace = true
 typhon-llvm.workspace = true
 include_dir.workspace = true
-libloading.workspace = true
 libc.workspace = true
 
 [dev-dependencies]

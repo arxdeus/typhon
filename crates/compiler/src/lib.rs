@@ -6,7 +6,6 @@
 //! compiler hands out one bound to a caller-provided context via [`Compiler::codegen`].
 
 pub mod hooks;
-pub mod runtime;
 pub mod stdlib;
 pub mod test_passes;
 

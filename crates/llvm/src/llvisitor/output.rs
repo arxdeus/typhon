@@ -1,5 +1,5 @@
-//! Output paths: object/bitcode/LL/executable writers, `compile`, `run`
-//! (port of llvisitor.cpp `writeTo*`, `setupGlobalCtor`, `compile`, `run`).
+//! Output paths: object/bitcode/LL/executable writers and `compile`
+//! (port of llvisitor.cpp `writeTo*`, `setupGlobalCtor`, `compile`).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -35,34 +35,73 @@ fn execute_command(args: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// Directory holding `libtyphonrt`: `TYPHON_LIB_DIR`, else next to/around the executable.
-pub fn runtime_lib_dirs(argv0: &str) -> Vec<String> {
+/// Directories searched for `libtyphonrt.a`: `TYPHON_LIB_DIR`, else next to the
+/// `typhon` executable, `../lib` and `../lib/typhon`.
+pub fn runtime_lib_dirs(argv0: &str) -> Vec<PathBuf> {
     if let Ok(d) = std::env::var("TYPHON_LIB_DIR")
         && !d.is_empty()
     {
-        return vec![d];
+        return vec![PathBuf::from(d)];
     }
     let exe = if argv0.is_empty() {
         std::env::current_exe().unwrap_or_default()
     } else {
         let p = PathBuf::from(argv0);
-        std::fs::canonicalize(&p).or_else(|_| std::env::current_exe()).unwrap_or(p)
+        // A non-existent argv0 (e.g. `target/debug/typhon` from tests) still names
+        // the directory to search.
+        std::fs::canonicalize(&p).unwrap_or_else(|_| if p.parent().is_some_and(|d| d.is_dir()) { p } else { std::env::current_exe().unwrap_or_default() })
     };
     let base = exe.parent().map(Path::to_path_buf).unwrap_or_default();
-    let mut rpaths = Vec::new();
-    for rel in ["../lib", "../lib/codon"] {
-        let p = base.join(rel);
-        if p.exists()
-            && let Ok(c) = std::fs::canonicalize(&p)
-        {
-            rpaths.push(c.to_string_lossy().into_owned());
+    let mut dirs = vec![base.clone()];
+    for rel in ["../lib", "../lib/typhon"] {
+        if let Ok(c) = std::fs::canonicalize(base.join(rel)) {
+            dirs.push(c);
         }
     }
-    if rpaths.is_empty() {
-        rpaths.push(base.to_string_lossy().into_owned());
-    }
-    rpaths
+    dirs
 }
+
+#[cfg(windows)]
+const RUNTIME_ARCHIVE: &str = "typhonrt.lib";
+#[cfg(not(windows))]
+const RUNTIME_ARCHIVE: &str = "libtyphonrt.a";
+
+/// Full path of the static runtime archive linked into every executable / library.
+pub fn static_runtime_archive(argv0: &str) -> Result<String> {
+    let dirs = runtime_lib_dirs(argv0);
+    dirs.iter().map(|d| d.join(RUNTIME_ARCHIVE)).find(|p| p.is_file()).map(|p| p.to_string_lossy().into_owned()).ok_or_else(|| {
+        let searched: Vec<String> = dirs.iter().map(|d| d.display().to_string()).collect();
+        CompilerError::Llvm(format!("{RUNTIME_ARCHIVE} not found in {} (set TYPHON_LIB_DIR)", searched.join(", ")))
+    })
+}
+
+/// Linker flags that discard unreferenced sections and unneeded shared libraries.
+#[cfg(target_os = "macos")]
+const LINK_GC_FLAGS: &[&str] = &["-Wl,-dead_strip", "-Wl,-dead_strip_dylibs"];
+#[cfg(all(unix, not(target_os = "macos")))]
+const LINK_GC_FLAGS: &[&str] = &["-Wl,--gc-sections", "-Wl,--as-needed"];
+#[cfg(windows)]
+const LINK_GC_FLAGS: &[&str] = &["-Wl,/OPT:REF"];
+
+/// System libraries `libtyphonrt.a` needs, from `cargo rustc -p typhon-runtime --release
+/// --crate-type staticlib -- --print native-static-libs`. zlib, bzip2, liblzma, bdwgc
+/// and OpenMP (typhon-omp) are inside the archive; no C++ runtime is needed.
+/// Linker arguments that embed the runtime: section/dylib GC flags, the full path of
+/// `libtyphonrt.a`, and the system libraries it needs. Append after the program's
+/// objects and user libraries.
+pub fn runtime_link_args(argv0: &str) -> Result<Vec<String>> {
+    let mut v: Vec<String> = LINK_GC_FLAGS.iter().map(|s| s.to_string()).collect();
+    v.push(static_runtime_archive(argv0)?);
+    v.extend(RUNTIME_NATIVE_LIBS.iter().map(|s| s.to_string()));
+    Ok(v)
+}
+
+#[cfg(target_os = "macos")]
+const RUNTIME_NATIVE_LIBS: &[&str] = &["-liconv", "-lm", "-framework", "Accelerate"];
+#[cfg(all(unix, not(target_os = "macos")))]
+const RUNTIME_NATIVE_LIBS: &[&str] = &["-lgcc_s", "-lutil", "-lrt", "-lpthread", "-lm", "-ldl", "-lc"];
+#[cfg(windows)]
+const RUNTIME_NATIVE_LIBS: &[&str] = &["-lkernel32", "-lntdll", "-luserenv", "-lws2_32", "-ldbghelp", "-llibopenblas"];
 
 impl<'ctx> LlvmVisitor<'ctx> {
     /// `runLLVMPipeline`.
@@ -162,7 +201,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         }
         let obj_file = format!("{filename}.o");
         self.write_to_object_file(&obj_file, library || pie, false)?;
-        let rpaths = runtime_lib_dirs(argv0);
+        let runtime = runtime_link_args(argv0)?;
 
         // PORT-NOTE: Windows (clang + lld + MSVC CRT) command line is cfg-gated.
         #[cfg(windows)]
@@ -178,25 +217,17 @@ impl<'ctx> LlvmVisitor<'ctx> {
         if library {
             command.push("-shared".into());
         }
-        let add_rpath = |cmd: &mut Vec<String>, r: &str| {
-            if !r.is_empty() {
-                cmd.push(format!("-L{r}"));
-                #[cfg(not(windows))]
-                cmd.push(format!("-Wl,-rpath,{r}"));
-            }
-        };
-        for r in &rpaths {
-            add_rpath(&mut command, r);
+        for d in runtime_lib_dirs(argv0) {
+            command.push(format!("-L{}", d.display()));
         }
         for l in libs {
             command.push(format!("-l{l}"));
         }
-        #[cfg(windows)]
-        let extra = ["-ltyphonrt", "-llibomp", "-llibopenblas", "-o", filename];
-        #[cfg(not(windows))]
-        // PORT-NOTE: OpenMP (`__kmpc_*`, `omp_*`) is linked into libtyphonrt (typhon-omp); no `-lomp`.
-        let extra = ["-ltyphonrt", "-lpthread", "-ldl", "-lz", "-lm", "-lc", "-o", filename];
-        command.extend(extra.iter().map(|s| s.to_string()));
+        // Runtime after user libs so their runtime references resolve. The GC flags
+        // in it drop unreferenced sections and unused dylibs (the `c++` driver adds
+        // the C++ runtime, which libtyphonrt does not need).
+        command.extend(runtime);
+        command.extend(["-o".to_string(), filename.to_string()]);
         command.extend(user_flags);
         #[cfg(not(windows))]
         if !library && !cfg!(target_os = "macos") {
