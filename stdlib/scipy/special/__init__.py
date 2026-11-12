@@ -224,6 +224,7 @@ def _smirnovp(n, d): return _map2(KS.smirnovp, n, d)
 def hyp2f1(a, b, c, z): return _map4(H.hyp2f1, a, b, c, z)
 def hyp0f1(v, z): return _map2(H.hyp0f1, v, z)
 def hyp1f1(a, b, x): return _map3(H.hyp1f1, a, b, x)
+def hyperu(a, b, x): return _map3(H.hyperu, a, b, x)
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:

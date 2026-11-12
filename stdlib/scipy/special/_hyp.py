@@ -682,3 +682,20 @@ def hyp1f1(a: float, b: float, x: float) -> float:
 
 def _isnan_h(x: float) -> bool:
     return x != x
+
+# ------------------------------------------------------------------ hyperu (scipy _hypergeometric.pxd)
+from . import _specfun as SF
+from . import _gamma2 as G2
+
+def hyperu(a: float, b: float, x: float) -> float:
+    if _isnan_h(a) or _isnan_h(b) or _isnan_h(x):
+        return NAN
+    if x < 0.0:
+        return NAN
+    if x == 0.0:
+        if b > 1.0:
+            return INF
+        return G2.poch(1.0 - b + a, -a)
+    if b == 1 and x < 1 and -0.25 < a and a < 0.3:
+        return (x + 1 + 2 * a) * SF.hypu(a + 1, 1.0, x) - (a + 1) * (a + 1) * SF.hypu(a + 2, 1.0, x)
+    return SF.hypu(a, b, x)
