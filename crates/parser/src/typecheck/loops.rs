@@ -547,7 +547,10 @@ impl<'a> TypecheckVisitor<'a> {
                     return Ok((true, true, None, vec![])); // wait until the tuple is fully realizable
                 }
                 let c = self.expr_class(iter).unwrap();
-                if !self.is_heterogenous(c)? && !allow_non_heterogenous {
+                // `for x in ()`: unroll to nothing instead of typing `x` with a dummy
+                // element type (the body is dead code, as in Python).
+                let empty = !allow_non_heterogenous && self.cache.types.generics_len(c) == 0;
+                if !empty && !self.is_heterogenous(c)? && !allow_non_heterogenous {
                     return Ok((false, false, None, vec![]));
                 }
                 let mut b = self.populate_static_heterogenous_tuple_loop(iter, &vars)?;

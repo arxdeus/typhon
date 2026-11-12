@@ -3023,3 +3023,15 @@ def test_int_float_bytes_conversions():
         pass
 
 test_int_float_bytes_conversions()
+
+@test
+def test_callable():
+    def f(t): return t
+    class K:
+        def __call__(self, x): return x
+    class N:
+        pass
+    assert callable(f) and callable(lambda x: x) and callable(len) and callable(K()) and callable(N)
+    assert not callable(1) and not callable(N()) and not callable('s')
+
+test_callable()

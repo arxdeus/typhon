@@ -79,6 +79,43 @@ impl<'a> TypecheckVisitor<'a> {
             return Ok(Some(if types.is(member, &st.optional) { member } else { opt(self, member)? }));
         }
         let (cn, tn) = (types.class_name(coll).unwrap(), types.class_name(ti).unwrap());
+        if cn.as_str() == st.tuple && tn.as_str() == st.tuple {
+            // Rule: tuples of the same arity combine element-wise
+            // ([(1, None), (2.0, 'x')] -> List[Tuple[float, Optional[str]]]).
+            let n = types.generics_len(coll);
+            if n == 0 || n != types.generics_len(ti) {
+                return Ok(None);
+            }
+            let cs: Vec<TypeId> = types.generics(coll).iter().map(|g| g.ty()).collect();
+            let ts: Vec<TypeId> = types.generics(ti).iter().map(|g| g.ty()).collect();
+            let mut out = vec![];
+            for i in 0..n {
+                if types.can_realize(cs[i]) && types.can_realize(ts[i]) && types.realized_name(cs[i]) == types.realized_name(ts[i]) {
+                    out.push(cs[i]);
+                    continue;
+                }
+                let (Some(a), Some(b)) = (types.get_class(cs[i]), types.get_class(ts[i])) else { return Ok(None) };
+                // `None` literal elements are `Optional[T]` with T still unbound.
+                let unbound_opt = |t: TypeId| types.is(t, &st.optional) && !types.can_realize(t);
+                if unbound_opt(a) && types.can_realize(b) {
+                    out.push(if types.is(b, &st.optional) { b } else { opt(self, b)? });
+                    continue;
+                }
+                if unbound_opt(b) && types.can_realize(a) {
+                    out.push(if types.is(a, &st.optional) { a } else { opt(self, a)? });
+                    continue;
+                }
+                if !types.can_realize(a) || !types.can_realize(b) {
+                    return Ok(None);
+                }
+                match self.collection_lctyp(Some(a), b)? {
+                    Some(t) => out.push(t),
+                    None => return Ok(None),
+                }
+            }
+            let tt = self.generate_tuple(n, true)?;
+            return Ok(Some(self.instantiate_type_with(tt, &out)?));
+        }
         if types.is(coll, "Int") && types.is(ti, "float") {
             // Rule: int derives from float
             return Ok(Some(ti));

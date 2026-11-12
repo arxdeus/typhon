@@ -398,3 +398,13 @@ try:
     int(u[2])
 except TypeError:
     print('no int')  #: no int
+
+#%% tuple_literal_common_type,barebones
+t: Tuple[float, str] = (1, 'a')
+print t  #: (1.0, 'a')
+u: Tuple[Optional[float], float] = (None, 2.0)
+print u  #: (None, 2.0)
+print [(1, 'a'), (2.0, 'b')]  #: [(1.0, 'a'), (2.0, 'b')]
+print [(None, 2.0), (0.5, None)]  #: [(None, 2.0), (0.5, None)]
+def f(p: Tuple[float, Optional[int]]): return p
+print f((1, None))  #: (1.0, None)

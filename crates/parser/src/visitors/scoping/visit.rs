@@ -130,7 +130,9 @@ impl Visitor for ScopingVisitor<'_> {
         crate::visitors::walk_expr(self, id);
         self.ctx.root = o;
         let d = self.cache.ast[id].kind.as_dot().unwrap().clone();
-        if !self.ctx.class_deduce.0.is_empty() && is_id(&self.cache.ast, d.expr, &self.ctx.class_deduce.0) {
+        // Only `self.x = ...` (an assignment target) creates an instance attribute;
+        // reads such as `self.helper()` refer to methods or inherited fields.
+        if o.is_some() && !self.ctx.class_deduce.0.is_empty() && is_id(&self.cache.ast, d.expr, &self.ctx.class_deduce.0) {
             self.ctx.class_deduce.1.insert(d.member);
         }
     }

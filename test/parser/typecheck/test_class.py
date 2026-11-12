@@ -1192,3 +1192,46 @@ a: A = B()
 print(a(5))  #: 5
 l: List[A] = [A(), B()]
 print([v(7) for v in l])  #: [7, 7]
+
+#%% deduced_base_subclass,barebones
+class A:
+    def __init__(self, c, axis: int = 0):
+        self.c = c
+        self.axis = axis
+    def get(self): return self.c
+class B(A):
+    def __init__(self, c):
+        super().__init__(c)
+        self.axis = 5
+class C(A):
+    def __init__(self, c):
+        A.__init__(self, c, 1)
+b = B([1.0])
+print b.c, b.get(), b.axis, A(2).c, C('x').c, C('x').axis  #: [1.0] [1.0] 5 2 x 1
+
+#%% deduce_only_assigned_members,barebones
+class L:
+    def __init__(self):
+        pass
+class B[T]:
+    l: L
+    def foo(self):
+        self.l = L()
+class G(B[int]):
+    def __init__(self):
+        self.foo()
+x = G()
+print 1  #: 1
+class E:
+    _estimator_type: Literal[str] = "regressor"
+    v: int
+    def __init__(self):
+        self.v = 1
+class B2[T]:
+    xs: List[T]
+    def _i(self):
+        self.xs = List[T]()
+class G2(B2[E["regressor"]]):
+    def __init__(self):
+        self._i()
+print len(G2().xs)  #: 0

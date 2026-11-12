@@ -47,6 +47,83 @@ impl<'a> TypecheckVisitor<'a> {
         Ok(can)
     }
 
+    /// Element-wise tuple coercion: `Tuple[int, str]` -> `Tuple[float, str]`,
+    /// `Tuple[NoneType, float]` -> `Tuple[Optional[float], float]` (Python/mypy accept these).
+    /// Returns `None` if not applicable (no element needs a wrapper, or one cannot be wrapped).
+    fn can_wrap_tuple(&mut self, xc: Option<TypeId>, ec: Option<TypeId>, callee: Option<TypeId>, _allow_unwrap: bool) -> Result<Option<CanWrap>> {
+        let types = self.types();
+        let st = stdlib();
+        let (Some(x), Some(e)) = (xc, ec) else { return Ok(None) };
+        if !types.is(x, &st.tuple) || !types.is(e, &st.tuple) {
+            return Ok(None);
+        }
+        let n = types.generics_len(x);
+        if n == 0 || n != types.generics_len(e) || !types.can_realize(e) {
+            return Ok(None);
+        }
+        let xs: Vec<TypeId> = types.generics(x).iter().map(|g| g.ty()).collect();
+        let es: Vec<TypeId> = types.generics(e).iter().map(|g| g.ty()).collect();
+        // Every source element must be concrete, except `None` literals (`Optional[T]`
+        // with unbound T) which are wrapped into the expected Optional below.
+        if xs.iter().any(|t| !types.can_realize(*t) && !types.is(*t, &st.optional)) {
+            return Ok(None);
+        }
+        let mut wraps: Vec<Option<WrapFn>> = vec![];
+        let mut out = vec![];
+        let mut any = false;
+        for i in 0..n {
+            if types.can_realize(xs[i]) && types.realized_name(xs[i]) == types.realized_name(es[i]) {
+                wraps.push(None);
+                out.push(xs[i]);
+                continue;
+            }
+            if !types.can_realize(xs[i]) {
+                // `None` literal (Optional[T], T unbound) against an expected Optional[U].
+                if types.is(es[i], &st.optional) && types.unify_or_undo(xs[i], es[i], self)? {
+                    wraps.push(None);
+                    out.push(es[i]);
+                    continue;
+                }
+                return Ok(None);
+            }
+            // Only widening conversions (int -> float, T/None -> Optional[T]); never unwrap.
+            let widening = (types.is(es[i], "float") && types.is(xs[i], "Int")) || types.is(es[i], &st.optional);
+            if !widening {
+                return Ok(None);
+            }
+            let (ok, t, f) = self.can_wrap_expr(xs[i], es[i], callee, false, false)?;
+            if !ok || f.is_none() {
+                return Ok(None);
+            }
+            any = true;
+            out.push(t.unwrap_or(es[i]));
+            wraps.push(f);
+        }
+        if !any {
+            return Ok(None);
+        }
+        let tt = self.generate_tuple(n, true)?;
+        let ty = self.instantiate_type_with(tt, &out)?;
+        let w: WrapFn = Box::new(move |tv, ex| {
+            let tmp = tv.get_temporary_var("tw");
+            let l = tv.id_n(&tmp);
+            let asg = tv.n_stmt(crate::ast::AssignStmt { lhs: Some(l), rhs: Some(ex), type_expr: None, update: Default::default() });
+            let mut items = vec![];
+            for (i, wf) in wraps.into_iter().enumerate() {
+                let v = tv.id_n(&tmp);
+                let idx = tv.n_expr(IntExpr::new(i as i64));
+                let it = tv.n_expr(IndexExpr { expr: Some(v), index: Some(idx) });
+                items.push(match wf {
+                    Some(g) => g(tv, it)?,
+                    None => it,
+                });
+            }
+            let t = tv.n_expr(crate::ast::TupleExpr { items });
+            Ok(tv.n_expr(StmtExpr { items: vec![asg], expr: Some(t) }))
+        });
+        Ok(Some((true, Some(ty), Some(w))))
+    }
+
     /// `canWrapExpr(exprType, expectedType, callee, allowUnwrap, isEllipsis)`.
     pub fn can_wrap_expr(
         &mut self,
@@ -148,6 +225,8 @@ impl<'a> TypecheckVisitor<'a> {
                 let d = tv.dot_n(e, "__iter__");
                 Ok(tv.call_n(d, vec![]))
             }));
+        } else if let Some(w) = self.can_wrap_tuple(xc, ec, callee, allow_unwrap)? {
+            return Ok(w);
         } else if is(ec, "float") && is(xc, "Int") {
             ty = Some(self.instantiate_type(ec.unwrap(), None)?);
             f = Some(Box::new(|tv, e| {

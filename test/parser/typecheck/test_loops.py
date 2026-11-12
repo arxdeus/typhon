@@ -205,3 +205,11 @@ continue #! 'continue' outside loop
 
 #%% break_error,barebones
 break #! 'break' outside loop
+
+#%% empty_tuple_loop,barebones
+def run(events):
+    s = 0
+    for ev in events:
+        s += ev(1)
+    return s
+print run(()), run((lambda x: x + 1, lambda x: x * 10))  #: 0 12
