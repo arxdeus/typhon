@@ -5,7 +5,7 @@ use core::ffi::{c_char, c_int, c_void};
 use std::ffi::CStr;
 use std::sync::Mutex as StdMutex;
 use std::sync::Once;
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::gc;
@@ -66,6 +66,25 @@ unsafe extern "C" fn run_finalizers() {
     unsafe { gc::GC_invoke_finalizers() };
 }
 
+static GC_DIVISOR: AtomicUsize = AtomicUsize::new(3);
+
+/// bdwgc 8.3 (`bdwgc-alloc-sys`) `GC_should_collect()` forces a full collection
+/// right after every heap growth (`GC_last_heap_growth_gc_no == GC_gc_no`), which
+/// bdwgc 8.2.12 (C++ Codon) does not; on allocation-heavy programs that is ~4x more
+/// collections (float.py: 22 vs 6). Allocation-triggered collections go through
+/// `GC_default_stop_func` (`GC_collect_or_expand`); refusing to start one makes the
+/// collector expand the heap instead. We refuse while fewer bytes were allocated
+/// since the last GC than 8.2's `min_bytes_allocd()` estimate
+/// (`2 * in_use / free_space_divisor`). Called with the allocator lock held; the
+/// answer is constant while the world is stopped, so marking is never abandoned.
+unsafe extern "C" fn gc_growth_stop_func() -> c_int {
+    let mut s = gc::GC_prof_stats_s::default();
+    unsafe { gc::GC_get_prof_stats_unsafe(&mut s, core::mem::size_of::<gc::GC_prof_stats_s>()) };
+    let in_use = s.heapsize_full.saturating_sub(s.free_bytes_full);
+    let min_allocd = 2 * in_use / GC_DIVISOR.load(Ordering::Relaxed).max(1);
+    (s.gc_no > 1 && s.bytes_allocd_since_gc < min_allocd) as c_int
+}
+
 static GC_INIT: Once = Once::new();
 
 /// Initialize the collector once (idempotent; used by tests too).
@@ -75,6 +94,8 @@ pub fn gc_init() {
         gc::GC_init();
         gc::GC_set_warn_proc(Some(gc::GC_ignore_warn_proc));
         gc::GC_set_finalizer_notifier(Some(run_finalizers));
+        GC_DIVISOR.store(gc::GC_get_free_space_divisor(), Ordering::Relaxed);
+        gc::GC_set_stop_func(Some(gc_growth_stop_func));
         #[cfg(feature = "omp-rust")]
         // Same C ABI; typhon-omp spells the stack-base pointer as `void *`.
         typhon_omp::__kmpc_set_gc_callbacks(

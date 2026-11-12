@@ -1,5 +1,5 @@
-//! Minimal FFI bindings for the vendored bdwgc v8.2.12 (`vendor/bdwgc/include/gc.h`),
-//! built by `build.rs` with the C++ Codon CMake options. Only the API used by the
+//! Minimal FFI bindings for bdwgc (`gc.h`, built by the `bdwgc-alloc-sys` crate;
+//! see crates/runtime/README.md for its configuration). Only the API used by the
 //! runtime is declared; the full `GC_*` ABI is exported from the cdylib.
 #![allow(non_camel_case_types, non_snake_case)]
 
@@ -48,4 +48,27 @@ unsafe extern "C" {
     pub fn GC_set_finalizer_notifier(p: GC_finalizer_notifier_proc);
     pub fn GC_should_invoke_finalizers() -> c_int;
     pub fn GC_invoke_finalizers() -> c_int;
+    pub fn GC_set_stop_func(f: GC_stop_func);
+    pub fn GC_get_free_space_divisor() -> GC_word;
+    pub fn GC_get_prof_stats_unsafe(p: *mut GC_prof_stats_s, sz: usize) -> usize;
+}
+
+pub type GC_stop_func = Option<unsafe extern "C" fn() -> c_int>;
+
+/// `struct GC_prof_stats_s` (gc.h, bdwgc >= 8.2 layout).
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct GC_prof_stats_s {
+    pub heapsize_full: GC_word,
+    pub free_bytes_full: GC_word,
+    pub unmapped_bytes: GC_word,
+    pub bytes_allocd_since_gc: GC_word,
+    pub allocd_bytes_before_gc: GC_word,
+    pub non_gc_bytes: GC_word,
+    pub gc_no: GC_word,
+    pub markers_m1: GC_word,
+    pub bytes_reclaimed_since_gc: GC_word,
+    pub reclaimed_bytes_before_gc: GC_word,
+    pub expl_freed_bytes_since_gc: GC_word,
+    pub obtained_from_os_bytes: GC_word,
 }

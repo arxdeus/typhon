@@ -2,6 +2,16 @@
 # inkwell feature `llvm20-1` -> llvm-sys 201.x reads this prefix.
 [env]
 LLVM_SYS_201_PREFIX = { value = "/Users/mind/orca/toolchains/llvm-codon", force = false }
+# bdwgc-alloc-sys (crates.io) builds bdwgc via cmake-rs without a way to pass CMake
+# options; C++ Codon builds it with enable_large_config=ON, whose heap-growth policy
+# (MINHINCR/MAXHINCR) avoids ~7x more collections. cmake-rs takes C flags from cc,
+# which reads CFLAGS_<target> (TARGET_CFLAGS only applies when cross-compiling).
+# The define is inert for the other C builds (liblzma, typhon-omp shim).
+# See crates/runtime/README.md.
+CFLAGS_aarch64_apple_darwin = { value = "-DLARGE_CONFIG", force = false }
+CFLAGS_x86_64_apple_darwin = { value = "-DLARGE_CONFIG", force = false }
+CFLAGS_x86_64_unknown_linux_gnu = { value = "-DLARGE_CONFIG", force = false }
+CFLAGS_aarch64_unknown_linux_gnu = { value = "-DLARGE_CONFIG", force = false }
 TYPHON_STDLIB_DIR = { value = "../stdlib", relative = true, force = false }
 
 [build]
