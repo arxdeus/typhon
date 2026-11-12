@@ -8,14 +8,19 @@
 # which holds exactly the entries scipy's dia->csr conversion produces.
 
 import numpy as np
-from ._base import _compressed, _coo, _up, _is_cplx
+from ._sparsetools import _arr
+from ._base import _compressed, _coo, _up, _is_cplx, _issparse, _asfmt
+from ._dia import _dia
+from ._bsr import _bsr, _csr_tobsr
+from ._lil import _lil
+from ._dok import _dok
 from ._sparsetools import *
 
 def issparse(x) -> bool:
-    return isinstance(x, _compressed) or isinstance(x, _coo)
+    return _issparse(x)
 
 def isspmatrix(x) -> bool:
-    if isinstance(x, _compressed) or isinstance(x, _coo):
+    if _issparse(x):
         return x._is_matrix
     return False
 
@@ -42,7 +47,7 @@ def _cast_sparse(a, dtype: type):
         return a.astype(dtype)
 
 def _make_coo(arg1, shape, dtype: type, M: Static[int]):
-    if isinstance(arg1, _compressed) or isinstance(arg1, _coo):
+    if _issparse(arg1):
         c = arg1.tocoo(copy=True)
         if M == 1:
             return _cast_sparse(c._as_matrix(), dtype)
@@ -81,13 +86,13 @@ def _make_coo(arg1, shape, dtype: type, M: Static[int]):
                     rs.append(i)
                     cs.append(j)
                     ds.append(X[i, j])
-        d = np.array(ds, dtype=X.dtype)
+        d = _arr(ds, X.dtype)
         dd = d if dtype is NoneType else d.astype(dtype)
-        return _coo[dd.dtype, M](dd, np.array(rs, dtype=int), np.array(cs, dtype=int),
+        return _coo[dd.dtype, M](dd, _arr(rs, int), _arr(cs, int),
                                  (X.shape[0], X.shape[1]), True)
 
 def _make_compressed(arg1, shape, dtype: type, F: Static[int], M: Static[int]):
-    if isinstance(arg1, _compressed) or isinstance(arg1, _coo):
+    if _issparse(arg1):
         a = arg1.tocsr(copy=True) if F == 0 else arg1.tocsc(copy=True)
         if M == 1:
             return _cast_sparse(a._as_matrix(), dtype)
@@ -138,6 +143,109 @@ def coo_array(arg1, shape = None, dtype: type = NoneType, copy: bool = False):
 def coo_matrix(arg1, shape = None, dtype: type = NoneType, copy: bool = False):
     return _make_coo(arg1, shape, dtype, 1)
 
+# --- DIA / BSR / LIL / DOK factories ---------------------------------------
+
+def _from_any(arg1, shape, dtype: type, M: Static[int]):
+    # sparse input or dense input or (data, (row, col)) -> COO
+    return _make_coo(arg1, shape, dtype, M)
+
+def _make_dia(arg1, shape, dtype: type, M: Static[int]):
+    if _is_shape(arg1):
+        D = type(float() if dtype is NoneType else dtype())
+        return _dia[D, M](np.zeros((0, 0), dtype=D), np.empty(0, dtype=int),
+                          (arg1[0], arg1[1]))
+    elif isinstance(arg1, Tuple) and not _issparse(arg1):
+        if shape is None:
+            raise ValueError("expected a shape argument")
+        x = np.asarray(arg1[0])
+        X = x if dtype is NoneType else x.astype(dtype)
+        if X.ndim == 1:
+            X2 = X.reshape((1, len(X))).copy()
+        else:
+            X2 = X.copy()
+        if isinstance(arg1[1], int):
+            offs = np.array([arg1[1]], dtype=int)
+        else:
+            offs = np.asarray(arg1[1]).astype(int).ravel().copy()
+        return _dia[X2.dtype, M](X2, offs, (shape[0], shape[1]))
+    else:
+        return _make_coo(arg1, shape, dtype, M).todia()
+
+def dia_array(arg1, shape = None, dtype: type = NoneType, copy: bool = False):
+    return _make_dia(arg1, shape, dtype, 0)
+
+def dia_matrix(arg1, shape = None, dtype: type = NoneType, copy: bool = False):
+    return _make_dia(arg1, shape, dtype, 1)
+
+def _make_bsr(arg1, shape, dtype: type, blocksize, M: Static[int]):
+    if _is_shape(arg1):
+        D = type(float() if dtype is NoneType else dtype())
+        R = 1 if blocksize is None else blocksize[0]
+        C = 1 if blocksize is None else blocksize[1]
+        if arg1[0] % R != 0 or arg1[1] % C != 0:
+            raise ValueError("shape must be multiple of blocksize")
+        return _bsr[D, M](np.zeros((0, R, C), dtype=D), np.empty(0, dtype=int),
+                          np.zeros(arg1[0] // R + 1, dtype=int), (arg1[0], arg1[1]))
+    elif isinstance(arg1, Tuple) and not _issparse(arg1):
+        if static.len(arg1) == 3:
+            x = np.asarray(arg1[0])
+            X = x if dtype is NoneType else x.astype(dtype)
+            if X.ndim != 3:
+                compile_error("BSR data must be 3-dimensional")
+            indices = np.asarray(arg1[1]).astype(int).copy()
+            indptr = np.asarray(arg1[2]).astype(int).copy()
+            R = X.shape[1]
+            C = X.shape[2]
+            if blocksize is not None:
+                if (blocksize[0], blocksize[1]) != (R, C):
+                    raise ValueError(f"mismatching blocksize={blocksize} vs {(R, C)}")
+            if shape is None:
+                nmax = 0
+                for v in indices:
+                    nmax = max(nmax, v + 1)
+                shp = ((len(indptr) - 1) * R, nmax * C)
+            else:
+                shp = (shape[0], shape[1])
+            return _bsr[X.dtype, M](X.copy(), indices, indptr, shp)
+        else:
+            return _csr_tobsr(_make_coo(arg1, shape, dtype, M).tocsr(), blocksize)
+    else:
+        return _csr_tobsr(_make_coo(arg1, shape, dtype, M).tocsr(), blocksize)
+
+def bsr_array(arg1, shape = None, dtype: type = NoneType, copy: bool = False,
+              blocksize = None):
+    return _make_bsr(arg1, shape, dtype, blocksize, 0)
+
+def bsr_matrix(arg1, shape = None, dtype: type = NoneType, copy: bool = False,
+               blocksize = None):
+    return _make_bsr(arg1, shape, dtype, blocksize, 1)
+
+def _make_lil(arg1, shape, dtype: type, M: Static[int]):
+    if _is_shape(arg1):
+        D = type(float() if dtype is NoneType else dtype())
+        return _lil[D, M]((arg1[0], arg1[1]))
+    else:
+        return _make_coo(arg1, shape, dtype, M).tolil()
+
+def lil_array(arg1, shape = None, dtype: type = NoneType, copy: bool = False):
+    return _make_lil(arg1, shape, dtype, 0)
+
+def lil_matrix(arg1, shape = None, dtype: type = NoneType, copy: bool = False):
+    return _make_lil(arg1, shape, dtype, 1)
+
+def _make_dok(arg1, shape, dtype: type, M: Static[int]):
+    if _is_shape(arg1):
+        D = type(float() if dtype is NoneType else dtype())
+        return _dok[D, M]((arg1[0], arg1[1]))
+    else:
+        return _make_coo(arg1, shape, dtype, M).todok()
+
+def dok_array(arg1, shape = None, dtype: type = NoneType, copy: bool = False):
+    return _make_dok(arg1, shape, dtype, 0)
+
+def dok_matrix(arg1, shape = None, dtype: type = NoneType, copy: bool = False):
+    return _make_dok(arg1, shape, dtype, 1)
+
 def _asformat(A, format: Literal[str]):
     if format == "":
         return A
@@ -176,20 +284,7 @@ def _diags_impl(diagonals, offsets, shape, dtype: type, M: Static[int]):
             raise ValueError(f"Diagonal length (index {j}: {len(dj)} at offset {off}) does not agree with array size ({m}, {n}).")
         for t in range(length):
             band[j, k + t] = D(dj[t if len(dj) != 1 else 0])
-    order = sorted(range(nd), key=lambda q: offsets[q])
-    Bp = np.zeros(m + 1, dtype=int)
-    Bj = List[int]()
-    Bx = List[D]()
-    for i in range(m):
-        for q in order:
-            j = i + offsets[q]
-            if 0 <= j < n and j < Lmax:
-                v = band[q, j]
-                if v != D():
-                    Bj.append(j)
-                    Bx.append(v)
-        Bp[i + 1] = len(Bj)
-    return _compressed[D, 0, M](np.array(Bx, dtype=D), np.array(Bj, dtype=int), Bp, (m, n))
+    return _dia[D, M](band, _arr(offsets, int), (m, n))
 
 def _norm_diags(diagonals, offsets):
     # returns (List[ndarray], List[int])
@@ -238,35 +333,31 @@ def spdiags(data, diags, m = None, n = None, format: Literal[str] = ""):
     else:
         mm = m
         nn = n
-    D = X2.dtype
-    Bp = np.zeros(mm + 1, dtype=int)
-    Bj = List[int]()
-    Bx = List[D]()
-    order = sorted(range(len(offs)), key=lambda q: offs[q])
-    for i in range(mm):
-        for q in order:
-            j = i + offs[q]
-            if 0 <= j < nn and j < X2.shape[1]:
-                v = X2[q, j]
-                if v != D():
-                    Bj.append(j)
-                    Bx.append(v)
-        Bp[i + 1] = len(Bj)
-    A = _compressed[D, 0, 1](np.array(Bx, dtype=D), np.array(Bj, dtype=int), Bp, (mm, nn))
+    A = _dia[X2.dtype, 1](X2.copy(), _arr(offs, int), (mm, nn))
     return _asformat(A, format)
 
 def _eye(m: int, n, k: int, dtype: type, format: Literal[str], M: Static[int]):
+    # scipy _construct._eye: fast csr/csc/coo branch for square k == 0,
+    # otherwise a DIA matrix converted to `format`
     nn = m if n is None else n
-    L = max(0, min(m + k, nn - k, min(m, nn)))
     D = type(float() if dtype is NoneType else dtype())
-    if L < 0:
-        L = 0
-    i0 = max(0, -k)
-    Bp = np.zeros(m + 1, dtype=int)
-    for i in range(m):
-        Bp[i + 1] = Bp[i] + (1 if i0 <= i < i0 + L else 0)
-    Bj = np.array([i0 + t + k for t in range(L)], dtype=int)
-    A = _compressed[D, 0, M](np.ones(L, dtype=D), Bj, Bp, (m, nn))
+    if m == nn and k == 0:
+        if format == "csr" or format == "csc":
+            return _compressed[D, 0 if format == "csr" else 1, M](
+                np.ones(nn, dtype=D), np.arange(nn), np.arange(nn + 1), (nn, nn))
+        elif format == "coo":
+            return _coo[D, M](np.ones(nn, dtype=D), np.arange(nn), np.arange(nn),
+                              (nn, nn), True)
+    w = max(0, min(m + k, nn))
+    data = np.ones((1, w), dtype=D)
+    # diags_array(data, offsets=[k], shape=(m, n)): band row k
+    L = max(0, min(m + k, nn - k) + max(0, k))
+    band = np.zeros((1, L), dtype=D)
+    i0 = max(0, k)
+    length = min(m + k, nn - k, min(m, nn))
+    for t in range(max(length, 0)):
+        band[0, i0 + t] = D(1)
+    A = _dia[D, M](band, np.array([k], dtype=int), (m, nn))
     return _asformat(A, format)
 
 def eye_array(m: int, n = None, k: int = 0, dtype: type = float,
@@ -283,7 +374,7 @@ def identity(n: int, dtype: type = float, format: Literal[str] = ""):
 
 def _any_matrix(blocks) -> bool:
     for b in blocks:
-        if isinstance(b, _compressed) or isinstance(b, _coo):
+        if _issparse(b):
             if not b._is_matrix:
                 return False
     return True
@@ -326,12 +417,18 @@ def _stack(blocks, axis: int, format: Literal[str], dtype: type, M: Static[int])
             ds.append(D(c.data[k]))
         off += m if axis == 0 else n
     shp = (off, other) if axis == 0 else (other, off)
-    C = _coo[D, M](np.array(ds, dtype=D), np.array(rs, dtype=int),
-                   np.array(cs, dtype=int), shp, False)
-    # scipy: vstack of CSR / hstack of CSC concatenates the compressed arrays
-    # directly; the COO path below produces identical canonical results.
+    C = _coo[D, M](_arr(ds, D), _arr(rs, int),
+                   _arr(cs, int), shp, False)
+    # scipy _block: all-CSR blocks -> CSR, all-CSC blocks -> CSC (compressed
+    # stacking; the COO path below gives identical canonical results),
+    # anything else -> COO
     if format == "":
-        return C.tocsr() if axis == 0 else C.tocsr()
+        if blocks[0]._spfmt() == "csr":
+            return C.tocsr()
+        elif blocks[0]._spfmt() == "csc":
+            return C.tocsc()
+        else:
+            return C
     else:
         return C.asformat(format)
 
@@ -349,7 +446,14 @@ def vstack(blocks, format: Literal[str] = "", dtype: type = NoneType):
 
 def bmat(blocks, format: Literal[str] = "", dtype: type = NoneType):
     rows = [hstack(r, format="coo", dtype=dtype) for r in blocks]
+    if format == "":
+        b0 = blocks[0][0]
+        if b0._spfmt() == "csr" or b0._spfmt() == "csc":
+            return vstack(rows, format=b0._spfmt(), dtype=dtype)
     return vstack(rows, format=format if format != "" else "coo", dtype=dtype)
+
+def block_array(blocks, format: Literal[str] = "", dtype: type = NoneType):
+    return bmat(blocks, format, dtype)
 
 def block_diag(mats, format: Literal[str] = "", dtype: type = NoneType):
     D0 = type(mats[0].dtype())
@@ -368,12 +472,12 @@ def block_diag(mats, format: Literal[str] = "", dtype: type = NoneType):
         r_idx += c.shape[0]
         c_idx += c.shape[1]
     if mats[0]._mstatic():
-        C = _coo[D, 1](np.array(ds, dtype=D), np.array(rs, dtype=int),
-                       np.array(cs, dtype=int), (r_idx, c_idx), False)
+        C = _coo[D, 1](_arr(ds, D), _arr(rs, int),
+                       _arr(cs, int), (r_idx, c_idx), False)
         return _asformat(C, format)
     else:
-        C2 = _coo[D, 0](np.array(ds, dtype=D), np.array(rs, dtype=int),
-                        np.array(cs, dtype=int), (r_idx, c_idx), False)
+        C2 = _coo[D, 0](_arr(ds, D), _arr(rs, int),
+                        _arr(cs, int), (r_idx, c_idx), False)
         return _asformat(C2, format)
 
 def _kron_impl(A, B, M: Static[int]):
@@ -395,7 +499,7 @@ def _kron_impl(A, B, M: Static[int]):
     return _coo[R, M](ds, rs, cs, shp, False)
 
 def _as_sparse_like(A):
-    if isinstance(A, _compressed) or isinstance(A, _coo):
+    if _issparse(A):
         return A
     else:
         return coo_matrix(A)
@@ -407,11 +511,34 @@ def kron(A, B, format: Literal[str] = ""):
         C = _kron_impl(a, b, 1)
     else:
         C = _kron_impl(a, b, 0)
-    # scipy's default here is BSR; return CSR instead
-    if format == "":
-        return C.tocsr()
+    # scipy picks BSR (blocks = dense B) when 2*B.nnz >= B.size and COO
+    # otherwise; the result type must be static here, so the default is BSR
+    # when B is a dense ndarray or a BSR/DIA container, COO otherwise.
+    if format == "" or format == "bsr":
+        if format == "bsr" or isinstance(B, np.ndarray) or b._spfmt() == "bsr" or b._spfmt() == "dia":
+            return _kron_bsr(a, b, C)
+        return C
     else:
         return C.asformat(format)
+
+def _kron_bsr(a, b, C):
+    # scipy: A -> csr (copy), data = A.data.repeat(B.size) * B.toarray()
+    Ac = a.tocsr()
+    Ac.sum_duplicates()
+    Bd = b.toarray()
+    R = type(C.dtype())
+    p, q = Bd.shape[0], Bd.shape[1]
+    nb = len(Ac.data)
+    data = np.empty((nb, p, q), dtype=R)
+    for k in range(nb):
+        for r in range(p):
+            for c in range(q):
+                data[k, r, c] = R(Ac.data[k]) * R(Bd[r, c])
+    shp = (a.shape[0] * p, a.shape[1] * q)
+    if C._mstatic():
+        return _bsr[R, 1](data, Ac.indices.copy(), Ac.indptr.copy(), shp)
+    else:
+        return _bsr[R, 0](data, Ac.indices.copy(), Ac.indptr.copy(), shp)
 
 def kronsum(A, B, format: Literal[str] = ""):
     a = _as_sparse_like(A)
@@ -429,7 +556,7 @@ def kronsum(A, B, format: Literal[str] = ""):
 # --- extraction ------------------------------------------------------------
 
 def find(A):
-    c = coo_array(A) if not (isinstance(A, _compressed) or isinstance(A, _coo)) else A.tocoo(copy=True)
+    c = coo_array(A) if not _issparse(A) else A.tocoo(copy=True)
     c = c.copy()
     c.sum_duplicates()
     T = type(c.dtype())
@@ -441,7 +568,7 @@ def find(A):
             rs.append(c.row[k])
             cs.append(c.col[k])
             ds.append(c.data[k])
-    return np.array(rs, dtype=int), np.array(cs, dtype=int), np.array(ds, dtype=T)
+    return _arr(rs, int), _arr(cs, int), _arr(ds, T)
 
 def _tri(A, k: int, lower: bool, format: Literal[str]):
     c = _as_sparse_like(A).tocoo()
@@ -456,12 +583,12 @@ def _tri(A, k: int, lower: bool, format: Literal[str]):
             cs.append(c.col[q])
             ds.append(c.data[q])
     if c._mstatic():
-        C = _coo[T, 1](np.array(ds, dtype=T), np.array(rs, dtype=int),
-                       np.array(cs, dtype=int), c.shape, False)
+        C = _coo[T, 1](_arr(ds, T), _arr(rs, int),
+                       _arr(cs, int), c.shape, False)
         return _asformat(C, format)
     else:
-        C2 = _coo[T, 0](np.array(ds, dtype=T), np.array(rs, dtype=int),
-                        np.array(cs, dtype=int), c.shape, False)
+        C2 = _coo[T, 0](_arr(ds, T), _arr(rs, int),
+                        _arr(cs, int), c.shape, False)
         return _asformat(C2, format)
 
 def tril(A, k: int = 0, format: Literal[str] = ""):

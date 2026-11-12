@@ -10,6 +10,7 @@
 # kernel works on (major, minor) axes.
 
 import numpy as np
+from ._sparsetools import _arr
 from ._sparsetools import *
 from ._sparsetools import _apply
 
@@ -54,6 +55,118 @@ def _sum_t(T: type):
         return int()
     else:
         return T()
+
+def _issparse(o) -> Literal[bool]:
+    # every sparse container defines the static method _spfmt()
+    return hasattr(o, "_spfmt")
+
+def _fmt_name(fmt: str) -> str:
+    if fmt == "csr":
+        return "Compressed Sparse Row"
+    elif fmt == "csc":
+        return "Compressed Sparse Column"
+    elif fmt == "coo":
+        return "COOrdinate"
+    elif fmt == "dia":
+        return "DIAgonal"
+    elif fmt == "bsr":
+        return "Block Sparse Row"
+    elif fmt == "lil":
+        return "List of Lists"
+    else:
+        return "Dictionary Of Keys"
+
+def _coo_str(c, head: str):
+    s = head + "\n  Coords\tValues"
+    for k in range(len(c.data)):
+        s += f"\n  ({c.row[k]}, {c.col[k]})\t{c.data[k]}"
+    return s
+
+def _shape2(shape) -> Tuple[int, int]:
+    if isinstance(shape, int):
+        compile_error("shape must be a 2-tuple")
+    return (int(shape[0]), int(shape[1]))
+
+def _shape_args(args) -> Tuple[int, int]:
+    # f(*shape) accepting f((m, n)) or f(m, n)
+    if static.len(args) == 1:
+        return _shape2(args[0])
+    else:
+        return (int(args[0]), int(args[1]))
+
+def _reshape_coo(c, shape, order: str, M: Static[int]):
+    # scipy _coo.reshape: ravel coordinates, divmod by the new shape
+    m, n = c.shape
+    nm, nn = _shape2(shape)
+    if nm < 0:
+        nm = (m * n) // nn
+    if nn < 0:
+        nn = (m * n) // nm
+    if nm * nn != m * n:
+        raise ValueError(f"cannot reshape array of size {m * n} into shape ({nm}, {nn})")
+    k = len(c.data)
+    r = np.empty(k, dtype=int)
+    q = np.empty(k, dtype=int)
+    for t in range(k):
+        if order == "C":
+            f = c.row[t] * n + c.col[t]
+            r[t] = f // nn
+            q[t] = f % nn
+        else:
+            f = c.col[t] * m + c.row[t]
+            q[t] = f // nm
+            r[t] = f % nm
+    return _coo[c.data.dtype, M](c.data.copy(), r, q, (nm, nn), False)
+
+def _asfmt(A, fmt: Literal[str]):
+    if fmt == "csr":
+        return A.tocsr()
+    elif fmt == "csc":
+        return A.tocsc()
+    elif fmt == "coo":
+        return A.tocoo()
+    elif fmt == "dia":
+        return A.todia()
+    elif fmt == "bsr":
+        return A.tobsr()
+    elif fmt == "lil":
+        return A.tolil()
+    elif fmt == "dok":
+        return A.todok()
+    elif fmt == "":
+        return A
+    else:
+        compile_error("unsupported sparse format")
+
+def _to_dia(A):
+    from ._dia import _coo_todia
+    return _coo_todia(A.tocoo())
+
+def _to_bsr(A, blocksize):
+    from ._bsr import _csr_tobsr
+    return _csr_tobsr(A.tocsr(), blocksize)
+
+def _to_lil(A):
+    from ._lil import _csr_tolil
+    return _csr_tolil(A.tocsr())
+
+def _to_dok(A):
+    from ._dok import _coo_todok
+    return _coo_todok(A.tocoo())
+
+def _resize_coo(c, shape):
+    # in-place truncation of a COO container (scipy _coo.resize)
+    nm, nn = _shape2(shape)
+    keep = List[int]()
+    for k in range(len(c.data)):
+        if c.row[k] < nm and c.col[k] < nn:
+            keep.append(k)
+    if len(keep) != len(c.data):
+        idx = _arr(keep, int)
+        c.row = c.row[idx]
+        c.col = c.col[idx]
+        c.data = c.data[idx]
+    c._shape = (nm, nn)
 
 def _swap2(F: Static[int], t):
     if F == 0:
@@ -229,14 +342,38 @@ class _compressed[T, F: Static[int], M: Static[int]]:
             return _coo[T, M](self.data[:nnz].copy(), minor, major, self._shape)
 
     def asformat(self, fmt: Literal[str]):
-        if fmt == "csr":
-            return self.tocsr()
-        elif fmt == "csc":
-            return self.tocsc()
-        elif fmt == "coo":
-            return self.tocoo()
-        else:
-            compile_error("unsupported sparse format")
+        return _asfmt(self, fmt)
+
+    def todia(self, copy: bool = False):
+        return _to_dia(self)
+
+    def tobsr(self, blocksize = None, copy: bool = False):
+        return _to_bsr(self, blocksize)
+
+    def tolil(self, copy: bool = False):
+        return _to_lil(self)
+
+    def todok(self, copy: bool = False):
+        return _to_dok(self)
+
+    def reshape(self, shape, order: str = "C", copy: bool = False):
+        # deviation: always COO (scipy returns self when the shape is unchanged)
+        return _reshape_coo(self.tocoo(), shape, order, M)
+
+    def resize(self, *shape):
+        # scipy _cs_matrix.resize (keeps the format)
+        nm, nn = _shape_args(shape)
+        c = self.tocoo()
+        _resize_coo(c, (nm, nn))
+        A = c.tocsr() if F == 0 else c.tocsc()
+        self.data = A.data
+        self.indices = A.indices
+        self.indptr = A.indptr
+        self._shape = (nm, nn)
+
+    @staticmethod
+    def _spfmt() -> Literal[str]:
+        return "csr" if F == 0 else "csc"
 
     def _as_array(self):
         return _compressed[T, F, 0](self.data, self.indices, self.indptr, self._shape)
@@ -282,10 +419,7 @@ class _compressed[T, F: Static[int], M: Static[int]]:
 
     # --- conversion of the other operand to this format ---
     def _same_fmt(self, other):
-        if isinstance(other, _coo):
-            o = other.tocsr() if F == 0 else other.tocsc()
-            return o
-        elif isinstance(other, _compressed):
+        if _issparse(other):
             return other.tocsr() if F == 0 else other.tocsc()
         else:
             compile_error("expected a sparse operand")
@@ -339,7 +473,7 @@ class _compressed[T, F: Static[int], M: Static[int]]:
             return A - D
 
     def __add__(self, other):
-        if isinstance(other, _compressed) or isinstance(other, _coo):
+        if _issparse(other):
             return self._binopt(other, 0)
         elif isinstance(other, np.ndarray) or isinstance(other, List):
             return self._dense_add(other, 0)
@@ -353,7 +487,7 @@ class _compressed[T, F: Static[int], M: Static[int]]:
         return self.__add__(other)
 
     def __sub__(self, other):
-        if isinstance(other, _compressed) or isinstance(other, _coo):
+        if _issparse(other):
             return self._binopt(other, 1)
         elif isinstance(other, np.ndarray) or isinstance(other, List):
             return self._dense_add(other, 1)
@@ -370,7 +504,7 @@ class _compressed[T, F: Static[int], M: Static[int]]:
             return (-self).__add__(other)
 
     def multiply(self, other):
-        if isinstance(other, _compressed) or isinstance(other, _coo):
+        if _issparse(other):
             return self._binopt(other, 2)
         elif isinstance(other, np.ndarray) or isinstance(other, List):
             D = np.asarray(other)
@@ -395,7 +529,7 @@ class _compressed[T, F: Static[int], M: Static[int]]:
         return self._binopt(other, 5)
 
     def __mul__(self, other):
-        if isinstance(other, _compressed) or isinstance(other, _coo):
+        if _issparse(other):
             if M == 1:
                 return self.__matmul__(other)
             else:
@@ -418,7 +552,7 @@ class _compressed[T, F: Static[int], M: Static[int]]:
             return self._scalar(other, 2)
 
     def __truediv__(self, other):
-        if isinstance(other, _compressed) or isinstance(other, _coo):
+        if _issparse(other):
             return self.toarray() / other.toarray()
         elif isinstance(other, np.ndarray) or isinstance(other, List):
             return self.toarray() / np.asarray(other)
@@ -473,7 +607,7 @@ class _compressed[T, F: Static[int], M: Static[int]]:
         return _compressed[R, F, M](Cx, Cj, Cp, (m, n))
 
     def __matmul__(self, other):
-        if isinstance(other, _compressed) or isinstance(other, _coo):
+        if _issparse(other):
             return self._matmul_sparse(other)
         else:
             x = np.asarray(other)
@@ -592,7 +726,7 @@ class _compressed[T, F: Static[int], M: Static[int]]:
                     Bj.append(q)
                     Bx.append(c.data[jj])
             Bp[r + 1] = len(Bj)
-        res = _compressed[T, 0, M](np.array(Bx, dtype=T), np.array(Bj, dtype=int),
+        res = _compressed[T, 0, M](_arr(Bx, T), _arr(Bj, int),
                                    Bp, (len(rows), len(cols)))
         if F == 0:
             return res
@@ -653,7 +787,7 @@ class _compressed[T, F: Static[int], M: Static[int]]:
             if c.data[k] != T():
                 rs.append(c.row[k])
                 cs.append(c.col[k])
-        return np.array(rs, dtype=int), np.array(cs, dtype=int)
+        return _arr(rs, int), _arr(cs, int)
 
     def setdiag(self, values, k: int = 0):
         c = self.tocoo()
@@ -782,9 +916,9 @@ class _coo[T, M: Static[int]]:
                 nr.append(r[k])
                 nc.append(c[k])
                 nd.append(d[k])
-        self.row = np.array(nr, dtype=int)
-        self.col = np.array(nc, dtype=int)
-        self.data = np.array(nd, dtype=T)
+        self.row = _arr(nr, int)
+        self.col = _arr(nc, int)
+        self.data = _arr(nd, T)
         self._canonical = True
 
     def eliminate_zeros(self):
@@ -796,9 +930,9 @@ class _coo[T, M: Static[int]]:
                 nr.append(self.row[k])
                 nc.append(self.col[k])
                 nd.append(self.data[k])
-        self.row = np.array(nr, dtype=int)
-        self.col = np.array(nc, dtype=int)
-        self.data = np.array(nd, dtype=T)
+        self.row = _arr(nr, int)
+        self.col = _arr(nc, int)
+        self.data = _arr(nd, T)
 
     def toarray(self):
         B = np.zeros(self._shape, dtype=T)
@@ -829,14 +963,29 @@ class _coo[T, M: Static[int]]:
         return self.copy() if copy else self
 
     def asformat(self, fmt: Literal[str]):
-        if fmt == "csr":
-            return self.tocsr()
-        elif fmt == "csc":
-            return self.tocsc()
-        elif fmt == "coo":
-            return self
-        else:
-            compile_error("unsupported sparse format")
+        return _asfmt(self, fmt)
+
+    def todia(self, copy: bool = False):
+        return _to_dia(self)
+
+    def tobsr(self, blocksize = None, copy: bool = False):
+        return _to_bsr(self, blocksize)
+
+    def tolil(self, copy: bool = False):
+        return _to_lil(self)
+
+    def todok(self, copy: bool = False):
+        return _to_dok(self)
+
+    def reshape(self, shape, order: str = "C", copy: bool = False):
+        return _reshape_coo(self, shape, order, M)
+
+    def resize(self, *shape):
+        _resize_coo(self, _shape_args(shape))
+
+    @staticmethod
+    def _spfmt() -> Literal[str]:
+        return "coo"
 
     def _as_array(self):
         return _coo[T, 0](self.data, self.row, self.col, self._shape, self._canonical)
@@ -909,9 +1058,9 @@ class _coo[T, M: Static[int]]:
             nr.append(i0 + t)
             nc.append(j0 + t)
             nd.append(vals[t])
-        self.row = np.array(nr, dtype=int)
-        self.col = np.array(nc, dtype=int)
-        self.data = np.array(nd, dtype=T)
+        self.row = _arr(nr, int)
+        self.col = _arr(nc, int)
+        self.data = _arr(nd, T)
         self._canonical = False
 
     def nonzero(self):
@@ -923,7 +1072,7 @@ class _coo[T, M: Static[int]]:
             if A.data[k] != T():
                 rs.append(A.row[k])
                 cs.append(A.col[k])
-        return np.array(rs, dtype=int), np.array(cs, dtype=int)
+        return _arr(rs, int), _arr(cs, int)
 
     # arithmetic is delegated to CSR (scipy does the same)
     def __add__(self, o):
@@ -939,7 +1088,7 @@ class _coo[T, M: Static[int]]:
         return self.tocsr().__rsub__(o)
 
     def __mul__(self, o):
-        if isinstance(o, _compressed) or isinstance(o, _coo) or isinstance(o, np.ndarray) or isinstance(o, List):
+        if _issparse(o) or isinstance(o, np.ndarray) or isinstance(o, List):
             return self.tocsr().__mul__(o)
         else:
             return self._with_data(self.data * o)
