@@ -25,6 +25,8 @@ pub(crate) unsafe fn potrf<T: Sc>(uplo: u8, n: Int, a: *mut T, lda: Int) -> Int 
     let mut w = faer::Mat::<T>::from_fn(nu, nu, |i, j| {
         if i < j {
             T::zero()
+        } else if i == j {
+            T::r(unsafe { *at(i, i) }.re())
         } else if uplo == b'L' {
             unsafe { *at(i, j) }
         } else {
@@ -43,7 +45,7 @@ pub(crate) unsafe fn potrf<T: Sc>(uplo: u8, n: Int, a: *mut T, lda: Int) -> Int 
     let lim = if info == 0 { nu } else { (info - 1) as usize };
     for j in 0..lim {
         for i in j..nu {
-            let v = w[(i, j)];
+            let v = if i == j { T::r(w[(i, j)].re()) } else { w[(i, j)] };
             unsafe {
                 if uplo == b'L' {
                     *at(i, j) = v;

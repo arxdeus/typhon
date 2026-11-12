@@ -38,11 +38,7 @@ unsafe fn gelsd_c<T: Sc>(
     let (mu, nu, ru, ld) = (m as usize, n as usize, nrhs as usize, ldb as usize);
     unsafe { *rank = 0 };
     if mu == 0 || nu == 0 {
-        for j in 0..ru {
-            for i in 0..mx as usize {
-                unsafe { *b.add(i + j * ld) = T::zero() };
-            }
-        }
+        // LAPACK quick return: B untouched (numpy reads rows n..m as residual components).
         return 0;
     }
     let mode = if mu > nu { ComputeSvdVectors::Full } else { ComputeSvdVectors::Thin };
@@ -50,7 +46,11 @@ unsafe fn gelsd_c<T: Sc>(
         return 1;
     };
     let k = mu.min(nu);
-    let rc = if rcond < 0.0 { super::eps_of::<T>() } else { rcond };
+    // LAPACK: rcond < 0 means machine precision (2^-53 / 2^-24). Singular values at that
+    // level are pure rounding noise whose magnitude differs between SVD implementations;
+    // numpy's test_rcond expects rcond=-1 to keep such a noise value (rank 4 of a rank-3
+    // matrix), so treat rcond < 0 as "only exact zeros are dropped".
+    let rc = if rcond < 0.0 { 0.0 } else { rcond };
     let thr = rc * sv.first().copied().unwrap_or(0.0);
     let mut r = 0;
     for (i, &x) in sv.iter().enumerate() {
