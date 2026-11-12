@@ -22,6 +22,7 @@ from ._cons import _has_constraints
 from ._slsqp_core import _minimize_slsqp
 from ._tnc import _minimize_tnc
 from ._lsq_linear import lsq_linear, nnls
+from ._trustconstr import _minimize_trustregion_constr
 from ._hessian_update_strategy import HessianUpdateStrategy, BFGS, SR1
 from ._trustregion import _minimize_trust_region, _minimize_newtoncg, \
                           _TR_NCG, _TR_DOGLEG, _TR_EXACT, _TR_KRYLOV
@@ -188,6 +189,9 @@ def minimize(fun, x0, args = (), method: Optional[str] = None, jac = None,
         return _minimize_trust_region(_TR_EXACT, fun, x, args, jac, hess, None, callback, opts)
     elif meth == 'trust-krylov':
         return _minimize_trust_region(_TR_KRYLOV, fun, x, args, jac, hess, hessp, callback, opts)
+    elif meth == 'trust-constr':
+        return _minimize_trustregion_constr(fun, x, args, jac, hess, hessp, bnds,
+                                            constraints, callback, opts)
     elif meth == 'tnc':
         return _minimize_tnc(fun, x, args, jac, bnds, callback, opts)
     elif meth == 'slsqp':
@@ -204,3 +208,4 @@ from ._dual_annealing import dual_annealing
 from ._direct import direct
 from ._brute import brute, show_options
 from ._linprog import linprog, milp, LinprogResult
+from ._shgo import shgo, ShgoResult

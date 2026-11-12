@@ -10,6 +10,14 @@ import numpy as np
 from ._common import _approx_grad, _call_scalar, _vec, INF
 from ._hessian_update_strategy import HessianUpdateStrategy
 
+class _HessPOp[HP]:
+    # trust-constr: HessianLinearOperator(hessp) passed as `hess`; evaluating
+    # it only counts nhev, products go through hessp(x, p, *args)
+    hp: HP
+
+    def __init__(self, hp: HP):
+        self.hp = hp
+
 _HESS_NONE = 0
 _HESS_CALLABLE = 1
 _HESS_FD = 2
@@ -118,7 +126,8 @@ class _ScalarFunctionH[FN, JC, HS, A]:
 
     def _eval_hess(self, x) -> np.ndarray[float, 2]:
         if self.hess_ is None or isinstance(self.hess_, str) or \
-           isinstance(self.hess_, HessianUpdateStrategy):
+           isinstance(self.hess_, HessianUpdateStrategy) or \
+           isinstance(self.hess_, _HessPOp):
             return np.zeros((0, 0))
         else:
             return np.atleast_2d(np.asarray(self.hess_(x, *self.args), float))
