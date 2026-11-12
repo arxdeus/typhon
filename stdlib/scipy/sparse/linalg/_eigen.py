@@ -14,7 +14,7 @@
 
 import math
 import numpy as np
-from .._base import _compressed, _coo, _up, _is_cplx
+from .._base import _compressed, _coo, _up, _is_cplx, _issparse
 from ._interface import aslinearoperator, _is_linop
 from ._dsolve import splu, _as_csc
 
@@ -252,7 +252,7 @@ def _apply_A(A):
         return aslinearoperator(A)
 
 def _op_dtype(A):
-    if isinstance(A, _compressed) or isinstance(A, _coo):
+    if _issparse(A):
         return A.data.dtype()
     elif isinstance(A, np.ndarray):
         return A.dtype()
@@ -287,10 +287,18 @@ def eigsh(A, k: int = 6, M = None, sigma = None, which: str = "LM", v0 = None,
         th, X = _krylov_schur(lambda x: lu.solve(x), n, k, wh, nc, mi, tol, v0,
                               True, T)
         lam = [s + 1.0 / t.real for t in th]
+    if not return_eigenvectors:
+        # dseupd with rvec=False: ordered on the operator's Ritz values in
+        # regular mode; after the shift-invert back-transformation dseupd
+        # sorts the eigenvalues ascending (dsesrt 'LA')
+        if sigma is None:
+            o2 = _arpack_noev_order(th, which)
+        else:
+            o2 = sorted(range(k), key=lambda i: lam[i])
+        return np.array([lam[i] for i in o2], dtype=float)
+    # rvec=True: ascending algebraic order (dseupd)
     order = sorted(range(k), key=lambda i: lam[i])
     w = np.array([lam[i] for i in order], dtype=float)
-    if not return_eigenvectors:
-        return w
     Vout = np.empty((n, k), dtype=T)
     for c in range(k):
         col = X[:, order[c]]
@@ -308,6 +316,62 @@ def eigsh(A, k: int = 6, M = None, sigma = None, which: str = "LM", v0 = None,
             else:
                 Vout[q, c] = z.real
     return w, Vout
+
+def _arpack_noev_order(th: List[complex], which: str) -> List[int]:
+    # order of the Ritz values returned by ARPACK's d/zseupd, dneupd with
+    # rvec=False: the wanted values sorted so that the "most wanted" comes
+    # last (dsortr / dsortc conventions); th are the operator's Ritz values
+    # (nu = 1/(lam - sigma) in shift-invert mode)
+    idx = list(range(len(th)))
+    if which == "LM":
+        return sorted(idx, key=lambda i: abs(th[i]))
+    elif which == "SM":
+        return sorted(idx, key=lambda i: -abs(th[i]))
+    elif which == "LA" or which == "LR" or which == "BE":
+        return sorted(idx, key=lambda i: th[i].real)
+    elif which == "SA" or which == "SR":
+        return sorted(idx, key=lambda i: -th[i].real)
+    elif which == "LI":
+        return sorted(idx, key=lambda i: abs(th[i].imag))
+    else:
+        return sorted(idx, key=lambda i: -abs(th[i].imag))
+
+def _rkey(t: complex, which: str) -> float:
+    if which == "LR" or which == "SR":
+        return t.real
+    elif which == "LI" or which == "SI":
+        return abs(t.imag)
+    else:
+        return abs(t)
+
+def _eigs_rvec_order(th: List[complex], which: str) -> List[int]:
+    # scipy _UnsymmetricArpackParams.extract (real case): argsort of the
+    # operator values by the `which` key, largest-first for LM/LR/LI and
+    # smallest-first for SM/SR/SI. A conjugate pair is kept together with
+    # the positive imaginary part first, as dneupd stores it.
+    k = len(th)
+    base = sorted(list(range(k)), key=lambda i: -th[i].imag)
+    if which == "LR" or which == "LM" or which == "LI":
+        ordd = sorted(base, key=lambda i: -_rkey(th[i], which))
+    else:
+        ordd = sorted(base, key=lambda i: _rkey(th[i], which))
+    # restore (+imag, -imag) adjacency for pairs with equal keys
+    out = List[int]()
+    used = [False] * k
+    for q in range(k):
+        i = ordd[q]
+        if used[i]:
+            continue
+        used[i] = True
+        out.append(i)
+        if th[i].imag > 0:
+            for r in range(q + 1, k):
+                j = ordd[r]
+                if not used[j] and th[j] == th[i].conjugate():
+                    used[j] = True
+                    out.append(j)
+                    break
+    return out
 
 def _shifted(C, s):
     # C - s I in CSC
@@ -359,12 +423,14 @@ def eigs(A, k: int = 6, M = None, sigma = None, which: str = "LM", v0 = None,
             th, X = _krylov_schur(lambda x: lu2.solve(x), n, k, which, nc, mi, tol,
                                   v0, False, T)
             lam = [complex(float(sigma)) + 1.0 / t for t in th]
-    w = np.array(lam, dtype=complex)
     if not return_eigenvectors:
-        return w
+        o2 = _arpack_noev_order(th, which)
+        return np.array([lam[i] for i in o2], dtype=complex)
+    order = _eigs_rvec_order(th, which)
+    w = np.array([lam[i] for i in order], dtype=complex)
     Vout = np.empty((n, k), dtype=complex)
     for c in range(k):
-        col = X[:, c]
+        col = X[:, order[c]]
         nrm = float(np.linalg.norm(col))
         for q in range(n):
             Vout[q, c] = col[q] / nrm

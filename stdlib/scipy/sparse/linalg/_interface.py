@@ -5,10 +5,10 @@
 # callable types (NoneType when not given); D is the scalar dtype.
 
 import numpy as np
-from .._base import _compressed, _coo, _up
+from .._base import _compressed, _coo, _up, _issparse
 
 def _is_sparse(A) -> Literal[bool]:
-    return isinstance(A, _compressed) or isinstance(A, _coo)
+    return _issparse(A)
 
 # The operator algebra below is shared by every operator class through
 # _OpMixin-style duplication (Typhon classes cannot inherit generically).

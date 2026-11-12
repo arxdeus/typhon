@@ -6,7 +6,7 @@
 
 import math
 import numpy as np
-from .._base import _compressed, _coo
+from .._base import _compressed, _coo, _issparse
 from .._construct import csr_array
 
 NULL_IDX: Literal[int] = -9999
@@ -16,7 +16,7 @@ class NegativeCycleError(Exception):
         super().__init__(msg)
 
 def _issparse(g) -> Literal[bool]:
-    return isinstance(g, _compressed) or isinstance(g, _coo)
+    return _issparse(g)
 
 def _is_null(v: float, null_value: float, infinity_null: bool, nan_null: bool) -> bool:
     if math.isnan(v):

@@ -7,7 +7,7 @@
 # tie-breaking are those of the Cython sources.
 
 import numpy as np
-from .._base import _compressed, _coo
+from .._base import _compressed, _coo, _issparse
 from .._construct import csr_array, csr_matrix
 from ._validation import _csr_graph, _transpose_csr, NULL_IDX, _issparse
 
@@ -240,7 +240,7 @@ def depth_first_order(csgraph, i_start: int, directed: bool = True,
         return node_list[:length].copy()
 
 def _is_spmatrix(g) -> Literal[bool]:
-    if isinstance(g, _compressed) or isinstance(g, _coo):
+    if _issparse(g):
         return g._mstatic()
     else:
         return False

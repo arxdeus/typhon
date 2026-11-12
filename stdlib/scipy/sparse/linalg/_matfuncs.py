@@ -9,7 +9,7 @@
 
 import math
 import numpy as np
-from .._base import _compressed, _coo, _up, _is_cplx
+from .._base import _compressed, _coo, _up, _is_cplx, _issparse
 from .._construct import csc_array, csc_matrix, csr_array, eye_array
 from ._interface import aslinearoperator, _is_linop
 
@@ -25,7 +25,7 @@ def _abs_sums(x, axis: int):
     return r
 
 def norm(x, ord = None, axis = None):
-    if not (isinstance(x, _compressed) or isinstance(x, _coo)):
+    if not (_issparse(x)):
         compile_error("input is not sparse. use numpy.linalg.norm")
     A = x.tocsr()
     A.sum_duplicates()
@@ -97,7 +97,7 @@ def norm(x, ord = None, axis = None):
 
 def onenormest(A, t: int = 2, itmax: int = 5, compute_v: bool = False,
                compute_w: bool = False):
-    if isinstance(A, _compressed) or isinstance(A, _coo):
+    if _issparse(A):
         return float(_abs_sums(A, 0).max())
     elif isinstance(A, np.ndarray):
         return float(np.abs(A).sum(axis=0).max())

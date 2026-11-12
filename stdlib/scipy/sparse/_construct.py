@@ -511,13 +511,17 @@ def kron(A, B, format: Literal[str] = ""):
         C = _kron_impl(a, b, 1)
     else:
         C = _kron_impl(a, b, 0)
-    # scipy picks BSR (blocks = dense B) when 2*B.nnz >= B.size and COO
-    # otherwise; the result type must be static here, so the default is BSR
-    # when B is a dense ndarray or a BSR/DIA container, COO otherwise.
+    # scipy picks BSR (blocks = dense B, explicit zeros kept) when
+    # 2*B.nnz >= B.size and COO otherwise. The result type must be static
+    # here: with format="" a BSR container is returned in both cases (the
+    # COO case as blocksize (1, 1) with exactly scipy's COO entries), so the
+    # stored structure matches scipy while .format reads 'bsr'.
     if format == "" or format == "bsr":
-        if format == "bsr" or isinstance(B, np.ndarray) or b._spfmt() == "bsr" or b._spfmt() == "dia":
+        bn = b.tocoo().nnz
+        if format == "bsr" or 2 * bn >= b.shape[0] * b.shape[1]:
             return _kron_bsr(a, b, C)
-        return C
+        Cr = C.tocsr()
+        return _csr_tobsr(Cr, (1, 1))
     else:
         return C.asformat(format)
 
