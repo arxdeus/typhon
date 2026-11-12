@@ -7,6 +7,7 @@ import numpy as np
 import internal.static as static
 from . import _kernels as K
 from . import _cdf as C
+from . import _bessel as B
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -128,6 +129,43 @@ def i0(x): return _map1(K.i0, x)
 def i0e(x): return _map1(K.i0e, x)
 def i1(x): return _map1(K.i1, x)
 def i1e(x): return _map1(K.i1e, x)
+
+def j0(x): return _map1(B.j0, x)
+def j1(x): return _map1(B.j1, x)
+def y0(x): return _map1(B.y0, x)
+def y1(x): return _map1(B.y1, x)
+def k0(x): return _map1(B.k0, x)
+def k1(x): return _map1(B.k1, x)
+def k0e(x): return _map1(B.k0e, x)
+def k1e(x): return _map1(B.k1e, x)
+def jv(v, z): return _map2(B.jv, v, z)
+jn = jv
+def yv(v, z): return _map2(B.yv, v, z)
+def yn(n, x): return _map2(B.yn, n, x)
+def iv(v, z): return _map2(B.iv, v, z)
+def ive(v, z): return _map2(B.ive, v, z)
+def kv(v, z): return _map2(B.kv, v, z)
+def kve(v, z): return _map2(B.kve, v, z)
+def kn(n, x): return _map2(B.kn, n, x)
+def rgamma(x): return _map1(B.rgamma, x)
+def _sph_d(f, fd, n, z, derivative: Literal[bool]):
+    if derivative:
+        return _map2(fd, n, z)
+    else:
+        return _map2(f, n, z)
+def spherical_jn(n, z, derivative: Literal[bool] = False): return _sph_d(B.spherical_jn, B.spherical_jn_d, n, z, derivative)
+def spherical_yn(n, z, derivative: Literal[bool] = False): return _sph_d(B.spherical_yn, B.spherical_yn_d, n, z, derivative)
+def spherical_in(n, z, derivative: Literal[bool] = False): return _sph_d(B.spherical_in, B.spherical_in_d, n, z, derivative)
+def spherical_kn(n, z, derivative: Literal[bool] = False): return _sph_d(B.spherical_kn, B.spherical_kn_d, n, z, derivative)
+def _airy_k(i: int, x: float) -> float:
+    return B.airy(x)[i]
+def _ai(x: float) -> float: return B.airy(x)[0]
+def _aip(x: float) -> float: return B.airy(x)[1]
+def _bi(x: float) -> float: return B.airy(x)[2]
+def _bip(x: float) -> float: return B.airy(x)[3]
+def airy(z):
+    """Real-argument Airy functions: (Ai, Ai', Bi, Bi')."""
+    return (_map1(_ai, z), _map1(_aip, z), _map1(_bi, z), _map1(_bip, z))
 
 # combinatorics
 def _comb_exact(N: int, k: int) -> int:

@@ -139,12 +139,7 @@ def _ndtri_exp_small_y(y: float) -> float:
         x1 = z * K._polevl(z, K._P1) / K._p1evl(z, K._Q1)
     else:
         x1 = z * K._polevl(z, K._P2) / K._p1evl(z, K._Q2)
-    r = x1 - x0
-    if x > 64.0 and x < 262144.0:
-        t = -r * 0.70710678118654752440
-        e = K.erfcx(t)
-        return r - (K.log(e / 2) - t * t - y) * e / 0.79788456080286535587989
-    return r
+    return x1 - x0
 
 def ndtri_exp(y: float) -> float:
     """Inverse of log_ndtr (xsf ndtri_exp)."""
