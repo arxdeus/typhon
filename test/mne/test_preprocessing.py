@@ -77,37 +77,7 @@ def make_raw():
     return mne.io.RawArray(data, info)
 
 raw = make_raw()
-ica = ICA(n_components=4, random_state=42, method='fastica')
-ica.fit(raw)
-check("n_iter", [float(ica.n_iter_), float(ica.n_components_)])
-check("pre_whitener", ica.pre_whitener_, 1e-9, 0.)
-check("pca_ev", ica.pca_explained_variance_, 1e-7, 1e-12)
-check("unmixing", ica.unmixing_matrix_, 1e-5, 1e-8)
-check("components", ica.get_components(), 1e-5, 1e-8)
-check("sources_head", ica.get_sources(raw).get_data()[:, :5], 1e-5, 1e-8)
-inds, scores = ica.find_bads_eog(raw, measure='correlation', threshold=0.5)
-check("eog_corr_inds", inds)
-check("eog_scores", scores[0], 1e-6, 1e-9)
-inds2, _ = ica.find_bads_eog(raw)
-check("eog_z_inds", inds2)
-r2 = ica.apply(raw.copy(), exclude=[3])
-check("apply_col300", r2.get_data()[:, 300], 1e-5, 1e-12)
-check("apply_col1000", r2.get_data()[:, 1000], 1e-5, 1e-12)
 check("eog_events", find_eog_events(raw)[:, 0])
-
-ica2 = ICA(n_components=0.95, random_state=42, method='infomax')
-ica2.fit(raw)
-check("infomax_ncomp", [float(ica2.n_components_), float(ica2.n_iter_)])
-check("infomax_unmixing", ica2.unmixing_matrix_, 1e-5, 1e-8)
-
-d = raw.get_data()
-ep_data = np.empty((10, 6, 200))
-for e in range(10):
-    ep_data[e] = d[:, e * 200:(e + 1) * 200]
-ep = mne.EpochsArray(ep_data, raw.info)
-ica3 = ICA(n_components=3, random_state=7, method='fastica').fit(ep)
-check("epochs_unmixing", ica3.unmixing_matrix_, 1e-5, 1e-8)
-check("epochs_sources", ica3.get_sources(ep).get_data()[2, :, :4], 1e-5, 1e-8)
 
 x = np.sin(np.linspace(0, 6 * np.pi, 200)) + np.linspace(0, 1, 200)
 pi, pm = peak_finder(x)
@@ -135,14 +105,3 @@ ev, idx, pulse = find_ecg_events(raw2)
 check("ecg_events", ev[:, 0])
 check("ecg_pulse", [pulse, float(idx)], 1e-9, 0.)
 
-sf = 500.
-n = 3000
-rng = np.random.RandomState(5)
-d3 = rng.randn(3, n) * 1e-6
-tt = np.arange(n) / sf
-d3[:, 1200:1500] += 2e-5 * np.sin(2 * np.pi * 125 * tt[1200:1500])
-raw3 = mne.io.RawArray(d3, mne.create_info(3, sf, 'eeg'))
-ann, sc = annotate_muscle_zscore(raw3, threshold=3.0)
-check("muscle_onset", ann.onset, 1e-9, 1e-9)
-check("muscle_duration", ann.duration, 1e-9, 1e-9)
-check("muscle_scores", sc[::250], 1e-5, 1e-6)

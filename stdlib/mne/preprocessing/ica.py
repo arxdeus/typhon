@@ -11,6 +11,7 @@ from .._info import Info, _picks_to_idx, _picks_by_type
 from .._containers import RawArray, EpochsArray
 from ..filter import filter_data
 from ._infomax import infomax
+from ._fastica import fastica_unmixing
 
 def _exp_var_ncomp(var, n: float) -> Tuple[int, float]:
     cvar = np.cumsum(np.asarray(var, dtype=float))
@@ -218,15 +219,13 @@ class ICA:
         nc = self.n_components_
         sub = np.ascontiguousarray(Xw[:, :nc])
         if self.method == "fastica":
-            from sklearn.decomposition import FastICA
             if self.random_state is None:
                 raise ValueError("ICA(method='fastica') needs an integer random_state in Typhon")
-            fi = FastICA(whiten=False, random_state=self.random_state.__val__(),
-                         max_iter=int(self.fit_params.get("max_iter", float(self.max_iter))),
-                         tol=self.fit_params.get("tol", 1e-4))
-            fi.fit(sub)
-            self.unmixing_matrix_ = fi.components_
-            self.n_iter_ = fi.n_iter_
+            W, it = fastica_unmixing(sub, self.random_state.__val__(),
+                                     int(self.fit_params.get("max_iter", float(self.max_iter))),
+                                     self.fit_params.get("tol", 1e-4))
+            self.unmixing_matrix_ = W
+            self.n_iter_ = it
         else:
             ext = self.method == "extended-infomax" or self.fit_params.get("extended", 0.0) != 0.0
             seed = 0 if self.random_state is None else self.random_state.__val__()
@@ -483,10 +482,36 @@ class ICA:
     def find_bads_ecg(self, inst, ch_name: Optional[str] = None, threshold = "auto",
                       start: Optional[int] = None, stop: Optional[int] = None,
                       l_freq: Optional[float] = 8.0, h_freq: Optional[float] = 16.0,
-                      method: str = "correlation", reject_by_annotation: bool = True,
+                      method: str = "ctps", reject_by_annotation: bool = True,
                       measure: str = "zscore", verbose = None):
-        if method != "correlation":
-            raise ValueError("find_bads_ecg: only method='correlation' is supported in Typhon mne")
+        if method not in ("ctps", "correlation"):
+            raise ValueError(f"Invalid value for the 'method' parameter. Allowed values are 'ctps' and 'correlation', but got {method!r} instead.")
+        if method == "ctps":
+            from ._epochs_ext import create_ecg_epochs, ctps
+            src3 = np.empty((0, 0, 0))
+            if isinstance(inst, RawArray):
+                ep = create_ecg_epochs(inst, ch_name, l_freq=l_freq.__val__(), h_freq=h_freq.__val__())
+                src3 = self.get_sources(ep)._data
+            else:
+                src3 = self.get_sources(inst)._data
+            th = 0.3 if isinstance(threshold, str) else float(threshold)
+            _, pv, _ = ctps(src3)
+            sc = pv.max(axis=-1)
+            sel = List[int]()
+            for k in range(sc.shape[0]):
+                if sc[k] >= th:
+                    sel.append(k)
+            selv = np.empty(len(sel))
+            for q in range(len(sel)):
+                selv[q] = abs(sc[sel[q]])
+            order = np.argsort(selv, kind="stable")[::-1]
+            labels = List[int]()
+            for o in order:
+                labels.append(sel[int(o)])
+            self.labels_["ecg"] = labels
+            nm = "ECG-MAG" if ch_name is None else ch_name.__val__()
+            self.labels_["ecg/" + nm] = list(labels)
+            return labels, [sc]
         name = ""
         if ch_name is None:
             for i in range(inst.info.nchan):
