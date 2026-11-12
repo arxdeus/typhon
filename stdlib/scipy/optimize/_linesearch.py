@@ -274,7 +274,8 @@ def _wolfe1(lf, phi0: float, old_phi0: float, derphi0: float,
             xtol: float = 1e-14):
     # returns (ok, stp, phi1, phi0)
     alpha1 = 1.0
-    if derphi0 != 0:
+    # old_phi0 NaN stands for scipy's None
+    if derphi0 != 0 and old_phi0 == old_phi0:
         alpha1 = min(1.0, 1.01 * 2 * (phi0 - old_phi0) / derphi0)
         if alpha1 < 0:
             alpha1 = 1.0
@@ -397,7 +398,7 @@ def _wolfe2(lf, phi0: float, old_phi0: float, derphi0: float, c1: float,
     # returns (ok, alpha_star, phi_star, derphi_ok)
     alpha0 = 0.0
     alpha1 = 1.0
-    if derphi0 != 0:
+    if derphi0 != 0 and old_phi0 == old_phi0:
         alpha1 = min(1.0, 1.01 * 2 * (phi0 - old_phi0) / derphi0)
     if alpha1 < 0:
         alpha1 = 1.0

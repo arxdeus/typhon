@@ -48,6 +48,26 @@ class OptimizeResult[X, F, J]:
     fjac: np.ndarray[float, 2]
     qtf: np.ndarray[float, 1]
     method: str
+    # Newton / trust-region / constrained methods
+    nhev: int
+    hess: np.ndarray[float, 2]
+    maxcv: float
+    constr_violation: float
+    cg_niter: int
+    cg_stop_cond: int
+    tr_radius: float
+    constr_penalty: float
+    barrier_parameter: float
+    barrier_tolerance: float
+    lagrangian_grad: np.ndarray[float, 1]
+    constr: List[np.ndarray[float, 1]]
+    v: List[np.ndarray[float, 1]]
+    constr_nfev: List[int]
+    constr_njev: List[int]
+    constr_nhev: List[int]
+    unbounded_x: bool
+    multipliers: np.ndarray[float, 1]
+    unscaled: bool
 
     def __init__(self, x: X, fun: F, jac: J, nit: int = 0, nfev: int = 0,
                  njev: int = 0, success: bool = False, status: int = 0,
@@ -74,6 +94,25 @@ class OptimizeResult[X, F, J]:
         self.fjac = fjac
         self.qtf = qtf
         self.method = method
+        self.nhev = 0
+        self.hess = _e2()
+        self.maxcv = 0.0
+        self.constr_violation = 0.0
+        self.cg_niter = 0
+        self.cg_stop_cond = 0
+        self.tr_radius = 0.0
+        self.constr_penalty = 0.0
+        self.barrier_parameter = 0.0
+        self.barrier_tolerance = 0.0
+        self.lagrangian_grad = _e1()
+        self.constr = List[np.ndarray[float, 1]]()
+        self.v = List[np.ndarray[float, 1]]()
+        self.constr_nfev = List[int]()
+        self.constr_njev = List[int]()
+        self.constr_nhev = List[int]()
+        self.unbounded_x = False
+        self.multipliers = _e1()
+        self.unscaled = False
 
     def __repr__(self):
         return (f" message: {self.message}\n success: {self.success}\n"

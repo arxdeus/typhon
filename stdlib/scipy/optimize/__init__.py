@@ -18,6 +18,9 @@ from ._zeros import RootResults, bisect, brentq, brenth, ridder, newton, \
 from ._lsq import least_squares, curve_fit, fsolve, root
 from ._lsap import linear_sum_assignment
 from ._constraints import LinearConstraint, NonlinearConstraint
+from ._hessian_update_strategy import HessianUpdateStrategy, BFGS, SR1
+from ._trustregion import _minimize_trust_region, _minimize_newtoncg, \
+                          _TR_NCG, _TR_DOGLEG, _TR_EXACT, _TR_KRYLOV
 
 def rosen(x):
     x = np.asarray(x)
@@ -66,6 +69,29 @@ def _apply_tol(meth: str, tol: Optional[float], options, key: str,
             v = tol
     return _opt_float(options, key, v)
 
+def _tol_applies(meth: str, key: str) -> bool:
+    # scipy.optimize.minimize: options.setdefault(<key>, tol)
+    if key == 'xatol' or key == 'fatol':
+        return meth == 'nelder-mead'
+    elif key == 'xtol':
+        return meth == 'newton-cg' or meth == 'powell' or meth == 'tnc' or \
+            meth == 'trust-constr'
+    elif key == 'ftol':
+        return meth == 'powell' or meth == 'l-bfgs-b' or meth == 'tnc' or \
+            meth == 'slsqp'
+    elif key == 'gtol':
+        return meth == 'bfgs' or meth == 'cg' or meth == 'l-bfgs-b' or \
+            meth == 'tnc' or meth == 'dogleg' or meth == 'trust-ncg' or \
+            meth == 'trust-exact' or meth == 'trust-krylov' or \
+            meth == 'trust-constr'
+    elif key == 'tol':
+        return meth == 'cobyla'
+    elif key == 'final_tr_radius':
+        return meth == 'cobyqa'
+    elif key == 'barrier_tol':
+        return meth == 'trust-constr'
+    return False
+
 class _Opts[O]:
     # options view with `tol` folded in (scipy: options.setdefault(...))
     opts: O
@@ -81,10 +107,7 @@ class _Opts[O]:
         if self.tol is None:
             return False
         meth = self.meth
-        return (((key == 'xatol' or key == 'fatol') and meth == 'nelder-mead') or
-                (key == 'xtol' and meth == 'powell') or
-                (key == 'ftol' and (meth == 'powell' or meth == 'l-bfgs-b')) or
-                (key == 'gtol' and (meth == 'bfgs' or meth == 'cg' or meth == 'l-bfgs-b')))
+        return _tol_applies(meth, key)
 
     def __contains__(self, key: str) -> bool:
         if self._tolkey(key):
@@ -109,10 +132,6 @@ def minimize(fun, x0, args = (), method: Optional[str] = None, jac = None,
     if not isinstance(args, Tuple):
         return minimize(fun, x0, (args,), method, jac, hess, hessp, bounds,
                         constraints, tol, callback, options)
-    if hess is not None or hessp is not None:
-        compile_error("hess/hessp are not supported by this scipy.optimize port")
-    if callback is not None:
-        compile_error("callback is not supported by this scipy.optimize port")
     if static.len(constraints) != 0:
         compile_error("constraints are not supported by this scipy.optimize port")
     xa = np.atleast_1d(np.asarray(x0))
@@ -144,6 +163,19 @@ def minimize(fun, x0, args = (), method: Optional[str] = None, jac = None,
         return _minimize_bfgs(fun, x, args, jac, opts)
     elif meth == 'l-bfgs-b':
         return _minimize_lbfgsb(fun, x, args, jac, bnds, opts)
+    elif meth == 'newton-cg':
+        return _minimize_newtoncg(fun, x, args, jac, hess, hessp, callback, opts)
+    elif meth == 'trust-ncg':
+        return _minimize_trust_region(_TR_NCG, fun, x, args, jac, hess, hessp, callback, opts)
+    elif meth == 'dogleg':
+        return _minimize_trust_region(_TR_DOGLEG, fun, x, args, jac, hess, None, callback, opts)
+    elif meth == 'trust-exact':
+        return _minimize_trust_region(_TR_EXACT, fun, x, args, jac, hess, None, callback, opts)
+    elif meth == 'trust-krylov':
+        return _minimize_trust_region(_TR_KRYLOV, fun, x, args, jac, hess, hessp, callback, opts)
     else:
         raise ValueError(f'Unknown solver {method}')
     return _minimize_bfgs(fun, x, args, jac, opts)
+
+# --- global optimizers / LP (sabertooth)
+from ._differentialevolution import differential_evolution
