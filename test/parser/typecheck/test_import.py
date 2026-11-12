@@ -25,7 +25,8 @@ sqrt(100.0)  #! name 'sqrt' is not defined
 
 #%% import_c_dylib,barebones
 from internal.dlopen import dlext
-LIBC = "msvcrt.dll" if dlext() == "dll" else ("libc.dylib" if dlext() == "dylib" else "libc.so.6")
+import internal.static as static
+LIBC = "msvcrt.dll" if dlext() == "dll" else ("libc.dylib" if dlext() == "dylib" else ("libc.so" if static.platform() == "android" else "libc.so.6"))
 from C import LIBC.puts(cobj) -> i32 as cputs
 cputs("hello".c_str())  #: hello
 

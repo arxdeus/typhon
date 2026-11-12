@@ -99,7 +99,9 @@ pub fn gc_flags(target: &TargetInfo) -> &'static [&'static str] {
     if target.is_apple() {
         &["-Wl,-dead_strip", "-Wl,-dead_strip_dylibs"]
     } else if target.os == TargetOs::Android {
-        &["-Wl,--gc-sections", "-Wl,--as-needed", "-Wl,-z,max-page-size=16384", "-Wl,-z,separate-loadable-segments"]
+        // --allow-multiple-definition: an `@export` in the program may override a runtime
+        // hook (e.g. `seq_os_home`); the object comes first so it wins, as with ld64.
+        &["-Wl,--gc-sections", "-Wl,--as-needed", "-Wl,-z,max-page-size=16384", "-Wl,-z,separate-loadable-segments", "-Wl,--allow-multiple-definition"]
     } else {
         &["-Wl,--gc-sections", "-Wl,--as-needed"]
     }

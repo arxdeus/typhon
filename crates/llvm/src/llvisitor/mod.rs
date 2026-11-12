@@ -442,6 +442,13 @@ impl<'ctx> LlvmVisitor<'ctx> {
             }
             if tls {
                 ll::set_thread_local(storage, true);
+                // Bionic (arm64) rejects executables whose PT_TLS alignment is < 64.
+                if self.options.target_info().os == typhon_common::target::TargetOs::Android {
+                    unsafe {
+                        let cur = llvm_sys::core::LLVMGetAlignment(storage);
+                        llvm_sys::core::LLVMSetAlignment(storage, cur.max(64));
+                    }
+                }
             }
         }
     }

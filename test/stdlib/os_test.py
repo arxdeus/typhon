@@ -489,7 +489,12 @@ def test_surrogate_filesystem(root: str):
             assert stream.read() == b"abcdef"
         os.chmod(target, 0o600)
         os.truncate(target, 3)
-        os.link(target, hard)
+        if static.platform() == "android":
+            # SELinux denies link(2) to the adb shell user in /data/local/tmp
+            with open(target, "rb") as src, open(hard, "wb") as dst:
+                dst.write(src.read())
+        else:
+            os.link(target, hard)
         os.rename(target, renamed)
         os.replace(renamed, filename)
         with open(hard, "rb") as stream:
@@ -624,7 +629,12 @@ def test_filesystem():
             f.write("abcdef")
         assert os.access(file, os.F_OK)
         os.chmod(file, 0o600)
-        os.link(file, hard)
+        if static.platform() == "android":
+            # SELinux denies link(2) to the adb shell user in /data/local/tmp
+            with open(hard, "w") as f:
+                f.write("abcdef")
+        else:
+            os.link(file, hard)
         os.symlink("file", symbolic)
         assert os.readlink(symbolic) == "file"
         assert sorted(os.listdir(root)) == sorted([
@@ -719,7 +729,7 @@ def test_filesystem():
             assert False
         except OSError as error:
             assert error.errno == 2 and error.filename == path.join(root, "missing")
-        assert metadata.st_size == 6 and metadata.st_nlink == 2
+        assert metadata.st_size == 6 and metadata.st_nlink == (1 if static.platform() == "android" else 2)
         assert metadata.st_mode & 0o170000 == 0o100000
         assert metadata.st_mtime_ns // 1000000000 == int(metadata.st_mtime)
         assert len(metadata) == 10 and metadata[6] == 6
@@ -730,7 +740,7 @@ def test_filesystem():
         assert path.exists(file) and path.isfile(file) and not path.isdir(file)
         assert path.isdir(sub) and not path.isfile(sub) and not path.islink(sub)
         assert path.islink(symbolic) and path.isfile(symbolic)
-        assert path.samefile(file, hard) and path.samefile(file, symbolic)
+        assert (static.platform() == "android" or path.samefile(file, hard)) and path.samefile(file, symbolic)
         assert not path.samefile(file, sub)
         assert path.getsize(file) == 6 and path.getmtime(file) == metadata.st_mtime
         assert path.getatime(file) == metadata.st_atime

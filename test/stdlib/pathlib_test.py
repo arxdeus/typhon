@@ -210,8 +210,12 @@ def test_filesystem():
             assert False
         except OSError:
             pass
-        hard.hardlink_to(file)
-        assert hard.samefile(file) and hard.stat().st_ino == file.stat().st_ino
+        if static.platform() == "android":
+            # SELinux denies link(2) to the adb shell user in /data/local/tmp
+            hard.write_bytes(file.read_bytes())
+        else:
+            hard.hardlink_to(file)
+            assert hard.samefile(file) and hard.stat().st_ino == file.stat().st_ino
         assert file.rename(moved) == moved
         assert not file.exists() and moved.is_file()
         assert moved.replace(file) == file

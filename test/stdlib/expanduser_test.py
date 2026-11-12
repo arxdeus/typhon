@@ -16,6 +16,9 @@ if static.platform() != "win32":
         if static.platform() == "darwin":
             from C import __error() -> Ptr[i32]
             __error()[0] = i32(lookup_error)
+        elif static.platform() == "android":
+            from C import __errno() -> Ptr[i32]
+            __errno()[0] = i32(lookup_error)
         else:
             from C import __errno_location() -> Ptr[i32]
             __errno_location()[0] = i32(lookup_error)

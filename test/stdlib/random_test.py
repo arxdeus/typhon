@@ -71,7 +71,12 @@ def test_vs_python(*args, seed, method: Literal[str], expected: List[T], T: type
     print(seed, method, args)
     R1 = R.Random(seed)
     A1 = [T(getattr(R1, method)(*args)) for _ in range(len(expected))]
-    assert A1 == expected
+    if T is float:
+        # libm (cos/sin/log/exp) may differ by an ulp across platforms (e.g. Android bionic)
+        assert len(A1) == len(expected)
+        assert all(abs(a - e) <= 1e-12 * max(1.0, abs(e)) for a, e in zip(A1, expected))
+    else:
+        assert A1 == expected
 
 test_vs_python(-10, 10, seed=22, method='randrange', T=int, expected=[-6, -3, -10, 9, 4, -5, -7, 1, -8, -3, -2, -9, 0, 9, -5, 7, 3, -9, 8, -10, 8, -2, -1, 3, -4, -5, -7, 8, 6, 8, -9, 0, 9, 0, -2, -5, 2, -1, 6, -6, -2, -2, -5, 3, -9, 0, 7, -9, 3, -2])
 test_vs_python(-10, 10, 3, seed=33, method='randrange', T=int, expected=[2, -7, 5, -7, 8, 8, -4, -1, 5, 2, 2, -7, 5, 2, 2, -4, 5, 2, -1, -1, -4, 5, 5, -10, -4, -1, -4, 2, -1, -10, 5, 2, 8, 5, 5, -1, 8, 8, -4, -4, 2, 8, 5, -7, -10, 8, -10, -4, -4, -7])

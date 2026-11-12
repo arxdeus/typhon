@@ -3828,8 +3828,10 @@ def test_brace_format_basic_specs():
 @test
 def test_brace_format_locale_numeric():
     original = seq_locale_numeric()
+    import internal.static as static
 
-    if seq_set_locale_numeric(unicode("en_US.UTF-8")):
+    # bionic accepts any locale name but localeconv() is always the C locale (no grouping)
+    if static.platform() != "android" and seq_set_locale_numeric(unicode("en_US.UTF-8")):
         assert unicode("{:n}").format(1234567) == unicode("1,234,567")
         assert unicode("{:.4n}").format(1234.5) == unicode("1,234")
         assert seq_set_locale_numeric(original)
