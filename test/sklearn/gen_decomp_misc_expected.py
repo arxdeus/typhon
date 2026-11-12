@@ -166,5 +166,17 @@ def impute():
     it3 = IterativeImputer(initial_strategy="median", imputation_order="descending", min_value=-1.0, max_value=2.0, add_indicator=True)
     L("it3", it3.fit_transform(X))
 
+def manifold_tsne():
+    from sklearn.manifold import TSNE
+    X, y = data(40, 5, 3)
+    t = TSNE(method="exact", perplexity=8, random_state=0, max_iter=400, init="random")
+    L("tsne_ex_r", t.fit_transform(X)); S("tsne_ex_r_kl", t.kl_divergence_); S("tsne_ex_r_it", t.n_iter_)
+    t = TSNE(method="exact", perplexity=10, random_state=1, max_iter=300, init="pca", learning_rate=100.0)
+    L("tsne_ex_p", t.fit_transform(X)); S("tsne_ex_p_kl", t.kl_divergence_)
+    t = TSNE(perplexity=8, random_state=0, max_iter=400, init="pca")
+    L("tsne_bh_p", t.fit_transform(X)); S("tsne_bh_p_kl", t.kl_divergence_); S("tsne_bh_p_it", t.n_iter_)
+    t = TSNE(n_components=3, perplexity=5, random_state=2, max_iter=300, init="random", angle=0.3)
+    L("tsne_bh3", t.fit_transform(X)); S("tsne_bh3_kl", t.kl_divergence_)
+
 for sec in sys.argv[1:]:
     globals()[sec]()
