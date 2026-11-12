@@ -1,17 +1,16 @@
 # Copyright (C) 2026 the Typhon authors
 # Ported from scipy 1.18.1 (BSD-3-Clause)
 
-# norm, onenormest, expm, expm_multiply, matrix_power for sparse inputs.
-# onenormest returns the exact 1-norm (scipy's Higham-Tisseur estimate is
-# exact for the small block sizes it is usually applied to, and is only an
-# estimate otherwise). expm densifies (scipy uses a sparse Pade
-# approximation; values agree to rounding) and returns CSC.
+# norm, onenormest (_onenormest.py), expm (scipy's sparse Pade algorithm
+# _expm with _ell / onenormest-based degree selection), expm_multiply and
+# matrix_power for sparse inputs.
 
 import math
 import numpy as np
 from .._base import _compressed, _coo, _up, _is_cplx, _issparse
 from .._construct import csc_array, csc_matrix, csr_array, eye_array
-from ._interface import aslinearoperator, _is_linop
+from ._interface import aslinearoperator, _is_linop, LinearOperator
+from ._onenormest import onenormest
 
 def _abs_sums(x, axis: int):
     c = x.tocoo()
@@ -95,34 +94,211 @@ def norm(x, ord = None, axis = None):
             res[q] = res[q] ** (1.0 / o)
         return res
 
-def onenormest(A, t: int = 2, itmax: int = 5, compute_v: bool = False,
-               compute_w: bool = False):
+def _exact_1_norm(A) -> float:
+    # max column abs sum (sparse or dense)
     if _issparse(A):
         return float(_abs_sums(A, 0).max())
-    elif isinstance(A, np.ndarray):
-        return float(np.abs(A).sum(axis=0).max())
     else:
-        op = aslinearoperator(A)
-        n = op.shape[1]
-        best = 0.0
-        for j in range(n):
-            e = np.zeros(n, dtype=op.dtype)
-            e[j] = op.dtype(1.0)
-            y = op.matvec(e)
-            s = 0.0
-            for v in y:
-                s += abs(v)
-            best = max(best, s)
-        return best
+        return float(np.abs(A).sum(axis=0).max())
+
+def _onenorm_matrix_power_nnm(A, p: int) -> float:
+    # 1-norm of A^p for non-negative A (scipy: v = (A.T)^p @ ones)
+    n = A.shape[0]
+    v = np.ones(n, dtype=float)
+    M = A.T.tocsr()
+    for _ in range(p):
+        v = M @ v
+    mx = v[0]
+    for i in range(n):
+        mx = max(mx, v[i])
+    return mx
+
+_ELL_C = (100800., 10059033600., 4487938430976000., 5914384781877411840000.,
+          113250775606021113483283660800000000.)
+
+def _ell(A, m: int) -> int:
+    ci = _ELL_C[0] if m == 3 else (_ELL_C[1] if m == 5 else (
+        _ELL_C[2] if m == 7 else (_ELL_C[3] if m == 9 else _ELL_C[4])))
+    u = 2.0 ** -53
+    nrm = _onenorm_matrix_power_nnm(abs(A), 2 * m + 1)
+    if nrm == 0.0:
+        return 0
+    alpha = nrm / (_exact_1_norm(A) * ci)
+    value = int(math.ceil(math.log2(alpha / u) / (2 * m)))
+    return max(value, 0)
+
+def _onenormest_power(A, p: int) -> float:
+    # scipy _onenormest_matrix_power: onenormest(MatrixPowerOperator(A, p))
+    C = A.tocsr()
+    CT = A.T.tocsr()
+    def mv(x):
+        y = x
+        for _ in range(p):
+            y = C @ y
+        return y
+    def rmv(x):
+        y = x
+        for _ in range(p):
+            y = CT @ y
+        return y
+    def mm(X):
+        Y = X
+        for _ in range(p):
+            Y = C @ Y
+        return Y
+    def rmm(X):
+        Y = X
+        for _ in range(p):
+            Y = CT @ Y
+        return Y
+    op = LinearOperator(A.shape, mv, rmv, mm, float, rmm)
+    return float(onenormest(op))
+
+def _onenormest_prod(A, B) -> float:
+    # onenormest(ProductOperator(A, B)) = onenormest of A @ B
+    Ac = A.tocsr()
+    Bc = B.tocsr()
+    AT = A.T.tocsr()
+    BT = B.T.tocsr()
+    op = LinearOperator(A.shape, lambda x: Ac @ (Bc @ x), lambda x: BT @ (AT @ x),
+                        lambda X: Ac @ (Bc @ X), float, lambda X: BT @ (AT @ X))
+    return float(onenormest(op))
+
+def _sparse_expm(A):
+    # scipy _expm for sparse input (use_exact_onenorm='auto': n < 200),
+    # result in the format of A (U, V built from the CSR/CSC products;
+    # P/Q solved by spsolve, giving A's compressed format)
+    from ._dsolve import spsolve
+    n = A.shape[0]
+    T = type(_up(A.dtype, float))
+    Af = A.astype(T)
+    if n == 1:
+        c = Af.tocoo()
+        v = T(0)
+        for k in range(len(c.data)):
+            v += c.data[k]
+        return csc_array(np.array([[np.exp(v)]], dtype=T)) if not A._mstatic() \
+            else csc_array(np.array([[np.exp(v)]], dtype=T))
+    exact = n < 200
+    upper = True
+    c0 = Af.tocoo()
+    for k in range(len(c0.data)):
+        if c0.row[k] > c0.col[k] and c0.data[k] != T():
+            upper = False
+    I = eye_array(n, dtype=T).asformat("csr")
+    Ac = Af.tocsr()
+    A2 = Ac @ Ac
+    A4 = A2 @ A2
+    A6 = A4 @ A2
+    d4t = _exact_1_norm(A4) ** 0.25
+    d6t = _exact_1_norm(A6) ** (1. / 6.)
+    d4l = d4t if exact else _onenormest_power(A2, 2) ** 0.25
+    d6l = d6t if exact else _onenormest_power(A2, 3) ** (1. / 6.)
+    eta_1 = max(d4l, d6l)
+    if eta_1 < 1.495585217958292e-002 and _ell(Ac, 3) == 0:
+        b3 = (120., 60., 12., 1.)
+        U = Ac @ (b3[3] * A2 + b3[1] * I)
+        V = b3[2] * A2 + b3[0] * I
+        return _solve_PQ(U, V, spsolve)
+    eta_2 = max(d4t, d6l)
+    if eta_2 < 2.539398330063230e-001 and _ell(Ac, 5) == 0:
+        b5 = (30240., 15120., 3360., 420., 30., 1.)
+        U = Ac @ (b5[5] * A4 + b5[3] * A2 + b5[1] * I)
+        V = b5[4] * A4 + b5[2] * A2 + b5[0] * I
+        return _solve_PQ(U, V, spsolve)
+    A8 = A6 @ A2
+    d8t = _exact_1_norm(A8) ** 0.125
+    d8l = d8t if exact else _onenormest_power(A4, 2) ** 0.125
+    eta_3 = max(d6t, d8l)
+    if eta_3 < 9.504178996162932e-001 and _ell(Ac, 7) == 0:
+        b7 = (17297280., 8648640., 1995840., 277200., 25200., 1512., 56., 1.)
+        U = Ac @ (b7[7] * A6 + b7[5] * A4 + b7[3] * A2 + b7[1] * I)
+        V = b7[6] * A6 + b7[4] * A4 + b7[2] * A2 + b7[0] * I
+        return _solve_PQ(U, V, spsolve)
+    if eta_3 < 2.097847961257068e+000 and _ell(Ac, 9) == 0:
+        b9 = (17643225600., 8821612800., 2075673600., 302702400., 30270240.,
+              2162160., 110880., 3960., 90., 1.)
+        U = Ac @ (b9[9] * A8 + b9[7] * A6 + b9[5] * A4 + b9[3] * A2 + b9[1] * I)
+        V = b9[8] * A8 + b9[6] * A6 + b9[4] * A4 + b9[2] * A2 + b9[0] * I
+        return _solve_PQ(U, V, spsolve)
+    if exact:
+        A10 = A4 @ A6
+        d10l = _exact_1_norm(A10) ** 0.1
+    else:
+        d10l = _onenormest_prod(A4, A6) ** 0.1
+    eta_4 = max(d8l, d10l)
+    eta_5 = min(eta_3, eta_4)
+    theta_13 = 4.25
+    if eta_5 == 0:
+        s = 0
+    else:
+        s = max(int(math.ceil(math.log2(eta_5 / theta_13))), 0)
+    s = s + _ell(Ac * (2.0 ** -s), 13)
+    b = (64764752532480000., 32382376266240000., 7771770303897600.,
+         1187353796428800., 129060195264000., 10559470521600.,
+         670442572800., 33522128640., 1323241920., 40840800., 960960.,
+         16380., 182., 1.)
+    B = Ac * (2.0 ** -s)
+    B2 = A2 * (2.0 ** (-2 * s))
+    B4 = A4 * (2.0 ** (-4 * s))
+    B6 = A6 * (2.0 ** (-6 * s))
+    U2 = B6 @ (b[13] * B6 + b[11] * B4 + b[9] * B2)
+    U = B @ (U2 + b[7] * B6 + b[5] * B4 + b[3] * B2 + b[1] * I)
+    V2 = B6 @ (b[12] * B6 + b[10] * B4 + b[8] * B2)
+    V = V2 + b[6] * B6 + b[4] * B4 + b[2] * B2 + b[0] * I
+    X = _solve_PQ(U, V, spsolve)
+    if upper:
+        X = _fragment_2_1(X, Ac, s)
+    else:
+        for _ in range(s):
+            X = X @ X
+    return X
+
+def _solve_PQ(U, V, spsolve):
+    P = U + V
+    Q = -U + V
+    return spsolve(Q.tocsc(), P.tocsc())
+
+def _exp_sinch(a: float, x: float) -> float:
+    if abs(x) < 0.0135:
+        x2 = x * x
+        return math.exp(a) * (1 + (x2 / 6.) * (1 + (x2 / 20.) * (1 + (x2 / 42.))))
+    else:
+        return (math.exp(a + x) - math.exp(a - x)) / (2 * x)
+
+def _fragment_2_1(X, Tm, s: int):
+    # scipy _fragment_2_1 on a sparse X (item assignment as in scipy)
+    n = X.shape[0]
+    Td = Tm.diagonal()
+    Tl = Tm.tolil()
+    Xl = X.tolil()
+    scale = 2.0 ** -s
+    for k in range(n):
+        Xl[k, k] = math.exp(scale * Td[k])
+    for i in range(s - 1, -1, -1):
+        Xc = Xl.tocsr()
+        Xl = (Xc @ Xc).tolil()
+        scale = 2.0 ** -i
+        for k in range(n):
+            Xl[k, k] = math.exp(scale * Td[k])
+        for k in range(n - 1):
+            lam_1 = scale * Td[k]
+            lam_2 = scale * Td[k + 1]
+            t_12 = scale * Tl[k, k + 1]
+            a = 0.5 * (lam_1 + lam_2)
+            bb = 0.5 * (lam_1 - lam_2)
+            Xl[k, k + 1] = t_12 * _exp_sinch(a, bb)
+    return Xl.tocsc()
 
 def expm(A):
-    from scipy.linalg import expm as dexpm
-    D = A.toarray()
-    E = dexpm(D)
-    if A._mstatic():
-        return csc_matrix(E)
+    # scipy sparse expm: Pade approximation on sparse matrices; the result
+    # has the compressed format of spsolve (CSC), converted like scipy to
+    # the input's class for CSR input
+    E = _sparse_expm(A)
+    if A._spfmt() == "csr":
+        return E.tocsr()
     else:
-        return csc_array(E)
+        return E.tocsc()
 
 def matrix_power(A, power: int):
     m, n = A.shape

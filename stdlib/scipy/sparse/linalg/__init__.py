@@ -6,6 +6,7 @@
 
 from ._interface import LinearOperator, aslinearoperator, IdentityOperator
 from ._isolve import cg, cgs, bicg, bicgstab, gmres, minres, lsqr, lsmr
+from ._isolve2 import qmr, tfqmr, lgmres, gcrotmk
 from ._dsolve import splu, spilu, spsolve, spsolve_triangular, factorized, \
     inv, SuperLU, MatrixRankWarning, is_sptriangular, spbandwidth
 from ._eigen import eigsh, eigs, svds, ArpackNoConvergence, ArpackError
