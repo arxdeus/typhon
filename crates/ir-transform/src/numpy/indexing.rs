@@ -361,6 +361,19 @@ fn can_elide_bounds_check(
             t.var = Some(lv);
         }
     }
+    // The range checks below evaluate the index only at `start` and `stop`,
+    // which is sound only if the index is monotonically increasing in the
+    // loop variable with unit coefficient (`i + c`). A loop-invariant index
+    // (e.g. constant `-1`) would otherwise trivially pass the descending
+    // check `idx(stop) >= -1` and get its negative-index wraparound elided.
+    let coeff: i64 = idx_terms
+        .iter()
+        .filter(|t| t.kind == TermKind::Var && t.var_id(m) == lid)
+        .map(|t| t.val)
+        .sum();
+    if coeff != 1 {
+        return false;
+    }
     // Next, see if we can prove that indexes are in range.
     let limit = [Term::len_term(index.arr)];
     let t1 = replace_loop_variable(m, &idx_terms, loop_var, start);

@@ -223,6 +223,51 @@ def test_strided():
     assert getitem_count == 0
     assert setitem_count == 0
 
+@test
+def test_negative_index_in_range_loop():
+    # regression: loop-invariant negative index inside a descending loop was
+    # elided (wraparound lost) in -release
+    p = zeros(4)
+    p[3] = 7.0
+    p[2] = 5.0
+    s = 0.0
+    for i in range(1, -1, -1):
+        s += p[-1] + p[-2]
+    assert s == 24.0
+    s = 0.0
+    for i in range(3, -1, -2):
+        s += p[i] + p[i - 4]
+    assert s == 14.0
+    s = 0.0
+    for i in range(0, 3):
+        s += p[-1]
+    assert s == 21.0
+    for i in range(1, -1, -1):
+        p[-1] = float(i)
+    assert p[3] == 0.0
+    a = array([[0., 1., 2.], [3., 4., 5.]])
+    s = 0.0
+    for i in range(1, -1, -1):
+        s += a[-1, -1] + a[i, -2]
+    assert s == 15.0
+    q = [1.0, 2.0, 3.0]
+    s = 0.0
+    for i in range(2, -1, -1):
+        s += q[-1]
+    assert s == 9.0
+    x = array([1, 2, 3, 4])
+    t = 0
+    for i in range(len(x) - 1, -1, -1):
+        t += x[i]
+    assert t == 10
+
+p_top = zeros(3)
+p_top[2] = 7.0
+top_s = 0.0
+for i in range(1, -1, -1):
+    top_s += p_top[-1]
+assert top_s == 14.0
+
 if not __debug__:
     test_simple_for_loop()
     test_simple_for_loop_setitem()
@@ -238,3 +283,4 @@ if not __debug__:
     test_inplace_update()
     test_mixed_types()
     test_strided()
+    test_negative_index_in_range_loop()
