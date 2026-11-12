@@ -31,6 +31,8 @@ def _as2d_y(y) -> np.ndarray[float, 2]:
 def _check_sw(sample_weight, n: int) -> np.ndarray[float, 1]:
     if sample_weight is None:
         return np.ones(n)
+    elif isinstance(sample_weight, Optional):
+        return _check_sw(sample_weight.__val__(), n)
     elif isinstance(sample_weight, float) or isinstance(sample_weight, int):
         return np.full(n, float(sample_weight))
     else:
