@@ -42,6 +42,20 @@ pub struct Options {
     pub target: String,
     /// `-sysroot`: SDK / sysroot passed to the cross linker.
     pub sysroot: String,
+    /// `-linalg=auto|system|rust`: BLAS/LAPACK backend for numpy.linalg.
+    pub linalg: LinalgBackend,
+}
+
+/// BLAS/LAPACK backend for `numpy.linalg` (`-linalg=`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LinalgBackend {
+    /// System (Accelerate) on Apple targets, `Rust` elsewhere.
+    #[default]
+    Auto,
+    /// Accelerate (Apple); OpenBLAS ILP64 elsewhere (runtime feature `openblas`).
+    System,
+    /// Pure-Rust `typhon-linalg` (faer) linked into libtyphonrt.
+    Rust,
 }
 
 impl Default for Options {
@@ -72,6 +86,7 @@ impl Default for Options {
             static_runtime: false,
             target: String::new(),
             sysroot: String::new(),
+            linalg: LinalgBackend::Auto,
         }
     }
 }
@@ -90,5 +105,14 @@ impl Options {
 
     pub fn target_info(&self) -> crate::target::TargetInfo {
         crate::target::TargetInfo::from_option(&self.target)
+    }
+
+    /// True when numpy.linalg should call the Rust BLAS/LAPACK (`__typhon_linalg_rust__`).
+    pub fn linalg_rust(&self) -> bool {
+        match self.linalg {
+            LinalgBackend::Rust => true,
+            LinalgBackend::System => false,
+            LinalgBackend::Auto => !self.target_info().is_apple(),
+        }
     }
 }

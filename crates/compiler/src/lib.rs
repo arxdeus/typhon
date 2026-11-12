@@ -179,6 +179,7 @@ impl Compiler {
         for (k, v) in o.target_info().defines() {
             m.insert(k.to_string(), b(v));
         }
+        m.insert("__typhon_linalg_rust__".into(), b(o.linalg_rust()));
         m
     }
 }

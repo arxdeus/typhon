@@ -2269,6 +2269,7 @@ dependencies = [
  "regex",
  "regex-automata",
  "regex-syntax",
+ "typhon-linalg",
  "typhon-omp",
 ]
 

@@ -3,10 +3,16 @@ import internal.static as static
 
 # The Windows OpenBLAS release uses LP64; Accelerate and our Unix OpenBLAS
 # builds use ILP64. This also determines pivot, INFO and workspace array widths.
-fint = Int[32 if __windows__ else 64]
+# `__typhon_linalg_rust__` (`-linalg=rust`, default off Apple) selects the
+# built-in pure-Rust backend (typhon-linalg in libtyphonrt): unsuffixed
+# `cblas_*`, Fortran `xxxxx_` LAPACK, ILP64 on every target.
+fint = Int[64 if __typhon_linalg_rust__ else (32 if __windows__ else 64)]
 fintp = Ptr[fint]
 
-if __apple__:
+if __typhon_linalg_rust__:
+    _suffix_blas: Literal[str] = ""
+    _suffix_lapack: Literal[str] = "_"
+elif __apple__:
     _suffix_blas: Literal[str] = "$NEWLAPACK$ILP64"
     _suffix_lapack: Literal[str] = "$NEWLAPACK$ILP64"
 else:

@@ -32,3 +32,7 @@ pub use libz_rs_sys;
 
 #[cfg(feature = "openblas")]
 extern crate openblas_src;
+
+// Pure-Rust BLAS/LAPACK symbols (cblas_*, xxxxx_) for numpy.linalg.
+#[cfg(feature = "linalg-rust")]
+pub use typhon_linalg;
