@@ -18,6 +18,8 @@ from ._zeros import RootResults, bisect, brentq, brenth, ridder, newton, \
 from ._lsq import least_squares, curve_fit, fsolve, root
 from ._lsap import linear_sum_assignment
 from ._constraints import LinearConstraint, NonlinearConstraint
+from ._cons import _has_constraints
+from ._slsqp_core import _minimize_slsqp
 from ._hessian_update_strategy import HessianUpdateStrategy, BFGS, SR1
 from ._trustregion import _minimize_trust_region, _minimize_newtoncg, \
                           _TR_NCG, _TR_DOGLEG, _TR_EXACT, _TR_KRYLOV
@@ -141,15 +143,16 @@ def minimize(fun, x0, args = (), method: Optional[str] = None, jac = None,
     if not isinstance(args, Tuple):
         return minimize(fun, x0, (args,), method, jac, hess, hessp, bounds,
                         constraints, tol, callback, options)
-    if static.len(constraints) != 0:
-        compile_error("constraints are not supported by this scipy.optimize port")
     xa = np.atleast_1d(np.asarray(x0))
     if xa.ndim != 1:
         raise ValueError("'x0' must only have one dimension.")
     x = _vec(x0)
     meth = ''
     if method is None:
-        meth = 'bfgs' if bounds is None else 'l-bfgs-b'
+        if _has_constraints(constraints):
+            meth = 'slsqp'
+        else:
+            meth = 'bfgs' if bounds is None else 'l-bfgs-b'
     else:
         meth = method.lower()
     opts = _Opts(options, meth, tol)
@@ -183,6 +186,8 @@ def minimize(fun, x0, args = (), method: Optional[str] = None, jac = None,
         return _minimize_trust_region(_TR_EXACT, fun, x, args, jac, hess, None, callback, opts)
     elif meth == 'trust-krylov':
         return _minimize_trust_region(_TR_KRYLOV, fun, x, args, jac, hess, hessp, callback, opts)
+    elif meth == 'slsqp':
+        return _minimize_slsqp(fun, x, args, jac, bnds, constraints, callback, opts)
     else:
         raise ValueError(f'Unknown solver {method}')
     return _minimize_bfgs(fun, x, args, jac, opts)
@@ -192,3 +197,5 @@ from ._differentialevolution import differential_evolution
 from ._basinhopping import basinhopping, MinimizerKwargs, RandomDisplacement, \
                            AdaptiveStepsize, Metropolis
 from ._dual_annealing import dual_annealing
+from ._direct import direct
+from ._brute import brute, show_options
