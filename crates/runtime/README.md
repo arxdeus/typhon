@@ -4,7 +4,7 @@
 
 The runtime is built **only as a static library** (`crate-type = ["rlib", "staticlib"]`;
 `cargo build --release` puts `target/release/libtyphonrt.a` next to `typhon`). There is no
-a shared `libtyphonrt` and no JIT: every program is compiled ahead of time and the
+shared `libtyphonrt` and no JIT: every program is compiled ahead of time and the
 archive is linked into it.
 
 * `typhon build -exe` and `typhon run` (which builds into a temp dir and execs the binary)
