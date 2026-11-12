@@ -10,8 +10,8 @@ Every case runs `<TYPHON_BIN> run [-debug|-release] -numerics=py|c <file>` as a 
 | env | default | meaning |
 |---|---|---|
 | `TYPHON_BIN` | `<ws>/target/debug/typhon` | compiler CLI (flag compatible with `codon`) |
-| `TYPHON_STDLIB_DIR` | `<ws>/../stdlib` | exported as `CODON_PATH` |
-| `TYPHON_TEST_DIR` | `<ws>/../test` | `.codon` test inputs |
+| `TYPHON_STDLIB_DIR` | `<ws>/stdlib` | exported as `TYPHON_PATH` |
+| `TYPHON_TEST_DIR` | `<ws>/test` | `.py` test inputs |
 | `TYPHON_TEST_TIMEOUT_SECS` | `1200` | per-case timeout |
 | `CODON_PYTHON` | (inherit) | libpython for python-interop suites (see `test/python/find-python-library.py`) |
 
