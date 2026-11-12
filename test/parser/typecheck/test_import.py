@@ -177,3 +177,34 @@ from C import seq_pid() -> int as pid
 assert decimal_point.__raw__() != cobj()
 print(decimal_point())  #: .
 assert pid() > 0
+
+#%% import_submodule_from,barebones
+from a.pk import leaf
+print(leaf.g())  #: pk.leaf.g rel pk.X rel pk.X
+from a.pk.inner import deep as d
+print(d.h())  #: deep.h pk.leaf.g rel pk.X rel pk.X
+
+#%% import_submodule_dotted,barebones
+import a.pk.inner.deep  #: a
+print(a.pk.inner.deep.h())  #: deep.h pk.leaf.g rel pk.X rel pk.X
+print(a.pk.X, a.pk.inner.Y)  #: pk.X pk.inner.Y
+a.foo()  #: a.foo
+
+#%% import_submodule_as,barebones
+import a.pk.inner as s
+print(s.Y)  #: pk.inner.Y
+import a.pk.leaf as m
+print(m.g())  #: pk.leaf.g rel pk.X rel pk.X
+
+#%% import_submodule_attr_priority,barebones
+from a.pk import shadow
+print(shadow)  #: pk.shadow attr
+
+#%% import_submodule_err,barebones
+from a.pk import nonexistent #! cannot import name 'nonexistent' from 'a.pk.__init__'
+
+#%% import_submodule_stdlib
+from os import path as p
+print(p.join('a', 'b'))  #: a/b
+import os.path
+print(os.path.basename('/x/y'))  #: y

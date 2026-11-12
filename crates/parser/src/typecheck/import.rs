@@ -22,6 +22,28 @@ impl<'a> TypecheckVisitor<'a> {
         let st = self.cache.ast[s].kind.as_import().unwrap().clone();
         let ssrc = self.cache.ast[s].src;
 
+        // CPython: `import a.b.c` (no alias) also imports parent packages `a` and `a.b`
+        // and binds them, so `a.X` / `a.b.c.f` resolve. Parents load before the leaf.
+        if st.what.is_none() && st.as_.is_empty() && st.dots == 0 && !self.ctx.borrow().is_stdlib_loading {
+            let parent = st.from.and_then(|f| self.cache.ast[f].kind.as_dot().and_then(|d| d.expr));
+            if let Some(parent) = parent {
+                let pp = self.get_import_path(Some(parent), 0).join("/");
+                let filename = self.ctx.borrow().filename();
+                if super::helpers::get_import_file(self.cache, &pp, &filename, false).is_some() {
+                    let pe = self.cache.ast.clone_expr(parent, false);
+                    let ps = self.n_stmt(ImportStmt { from: Some(pe), ..Default::default() });
+                    let pr = self.tr_stmt(ps)?;
+                    // Same statement with explicit `as a/b/c` (identical binding) to avoid re-entry.
+                    let full = self.get_import_path(st.from, 0).join("/");
+                    let me = self.n_stmt(ImportStmt { as_: full, ..st.clone() });
+                    self.cache.ast[me].src = ssrc;
+                    let mr = self.tr_stmt(me)?;
+                    self.result_stmt = Some(self.xm_suite(&[Some(pr), Some(mr)]));
+                    return Ok(());
+                }
+            }
+        }
+
         // Fetch the import
         let components = self.get_import_path(st.from, st.dots);
         let path = components.join("/");
@@ -119,6 +141,20 @@ impl<'a> TypecheckVisitor<'a> {
                     // Support from . import int and similar commands
                     let as_ = if st.as_.is_empty() { iv.clone() } else { st.as_.clone() };
                     let ri = self.n_stmt(ImportStmt { from: st.what, what: None, args: vec![], ret: None, as_, dots: st.dots, is_function: true });
+                    let su = self.xm_suite(&[self.result_stmt, Some(ri)]);
+                    self.result_stmt = Some(self.tr_stmt(su)?);
+                    return Ok(());
+                }
+            }
+            // CPython: `from pkg import sub` where `sub` is a submodule not bound by
+            // `pkg/__init__` -> load `pkg.sub` lazily and bind it.
+            if c.is_none() && !relative_from && st.dots == 0 && st.from.is_some() {
+                let p = format!("{path}/{iv}");
+                if super::helpers::get_import_file(self.cache, &p, &filename, false).is_some() {
+                    let fe = self.cache.ast.clone_expr(st.from.unwrap(), false);
+                    let de = self.xm_dot(fe, &iv);
+                    let as_ = if st.as_.is_empty() { iv.clone() } else { st.as_.clone() };
+                    let ri = self.n_stmt(ImportStmt { from: Some(de), what: None, args: vec![], ret: None, as_, dots: 0, is_function: true });
                     let su = self.xm_suite(&[self.result_stmt, Some(ri)]);
                     self.result_stmt = Some(self.tr_stmt(su)?);
                     return Ok(());
