@@ -210,3 +210,68 @@ class Evoked:
     def save(self, fname, *, overwrite: bool = False, verbose = None):
         from .epochs import write_evokeds
         write_evokeds(fname, self)
+
+
+# --- montage / interpolation (mne.channels.channels.SetChannelsMixin) ---
+
+from .channels import _interpolate_bads_eeg_data
+
+
+def _interp_reset(info: Info, exclude: List[str], reset_bads: bool):
+    if reset_bads:
+        info.bads = [b for b in info.bads if b in exclude or
+                     info.ch_types[info.ch_names.index(b)] != "eeg"]
+
+
+@extend
+class RawArray:
+    def set_montage(self, montage, match_case: bool = True, match_alias: bool = False,
+                    on_missing: str = "raise", verbose = None):
+        self.info.set_montage(montage, match_case, match_alias, on_missing)
+        return self
+
+    def get_montage(self):
+        return self.info.get_montage()
+
+    def interpolate_bads(self, reset_bads: bool = True, mode: str = "accurate",
+                         origin = "auto", method = None, exclude = (), verbose = None):
+        ex = [str(e) for e in exclude]
+        _interpolate_bads_eeg_data(self.info, self._data, origin, ex)
+        _interp_reset(self.info, ex, reset_bads)
+        return self
+
+
+@extend
+class EpochsArray:
+    def set_montage(self, montage, match_case: bool = True, match_alias: bool = False,
+                    on_missing: str = "raise", verbose = None):
+        self.info.set_montage(montage, match_case, match_alias, on_missing)
+        return self
+
+    def get_montage(self):
+        return self.info.get_montage()
+
+    def interpolate_bads(self, reset_bads: bool = True, mode: str = "accurate",
+                         origin = "auto", method = None, exclude = (), verbose = None):
+        ex = [str(e) for e in exclude]
+        _interpolate_bads_eeg_data(self.info, self._data, origin, ex)
+        _interp_reset(self.info, ex, reset_bads)
+        return self
+
+
+@extend
+class Evoked:
+    def set_montage(self, montage, match_case: bool = True, match_alias: bool = False,
+                    on_missing: str = "raise", verbose = None):
+        self.info.set_montage(montage, match_case, match_alias, on_missing)
+        return self
+
+    def get_montage(self):
+        return self.info.get_montage()
+
+    def interpolate_bads(self, reset_bads: bool = True, mode: str = "accurate",
+                         origin = "auto", method = None, exclude = (), verbose = None):
+        ex = [str(e) for e in exclude]
+        _interpolate_bads_eeg_data(self.info, self.data, origin, ex)
+        _interp_reset(self.info, ex, reset_bads)
+        return self

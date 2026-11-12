@@ -16,6 +16,9 @@ from .event import (find_events, find_stim_steps, make_fixed_length_events, merg
                     pick_events, read_events, write_events, concatenate_events,
                     shift_time_events)
 from .io import read_raw_fif
+import channels
+from .channels import make_standard_montage, make_dig_montage, equalize_channels
+from ._info import DigMontage
 import filter
 import io
 import time_frequency

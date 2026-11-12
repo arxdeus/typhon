@@ -30,6 +30,134 @@ def _scaling_cov_rank(ch_type: str) -> float:
     return 1.0
 
 
+class DigMontage:
+    """Channel positions + fiducials (coord_frame 'unknown', 'mri' or 'head')."""
+    ch_names: List[str]
+    pos: List[List[float]]
+    coord_frame: str
+    nasion: Optional[List[float]]
+    lpa: Optional[List[float]]
+    rpa: Optional[List[float]]
+
+    def __init__(self, ch_names: List[str], pos: List[List[float]], coord_frame: str,
+                 nasion: Optional[List[float]], lpa: Optional[List[float]],
+                 rpa: Optional[List[float]]):
+        self.ch_names = ch_names
+        self.pos = pos
+        self.coord_frame = coord_frame
+        self.nasion = nasion
+        self.lpa = lpa
+        self.rpa = rpa
+
+    def copy(self):
+        return DigMontage(list(self.ch_names), [list(p) for p in self.pos], self.coord_frame,
+                          None if self.nasion is None else list(self.nasion.__val__()),
+                          None if self.lpa is None else list(self.lpa.__val__()),
+                          None if self.rpa is None else list(self.rpa.__val__()))
+
+    def __repr__(self) -> str:
+        nf = int(self.nasion is not None) + int(self.lpa is not None) + int(self.rpa is not None)
+        return f"<DigMontage | 0 extras (headshape), 0 HPIs, {nf} fiducials, {len(self.ch_names)} channels>"
+
+    def __len__(self) -> int:
+        return len(self.ch_names)
+
+    def get_positions(self):
+        """dict-like: 'ch_pos' (name -> xyz), 'nasion'/'lpa'/'rpa' (Optional
+        xyz), 'coord_frame'."""
+        return _MontagePositions(self)
+
+    def get_ch_pos(self) -> Dict[str, np.ndarray[float, 1]]:
+        out = Dict[str, np.ndarray[float, 1]]()
+        for i in range(len(self.ch_names)):
+            out[self.ch_names[i]] = np.array(self.pos[i])
+        return out
+
+    def _to_head(self) -> DigMontage:
+        """transform_to_head: apply the native->head transform from fiducials."""
+        m = self.copy()
+        if self.coord_frame == "head":
+            return m
+        if self.nasion is None or self.lpa is None or self.rpa is None:
+            m.coord_frame = "head"
+            return m
+        t = _ras_to_neuromag(np.array(self.nasion.__val__()), np.array(self.lpa.__val__()),
+                             np.array(self.rpa.__val__()))
+        m.pos = [_apply(t, p) for p in m.pos]
+        m.nasion = _apply(t, m.nasion.__val__())
+        m.lpa = _apply(t, m.lpa.__val__())
+        m.rpa = _apply(t, m.rpa.__val__())
+        m.coord_frame = "head"
+        return m
+
+    def rename_channels(self, mapping: Dict[str, str]):
+        self.ch_names = [mapping[c] if c in mapping else c for c in self.ch_names]
+        return self
+
+
+def _opt_arr(x: Optional[List[float]]) -> Optional[np.ndarray[float, 1]]:
+    if x is None:
+        return None
+    return np.array(x.__val__())
+
+
+class _MontagePositions:
+    ch_pos: Dict[str, np.ndarray[float, 1]]
+    nasion: Optional[np.ndarray[float, 1]]
+    lpa: Optional[np.ndarray[float, 1]]
+    rpa: Optional[np.ndarray[float, 1]]
+    coord_frame: str
+
+    def __init__(self, m: DigMontage):
+        self.ch_pos = m.get_ch_pos()
+        self.nasion = _opt_arr(m.nasion)
+        self.lpa = _opt_arr(m.lpa)
+        self.rpa = _opt_arr(m.rpa)
+        self.coord_frame = m.coord_frame
+
+    def __getitem__(self, key: Literal[str]):
+        if key == "ch_pos":
+            return self.ch_pos
+        elif key == "nasion":
+            return self.nasion
+        elif key == "lpa":
+            return self.lpa
+        elif key == "rpa":
+            return self.rpa
+        elif key == "coord_frame":
+            return self.coord_frame
+        else:
+            compile_error("unsupported montage positions key")
+
+
+def _apply(t: np.ndarray[float, 2], p: List[float]) -> List[float]:
+    return [t[i, 0] * p[0] + t[i, 1] * p[1] + t[i, 2] * p[2] + t[i, 3] for i in range(3)]
+
+
+def _ras_to_neuromag(nasion64, lpa64, rpa64) -> np.ndarray[float, 2]:
+    # mne stores dig fiducials as float32, so get_ras_to_neuromag_trans runs
+    # its vector algebra in float32.
+    nasion = nasion64.astype(np.float32)
+    lpa = lpa64.astype(np.float32)
+    rpa = rpa64.astype(np.float32)
+    right = rpa - lpa
+    ru = right / np.linalg.norm(right)
+    origin = lpa + np.dot(nasion - lpa, ru) * ru
+    ant = nasion - origin
+    au = ant / np.linalg.norm(ant)
+    su = np.cross(ru, au)
+    rot = np.eye(4)
+    for j in range(3):
+        rot[0, j] = ru[j]
+        rot[1, j] = au[j]
+        rot[2, j] = su[j]
+    tr = np.eye(4)
+    tr[0, 3] = -origin[0]
+    tr[1, 3] = -origin[1]
+    tr[2, 3] = -origin[2]
+    return np.dot(rot, tr)
+
+
 class Info:
     """Measurement info (subset of mne.Info)."""
     ch_names: List[str]
@@ -46,6 +174,7 @@ class Info:
     units: List[int]
     line_freq: Optional[float]
     experimenter: Optional[str]
+    _montage: Optional[DigMontage]
 
     def __init__(self, ch_names: List[str], sfreq: float, ch_types: List[str]):
         self.ch_names = ch_names
@@ -63,6 +192,7 @@ class Info:
         self.units = [_default_unit(t) for t in ch_types]
         self.line_freq = None
         self.experimenter = None
+        self._montage = None
 
     def _copy_extra_from(self, other: Info, sel: List[int]):
         self.cals = [other.cals[i] for i in sel]
@@ -72,6 +202,12 @@ class Info:
         self.units = [other.units[i] for i in sel]
         self.line_freq = other.line_freq
         self.experimenter = other.experimenter
+        if other._montage is not None:
+            keep = [other.ch_names[i] for i in sel]
+            m = other._montage.__val__()
+            idx = [k for k in range(len(m.ch_names)) if m.ch_names[k] in keep]
+            self._montage = DigMontage([m.ch_names[k] for k in idx], [list(m.pos[k]) for k in idx],
+                                       m.coord_frame, m.nasion, m.lpa, m.rpa)
 
     def _append_ch(self, other: Info, i: int):
         self.ch_names.append(other.ch_names[i])
