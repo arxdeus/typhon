@@ -11,6 +11,11 @@ def _read_file(fname: str) -> bytes:
         return f.read()
 
 
+def _read_text(fname: str) -> str:
+    b = _read_file(fname)
+    return _ascii(b, 0, len(b))
+
+
 def _u8(b: bytes, off: int) -> int:
     return int(b._ptr[off])
 

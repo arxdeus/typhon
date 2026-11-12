@@ -110,6 +110,33 @@ def _desc_ok(d: str) -> bool:
     return not (l.startswith("bad") or l.startswith("edge"))
 
 
+_BV_KINDS = ["Event/", "Stimulus/S", "Response/R", "Optic/O"]
+_BV_OFFS = [0, 0, 1000, 2000]
+
+
+def _check_bv_annot(descs: List[str]) -> bool:
+    ok = ("Event/", "Stimulus/S", "Response/R", "Optic/O", "New Segment/", "SyncStatus/Sync On")
+    for d in descs:
+        if d.rstrip("0123456789 ") not in ok:
+            return False
+    return True
+
+
+def _bv_code(d: str, auto: Dict[str, int]) -> int:
+    """_BVEventParser.__call__."""
+    md = d[-3:].strip()
+    kind = d[:-3]
+    if md.isdigit() and kind in _BV_KINDS:
+        return int(md) + _BV_OFFS[_BV_KINDS.index(kind)]
+    if d == "New Segment/":
+        return 99999
+    if d == "SyncStatus/Sync On":
+        return 99998
+    if d not in auto:
+        auto[d] = 10001 + len(auto)
+    return auto[d]
+
+
 def events_from_annotations(raw, event_id = "auto", regexp = "default",
                             use_rounding: bool = True, chunk_duration = None,
                             tol: float = 1e-8, verbose = None):
@@ -127,7 +154,9 @@ def events_from_annotations(raw, event_id = "auto", regexp = "default",
         return np.empty((0, 3), dtype=int), out_id
     use_re = not isinstance(regexp, NoneType)
     descs = sorted(ann.description)
-    auto_n = 1
+    kind = raw._raw_kind
+    bv = kind == "RawBrainVision" or ((kind == "RawArray" or kind == "Raw") and _check_bv_annot(ann.description))
+    auto = Dict[str, int]()
     for d in descs:
         if d in out_id:
             continue
@@ -136,9 +165,12 @@ def events_from_annotations(raw, event_id = "auto", regexp = "default",
         if isinstance(event_id, Dict):
             if d in event_id:
                 out_id[d] = event_id[d]
+        elif bv:
+            out_id[d] = _bv_code(d, auto)
         else:
-            out_id[d] = auto_n
-            auto_n += 1
+            if d not in auto:
+                auto[d] = 1 + len(auto)
+            out_id[d] = auto[d]
     sel = [i for i in range(len(ann)) if ann.description[i] in out_id]
     if len(sel) == 0 and use_re:
         raise ValueError("Could not find any of the events you specified.")

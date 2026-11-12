@@ -660,6 +660,7 @@ class RawArray:
     first_samp: int
     times: np.ndarray[float, 1]
     annotations: Annotations
+    _raw_kind: str
 
     def __init__(self, data, info: Info, first_samp: int = 0, copy: str = "auto", verbose = None):
         d = np.asarray(data)
@@ -672,6 +673,7 @@ class RawArray:
         self.first_samp = first_samp
         self.times = np.arange(self._data.shape[1]).astype(float) / info.sfreq
         self.annotations = Annotations(List[float](), List[float](), List[str]())
+        self._raw_kind = "RawArray"
 
     @property
     def ch_names(self):
@@ -685,7 +687,7 @@ class RawArray:
         return self._data.shape[1]
 
     def __repr__(self) -> str:
-        return f"<RawArray | {self._data.shape[0]} x {self._data.shape[1]} (data loaded)>"
+        return f"<{self._raw_kind} | {self._data.shape[0]} x {self._data.shape[1]} (data loaded)>"
 
     def get_data(self, picks = None, start: int = 0, stop: Optional[int] = None,
                  reject_by_annotation = None, return_times: Literal[bool] = False,
@@ -744,6 +746,7 @@ class RawArray:
     def copy(self):
         n = RawArray(self._data, self.info, self.first_samp)
         n.annotations = self.annotations.copy()
+        n._raw_kind = self._raw_kind
         return n
 
     @property

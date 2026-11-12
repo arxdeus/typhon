@@ -66,6 +66,7 @@ def read_raw_fif(fname, allow_maxshield: bool = False, preload = False,
             data[c, pos:pos + n] = b[:, c] * cal[c]
         pos += n
     raw = RawArray(data, info, first_samp)
+    raw._raw_kind = "Raw"
     meas = f.tree.find(FIFFB_MEAS)[0]
     on, du, de, found = read_annotations_node(f, meas)
     if found and len(on) > 0:
