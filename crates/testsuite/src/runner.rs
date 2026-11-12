@@ -127,6 +127,9 @@ pub fn execute(cfg: &Config, case: &Case) -> Result<Outcome, String> {
         py.push(existing);
     }
     cmd.env("PYTHONPATH", py);
+    if let Some(lib) = &cfg.python {
+        cmd.env("CODON_PYTHON", lib);
+    }
     // C++ ran from the repo root: tests open `build/...` for scratch files and
     // `test/stdlib/data/...` for fixtures. Emulate with a per-case scratch cwd.
     let cwd = tempfile::tempdir().map_err(|e| e.to_string())?;
