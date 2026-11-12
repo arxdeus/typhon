@@ -3,9 +3,8 @@
 # Pure Typhon port of the QUADPACK routines used by scipy.integrate.quad
 # (dqagse, dqagie, dqagpe with dqk21, dqk15i, dqelg, dqpsrt). Arrays are
 # 1-based (index 0 unused) to follow the reference code closely.
-# Deviations: `full_output`, `weight`, `wvar`, `wopts`, `complex_func` are
-# not supported. Warnings (ier 1..5) are silently ignored; invalid input
-# (ier 6) raises ValueError.
+# The final subinterval lists of the last call are kept in `_LAST` for
+# quad(full_output=1). Weighted rules live in _quadpack_w.py.
 
 import math
 
@@ -155,6 +154,31 @@ class _QState:
         self.maxerr = 1
         self.errmax = 0.0
         self.nrmax = 1
+
+class _LastInfo:
+    s: _QState
+    last: int
+    ndin: List[int]
+
+    def __init__(self):
+        self.s = _QState(1)
+        self.last = 0
+        self.ndin = List[int]()
+
+_LAST = [_LastInfo()]
+
+def _record(s: _QState, last: int):
+    li = _LastInfo()
+    li.s = s
+    li.last = last
+    _LAST[0] = li
+
+def _record_p(s: _QState, last: int, ndin: List[int]):
+    li = _LastInfo()
+    li.s = s
+    li.last = last
+    li.ndin = ndin
+    _LAST[0] = li
 
 def _qpsrt(s: _QState, last: int):
     limit = s.limit
@@ -339,6 +363,25 @@ def _final(ier: int, ierro: int, result: float, abserr: float, area: float,
         ier -= 1
     return result, abserr, ier
 
+class _Rule[F]:
+    # rule(a, b): dqk21 (kind 0) or dqk15i (kind 1). A class instead of a
+    # lambda so that bound-method integrands can be captured.
+    f: F
+    kind: int
+    boun: float
+    inf: int
+
+    def __init__(self, f: F, kind: int, boun: float, inf: int):
+        self.f = f
+        self.kind = kind
+        self.boun = boun
+        self.inf = inf
+
+    def __call__(self, lo: float, hi: float):
+        if self.kind == 0:
+            return _qk21(self.f, lo, hi)
+        return _qk15i(self.f, self.boun, self.inf, lo, hi)
+
 def _qags_core(rule, a0: float, b0: float, epsabs: float, epsrel: float, limit: int):
     # dqagse / dqagie main loop; rule(a, b) -> (result, abserr, resabs, resasc)
     _check_tol(epsabs, epsrel)
@@ -361,6 +404,7 @@ def _qags_core(rule, a0: float, b0: float, epsabs: float, epsrel: float, limit: 
     if limit == 1:
         ier = 1
     if ier != 0 or (abserr <= errbnd and abserr != resabs) or abserr == 0.0:
+        _record(s, last)
         return result, abserr, last, ier
     ep = _Eps()
     ep.epstab[1] = result
@@ -499,18 +543,20 @@ def _qags_core(rule, a0: float, b0: float, epsabs: float, epsrel: float, limit: 
         abserr = errsum
         if ier > 2:
             ier -= 1
+        _record(s, last)
         return result, abserr, last, ier
     r, e, ie = _final(ier, ierro, result, abserr, area, errsum, correc, ksgn, defabs, s, last)
+    _record(s, last)
     return r, e, last, ie
 
 def qagse(f, a: float, b: float, epsabs: float, epsrel: float, limit: int):
-    rule = lambda lo, hi: _qk21(f, lo, hi)
+    rule = _Rule(f, 0, 0.0, 0)
     result, abserr, last, ier = _qags_core(rule, a, b, epsabs, epsrel, limit)
     return result, abserr, 42 * last - 21, ier
 
 def qagie(f, bound: float, inf: int, epsabs: float, epsrel: float, limit: int):
     boun = 0.0 if inf == 2 else bound
-    rule = lambda lo, hi: _qk15i(f, boun, inf, lo, hi)
+    rule = _Rule(f, 1, boun, inf)
     result, abserr, last, ier = _qags_core(rule, 0.0, 1.0, epsabs, epsrel, limit)
     neval = 30 * last - 15
     if inf == 2:
@@ -577,6 +623,7 @@ def qagpe(f, a: float, b: float, pts_in: List[float], epsabs: float, epsrel: flo
     if ier != 0 or abserr <= errbnd:
         if ier > 2:
             ier -= 1
+        _record_p(s, last, ndin)
         return result, abserr, 21 * last, ier
     ep = _Eps()
     s.maxerr = s.iord[1]
@@ -714,6 +761,8 @@ def qagpe(f, a: float, b: float, pts_in: List[float], epsabs: float, epsrel: flo
         abserr = errsum
         if ier > 2:
             ier -= 1
+        _record_p(s, last, ndin)
         return result, abserr, neval, ier
     r, e, ie = _final(ier, ierro, result, abserr, area, errsum, correc, ksgn, resabs, s, last)
+    _record_p(s, last, ndin)
     return r, e, neval, ie
