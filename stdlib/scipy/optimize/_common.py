@@ -114,6 +114,47 @@ class OptimizeResult[X, F, J]:
         self.multipliers = _e1()
         self.unscaled = False
 
+    def __getitem__(self, key: Literal[str]):
+        # r['x'] -> r.x (static dispatch; keys must be literals)
+        return getattr(self, key)
+
+    def get(self, key: Literal[str], default = None):
+        return getattr(self, key)
+
+    def _has(self, key: str) -> bool:
+        # scipy's OptimizeResult only holds the keys a solver set; fields
+        # that always exist here are reported when they carry information
+        if key == 'x' or key == 'fun' or key == 'success' or key == 'status' or \
+                key == 'message' or key == 'nfev':
+            return True
+        for k, v in static.vars(self):
+            if k == key:
+                if isinstance(v, bool):
+                    return v
+                elif isinstance(v, int):
+                    return v != 0 or key == 'nit' or key == 'njev'
+                elif isinstance(v, float):
+                    return v != 0.0
+                elif isinstance(v, str):
+                    return v != ''
+                elif isinstance(v, np.ndarray):
+                    return v.size > 0
+                elif isinstance(v, List):
+                    return len(v) > 0
+                else:
+                    return True
+        return False
+
+    def __contains__(self, key: str) -> bool:
+        return self._has(key)
+
+    def keys(self) -> List[str]:
+        out = List[str]()
+        for k, _ in static.vars(self):
+            if self._has(k):
+                out.append(k)
+        return out
+
     def __repr__(self):
         return (f" message: {self.message}\n success: {self.success}\n"
                 f"  status: {self.status}\n     fun: {self.fun}\n"
