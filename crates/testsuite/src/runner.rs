@@ -121,15 +121,6 @@ pub fn execute(cfg: &Config, case: &Case) -> Result<Outcome, String> {
     cmd.env("TYPHON_TEST_MODE", "1");
     cmd.env("TYPHON_PATH", &cfg.stdlib);
     cmd.env("TYPHON_STDLIB_DIR", &cfg.stdlib);
-    let mut py = cfg.test_dir.join("python").into_os_string();
-    if let Some(existing) = std::env::var_os("PYTHONPATH").filter(|v| !v.is_empty()) {
-        py.push(if cfg!(windows) { ";" } else { ":" });
-        py.push(existing);
-    }
-    cmd.env("PYTHONPATH", py);
-    if let Some(lib) = &cfg.python {
-        cmd.env("TYPHON_PYTHON", lib);
-    }
     // C++ ran from the repo root: tests open `build/...` for scratch files and
     // `test/stdlib/data/...` for fixtures. Emulate with a per-case scratch cwd.
     let cwd = tempfile::tempdir().map_err(|e| e.to_string())?;

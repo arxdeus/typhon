@@ -12,7 +12,6 @@ Every case runs `<TYPHON_BIN> run [-debug|-release] -numerics=py|c <file>` as a 
 | `TYPHON_STDLIB_DIR` | `<ws>/stdlib` | exported as `TYPHON_PATH` |
 | `TYPHON_TEST_DIR` | `<ws>/test` | `.py` test inputs |
 | `TYPHON_TEST_TIMEOUT_SECS` | `1200` | per-case timeout |
-| `TYPHON_PYTHON` | (inherit) | libpython for python-interop suites (see `test/python/find-python-library.py`) |
 
 ```
 cargo test -p typhon-testsuite --test e2e -- core/            # one suite
@@ -37,7 +36,6 @@ Only one filter positional is accepted by libtest-mimic; use `--skip` for exclus
   extracted from stderr (ANSI stripped) and treated as output.
 * Per-case cwd: tests use `build/...` scratch paths and `test/...` fixtures relative to the repo
   root, so each case runs in a fresh temp dir with an empty `build/` and a `test` symlink.
-* `PYTHONPATH=<test>/python[:existing]`.
 * `gpu/` is compile-only (`build -llvm`), `cnumerics/` uses `-numerics=c`.
 * The Windows-only JIT tests and the 64 KiB stdout truncation are not covered.
 
