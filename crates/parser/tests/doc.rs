@@ -7,7 +7,7 @@ use typhon_parser::cache::Cache;
 use typhon_parser::visitors::doc::{DocShared, DocVisitor, json_escape, json_to_string};
 
 #[test]
-fn json_format_like_cpp() {
+fn json_format() {
     assert_eq!(json_escape("a\"b\n"), "a\\\"b\\n");
     assert_eq!(json_to_string(&json!({})), "{}");
     assert_eq!(json_to_string(&json!(["1", "2"])), "[ \"1\", \"2\" ]");

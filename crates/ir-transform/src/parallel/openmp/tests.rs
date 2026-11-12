@@ -7,7 +7,7 @@ fn shared_of(m: &mut Module, base: TypeId) -> VarId {
 }
 
 #[test]
-fn key_matches_cpp() {
+fn key_is_stable() {
     assert_eq!(OpenMPPass::KEY, "core-parallel-openmp");
     assert_eq!(OpenMPPass::new().key(), "core-parallel-openmp");
 }

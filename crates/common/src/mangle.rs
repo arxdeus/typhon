@@ -146,7 +146,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn mangling_matches_cpp() {
+    fn mangling_scheme() {
         assert_eq!(class("", "int"), "int");
         assert_eq!(class("std.internal.types.range", "range"), "std.internal.types.range.range.0");
         assert_eq!(func("std.internal.builtin", "len"), "std.internal.builtin.len.0:0");
