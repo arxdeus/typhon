@@ -37,7 +37,34 @@ class bytes:
 
     @overload
     def __new__(what) -> bytes:
-        return what.__bytes__()
+        if hasattr(what, "__bytes__"):
+            return what.__bytes__()
+        elif isinstance(what, int):
+            if what < 0:
+                raise ValueError("negative count")
+            p = Ptr[u8](what)
+            bytes.memset(p, u8(0), what)
+            return bytes(p, what)
+        elif hasattr(what, "__iter__"):
+            # bytes(iterable of int): every item must be in range(0, 256)
+            n = 0
+            cap = len(what) if hasattr(what, "__len__") else 16
+            if cap < 1:
+                cap = 1
+            p = Ptr[u8](cap)
+            for v in what:
+                if not isinstance(v, int):
+                    compile_error("bytes() iterable items must be integers")
+                if v < 0 or v > 255:
+                    raise ValueError("bytes must be in range(0, 256)")
+                if n == cap:
+                    cap *= 2
+                    p = Ptr[u8](gc.realloc(p.as_byte(), cap, n))
+                p[n] = u8(v)
+                n += 1
+            return bytes(p, n)
+        else:
+            compile_error("cannot convert object to bytes")
 
     @overload
     def __new__(what: bytes) -> bytes:

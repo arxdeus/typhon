@@ -876,3 +876,18 @@ if static.platform() != "win32":
     test_expanduser()
     test_posix_path_encoders()
     test_filesystem()
+
+@test
+def test_urandom():
+    a = os.urandom(16)
+    assert len(a) == 16 and isinstance(a, bytes)
+    assert a != os.urandom(16)
+    assert len(os.urandom(0)) == 0
+    assert len(os.urandom(1000)) == 1000
+    try:
+        os.urandom(-1)
+        assert False
+    except ValueError:
+        pass
+
+test_urandom()

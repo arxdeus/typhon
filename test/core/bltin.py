@@ -2978,3 +2978,48 @@ def test_any_inline_scalars():
     assert not Any.__atomic__
 
 test_any_inline_scalars()
+
+@test
+def test_int_float_bytes_conversions():
+    assert int.from_bytes(b'\x01\x00', 'big') == 256
+    assert int.from_bytes(b'\x01\x00', 'little') == 1
+    assert int.from_bytes(b'\xff', 'little', signed=True) == -1
+    assert int.from_bytes([1, 2], 'little') == 513
+    assert int.from_bytes(b'', 'big') == 0
+    assert int.from_bytes(b'\xff' * 9, 'big', signed=True) == -1
+    assert (258).to_bytes(2, 'big') == b'\x01\x02'
+    assert (258).to_bytes(2, 'little') == b'\x02\x01'
+    assert (-1).to_bytes(2, 'little', signed=True) == b'\xff\xff'
+    assert (-2).to_bytes(10, 'big', signed=True) == b'\xff' * 9 + b'\xfe'
+    try:
+        (256).to_bytes(1, 'big')
+        assert False
+    except OverflowError:
+        pass
+    try:
+        (-1).to_bytes(1, 'big')
+        assert False
+    except OverflowError:
+        pass
+    assert (6).as_integer_ratio() == (6, 1)
+    assert (0.75).as_integer_ratio() == (3, 4)
+    assert (-2.5).as_integer_ratio() == (-5, 2)
+    assert (0.0).as_integer_ratio() == (0, 1)
+    assert (0.1).as_integer_ratio() == (3602879701896397, 36028797018963968)
+    try:
+        float('inf').as_integer_ratio()
+        assert False
+    except OverflowError:
+        pass
+    assert bytes([65, 66]) == b'AB'
+    assert bytes(i for i in range(65, 68)) == b'ABC'
+    assert bytes(range(3)) == b'\x00\x01\x02'
+    assert bytes(3) == b'\x00\x00\x00'
+    assert bytearray([67, 68]) == bytearray(b'CD')
+    try:
+        bytes([300])
+        assert False
+    except ValueError:
+        pass
+
+test_int_float_bytes_conversions()

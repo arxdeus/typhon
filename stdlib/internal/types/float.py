@@ -1755,3 +1755,111 @@ bf16 = bfloat16
 f32 = float32
 f64 = float
 f128 = float128
+
+
+@extend
+class int:
+    def as_integer_ratio(self, /) -> Tuple[int, int]:
+        return (self, 1)
+
+    def to_bytes(self, /, length: int = 1, byteorder: str = "big", *, signed: bool = False) -> bytes:
+        if byteorder != "big" and byteorder != "little":
+            raise ValueError("byteorder must be either 'little' or 'big'")
+        if length < 0:
+            raise ValueError("length argument must be non-negative")
+        if not signed and self < 0:
+            raise OverflowError("can't convert negative int to unsigned")
+        # check that the value fits in `length` bytes
+        if length < 8:
+            bits = length * 8
+            if signed:
+                lo = -(1 << (bits - 1)) if bits > 0 else 0
+                hi = (1 << (bits - 1)) - 1 if bits > 0 else 0
+                ok = lo <= self <= hi
+            else:
+                ok = self < (1 << bits)
+            if not ok:
+                raise OverflowError("int too big to convert")
+        elif length == 8 and not signed:
+            pass  # any non-negative int64 fits
+        p = Ptr[u8](length)
+        u = u64(self)
+        fill = u8(255) if self < 0 else u8(0)
+        for i in range(length):
+            b = u8(u & u64(255)) if i < 8 else fill
+            if i < 8:
+                u = u >> u64(8)
+            p[length - 1 - i if byteorder == "big" else i] = b
+        return bytes(p, length)
+
+    @staticmethod
+    def from_bytes(data, /, byteorder: str = "big", *, signed: bool = False) -> int:
+        if byteorder != "big" and byteorder != "little":
+            raise ValueError("byteorder must be either 'little' or 'big'")
+        b = data if isinstance(data, bytes) else bytes(data)
+        n = len(b)
+        if n == 0:
+            return 0
+        big = byteorder == "big"
+        msb = int(b[0] if big else b[n - 1])
+        neg = signed and msb >= 128
+        fill = 255 if neg else 0
+        u = u64(0)
+        for k in range(n):
+            # k-th most significant byte
+            v = int(b[k] if big else b[n - 1 - k])
+            if k < n - 8:
+                if v != fill:
+                    raise OverflowError("int too big to convert")
+                continue
+            u = (u << u64(8)) | u64(v)
+        r = int(u)
+        if n < 8:
+            if neg:
+                r -= 1 << (8 * n)
+        elif not signed or not neg:
+            if r < 0:
+                raise OverflowError("int too big to convert")
+        else:
+            if r >= 0:
+                raise OverflowError("int too big to convert")
+        return r
+
+
+@extend
+class float:
+    def as_integer_ratio(self, /) -> Tuple[int, int]:
+        @nocapture
+        @C
+        def frexp(a: float, b: Ptr[Int[32]]) -> float: pass
+
+        if self != self:
+            raise ValueError("cannot convert NaN to integer ratio")
+        if self == (1.0).cdiv(0.0) or self == (-1.0).cdiv(0.0):
+            raise OverflowError("cannot convert Infinity to integer ratio")
+        e = Int[32](0)
+        m = frexp(self, __ptr__(e))
+        exp = int(e)
+        # make the mantissa integral (at most 53 bits)
+        for _ in range(300):
+            if m == m.__floor__():
+                break
+            m *= 2.0
+            exp -= 1
+        num = int(m)
+        den = 1
+        if exp > 0:
+            if exp > 62 or (num != 0 and abs(num).bit_length() + exp > 63):
+                raise OverflowError("integer ratio does not fit in int")
+            num <<= exp
+        else:
+            # reduce num / 2**-exp
+            while exp < 0 and num % 2 == 0 and num != 0:
+                num //= 2
+                exp += 1
+            if num == 0:
+                exp = 0
+            if -exp > 62:
+                raise OverflowError("integer ratio does not fit in int")
+            den = 1 << (-exp)
+        return (num, den)

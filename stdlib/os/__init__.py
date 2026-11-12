@@ -114,6 +114,22 @@ def _fd(fd: int) -> i32:
         raise OverflowError("file descriptor out of range")
     return i32(fd)
 
+def urandom(size: int, /) -> bytes:
+    """Return a bytes object of `size` cryptographically random bytes."""
+    if size < 0:
+        raise ValueError("negative argument not allowed")
+    # getentropy(3) is available on macOS/iOS, glibc >= 2.25, musl and Android (API 28+);
+    # it returns at most 256 bytes per call.
+    from C import getentropy(cobj, int) -> i32
+    p = Ptr[u8](size)
+    off = 0
+    while off < size:
+        n = min(256, size - off)
+        if int(getentropy((p + off).as_byte(), n)) != 0:
+            _error("urandom")
+        off += n
+    return bytes(p, size)
+
 def system(cmd: str) -> int:
     if static.platform() == "win32":
         return _win32.system(cmd)
