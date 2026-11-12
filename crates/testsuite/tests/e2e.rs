@@ -20,7 +20,9 @@ fn main() {
                 .with_ignored_flag(reason.is_some())
         })
         .collect();
-    libtest_mimic::run(&args, trials).exit();
+    let conclusion = libtest_mimic::run(&args, trials);
+    typhon_testsuite::android::teardown();
+    conclusion.exit();
 }
 
 /// Environment-only skips: GPU cases need CUDA libdevice.

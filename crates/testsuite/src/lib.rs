@@ -2,6 +2,7 @@
 //!
 //! See `README.md` for usage.
 
+pub mod android;
 pub mod config;
 pub mod expect;
 pub mod runner;

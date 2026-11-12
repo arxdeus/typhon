@@ -39,7 +39,7 @@ pub fn extract_errors(stderr: &str) -> Vec<String> {
         .collect()
 }
 
-fn run_process(mut cmd: Command, timeout: Duration) -> std::io::Result<Outcome> {
+pub(crate) fn run_process(mut cmd: Command, timeout: Duration) -> std::io::Result<Outcome> {
     cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = cmd.spawn()?;
     let mut so = child.stdout.take().unwrap();
@@ -100,6 +100,12 @@ pub fn execute(cfg: &Config, case: &Case) -> Result<Outcome, String> {
         (None, cfg.test_dir.join(&case.file))
     };
 
+    if case.run {
+        if let Some(t) = crate::android::target() {
+            let flags = 1 + case.barebones as i32;
+            return crate::android::execute(cfg, t, &file, case.debug, case.py_numerics, flags);
+        }
+    }
     let mut cmd = Command::new(&cfg.bin);
     let mut compile_out = None;
     if case.run {
