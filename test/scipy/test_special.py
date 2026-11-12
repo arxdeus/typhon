@@ -310,3 +310,10 @@ def test_stdtrit_tails():
     assert close(st.t.ppf(1e-300, 2.0), -7.071067811865475e+149, 1e-12)
     assert close(st.t.ppf(1e-10, 10.0), -25.466008021697725, 1e-12)
 test_stdtrit_tails()
+
+@test
+def test_lazy_scipy_subpackage():
+    import scipy
+    assert scipy.special.gamma(5.0) == 24.0
+
+test_lazy_scipy_subpackage()

@@ -200,6 +200,14 @@ print(m.g())  #: pk.leaf.g rel pk.X rel pk.X
 from a.pk import shadow
 print(shadow)  #: pk.shadow attr
 
+#%% import_submodule_lazy_attr,barebones
+import a.pk as q
+print(q.leaf.g())  #: pk.leaf.g rel pk.X rel pk.X
+print(q.inner.deep.h())  #: deep.h pk.leaf.g rel pk.X rel pk.X
+def lazy_in_fn():
+    return q.inner.Y
+print(lazy_in_fn())  #: pk.inner.Y
+
 #%% import_submodule_err,barebones
 from a.pk import nonexistent #! cannot import name 'nonexistent' from 'a.pk.__init__'
 

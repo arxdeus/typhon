@@ -156,3 +156,12 @@ def test_followups():
     assert np.einsum('ij...,j...->i...', np.ones((2, 3, 4)), np.ones((3, 1))).shape == (2, 4)
 
 test_followups()
+
+@test
+def test_lazy_submodule_attrs():
+    # np.<subpackage> without an explicit `import numpy.<subpackage>`
+    assert np.polynomial.Polynomial([1.0, 2.0])(2.0) == 5.0
+    np.testing.assert_allclose(np.ones(2), np.ones(2))
+    np.testing.assert_raises(ValueError, int, 'x')
+
+test_lazy_submodule_attrs()

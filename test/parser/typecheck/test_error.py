@@ -639,3 +639,30 @@ hash(key(1))
 #! unhashable type: '_CmpKey'
 #! during the realization of __hash__
 #! during the realization of hash
+
+#%% exception_class_as_value,barebones
+def assert_raises(exc, fn, *args):
+    try:
+        fn(*args)
+    except exc:
+        print('raised', exc.__name__)
+        return
+    assert False
+def bad(x: int):
+    if x < 0:
+        raise ValueError('neg')
+def call_with(fn, exc, *args):
+    fn(exc, *args)
+call_with(assert_raises, ValueError, bad, -1)  #: raised ValueError
+def mk(exc):
+    raise exc('boom')
+try:
+    mk(IndexError)
+except IndexError as e:
+    print('ok', e)  #: ok boom
+def r(exc):
+    raise exc
+try:
+    r(ValueError)
+except ValueError:
+    print('bare ok')  #: bare ok
