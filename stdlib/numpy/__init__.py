@@ -30,4 +30,6 @@ from .errstate import errstate, seterr, geterr, seterrcall, geterrcall
 
 import linalg
 import fft
+import strings
+import char
 import fusion
