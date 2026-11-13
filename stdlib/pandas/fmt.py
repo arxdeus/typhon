@@ -103,7 +103,7 @@ def _dt_strs(c: Column) -> List[str]:
 
 def format_column(c: Column) -> List[str]:
     if c.kind == K_DT or c.kind == K_TD:
-        return [" " + x for x in _dt_strs(c)]
+        return _dt_strs(c)
     if c.kind == K_FLOAT:
         return format_floats(c.f)
     if c.kind == K_INT:
@@ -219,7 +219,7 @@ def frame_repr(cols: List[Column], col_labels: List[str], idx: Column, idx_name:
             strcols.append([s.ljust(iw) for s in ic])
         for j in sel:
             vals = data_strs[j]
-            hdr = col_labels[j] if cols[j].kind == K_STR else " " + col_labels[j]
+            hdr = col_labels[j] if (cols[j].kind == K_STR or cols[j].kind == K_DT or cols[j].kind == K_TD) else " " + col_labels[j]
             w = max(_width(vals), len(hdr))
             col = List[str]()
             col.append(hdr.rjust(w))

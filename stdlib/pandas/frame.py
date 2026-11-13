@@ -2444,11 +2444,13 @@ class DataFrame:
                 hdr.append(_csv_quote(str(df.columns[j]), sep))
             lines.append(sep.join(hdr))
         n = len(df)
+        ready = [csv_ready(c, na_rep) for c in df._cols]
+        iready = csv_ready(df.index._col, na_rep)
         for i in range(n):
             row = List[str](len(df._cols) + 1)
             if index:
-                row.append(_csv_quote(df.index._col.fmt_csv(i, float_format, na_rep, decimal), sep))
-            for c in df._cols:
+                row.append(_csv_quote(iready.fmt_csv(i, float_format, na_rep, decimal), sep))
+            for c in ready:
                 row.append(_csv_quote(c.fmt_csv(i, float_format, na_rep, decimal), sep))
             lines.append(sep.join(row))
         out = lineterminator.join(lines) + lineterminator
@@ -3890,8 +3892,10 @@ def _split_csv(text: str, sep: str) -> List[List[str]]:
 _NA_VALUES = ["", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN", "-NaN", "-nan",
               "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA", "NULL", "NaN", "None", "n/a", "nan", "null"]
 
-def _infer_column(vals: List[str]) -> Column:
-    nas = Set[str](_NA_VALUES)
+def _infer_column(vals: List[str], extra_na: List[str] = List[str](), keep_default: bool = True) -> Column:
+    nas = Set[str](_NA_VALUES) if keep_default else Set[str]()
+    for e in extra_na:
+        nas.add(e)
     all_int = True
     all_float = True
     all_bool = True
@@ -3928,21 +3932,38 @@ def _infer_column(vals: List[str]) -> Column:
 
 def read_csv(filepath_or_buffer: str, sep: str = ",", header: Optional[int] = 0, names: Optional[List[str]] = None,
              index_col = None, usecols: Optional[List[str]] = None, nrows: Optional[int] = None,
-             skiprows: int = 0):
+             skiprows: int = 0, dtype: Optional[Dict[str, str]] = None, na_values: Optional[List[str]] = None,
+             parse_dates: Optional[List[str]] = None, keep_default_na: bool = True,
+             skip_blank_lines: bool = True, comment: Optional[str] = None):
     text = ""
     with open(filepath_or_buffer) as f:
         text = f.read()
-    return _read_csv_text(text, sep, header, names, index_col, usecols, nrows, skiprows)
+    return _read_csv_text(text, sep, header, names, index_col, usecols, nrows, skiprows, dtype, na_values,
+                          parse_dates, keep_default_na, comment)
 
 def read_csv_string(text: str, sep: str = ",", header: Optional[int] = 0, names: Optional[List[str]] = None,
                     index_col = None, usecols: Optional[List[str]] = None, nrows: Optional[int] = None,
-                    skiprows: int = 0):
+                    skiprows: int = 0, dtype: Optional[Dict[str, str]] = None, na_values: Optional[List[str]] = None,
+                    parse_dates: Optional[List[str]] = None, keep_default_na: bool = True,
+                    skip_blank_lines: bool = True, comment: Optional[str] = None):
     # Typhon extension: parse CSV text directly (pandas: read_csv(io.StringIO(text)))
-    return _read_csv_text(text, sep, header, names, index_col, usecols, nrows, skiprows)
+    return _read_csv_text(text, sep, header, names, index_col, usecols, nrows, skiprows, dtype, na_values,
+                          parse_dates, keep_default_na, comment)
 
-def _read_csv_text(text: str, sep: str, header: Optional[int], names: Optional[List[str]], index_col, usecols: Optional[List[str]], nrows: Optional[int], skiprows: int):
+def _read_csv_text(text: str, sep: str, header: Optional[int], names: Optional[List[str]], index_col, usecols: Optional[List[str]], nrows: Optional[int], skiprows: int,
+                   dtype: Optional[Dict[str, str]] = None, na_values: Optional[List[str]] = None, parse_dates: Optional[List[str]] = None,
+                   keep_default_na: bool = True, comment: Optional[str] = None):
     rows = _split_csv(text, sep)
     rows = rows[skiprows:]
+    if comment is not None:
+        cm = comment.__val__()
+        kept = List[List[str]]()
+        for r in rows:
+            if len(r) > 0 and r[0].startswith(cm):
+                continue
+            kept.append(r)
+        rows = kept
+    extra = na_values if na_values is not None else List[str]()
     hdr = List[str]()
     body = rows
     if header is not None:
@@ -3955,10 +3976,10 @@ def _read_csv_text(text: str, sep: str, header: Optional[int], names: Optional[L
     m = len(hdr) if len(hdr) > 0 else (len(body[0]) if len(body) > 0 else 0)
     if index_col is None and len(hdr) > 0 and len(body) > 0 and len(body[0]) == len(hdr) + 1:
         # pandas: one extra field per row means the first column is the index
-        icol = _infer_column([r[0] if len(r) > 0 else "" for r in body])
+        icol = _infer_column([r[0] if len(r) > 0 else "" for r in body], extra, keep_default_na)
         cols = List[Column]()
         for j in range(m):
-            cols.append(_infer_column([r[j + 1] if j + 1 < len(r) else "" for r in body]))
+            cols.append(_infer_column([r[j + 1] if j + 1 < len(r) else "" for r in body], extra, keep_default_na))
         hdr2 = [h if h != "" else f"Unnamed: {j}" for j, h in enumerate(hdr)]
         df = DataFrame._new(cols, Index.strs(hdr2), Index._wrap(icol, None))
         if usecols is not None:
@@ -3972,10 +3993,27 @@ def _read_csv_text(text: str, sep: str, header: Optional[int], names: Optional[L
             hdr[j] = f"Unnamed: {j}"
     cols = List[Column]()
     for j in range(m):
-        cols.append(_infer_column([r[j] if j < len(r) else "" for r in body]))
+        cols.append(_infer_column([r[j] if j < len(r) else "" for r in body], extra, keep_default_na))
     labels = Index.strs(hdr)
     if header is None and names is None:
         labels = Index.range(m)
+    if dtype is not None:
+        for j in range(len(hdr)):
+            if hdr[j] in dtype.__val__():
+                dn = dtype.__val__()[hdr[j]]
+                raw = [r[j] if j < len(r) else "" for r in body]
+                k = _kind_of_dtype(dn)
+                if k == K_STR:
+                    cols[j] = Column.strs([NA_STR if v in Set[str](_NA_VALUES) or v in Set[str](extra) else v for v in raw])
+                elif k == K_FLOAT:
+                    cols[j] = Column.floats([NAN if (v in Set[str](_NA_VALUES) or v in Set[str](extra)) else float(v.strip()) for v in raw])
+                else:
+                    cols[j] = cols[j].astype(k)
+    if parse_dates is not None:
+        for j in range(len(hdr)):
+            if hdr[j] in parse_dates.__val__():
+                raw = [r[j] if j < len(r) else "" for r in body]
+                cols[j] = Column(K_DT, List[float](), [DT.NAT if v == "" else DT.parse_ts(v) for v in raw], List[str]())
     df = DataFrame._new(cols, labels, Index.range(len(body)))
     if usecols is not None:
         df = df[usecols]

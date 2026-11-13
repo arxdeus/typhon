@@ -7,7 +7,7 @@
 import numpy as np
 from numpy import ndarray
 from .scalar import Scalar, K_FLOAT, K_INT, K_BOOL, K_STR, K_NONE, K_DT, K_TD, NA_STR, _isnan
-from ._dt import NAT, Timestamp, Timedelta, fmt_ts_full, fmt_td, parse_ts, parse_td
+from ._dt import NAT, Timestamp, Timedelta, fmt_ts_full, fmt_ts, floor_day, fmt_td, parse_ts, parse_td, mode_for
 
 NAN = float("nan")
 
@@ -436,7 +436,7 @@ class Column:
         if self.kind == K_INT:
             return str(self.i[k])
         if self.kind == K_DT:
-            return na_rep if self.i[k] == NAT else fmt_ts_full(self.i[k])
+            return na_rep if self.i[k] == NAT else (fmt_ts(self.i[k], 0) if self.i[k] == floor_day(self.i[k]) else fmt_ts_full(self.i[k]))
         if self.kind == K_TD:
             return na_rep if self.i[k] == NAT else fmt_td(self.i[k])
         if self.kind == K_BOOL:
@@ -444,6 +444,13 @@ class Column:
         if self.s[k] == NA_STR:
             return na_rep
         return self.s[k]
+
+def csv_ready(c: Column, na_rep: str) -> Column:
+    # datetime columns are written with one column-wide precision, as pandas does
+    if c.kind != K_DT:
+        return c
+    mode = mode_for(c.i)
+    return Column.strs([na_rep if x == NAT else fmt_ts(x, mode) for x in c.i])
 
 def _parse_dt(s: str, kind: int) -> int:
     return parse_ts(s) if kind == K_DT else parse_td(s)
