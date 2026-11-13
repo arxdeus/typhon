@@ -54,15 +54,15 @@ class _Leg:
                 p0d[k] = k * p0[k - 1] + x * p0d[k - 1]
                 p0dd[k] = (k + 1) * p0d[k - 1] + x * p0dd[k - 1]
             b = float(beta[i])
-            bp = b * b
+            bp = b
             for j in range(nc - 1):
                 kk = j + 1
-                out[0, i] += bp * self.n_fact[j, 0] * p0d[kk]
+                out[0, i] += bp * self.n_fact[j, 0] * p0[kk]
                 out[1, i] += bp * self.n_fact[j, 1] * p0d[kk]
                 out[2, i] += bp * self.n_fact[j, 2] * p0d[kk]
                 out[3, i] += bp * self.n_fact[j, 3] * p0dd[kk]
                 bp *= b
-        # column 0 of the leg series is P_n (index 0), columns 1,2 derivative, 3 second derivative
+        # series columns: P_n, P_n', P_n', P_n'' (as mne's _eval_legen_meg)
         return out
 
     def sum_eeg(self, beta: np.ndarray[float, 1], ct: np.ndarray[float, 1]) -> np.ndarray[float, 1]:
@@ -114,8 +114,7 @@ def _sphere_dot(r: float, rr1: np.ndarray[float, 2], lr1: np.ndarray[float, 1], 
         s1 = sums[1].reshape((n1, n2))
         s2 = sums[2].reshape((n1, n2))
         s3 = sums[3].reshape((n1, n2))
-        n1c1 = np.dot(cos1, rr1.T)
-        # n1c1[i, j] = cosmag1_i . rr1_i (broadcast over j)
+        # a[i, j] = cosmag1_i . rr1_i (broadcast over j)
         a = np.sum(cos1 * rr1, axis=1)[:, None] * np.ones((1, n2))
         n1c2 = np.dot(cos1, rr2.T)
         n2c1 = np.dot(rr1, cos2.T)
