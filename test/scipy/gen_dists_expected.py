@@ -36,6 +36,22 @@ GROUPS = {
         ('semicircular', (), 1e-11), ('gibrat', (), 1e-11), ('mielke', (10.4, 4.6), 1e-9),
         ('kappa3', (5.0,), 1e-9),
     ],
+    'c2a': [
+        ('erlang', (3.0,), 1e-12), ('loguniform', (0.5, 4.0), 1e-12),
+        ('johnsonsb', (0.4, 1.3), 1e-11), ('johnsonsu', (0.7, 1.9), 1e-11),
+        ('skewnorm', (2.0,), 1e-10), ('exponnorm', (1.6,), 1e-10), ('gennorm', (1.4,), 1e-11),
+        ('foldnorm', (1.2,), 1e-11), ('foldcauchy', (0.8,), 1e-11), ('nakagami', (1.7,), 1e-11),
+    ],
+    'c2b': [
+        ('dgamma', (1.6,), 1e-11), ('betaprime', (5.0, 6.0), 1e-10),
+        ('recipinvgauss', (0.6,), 1e-9), ('fatiguelife', (0.9,), 1e-11),
+        ('wrapcauchy', (0.4,), 1e-11), ('cosine', (), 1e-11), ('vonmises', (1.8,), 1e-10),
+        ('truncnorm', (-0.7, 1.9), 1e-10), ('pearson3', (0.6,), 1e-11),
+    ],
+    'c2c': [
+        ('loggamma', (2.3,), 1e-11), ('alpha', (2.1,), 1e-11),
+        ('ncx2', (3.5, 1.2), 1e-9), ('ncf', (4.0, 11.0, 1.5), 1e-8), ('nct', (9.0, 0.8), 1e-8),
+    ],
 }
 
 DGROUPS = {

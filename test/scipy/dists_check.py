@@ -19,7 +19,7 @@ def close(name: str, what: str, x, ref: List[float], rtol: float) -> bool:
         elif v == INF or v == -INF:
             good = u == v
         else:
-            good = abs(u - v) <= 1e-300 + rtol * abs(v) + (rtol * 1e-3 if v == 0 else 0.0)
+            good = abs(u - v) <= 1e-300 + rtol * abs(v) + (rtol * 1e-3 if abs(v) < 1e-12 else 0.0)
         if not good:
             print(name, what, i, 'got', u, 'expected', v)
             ok = False

@@ -15,6 +15,10 @@ from ._continuous_distns import norm, t, f, chi2, uniform, expon, gamma, beta, \
     genlogistic, gompertz, hypsecant, loglaplace, powerlaw, burr, fisk, burr12, \
     dweibull, exponweib, levy, levy_l, moyal, arcsine, anglit, bradford, rdist, \
     semicircular, gibrat, mielke, kappa3
+from ._continuous_distns2 import erlang, reciprocal, loguniform, johnsonsb, \
+    johnsonsu, skewnorm, exponnorm, gennorm, foldnorm, foldcauchy, nakagami, \
+    loggamma, alpha, dgamma, betaprime, recipinvgauss, fatiguelife, wrapcauchy, \
+    cosine, vonmises, truncnorm, ncx2, ncf, nct, pearson3
 from ._distn_infrastructure import rv_discrete, rv_discrete_frozen, rv_histogram
 from ._discrete_distns import binom, bernoulli, betabinom, nbinom, betanbinom, \
     geom, hypergeom, nhypergeom, logser, poisson, planck, boltzmann, randint, \

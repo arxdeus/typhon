@@ -550,7 +550,10 @@ def _rvs(Kr: type, sh, loc, scale, size, random_state):
                          "have restrictions on shape parameters.")
     rs = check_random_state(random_state)
     vals = _k_rvs(Kr, rs, shv, size)
-    return vals * float(scale) + float(loc)
+    if hasattr(Kr, 'rvs_post'):
+        return Kr.rvs_post(vals * float(scale) + float(loc))
+    else:
+        return vals * float(scale) + float(loc)
 
 # -------------------------------------------------------------------- fit
 
