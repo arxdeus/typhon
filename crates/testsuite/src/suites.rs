@@ -112,7 +112,7 @@ pub const NUMPY: &[&str] = &[
     "numpy/test_ndmath.py", "numpy/test_npdatetime.py",
     "numpy/test_reductions.py", "numpy/test_routines.py", "numpy/test_sorting.py",
     "numpy/test_statistics.py", "numpy/test_ufunc.py", "numpy/test_window.py",
-    "numpy/test_polynomial.py", "numpy/test_testing.py",
+    "numpy/test_polynomial.py", "numpy/test_testing.py", "numpy/test_ma.py",
 ];
 
 pub const SCIPY: &[&str] = &[
@@ -133,6 +133,9 @@ pub const SCIPY: &[&str] = &[
     "sklearn/test_decomposition.py", "sklearn/test_mixture.py", "sklearn/test_mixture_bayes.py",
     "sklearn/test_feature_selection.py", "sklearn/test_impute.py",
     "sklearn/test_manifold_tsne.py", "sklearn/test_manifold.py",
+    "mne/test_ica.py", "mne/test_ica_bads.py", "mne/test_preprocessing.py", "mne/test_ctps.py",
+    "mne/test_xdawn.py", "sklearn/test_cluster_more.py", "sklearn/test_cluster_struct.py",
+    "sklearn/test_cluster_density.py", "sklearn/test_birch.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
