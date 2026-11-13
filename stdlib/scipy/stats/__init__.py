@@ -15,7 +15,7 @@ from ._continuous_distns import norm, t, f, chi2, uniform, expon, gamma, beta, \
     genlogistic, gompertz, hypsecant, loglaplace, powerlaw, burr, fisk, burr12, \
     dweibull, exponweib, levy, levy_l, moyal, arcsine, anglit, bradford, rdist, \
     semicircular, gibrat, mielke, kappa3
-from ._distn_infrastructure import rv_discrete, rv_discrete_frozen
+from ._distn_infrastructure import rv_discrete, rv_discrete_frozen, rv_histogram
 from ._discrete_distns import binom, bernoulli, betabinom, nbinom, betanbinom, \
     geom, hypergeom, nhypergeom, logser, poisson, planck, boltzmann, randint, \
     zipf, zipfian, dlaplace, skellam, yulesimon
@@ -36,3 +36,4 @@ from ._morestats import shapiro, anderson, anderson_ksamp, ansari, mood, \
     levene, bartlett, fligner, median_test, binomtest, fisher_exact, \
     ks_1samp, ks_2samp, kstest, cramervonmises, cramervonmises_2samp, \
     poisson_means_test, epps_singleton_2samp
+from . import qmc

@@ -1226,62 +1226,372 @@ class rv_discrete_frozen[Kr, S, L]:
         return _dexpect_api(Kr, func, tuple(float(v) for v in self.sh), float(self.loc),
                             lb, ub, conditional)
 
-class rv_discrete[Kr]:
-    name: str
+@tuple
+class _SampleK:
+    # marker kernel for rv_discrete(values=(xk, pk)) (scipy rv_sample)
+    @staticmethod
+    def nshape() -> Literal[int]: return 0
 
-    def __init__(self, name: str):
+def _samp_vec(x, f):
+    if _is_arr(x):
+        a = np.asarray(x).astype(float)
+        out = np.empty(a.shape, dtype=float)
+        for idx in np.ndindex(a.shape):
+            out[idx] = f(float(a[idx]))
+        return out
+    else:
+        return f(float(x))
+
+class _SampleFrozen:
+    xk: np.ndarray[float, 1]
+    pk: np.ndarray[float, 1]
+    qvals: np.ndarray[float, 1]
+    loc: float
+
+    def __init__(self, xk: np.ndarray[float, 1], pk: np.ndarray[float, 1],
+                 qvals: np.ndarray[float, 1], loc: float):
+        self.xk = xk
+        self.pk = pk
+        self.qvals = qvals
+        self.loc = loc
+
+    def _pmf1(self, x: float) -> float:
+        if x != x:
+            return NAN
+        k = x - self.loc
+        for i in range(self.xk.size):
+            if self.xk[i] == k:
+                return min(max(self.pk[i], 0.0), 1.0)
+        return 0.0
+    def _cdf1(self, x: float) -> float:
+        if x != x:
+            return NAN
+        k = x - self.loc
+        n = self.xk.size
+        if k >= self.xk[n - 1]:
+            return 1.0
+        if k < self.xk[0]:
+            return 0.0
+        # argmax(xk > k) - 1
+        j = 0
+        while j < n and not (self.xk[j] > k):
+            j += 1
+        return min(max(self.qvals[j - 1], 0.0), 1.0)
+    def _sf1(self, x: float) -> float:
+        if x != x:
+            return NAN
+        k = x - self.loc
+        n = self.xk.size
+        if k < self.xk[0]:
+            return 1.0
+        if k >= self.xk[n - 1]:
+            return 0.0
+        return min(max(1.0 - self._cdf1(x), 0.0), 1.0)
+    def _ppf0(self, q: float) -> float:
+        j = 0
+        n = self.qvals.size
+        while j < n and not (self.qvals[j] >= q):
+            j += 1
+        if j == n:
+            j = 0
+        return self.xk[j]
+    def _ppf1(self, q: float) -> float:
+        if not (q >= 0 and q <= 1):
+            return NAN
+        if q == 0:
+            return self.xk[0] - 1 + self.loc
+        if q == 1:
+            return self.xk[self.xk.size - 1] + self.loc
+        return self._ppf0(q) + self.loc
+    def _isf1(self, q: float) -> float:
+        if not (q >= 0 and q <= 1):
+            return NAN
+        if q == 1:
+            return self.xk[0] - 1 + self.loc
+        if q == 0:
+            return self.xk[self.xk.size - 1] + self.loc
+        return self._ppf0(1.0 - q) + self.loc
+
+    def pmf(self, k): return _samp_vec(k, self._pmf1)
+    def logpmf(self, k): return _samp_vec(k, lambda x: K.log(self._pmf1(x)))
+    def cdf(self, k): return _samp_vec(k, self._cdf1)
+    def logcdf(self, k): return _samp_vec(k, lambda x: K.log(self._cdf1(x)))
+    def sf(self, k): return _samp_vec(k, self._sf1)
+    def logsf(self, k): return _samp_vec(k, lambda x: K.log(self._sf1(x)))
+    def ppf(self, q): return _samp_vec(q, self._ppf1)
+    def isf(self, q): return _samp_vec(q, self._isf1)
+    def _munp(self, n: float) -> float:
+        v = List[float](self.xk.size)
+        for i in range(self.xk.size):
+            v.append(K.pow(self.xk[i], n) * self.pk[i])
+        return _npsum(v)
+    def moment(self, order: int) -> float:
+        if self.loc == 0:
+            return self._munp(float(order))
+        res = 0.0
+        for k in range(order + 1):
+            res += _comb(order, k) * self._munp(float(k)) * self.loc ** float(order - k)
+        return res
+    def stats(self, moments: Literal[str] = 'mv'):
+        mu = self._munp(1.0)
+        mu2 = self._munp(2.0) - mu * mu
+        mu3 = (-mu * mu - 3 * mu2) * mu + self._munp(3.0)
+        g1 = mu3 / mu2 ** 1.5
+        mu4 = ((-mu ** 2 - 6 * mu2) * mu - 4 * mu3) * mu + self._munp(4.0)
+        g2 = mu4 / mu2 ** 2.0 - 3.0
+        r = (mu + self.loc, mu2, g1, g2)
+        res = tuple(r[_mi(moments[i])] for i in static.range(static.len(moments)))
+        if static.len(moments) == 1:
+            return res[0]
+        else:
+            return res
+    def mean(self): return self.stats(moments='m')
+    def var(self): return self.stats(moments='v')
+    def std(self): return K.sqrt(self.stats(moments='v'))
+    def median(self): return self._ppf1(0.5)
+    def entropy(self) -> float:
+        s = float(np.sum(self.pk))
+        v = List[float](self.pk.size)
+        for i in range(self.pk.size):
+            v.append(K.entr(self.pk[i] / s))
+        return _npsum(v)
+    def interval(self, confidence):
+        c = confidence
+        return (self.ppf((1.0 - c) / 2.0), self.ppf((1.0 + c) / 2.0))
+    def support(self):
+        return (self.xk[0] + self.loc, self.xk[self.xk.size - 1] + self.loc)
+    def rvs(self, size = None, random_state = None):
+        rs = check_random_state(random_state)
+        U = rs.uniform(size=size)
+        if isinstance(U, np.ndarray):
+            out = np.empty(U.shape, dtype=float)
+            for idx in np.ndindex(U.shape):
+                out[idx] = self._ppf0(float(U[idx])) + self.loc
+            return out
+        else:
+            return self._ppf0(float(U)) + self.loc
+    def expect(self, func = None, lb = None, ub = None, conditional: bool = False) -> float:
+        lbv = self.xk[0] if lb is None else float(lb) - self.loc
+        ubv = self.xk[self.xk.size - 1] if ub is None else float(ub) - self.loc
+        v = List[float]()
+        for i in range(self.xk.size):
+            x = self.xk[i]
+            if lbv <= x and x <= ubv:
+                if func is None:
+                    v.append((x + self.loc) * self.pk[i])
+                else:
+                    v.append(float(func(x + self.loc)) * self.pk[i])
+        res = _npsum(v)
+        if conditional:
+            res /= self._sf1(lbv - 1 + self.loc) - self._sf1(ubv + self.loc)
+        return res
+
+class rv_histogram:
+    """scipy.stats.rv_histogram: piecewise-constant pdf from (counts, bins)."""
+    _hpdf: np.ndarray[float, 1]
+    _hcdf: np.ndarray[float, 1]
+    _hbins: np.ndarray[float, 1]
+    _hbin_widths: np.ndarray[float, 1]
+    a: float
+    b: float
+
+    def __init__(self, histogram, density = None):
+        hpdf = np.asarray(histogram[0]).astype(float)
+        self._hbins = np.asarray(histogram[1]).astype(float)
+        if len(hpdf) + 1 != len(self._hbins):
+            raise ValueError("Number of elements in histogram content "
+                             "and histogram boundaries do not match, "
+                             "expected n and n+1.")
+        self._hbin_widths = self._hbins[1:] - self._hbins[:-1]
+        bins_vary = not np.allclose(self._hbin_widths, self._hbin_widths[0])
+        dens = False
+        if density is None:
+            dens = bins_vary
+        else:
+            dens = bool(density)
+        if not dens:
+            hpdf = hpdf / self._hbin_widths
+        hpdf = hpdf / float(np.sum(hpdf * self._hbin_widths))
+        hcdf = np.cumsum(hpdf * self._hbin_widths)
+        n = hpdf.size
+        self._hpdf = np.zeros(n + 2, dtype=float)
+        self._hpdf[1:n + 1] = hpdf
+        self._hcdf = np.zeros(n + 1, dtype=float)
+        self._hcdf[1:] = hcdf
+        self.a = self._hbins[0]
+        self.b = self._hbins[n]
+
+    def _pdf1(self, x: float) -> float:
+        if x != x:
+            return NAN
+        if not (x >= self.a and x <= self.b):
+            return 0.0
+        i = int(np.searchsorted(self._hbins, x, side='right'))
+        return self._hpdf[i]
+    def _cdf1(self, x: float) -> float:
+        if x != x:
+            return NAN
+        if x >= self.b:
+            return 1.0
+        if x <= self.a:
+            return 0.0
+        return float(np.interp(x, self._hbins, self._hcdf))
+    def _ppf1(self, q: float) -> float:
+        if not (q >= 0 and q <= 1):
+            return NAN
+        return float(np.interp(q, self._hcdf, self._hbins))
+    def _munp(self, n: float) -> float:
+        nb = self._hbins.size
+        v = List[float](nb - 1)
+        for i in range(nb - 1):
+            integ = (K.pow(self._hbins[i + 1], n + 1) - K.pow(self._hbins[i], n + 1)) / (n + 1)
+            v.append(self._hpdf[i + 1] * integ)
+        return _npsum(v)
+
+    def pdf(self, x): return _samp_vec(x, self._pdf1)
+    def logpdf(self, x): return _samp_vec(x, lambda t: K.log(self._pdf1(t)))
+    def cdf(self, x): return _samp_vec(x, self._cdf1)
+    def logcdf(self, x): return _samp_vec(x, lambda t: K.log(self._cdf1(t)))
+    def sf(self, x): return _samp_vec(x, lambda t: 1.0 - self._cdf1(t))
+    def logsf(self, x): return _samp_vec(x, lambda t: K.log(1.0 - self._cdf1(t)))
+    def ppf(self, q): return _samp_vec(q, self._ppf1)
+    def isf(self, q): return _samp_vec(q, lambda t: self._ppf1(1.0 - t))
+    def stats(self, moments: Literal[str] = 'mv'):
+        mu = self._munp(1.0)
+        mu2 = self._munp(2.0) - mu * mu
+        mu3 = (-mu * mu - 3 * mu2) * mu + self._munp(3.0)
+        g1 = mu3 / mu2 ** 1.5
+        mu4 = ((-mu ** 2 - 6 * mu2) * mu - 4 * mu3) * mu + self._munp(4.0)
+        g2 = mu4 / mu2 ** 2.0 - 3.0
+        r = (mu, mu2, g1, g2)
+        res = tuple(r[_mi(moments[i])] for i in static.range(static.len(moments)))
+        if static.len(moments) == 1:
+            return res[0]
+        else:
+            return res
+    def mean(self): return self.stats(moments='m')
+    def var(self): return self.stats(moments='v')
+    def std(self): return K.sqrt(self.stats(moments='v'))
+    def median(self): return self._ppf1(0.5)
+    def moment(self, order: int) -> float: return self._munp(float(order))
+    def entropy(self) -> float:
+        n = self._hbin_widths.size
+        v = List[float](n)
+        for i in range(n):
+            h = self._hpdf[i + 1]
+            v.append(h * (K.log(h) if h > 0.0 else 0.0) * self._hbin_widths[i])
+        return -_npsum(v)
+    def support(self): return (self.a, self.b)
+    def interval(self, confidence):
+        c = confidence
+        return (self.ppf((1.0 - c) / 2.0), self.ppf((1.0 + c) / 2.0))
+    def rvs(self, size = None, random_state = None):
+        rs = check_random_state(random_state)
+        U = rs.uniform(size=size)
+        return _samp_vec(U, self._ppf1)
+
+class rv_discrete[Kr = _SampleK]:
+    name: str
+    xk: np.ndarray[float, 1]
+    pk: np.ndarray[float, 1]
+    qvals: np.ndarray[float, 1]
+
+    def __init__(self, name: str = '', values = None, a = 0, b = None,
+                 badvalue = None, moment_tol: float = 1e-8, inc: int = 1,
+                 longname = None, shapes = None, seed = None):
         self.name = name
+        if values is None:
+            self.xk = np.empty(0, dtype=float)
+            self.pk = np.empty(0, dtype=float)
+            self.qvals = np.empty(0, dtype=float)
+        else:
+            xk = np.asarray(values[0]).astype(float).ravel()
+            pk = np.asarray(values[1]).astype(float).ravel()
+            if xk.shape != pk.shape:
+                raise ValueError("xk and pk must have the same shape.")
+            if (pk < 0.0).any():
+                raise ValueError("All elements of pk must be non-negative.")
+            if not np.allclose(np.sum(pk), 1):
+                raise ValueError("The sum of provided pk is not 1.")
+            if len(set(xk.tolist())) != xk.size:
+                raise ValueError("xk may not contain duplicate values.")
+            indx = np.argsort(xk)
+            self.xk = xk[indx]
+            self.pk = pk[indx]
+            self.qvals = np.cumsum(self.pk)
 
     @property
     def numargs(self) -> int:
         return Kr.nshape()
 
     def __call__(self, *args, loc = 0.0):
-        sh, l = _dsplit(Kr, args, loc)
-        return rv_discrete_frozen[Kr, type(sh), type(l)](sh, l)
+        if Kr is _SampleK:
+            return _SampleFrozen(self.xk, self.pk, self.qvals, float(loc))
+        else:
+            sh, l = _dsplit(Kr, args, loc)
+            return rv_discrete_frozen[Kr, type(sh), type(l)](sh, l)
     def freeze(self, *args, loc = 0.0):
         return self(*args, loc=loc)
 
     def pmf(self, k, *args, loc = 0.0):
+        if Kr is _SampleK:
+            return self(loc=loc).pmf(k)
         sh, l = _dsplit(Kr, args, loc)
         return _dbcast(Kr, 'pmf', k, l, sh)
     def logpmf(self, k, *args, loc = 0.0):
+        if Kr is _SampleK:
+            return self(loc=loc).logpmf(k)
         sh, l = _dsplit(Kr, args, loc)
         return _dbcast(Kr, 'logpmf', k, l, sh)
     def cdf(self, k, *args, loc = 0.0):
+        if Kr is _SampleK:
+            return self(loc=loc).cdf(k)
         sh, l = _dsplit(Kr, args, loc)
         return _dbcast(Kr, 'cdf', k, l, sh)
     def logcdf(self, k, *args, loc = 0.0):
+        if Kr is _SampleK:
+            return self(loc=loc).logcdf(k)
         sh, l = _dsplit(Kr, args, loc)
         return _dbcast(Kr, 'logcdf', k, l, sh)
     def sf(self, k, *args, loc = 0.0):
+        if Kr is _SampleK:
+            return self(loc=loc).sf(k)
         sh, l = _dsplit(Kr, args, loc)
         return _dbcast(Kr, 'sf', k, l, sh)
     def logsf(self, k, *args, loc = 0.0):
+        if Kr is _SampleK:
+            return self(loc=loc).logsf(k)
         sh, l = _dsplit(Kr, args, loc)
         return _dbcast(Kr, 'logsf', k, l, sh)
     def ppf(self, q, *args, loc = 0.0):
+        if Kr is _SampleK:
+            return self(loc=loc).ppf(q)
         sh, l = _dsplit(Kr, args, loc)
         return _dbcast(Kr, 'ppf', q, l, sh)
     def isf(self, q, *args, loc = 0.0):
+        if Kr is _SampleK:
+            return self(loc=loc).isf(q)
         sh, l = _dsplit(Kr, args, loc)
         return _dbcast(Kr, 'isf', q, l, sh)
     def stats(self, *args, loc = 0.0, moments: Literal[str] = 'mv'):
+        if Kr is _SampleK:
+            return self(loc=loc).stats(moments=moments)
         sh, l = _dsplit(Kr, args, loc)
         return _stats_eval(Kr, moments, l, 1.0, sh)
     def mean(self, *args, loc = 0.0):
-        sh, l = _dsplit(Kr, args, loc)
-        return _stats_eval(Kr, 'm', l, 1.0, sh)
+        return self.stats(*args, loc=loc, moments='m')
     def var(self, *args, loc = 0.0):
-        sh, l = _dsplit(Kr, args, loc)
-        return _stats_eval(Kr, 'v', l, 1.0, sh)
+        return self.stats(*args, loc=loc, moments='v')
     def std(self, *args, loc = 0.0):
-        sh, l = _dsplit(Kr, args, loc)
-        return np.sqrt(_stats_eval(Kr, 'v', l, 1.0, sh))
+        return np.sqrt(self.stats(*args, loc=loc, moments='v'))
     def moment(self, order: int, *args, loc = 0.0):
+        if Kr is _SampleK:
+            return self(loc=loc).moment(order)
         sh, l = _dsplit(Kr, args, loc)
         return _moment1(Kr, order, float(l), 1.0, tuple(float(v) for v in sh))
     def entropy(self, *args, loc = 0.0):
+        if Kr is _SampleK:
+            return self(loc=loc).entropy()
         sh, l = _dsplit(Kr, args, loc)
         return _vec_ls(_dentropy1, Kr, l, 1.0, sh)
     def median(self, *args, loc = 0.0):
@@ -1291,13 +1601,19 @@ class rv_discrete[Kr]:
         return (self.ppf((1.0 - c) / 2.0, *args, loc=loc),
                 self.ppf((1.0 + c) / 2.0, *args, loc=loc))
     def support(self, *args, loc = 0.0):
+        if Kr is _SampleK:
+            return self(loc=loc).support()
         sh, l = _dsplit(Kr, args, loc)
         shv = tuple(float(v) for v in sh)
         return (_k_a(Kr, shv) + float(l), _k_b(Kr, shv) + float(l))
     def rvs(self, *args, loc = 0.0, size = None, random_state = None):
+        if Kr is _SampleK:
+            return self(loc=loc).rvs(size=size, random_state=random_state)
         sh, l = _dsplit(Kr, args, loc)
         return _drvs(Kr, sh, l, size, random_state)
     def expect(self, func = None, args = (), loc = 0.0, lb = None, ub = None,
                conditional: bool = False):
+        if Kr is _SampleK:
+            return self(loc=loc).expect(func, lb, ub, conditional)
         return _dexpect_api(Kr, func, tuple(float(v) for v in args), float(loc),
                             lb, ub, conditional)
