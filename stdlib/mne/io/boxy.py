@@ -130,11 +130,11 @@ def read_raw_boxy(fname, preload = False, verbose = None) -> RawArray:
                     ch = (di * source_num + si) * 3 + ti
                     if filetype == "parsed":
                         ci = col_names.index(f"{det}-{tys[ti]}{si + 1}")
-                        v = rows[t][ci]
+                        val = rows[t][ci]
                     else:
                         ci = col_names.index(f"{det}-{tys[ti]}")
-                        v = rows[t * source_num + si][ci]
-                    data[ch, t] = v * cal[ch]
+                        val = rows[t * source_num + si][ci]
+                    data[ch, t] = val * cal[ch]
     raw = RawArray(data, info)
     raw._raw_kind = "RawBOXY"
     if has_mrk:

@@ -165,7 +165,7 @@ def read_epochs_eeglab(input_fname, events = None, event_id = None, eog = (), *,
             for c in range(nbchan):
                 data[t, c, p] = flat[c + nbchan * (p + pnts * t)] * CAL
     # events from the epoch struct
-    ev = None
+    ev = np.zeros((0, 3), dtype = int)
     ids = Dict[str, int]()
     if events is None:
         epv = m["epoch"] if use_top else eeg["epoch"]

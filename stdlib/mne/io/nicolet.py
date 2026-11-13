@@ -9,6 +9,12 @@ from .._info import Info
 from .._containers import RawArray
 
 
+def _kind_idx(sel, names: List[str], kind: str) -> List[int]:
+    if isinstance(sel, str):
+        return _prefix_idx(names, kind.upper())
+    return _sel_idx(sel, names)
+
+
 def read_raw_nicolet(input_fname, ch_type: str, eog = (), ecg = (), emg = (), misc = (),
                      preload = False, verbose = None) -> RawArray:
     fn = str(input_fname)
@@ -53,22 +59,10 @@ def read_raw_nicolet(input_fname, ch_type: str, eog = (), ecg = (), emg = (), mi
     info.highpass = 0.0
     info.lowpass = sfreq / 2.0
     # kind overrides (eog/ecg/emg/misc), auto = name prefix
-    for kind in ("eog", "ecg", "emg", "misc"):
-        sel = None
-        if kind == "eog":
-            sel = eog
-        elif kind == "ecg":
-            sel = ecg
-        elif kind == "emg":
-            sel = emg
-        else:
-            sel = misc
-        idx = List[int]()
-        if isinstance(sel, str):
-            idx = _prefix_idx(names, kind.upper())
-        else:
-            idx = _sel_idx(sel, names)
-        _set_kind(info, idx, kind)
+    _set_kind(info, _kind_idx(eog, names, "eog"), "eog")
+    _set_kind(info, _kind_idx(ecg, names, "ecg"), "ecg")
+    _set_kind(info, _kind_idx(emg, names, "emg"), "emg")
+    _set_kind(info, _kind_idx(misc, names, "misc"), "misc")
     b = _read_file(fn)
     data = np.zeros((n, nsamp))
     for s in range(nsamp):
