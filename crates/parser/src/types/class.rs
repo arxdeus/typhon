@@ -135,9 +135,9 @@ impl TypeArena {
             return self.unify(canonical, typ, us, host);
         }
         let st = stdlib();
-        let me = self.class(this).unwrap();
+        let me = self.class_view(this).unwrap();
         if let Some(tcid) = self.get_class(typ) {
-            let tc = self.class(tcid).unwrap();
+            let tc = self.class_view(tcid).unwrap();
             // A defaulted None payload also resolves the original optional slot.
             if me.name == st.optional.as_str()
                 && tc.name == st.none_type.as_str()
@@ -271,23 +271,37 @@ impl TypeArena {
 
     /// Shared early-outs of `ClassType::generalize/instantiate`.
     fn class_shared(&self, this: TypeId, plain_only: bool) -> bool {
-        let c = self.class(this).unwrap();
-        if c.immutable {
+        let (immutable, empty, plain, unrealized_g0) = self
+            .with_class(this, |c| {
+                (
+                    c.immutable,
+                    c.generics.is_empty() && c.hidden_generics.is_empty(),
+                    matches!(c.kind, ClassKind::Plain),
+                    if c.name == stdlib().unrealized_type.as_str() { Some(c.generics.first().and_then(|g| g.ty)) } else { None },
+                )
+            })
+            .unwrap();
+        if immutable {
             return true;
         }
-        if c.generics.is_empty() && c.hidden_generics.is_empty() && (!plain_only || matches!(c.kind, ClassKind::Plain)) {
-            if matches!(c.kind, ClassKind::Plain) {
+        if empty && (!plain_only || plain) && plain {
+            return true;
+        }
+        if let Some(Some(g0)) = unrealized_g0 {
+            if self.get_class(g0).is_some() {
                 return true;
             }
         }
-        if c.name == stdlib().unrealized_type.as_str() {
-            if let Some(g0) = c.generics.first().and_then(|g| g.ty) {
-                if self.get_class(g0).is_some() {
-                    return true;
-                }
-            }
-        }
         false
+    }
+
+    /// Name and generics of a class slot (cheaper than cloning the whole `ClassType`).
+    pub(crate) fn class_view(&self, this: TypeId) -> Option<ClassView> {
+        self.with_class(this, |c| ClassView {
+            name: c.name,
+            generics: c.generics.iter().cloned().collect(),
+            hidden_generics: c.hidden_generics.iter().cloned().collect(),
+        })
     }
 
     /// `ClassType::generalize` (base step: always produces a plain class).
@@ -295,7 +309,7 @@ impl TypeArena {
         if check_shared && self.class_shared(this, true) {
             return this;
         }
-        let c = self.class(this).unwrap();
+        let c = self.class_view(this).unwrap();
         let g = c.generics.iter().map(|t| self.generic_generalize(t, at_level)).collect();
         let hg = c.hidden_generics.iter().map(|t| self.generic_generalize(t, at_level)).collect();
         self.rebuild_class(this, g, hg)
@@ -317,7 +331,7 @@ impl TypeArena {
         if check_shared && self.class_shared(this, true) {
             return this;
         }
-        let c = self.class(this).unwrap();
+        let c = self.class_view(this).unwrap();
         let g = c.generics.iter().map(|t| self.generic_instantiate(t, at_level, use_counter, cache, has_cache)).collect();
         let hg = c
             .hidden_generics

@@ -38,6 +38,24 @@ enum Shape {
     Trait,
 }
 
+/// Kind-level dispatch of a slot (see `TypeArena::dispatch_kind`).
+#[derive(Clone, Copy)]
+enum DispatchKind {
+    Link,
+    Plain,
+    Func,
+    Union,
+    Static,
+    Trait,
+}
+
+/// Name and generics of a class slot (see `TypeArena::class_view`).
+pub(crate) struct ClassView {
+    pub name: Ustr,
+    pub generics: SmallVec<[Generic; 4]>,
+    pub hidden_generics: SmallVec<[Generic; 2]>,
+}
+
 use crate::ast::ParamStatus;
 pub use crate::ast::LiteralKind;
 use crate::ids::StmtId;
@@ -799,16 +817,27 @@ impl TypeArena {
 
     /// `generalize(atLevel)`: replace unbounds at level >= `at_level` with generics.
     pub fn generalize(&self, id: TypeId, at_level: i32) -> TypeId {
-        match self.kind(id) {
-            TypeKind::Link(_) => self.link_generalize(id, at_level),
-            TypeKind::Class(c) => match c.kind {
-                ClassKind::Plain => self.class_generalize(id, at_level),
-                ClassKind::Func(_) => self.func_generalize(id, at_level),
-                ClassKind::Union => self.union_generalize(id, at_level),
-                _ => id,
-            },
-            TypeKind::Trait(_) => self.trait_generalize(id, at_level),
+        match self.dispatch_kind(id) {
+            DispatchKind::Link => self.link_generalize(id, at_level),
+            DispatchKind::Plain => self.class_generalize(id, at_level),
+            DispatchKind::Func => self.func_generalize(id, at_level),
+            DispatchKind::Union => self.union_generalize(id, at_level),
+            DispatchKind::Static => id,
+            DispatchKind::Trait => self.trait_generalize(id, at_level),
         }
+    }
+
+    fn dispatch_kind(&self, id: TypeId) -> DispatchKind {
+        self.with(id, |d| match &d.kind {
+            TypeKind::Link(_) => DispatchKind::Link,
+            TypeKind::Trait(_) => DispatchKind::Trait,
+            TypeKind::Class(c) => match c.kind {
+                ClassKind::Plain => DispatchKind::Plain,
+                ClassKind::Func(_) => DispatchKind::Func,
+                ClassKind::Union => DispatchKind::Union,
+                _ => DispatchKind::Static,
+            },
+        })
     }
 
     /// `instantiate(atLevel, unboundCount, cache)` (the arena counter is always used).
@@ -834,15 +863,13 @@ impl TypeArena {
         cache: &mut InstantiationCache,
         has_cache: bool,
     ) -> TypeId {
-        match self.kind(id) {
-            TypeKind::Link(_) => self.link_instantiate(id, at_level, use_counter, cache, has_cache),
-            TypeKind::Class(c) => match c.kind {
-                ClassKind::Plain => self.class_instantiate(id, at_level, use_counter, cache, has_cache),
-                ClassKind::Func(_) => self.func_instantiate(id, at_level, use_counter, cache, has_cache),
-                ClassKind::Union => self.union_instantiate(id, at_level, use_counter, cache, has_cache),
-                _ => id,
-            },
-            TypeKind::Trait(_) => self.trait_instantiate(id, at_level, use_counter, cache, has_cache),
+        match self.dispatch_kind(id) {
+            DispatchKind::Link => self.link_instantiate(id, at_level, use_counter, cache, has_cache),
+            DispatchKind::Plain => self.class_instantiate(id, at_level, use_counter, cache, has_cache),
+            DispatchKind::Func => self.func_instantiate(id, at_level, use_counter, cache, has_cache),
+            DispatchKind::Union => self.union_instantiate(id, at_level, use_counter, cache, has_cache),
+            DispatchKind::Static => id,
+            DispatchKind::Trait => self.trait_instantiate(id, at_level, use_counter, cache, has_cache),
         }
     }
 
