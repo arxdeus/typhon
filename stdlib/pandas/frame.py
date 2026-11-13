@@ -11,6 +11,7 @@ from .scalar import Scalar, K_FLOAT, K_INT, K_BOOL, K_STR, K_NONE, NA_STR, _isna
 from .core import *
 from .core import _dtype_name, _kind_of_dtype, _fixed_bounds, _lerp_quantile, _sorted_valid
 from .index import Index
+from . import strings as S
 from .nanalgos import nanskew_list, nankurt_list, quantile_sorted, mode_values, interpolate_linear, round_frac, infer_precision, linspace_list
 from .window import ewm_kernel, ewmcov_kernel, roll_cov, roll_corr, roll_quantile, get_center_of_mass
 from .fmt import frame_repr, series_repr, format_column, adjoin
@@ -229,6 +230,12 @@ class Series:
 
     def _take(self, pos: List[int]) -> Series:
         return Series._new(self._col.take(pos), self.index.take(pos), self.name)
+
+    @property
+    def str(self):
+        sm = StringMethods.__new__()
+        sm.s = self
+        return sm
 
     @property
     def loc(self):
@@ -3714,3 +3721,128 @@ def _read_csv_text(text: str, sep: str, header: Optional[int], names: Optional[L
         else:
             df = df.set_index(index_col)
     return df
+
+# ---------------------------------------------------------------------------
+# Series.str accessor
+
+class StringMethods:
+    s: Series
+
+    def _chk(self) -> Column:
+        if self.s._col.kind != K_STR:
+            raise AttributeError("Can only use .str accessor with string values!")
+        return self.s._col
+
+    def _out(self, col: Column) -> Series:
+        return self.s._with(col)
+
+    def _frame(self, cols: List[Column]) -> DataFrame:
+        return DataFrame._new(cols, Index.range(len(cols)), self.s.index)
+
+    def len(self) -> Series:
+        return self._out(S.smap_int(self._chk(), lambda x: len(x)))
+    def lower(self) -> Series:
+        return self._out(S.smap(self._chk(), lambda x: x.lower()))
+    def upper(self) -> Series:
+        return self._out(S.smap(self._chk(), lambda x: x.upper()))
+    def title(self) -> Series:
+        return self._out(S.smap(self._chk(), lambda x: x.title()))
+    def capitalize(self) -> Series:
+        return self._out(S.smap(self._chk(), lambda x: x.capitalize()))
+    def swapcase(self) -> Series:
+        return self._out(S.smap(self._chk(), lambda x: x.swapcase()))
+    def casefold(self) -> Series:
+        return self._out(S.smap(self._chk(), lambda x: x.casefold()))
+    def strip(self, to_strip: Optional[str] = None) -> Series:
+        return self._out(S.strip(self._chk(), to_strip, True, True))
+    def lstrip(self, to_strip: Optional[str] = None) -> Series:
+        return self._out(S.strip(self._chk(), to_strip, True, False))
+    def rstrip(self, to_strip: Optional[str] = None) -> Series:
+        return self._out(S.strip(self._chk(), to_strip, False, True))
+    def isalpha(self) -> Series:
+        return self._out(S.smap_bool(self._chk(), lambda x: x.isalpha()))
+    def isdigit(self) -> Series:
+        return self._out(S.smap_bool(self._chk(), lambda x: x.isdigit()))
+    def isalnum(self) -> Series:
+        return self._out(S.smap_bool(self._chk(), lambda x: x.isalnum()))
+    def isspace(self) -> Series:
+        return self._out(S.smap_bool(self._chk(), lambda x: x.isspace()))
+    def islower(self) -> Series:
+        return self._out(S.smap_bool(self._chk(), lambda x: x.islower()))
+    def isupper(self) -> Series:
+        return self._out(S.smap_bool(self._chk(), lambda x: x.isupper()))
+    def isnumeric(self) -> Series:
+        return self._out(S.smap_bool(self._chk(), lambda x: x.isnumeric()))
+    def isdecimal(self) -> Series:
+        return self._out(S.smap_bool(self._chk(), lambda x: x.isdecimal()))
+    def istitle(self) -> Series:
+        return self._out(S.smap_bool(self._chk(), lambda x: x.istitle()))
+    def contains(self, pat: str, case: bool = True, regex: bool = True, na: Optional[bool] = None) -> Series:
+        return self._out(S.contains(self._chk(), pat, case, regex, na))
+    def match(self, pat: str, case: bool = True) -> Series:
+        return self._out(S.match(self._chk(), pat, case, False))
+    def fullmatch(self, pat: str, case: bool = True) -> Series:
+        return self._out(S.match(self._chk(), pat, case, True))
+    def startswith(self, pat: str) -> Series:
+        return self._out(S.startswith(self._chk(), pat, False))
+    def endswith(self, pat: str) -> Series:
+        return self._out(S.startswith(self._chk(), pat, True))
+    def replace(self, pat: str, repl: str, n: int = -1, case: bool = True, regex: bool = False) -> Series:
+        return self._out(S.replace(self._chk(), pat, repl, n, case, regex))
+    def find(self, sub: str) -> Series:
+        return self._out(S.find(self._chk(), sub, False))
+    def rfind(self, sub: str) -> Series:
+        return self._out(S.find(self._chk(), sub, True))
+    def count(self, pat: str) -> Series:
+        return self._out(S.count(self._chk(), pat, 0))
+    def slice(self, start: Optional[int] = None, stop: Optional[int] = None, step: Optional[int] = None) -> Series:
+        return self._out(S.slice_(self._chk(), start, stop, step))
+    def get(self, i: int) -> Series:
+        return self._out(S.get(self._chk(), i))
+    def pad(self, width: int, side: str = "left", fillchar: str = " ") -> Series:
+        return self._out(S.pad(self._chk(), width, side, fillchar))
+    def center(self, width: int, fillchar: str = " ") -> Series:
+        return self._out(S.pad(self._chk(), width, "both", fillchar))
+    def ljust(self, width: int, fillchar: str = " ") -> Series:
+        return self._out(S.pad(self._chk(), width, "right", fillchar))
+    def rjust(self, width: int, fillchar: str = " ") -> Series:
+        return self._out(S.pad(self._chk(), width, "left", fillchar))
+    def zfill(self, width: int) -> Series:
+        return self._out(S.zfill(self._chk(), width))
+    def repeat(self, repeats: int) -> Series:
+        return self._out(S.repeat(self._chk(), repeats))
+    def removeprefix(self, prefix: str) -> Series:
+        return self._out(S.removeprefix(self._chk(), prefix, False))
+    def removesuffix(self, suffix: str) -> Series:
+        return self._out(S.removeprefix(self._chk(), suffix, True))
+    def cat(self, others = None, sep: str = "", na_rep: Optional[str] = None):
+        if others is None:
+            return S.cat_all(self._chk(), sep, na_rep)
+        o = Series(others)
+        if len(o) != len(self.s):
+            raise ValueError("Series length mismatch")
+        return self._out(S.cat_other(self._chk(), o._col, sep, na_rep))
+
+    def split(self, pat: Optional[str] = None, n: int = -1, expand: Literal[bool] = False, regex: Optional[bool] = None):
+        parts = S.split_lists(self._chk(), pat, n, False, True if regex is None else regex)
+        if expand:
+            return self._frame(S.split_columns(parts))
+        else:
+            return [p for p in parts]
+
+    def rsplit(self, pat: Optional[str] = None, n: int = -1, expand: Literal[bool] = False):
+        parts = S.split_lists(self._chk(), pat, n, True, False)
+        if expand:
+            return self._frame(S.split_columns(parts))
+        else:
+            return [p for p in parts]
+
+    def extract(self, pat: str, expand: Literal[bool] = True):
+        cols = S.extract(self._chk(), pat)
+        if expand:
+            return self._frame(cols)
+        else:
+            return self._out(cols[0])
+
+    def join(self, sep: str) -> Series:
+        return self._out(S.smap(self._chk(), lambda x: sep.join([c for c in x])))
