@@ -229,7 +229,8 @@ impl<'a> TypecheckVisitor<'a> {
         let mut added = true;
         while added {
             added = false;
-            let mut class_names: Vec<String> = self.cache.classes.keys().cloned().collect();
+            let mut class_names: Vec<String> =
+                self.cache.classes.iter().filter(|(_, c)| !c.virtuals.is_empty()).map(|(k, _)| k.clone()).collect();
             class_names.sort();
             for cls_name in class_names {
                 // Iterate all methods
@@ -254,20 +255,29 @@ impl<'a> TypecheckVisitor<'a> {
             added |= self.sp_realize_value_methods()?;
         }
 
-        let mut names: Vec<String> = self.cache.functions.keys().cloned().collect();
-        names.sort();
-        for name in names {
-            let mut reals: Vec<(String, _)> =
-                self.cache.functions[&name].realizations.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-            reals.sort_by(|a, b| a.0.cmp(&b.0));
-            for (_, r) in reals {
-                let (check, ast, ir, ty) = {
-                    let r = r.borrow();
-                    (r.check_initialization, r.ast, r.ir, r.ty)
-                };
-                if check && let (Some(ast), Some(_), Some(ty)) = (ast, ir, ty) {
-                    self.check_field_initialization(ty, ast)?;
+        // Only realizations that still need a check: a passed check stays valid (the
+        // realized AST and the class fields do not change afterwards), and a failed one
+        // aborts compilation. Sorting the candidates keeps the original visiting order.
+        let mut pending: Vec<(String, String, crate::cache::FunctionRealizationRef)> = Vec::new();
+        for (name, f) in self.cache.functions.iter() {
+            for (rn, r) in f.realizations.iter() {
+                let b = r.borrow();
+                if b.check_initialization
+                    && !(b.ast.is_some() && b.ty.is_some() && b.initialization_checked == b.ast.zip(b.ty))
+                {
+                    pending.push((name.clone(), rn.clone(), r.clone()));
                 }
+            }
+        }
+        pending.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
+        for (_, _, r) in pending {
+            let (check, ast, ir, ty) = {
+                let r = r.borrow();
+                (r.check_initialization, r.ast, r.ir, r.ty)
+            };
+            if check && let (Some(ast), Some(_), Some(ty)) = (ast, ir, ty) {
+                self.check_field_initialization(ty, ast)?;
+                r.borrow_mut().initialization_checked = Some((ast, ty));
             }
         }
         Ok(())

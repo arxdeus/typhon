@@ -170,6 +170,8 @@ pub struct FunctionRealization {
     pub captures: Vec<String>,
     /// Whether this constructor requires an independent field-initialization check.
     pub check_initialization: bool,
+    /// (AST, type) for which the field-initialization check has passed.
+    pub initialization_checked: Option<(StmtId, TypeId)>,
 }
 
 pub type FunctionRealizationRef = Rc<RefCell<FunctionRealization>>;
