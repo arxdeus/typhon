@@ -92,3 +92,31 @@ int classify(int h, Float64List trial /* 6*500 */) {
 
 Allocate `proba` with room for `n * n_classes` doubles. Exports register the calling thread with
 the GC, so calling from a Dart isolate is fine.
+
+## Gradient boosting on device
+
+`HistGradientBoostingClassifier` and `GradientBoostingClassifier` (stdlib `sklearn.ensemble`) compile
+and train inside a Typhon program or library, so on-device training works. Synthetic 3-class data,
+600 trials, 50 iterations, host macOS arm64 release, single thread (wall time of a single-threaded
+loop; reference is scikit-learn 1.9.1 with `OMP_NUM_THREADS=1`):
+
+| data | model | fit Typhon / sklearn | predict 1 row Typhon / sklearn | max abs proba diff | label mismatches |
+|---|---|---|---|---|---|
+| 600x12 (log-power) | HistGB | 92 / 88 ms | 0.007 / 0.50 ms | 0 | 0 |
+| 600x12 | GB | 215 / 182 ms | 0.003 / 0.23 ms | 0 | 0 |
+| 600x21 (tangent space) | HistGB | 161 / 115 ms | 0.006 / 0.47 ms | 0 | 0 |
+| 600x21 | GB | 369 / 286 ms | 0.004 / 0.23 ms | 4e-17 (sum, 1 ulp) | 0 |
+
+Training is 1.0 to 1.4x the sklearn time, a single prediction is about 70x faster (no Python call
+overhead). Library variant `test/bci/lib/gb_lib.py` (same exports as `logpower_lib.py`, model =
+log-power features + `HistGradientBoostingClassifier(max_iter=50)`): host ctypes and Android arm64
+emulator give proba diff 0 and 0 label mismatches against sklearn on the features; fit of 60 trials
+is 24 ms on the emulator, a single predict 0.46 ms. `save` writes features and labels and `load`
+refits (a tree ensemble has no compact parameter file, and the refit is deterministic, load diff 0).
+Regression test: `test/bci/test_gb.py` (generator `gen_gb.py`).
+
+XGBoost, LightGBM and CatBoost are not ported. A model trained offline with them can run on device
+through ONNX Runtime from a Typhon library (see `docs/onnx.md`): convert with `onnxmltools`
+(`convert_xgboost`, `convert_lightgbm`) or `skl2onnx` (sklearn models, including the Hist/GB ones)
+to `.onnx`, then `ort_load`/`ort_run`. That gives inference only. Training on device stays with
+the ported sklearn estimators (or ORT training artifacts, which do not cover tree models).
