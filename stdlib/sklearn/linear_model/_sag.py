@@ -17,10 +17,14 @@ def _our_rand_r(seed: Ptr[u32]) -> int:
     return int(seed[0] % u32(2147483648))
 
 def _dataset_seed(random_state) -> int:
-    if random_state is None:
+    if isinstance(random_state, NoneType):
         return np.random.randint(1, 2147483647)
-    elif isinstance(random_state, int) or isinstance(random_state, Optional[int]):
-        return np.random.RandomState(int(random_state)).randint(1, 2147483647)
+    elif isinstance(random_state, Optional):
+        if random_state is None:
+            return np.random.randint(1, 2147483647)
+        return np.random.RandomState(random_state.__val__()).randint(1, 2147483647)
+    elif isinstance(random_state, int):
+        return np.random.RandomState(random_state).randint(1, 2147483647)
     else:
         return random_state.randint(1, 2147483647)
 
