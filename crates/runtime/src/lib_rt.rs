@@ -65,6 +65,25 @@ unsafe extern "C" fn run_finalizers() {
     unsafe { gc::GC_invoke_finalizers() };
 }
 
+/// `TYPHON_GC_STATS=2`: trace every post-growth stop-func decision to stderr.
+static GC_TRACE: AtomicUsize = AtomicUsize::new(0);
+/// Requests at least this big bypass the post-growth veto (see `gc_growth_stop_func`).
+const LARGE_ALLOC_BYTES: usize = 1 << 20;
+thread_local! {
+    /// Set while this thread is inside a large allocation.
+    static LARGE_ALLOC: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+}
+
+#[inline]
+fn large_alloc(n: usize, f: unsafe extern "C" fn(usize) -> *mut c_void) -> *mut c_void {
+    if n < LARGE_ALLOC_BYTES {
+        return unsafe { f(n) };
+    }
+    LARGE_ALLOC.set(true);
+    let p = unsafe { f(n) };
+    LARGE_ALLOC.set(false);
+    p
+}
 static GC_DIVISOR: AtomicUsize = AtomicUsize::new(3);
 /// Heap size seen at the last collection we allowed (detects heap growth).
 static LAST_HEAP: AtomicUsize = AtomicUsize::new(0);
@@ -95,7 +114,18 @@ unsafe extern "C" fn gc_growth_stop_func() -> c_int {
     // overshoots the C++ baseline (np_matmul 224 vs 192 MiB heap).
     let grown = s.heapsize_full.saturating_sub(LAST_HEAP.load(Ordering::Relaxed));
     let max_grown = in_use / GC_DIVISOR.load(Ordering::Relaxed).max(1);
-    let stop = s.gc_no > 1 && grew && grown <= max_grown && s.bytes_allocd_since_gc < min_allocd;
+    // Never veto on behalf of a large (array-sized) request: skipping that GC keeps
+    // dead big arrays mapped and the heap grows by whole arrays (np_matmul max RSS
+    // 243-289 MB vs the C++ baseline's 223 MB; without the veto 188-222 MB). Small-
+    // object growth (float, binary_trees) keeps the veto and its GC-count savings.
+    let stop = !LARGE_ALLOC.get() && s.gc_no > 1 && grew && grown <= max_grown && s.bytes_allocd_since_gc < min_allocd;
+    if GC_TRACE.load(Ordering::Relaxed) != 0 && grew {
+        eprintln!(
+            "typhon gc trace: gc_no={} heap={}K free={}K in_use={}K allocd_since={}K grown={}K veto={}",
+            s.gc_no, s.heapsize_full >> 10, s.free_bytes_full >> 10, in_use >> 10,
+            s.bytes_allocd_since_gc >> 10, grown >> 10, stop
+        );
+    }
     if !stop {
         LAST_HEAP.store(s.heapsize_full, Ordering::Relaxed);
     }
@@ -140,6 +170,9 @@ pub fn gc_init() {
         GC_DIVISOR.store(gc::GC_get_free_space_divisor(), Ordering::Relaxed);
         gc::GC_set_stop_func(Some(gc_growth_stop_func));
         // `TYPHON_GC_STATS=1`: print collection count and heap stats at exit.
+        if std::env::var_os("TYPHON_GC_STATS").is_some_and(|v| v == "2") {
+            GC_TRACE.store(1, Ordering::Relaxed);
+        }
         if std::env::var_os("TYPHON_GC_STATS").is_some() {
             unsafe extern "C" {
                 fn atexit(f: extern "C" fn()) -> c_int;
@@ -522,12 +555,12 @@ unsafe fn seq_os_home_pw(name: *const c_char) -> *mut c_char {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_alloc(n: usize) -> *mut c_void {
-    unsafe { gc::GC_malloc(n) }
+    large_alloc(n, gc::GC_malloc)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_alloc_atomic(n: usize) -> *mut c_void {
-    unsafe { gc::GC_malloc_atomic(n) }
+    large_alloc(n, gc::GC_malloc_atomic)
 }
 
 #[unsafe(no_mangle)]
