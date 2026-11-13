@@ -9,6 +9,8 @@ from .geometry.base import sqrtm, invsqrtm, powm
 from .geometry.distance import distance
 from .geometry.mean import gmean, check_weights
 from .preprocessing import Whitening
+from .classification import MDM
+from .geometry.geodesic import geodesic
 
 def encode_domains(X, y, domain: List[str]):
     y = np.asarray(y)
@@ -333,3 +335,143 @@ class TLRotate:
                     Xo[i] = R @ Xd[i] @ R.T
                 out[idx] = Xo
         return out
+
+def _decode_int_labels(y_enc: List[str]):
+    out = np.empty(len(y_enc), dtype=int)
+    for i in range(len(y_enc)):
+        parts = y_enc[i].split("/")
+        out[i] = int(parts[len(parts) - 1])
+    return out
+
+def _domain_weights(dom: List[str], domain_weight: Dict[str, float]):
+    w = np.zeros(len(dom))
+    for i in range(len(dom)):
+        w[i] = domain_weight[dom[i]]
+    return w
+
+# TLClassifier / TLRegressor: wrap a classifier / regressor, training on the
+# decoded labels of all domains (integer labels for the classifier).
+class TLClassifier[EST]:
+    target_domain: str
+    estimator: EST
+    domain_weight: Optional[Dict[str, float]]
+
+    def __init__(self, target_domain: str, estimator: EST,
+                 domain_weight: Optional[Dict[str, float]] = None):
+        self.target_domain = target_domain
+        self.estimator = estimator
+        self.domain_weight = domain_weight
+
+    def fit(self, X, y_enc: List[str]):
+        X = np.asarray(X, dtype=float)
+        _, _, dom = decode_domains(X, y_enc)
+        y_dec = _decode_int_labels(y_enc)
+        dw = self.domain_weight
+        if dw is None:
+            self.estimator.fit(X, y_dec)
+        else:
+            self.estimator.fit(X, y_dec, sample_weight=_domain_weights(dom, dw))
+        return self
+
+    def predict(self, X):
+        return self.estimator.predict(np.asarray(X, dtype=float))
+
+    def predict_proba(self, X):
+        return self.estimator.predict_proba(np.asarray(X, dtype=float))
+
+    def score(self, X, y_enc: List[str]):
+        y_true = _decode_int_labels(y_enc)
+        y_pred = np.asarray(self.predict(X), dtype=int)
+        return float(np.mean(np.asarray(y_pred == y_true, dtype=float)))
+
+class TLRegressor[EST]:
+    target_domain: str
+    estimator: EST
+    domain_weight: Optional[Dict[str, float]]
+
+    def __init__(self, target_domain: str, estimator: EST,
+                 domain_weight: Optional[Dict[str, float]] = None):
+        self.target_domain = target_domain
+        self.estimator = estimator
+        self.domain_weight = domain_weight
+
+    def _targets(self, y_enc: List[str]):
+        out = np.empty(len(y_enc))
+        for i in range(len(y_enc)):
+            parts = y_enc[i].split("/")
+            out[i] = float(parts[len(parts) - 1])
+        return out
+
+    def fit(self, X, y_enc: List[str]):
+        X = np.asarray(X, dtype=float)
+        _, _, dom = decode_domains(X, y_enc)
+        y_dec = self._targets(y_enc)
+        dw = self.domain_weight
+        if dw is None:
+            self.estimator.fit(X, y_dec)
+        else:
+            self.estimator.fit(X, y_dec, sample_weight=_domain_weights(dom, dw))
+        return self
+
+    def predict(self, X):
+        return self.estimator.predict(np.asarray(X, dtype=float))
+
+    def score(self, X, y_enc: List[str]):
+        y_true = self._targets(y_enc)
+        y_pred = np.asarray(self.predict(X), dtype=float)
+        ss_res = np.sum((y_true - y_pred) ** 2)
+        ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+        return float(1.0 - ss_res / ss_tot)
+
+class MDWM(MDM):
+    domain_tradeoff: float
+    target_domain: str
+    source_means_: np.ndarray[float, 3]
+    target_means_: np.ndarray[float, 3]
+
+    def __init__(self, domain_tradeoff: float, target_domain: str,
+                 metric: str = "riemann", n_jobs: int = 1):
+        super().__init__(metric, n_jobs)
+        self.domain_tradeoff = domain_tradeoff
+        self.target_domain = target_domain
+        self.source_means_ = np.empty((0, 0, 0))
+        self.target_means_ = np.empty((0, 0, 0))
+
+    def fit(self, X, y_enc: List[str], sample_weight = None):
+        if not (0.0 <= self.domain_tradeoff <= 1.0):
+            raise ValueError(
+                f"Parameter domain_tradeoff must be included in [0, 1] (Got {self.domain_tradeoff})")
+        X = np.asarray(X, dtype=float)
+        _, _, dom = decode_domains(X, y_enc)
+        y_dec = _decode_int_labels(y_enc)
+        tmask = _mask(dom, self.target_domain)
+        smask = ~tmask
+        X_src = X[smask]
+        y_src = y_dec[smask]
+        X_tgt = X[tmask]
+        y_tgt = y_dec[tmask]
+        self.classes_ = np.unique(y_src)
+        if self.domain_tradeoff != 0.0:
+            cls_t = np.unique(y_tgt)
+            same = cls_t.shape[0] == self.classes_.shape[0]
+            if same:
+                same = bool(np.all(cls_t == self.classes_))
+            if not same:
+                raise ValueError("Classes in source domain must match classes in target domain.")
+        sw = check_weights(sample_weight, X_src.shape[0])
+        nc = self.classes_.shape[0]
+        n = X.shape[1]
+        self.source_means_ = np.empty((nc, n, n))
+        self.target_means_ = np.empty((nc, n, n))
+        for k in range(nc):
+            ms = y_src == self.classes_[k]
+            self.source_means_[k] = gmean(X_src[ms], metric=self.metric, sample_weight=sw[ms])
+            mt = y_tgt == self.classes_[k]
+            self.target_means_[k] = gmean(X_tgt[mt], metric=self.metric)
+        self.covmeans_ = geodesic(self.source_means_, self.target_means_,
+                                  self.domain_tradeoff, metric=self.metric)
+        return self
+
+    def score(self, X, y_enc: List[str], sample_weight = None):
+        y_true = _decode_int_labels(y_enc)
+        return MDM.score(self, X, y_true, sample_weight=sample_weight)
