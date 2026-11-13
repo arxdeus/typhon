@@ -460,3 +460,13 @@ def equalize_channels(instances, copy: bool = True, verbose = None):
         if list(inst.ch_names) != order:
             inst._pick_keep([inst.info.ch_names.index(c) for c in order])
     return out
+
+
+def _calc_h(cosang: np.ndarray[float, 2], stiffness: float = 4, n_legendre_terms: int = 50) -> np.ndarray[float, 2]:
+    factors = [0.0] + [(2 * n + 1) / (n ** (stiffness - 1) * (n + 1) ** (stiffness - 1) * 4 * np.pi)
+                       for n in range(1, n_legendre_terms + 1)]
+    out = np.empty(cosang.shape)
+    for i in range(cosang.shape[0]):
+        for j in range(cosang.shape[1]):
+            out[i, j] = _legval(cosang[i, j], factors)
+    return out
