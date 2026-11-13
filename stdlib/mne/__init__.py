@@ -145,3 +145,4 @@ import simulation
 
 from ._annot_io import read_annotations
 import minimum_norm
+from ._metadata import make_metadata, Metadata
