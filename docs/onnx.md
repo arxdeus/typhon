@@ -51,7 +51,7 @@ Verified on the Android arm64 emulator (API 35) and the iOS simulator (arm64) wi
 
 **Binaries**
 * Android: Maven Central `com.microsoft.onnxruntime:onnxruntime-android:1.31.1` (AAR is a zip, 55 MB). `jni/<abi>/libonnxruntime.so` (arm64-v8a 34.2 MB, armeabi-v7a 24.2 MB, x86 and x86_64 also included) and `headers/` (API 31).
-* iOS: CocoaPods `onnxruntime-c`. The newest pod is **1.30.0** (API 30), 1.31.x is not published for iOS yet. Zip: `https://download.onnxruntime.ai/pod-archive-onnxruntime-c-1.30.0.zip` containing `onnxruntime.xcframework` (slices `ios-arm64` 48 MB, `ios-arm64_x86_64-simulator` 98 MB for both archs, macOS) and `Headers/`. The framework binary is a **static archive**, so it is linked into your image. Request API 30 there (`GetApi(30)`), it returns null for a newer version than the library has.
+* iOS: CocoaPods `onnxruntime-c`. The newest pod is **1.30.0** (API 30), 1.31.x is not published for iOS yet. Zip: `https://download.onnxruntime.ai/pod-archive-onnxruntime-c-1.30.0.zip` containing `onnxruntime.xcframework` (slices `ios-arm64` 48 MB, `ios-arm64_x86_64-simulator` 98 MB fat, 48 MB per arch, plus macOS) and `Headers/`. The framework binary is a **static archive**, so it is linked into your image. Request API 30 there (`GetApi(30)`), it returns null for a newer version than the library has.
 
 **Build**
 ```
@@ -74,7 +74,7 @@ For the device use `-target ios-arm64` with the `ios-arm64` slice.
 
 Emulator and simulator run on the host CPU, so phone numbers will be slower. The iOS 64 row figure is higher than Android, probably because the simulator build uses the thread pool and CPU time counts all threads.
 
-**Size.** The stock `libonnxruntime.so` is 34 MB (arm64) because it contains every operator kernel. A model that only needs MatMul, Add, ArgMax, Gather and similar can use an ORT **minimal build** (`--minimal_build` with `--include_ops_by_config required_operators.config` and `--disable_ml_ops`, `--disable_exceptions` optional), which needs the model converted to ORT format (`python -m onnxruntime.tools.convert_onnx_models_to_ort`, which also produces the operator config). Such builds are typically well under 2 MB, but they load `.ort` files only and must be built from source for each ABI (not done here). The iOS static archive shrinks the same way, and the linker already strips unused objects when the archive is linked into an app.
+**Size.** The stock `libonnxruntime.so` is 34 MB (arm64) because it contains every operator kernel. A model that only needs MatMul, Add, ArgMax, Gather and similar can use an ORT **minimal build** (`--minimal_build` with `--include_ops_by_config required_operators.config` and `--disable_ml_ops`, `--disable_exceptions` optional), which needs the model converted to ORT format (`python -m onnxruntime.tools.convert_onnx_models_to_ort`, which also produces the operator config). Such builds are much smaller (size not measured here), but they load `.ort` files only and must be built from source for each ABI (not done here). The iOS static archive shrinks the same way, and the linker already strips unused objects when the archive is linked into an app.
 
 ## Training
 
