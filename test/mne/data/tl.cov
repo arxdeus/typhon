@@ -1,0 +1,4 @@
+gradReject 4000e-13
+magReject 4e-12
+eegReject 40e-6
+eogReject 250e-6

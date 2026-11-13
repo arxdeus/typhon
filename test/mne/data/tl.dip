@@ -1,0 +1,5 @@
+# CoordinateSystem "Head"
+#   begin     end   X (mm)   Y (mm)   Z (mm)   Q(nAm)  Qx(nAm)  Qy(nAm)  Qz(nAm)    g/%
+     10.0    10.0    10.00    20.00    50.00   20.000    0.000    0.000   20.000  95.00
+     20.0    20.0   -10.00     0.00    60.00   30.000   30.000    0.000    0.000  80.00
+## Name "d dipoles" Style "Dipoles"
