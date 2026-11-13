@@ -2668,3 +2668,66 @@ class ndarray:
                 p[i] = dtype.__unpickle__(jar)
 
         return ndarray(shape, p, fcontig=forder)
+
+# ---- .npz (zip container) ----
+import zlib
+from io import BytesIO
+
+def _le(v: int, n: int) -> bytes:
+    b = ba = bytearray()
+    for i in range(n):
+        ba.append((v >> (8 * i)) & 0xFF)
+    return bytes(ba)
+
+def _npz_entry(out: List[bytes], cd: List[bytes], offset: List[int], name: str,
+               raw: bytes, compressed: bool):
+    nm = (name + '.npy').encode()
+    crc = zlib.crc32(raw)
+    data = raw
+    method = 0
+    if compressed:
+        data = zlib.compress(raw, 6, -15)
+        method = 8
+    lh = (b'PK\x03\x04' + _le(20, 2) + _le(0, 2) + _le(method, 2) + _le(0, 2) +
+          _le(0x21, 2) + _le(crc, 4) + _le(len(data), 4) + _le(len(raw), 4) +
+          _le(len(nm), 2) + _le(0, 2) + nm)
+    out.append(lh)
+    out.append(data)
+    cd.append(b'PK\x01\x02' + _le(20, 2) + _le(20, 2) + _le(0, 2) + _le(method, 2) +
+              _le(0, 2) + _le(0x21, 2) + _le(crc, 4) + _le(len(data), 4) +
+              _le(len(raw), 4) + _le(len(nm), 2) + _le(0, 2) + _le(0, 2) +
+              _le(0, 2) + _le(0, 2) + _le(0, 4) + _le(offset[0], 4) + nm)
+    offset[0] += len(lh) + len(data)
+
+def _savez(file: str, compressed: bool, args, kwds):
+    if not file.endswith('.npz'):
+        file += '.npz'
+    out = List[bytes]()
+    cd = List[bytes]()
+    offset = [0]
+    n = 0
+    for a in args:
+        bio = BytesIO()
+        _save(bio, a)
+        _npz_entry(out, cd, offset, 'arr_' + str(n), bio.getvalue(), compressed)
+        n += 1
+    keys = kwds.__keys__()
+    for i in static.range(static.len(kwds.args)):
+        bio = BytesIO()
+        _save(bio, kwds.args[i])
+        _npz_entry(out, cd, offset, keys[i], bio.getvalue(), compressed)
+    with open(file, 'wb') as f:
+        for b in out:
+            f.write(b)
+        cdsize = 0
+        for b in cd:
+            f.write(b)
+            cdsize += len(b)
+        f.write(b'PK\x05\x06' + _le(0, 2) + _le(0, 2) + _le(len(cd), 2) +
+                _le(len(cd), 2) + _le(cdsize, 4) + _le(offset[0], 4) + _le(0, 2))
+
+def savez(file, *args, **kwds):
+    _savez(file, False, args, kwds)
+
+def savez_compressed(file, *args, **kwds):
+    _savez(file, True, args, kwds)
