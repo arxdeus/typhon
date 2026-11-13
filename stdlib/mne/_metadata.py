@@ -5,7 +5,7 @@
 # (latencies, NaN when absent) and string columns (event_name, first_*, last_*).
 
 import numpy as np
-from ..event import match_event_names
+from .event import match_event_names
 
 
 class Metadata:

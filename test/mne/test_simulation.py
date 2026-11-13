@@ -66,8 +66,8 @@ fit_lam = sphere.lambda_.copy()
 # The Berg-Scherg COBYLA fit converges to a point within rhoend=1e-4 of
 # scipy's but not bit-identical; pin mne's fitted parameters so the forward
 # physics is compared exactly.
-sphere.mu = np.array(@@mu@@)
-sphere.lambda_ = np.array(@@lam@@)
+sphere.mu = np.array([0.9432112879770956, 0.6631031404159992, 0.11394344322830123])
+sphere.lambda_ = np.array([0.4271636538254471, 2.086195302728963, -0.05769349392344974])
 rr = sph(5, 0.05, 2)
 nn = sph(5, 1.0, 4, z0=0.0)
 src = mne.setup_volume_source_space(pos={"rr": rr, "nn": nn})
