@@ -6,6 +6,8 @@ def test_seed_streams():
     R.seed(12345)
     assert R.random() == 0.41661987254534116
     assert R.getrandbits(40) == 897691841093
+    R.seed(2**62 + 5)
+    assert R.random() == 0.4451056702552687
     R.seed("hello")
     assert R.random() == 0.3537754404730722
     R.seed(b"abc")
@@ -19,6 +21,7 @@ def test_binomial_bytes():
     assert R.binomialvariate(1000, 0.5) == 505
     assert R.binomialvariate(50, 0.9) == 45
     assert R.randbytes(7) == b'\xfb\x0c8\xd0\x7f\xf40'
+
 
 test_seed_streams()
 test_binomial_bytes()

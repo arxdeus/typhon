@@ -117,8 +117,15 @@ class RandomGenerator:
         mt[0] = u32(0x80000000)
 
     def init_int(self, s: int):
-        init_key = (u32(s & ((1 << 32) - 1)), u32(s >> 32))
-        self.init_array(Ptr[u32](__ptr__(init_key).as_byte()), 2 if init_key[1] else 1)
+        if s < 0:
+            s = -s
+        words = (s.bit_length() + 31) // 32
+        if words == 0:
+            words = 1
+        key = Ptr[u32](words)
+        for w in range(words):
+            key[w] = u32((s >> (32 * w)) & 0xFFFFFFFF)
+        self.init_array(key, words)
 
     def init_bytes_be(self, data: bytes):
         # seed from big-endian magnitude bytes, as CPython does for large ints
