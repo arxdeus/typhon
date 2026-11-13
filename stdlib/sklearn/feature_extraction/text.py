@@ -275,7 +275,7 @@ class _CountBase:
             if sum([1 for m in mask if m]) > lim:
                 tfs = X.sum(axis=0)
                 cand = [j for j in range(nf) if mask[j]]
-                neg = np.array([-tfs[j] for j in cand])
+                neg = np.array([-int(tfs[j]) for j in cand], dtype=int)
                 sel = np.argsort(neg, kind="quicksort")[:lim]
                 mask = [False] * nf
                 for s in sel:
