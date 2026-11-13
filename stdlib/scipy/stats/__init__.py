@@ -11,7 +11,10 @@ from ._distn_infrastructure import rv_continuous, rv_frozen, check_random_state
 from ._continuous_distns import norm, t, f, chi2, uniform, expon, gamma, beta, \
     lognorm, laplace, logistic, cauchy, weibull_min, weibull_max, gumbel_r, \
     gumbel_l, pareto, lomax, chi, rayleigh, maxwell, halfnorm, halfcauchy, \
-    invgamma, invgauss, wald, rice, truncexpon, triang
+    invgamma, invgauss, wald, rice, truncexpon, triang, genextreme, genpareto, \
+    genlogistic, gompertz, hypsecant, loglaplace, powerlaw, burr, fisk, burr12, \
+    dweibull, exponweib, levy, levy_l, moyal, arcsine, anglit, bradford, rdist, \
+    semicircular, gibrat, mielke, kappa3
 
 # --- tests / descriptive (lane scipy-stats-tests) ---
 from ._descriptive import gmean, hmean, pmean, mode, tmean, tvar, tstd, tsem, \
@@ -21,3 +24,7 @@ from ._descriptive import gmean, hmean, pmean, mode, tmean, tvar, tstd, tsem, \
     wasserstein_distance, energy_distance, circmean, circvar, circstd, \
     false_discovery_control, boxcox, boxcox_llf, boxcox_normmax, yeojohnson, \
     yeojohnson_llf, yeojohnson_normmax, ModeResult
+from ._stats_py2 import skewtest, kurtosistest, normaltest, jarque_bera, \
+    power_divergence, chisquare, ttest_ind_from_stats, pointbiserialr, \
+    ranksums, brunnermunzel, friedmanchisquare, alexandergovern, kendalltau, \
+    theilslopes, siegelslopes, combine_pvalues

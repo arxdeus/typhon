@@ -12,7 +12,7 @@ import scipy.special._misc as M
 import scipy.special._noncentral as NC
 import scipy.special._hyp as H
 from ._distn_infrastructure import rv_continuous, rv_frozen, NAN, INF, _NA, \
-    _generic_munp, _k_ppf
+    _generic_munp, _k_ppf, _map_ppf
 
 _EULER = 0.577215664901532860606512090082402431042
 _ZETA3 = 1.202056903159594285399738161511449990765
@@ -32,6 +32,7 @@ from C import cosh(float) -> float
 from C import sinh(float) -> float
 from C import asinh(float) -> float
 from C import fabs(float) -> float
+from C import asin(float) -> float
 
 def _tsize(size):
     if size is None:
@@ -1265,6 +1266,846 @@ class _TriangK:
     @staticmethod
     def entropy(sh) -> float: return 0.5 - K.log(2.0)
 
+# ------------------------------------------------------------- genextreme
+
+def _isfin(x: float) -> bool: return x == x and x != INF and x != -INF
+
+def _genext_loglogcdf(x: float, c: float) -> float:
+    if x == x and c != 0:
+        return K.log1p(-c * x) / c
+    return -x
+
+@tuple
+class _GenextremeK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 1
+    @staticmethod
+    def check(sh) -> bool: return _isfin(sh[0])
+    @staticmethod
+    def a(sh) -> float:
+        c = sh[0]
+        return 1.0 / min(c, -_XMIN) if c < 0 else -INF
+    @staticmethod
+    def b(sh) -> float:
+        c = sh[0]
+        return 1.0 / max(c, _XMIN) if c > 0 else INF
+    @staticmethod
+    def logpdf(x: float, sh) -> float:
+        c = sh[0]
+        cx = c * x if (x == x and c != 0) else 0.0
+        logex2 = K.log1p(-cx)
+        lp = _genext_loglogcdf(x, c)
+        pex2 = K.exp(lp)
+        if c == 0 and x == -INF:
+            lp = 0.0
+        if c == 1 and x == 1:
+            return 0.0
+        if cx == 1 or cx == -INF:
+            return -INF
+        return -pex2 + lp - logex2
+    @staticmethod
+    def pdf(x: float, sh) -> float: return K.exp(_GenextremeK.logpdf(x, sh))
+    @staticmethod
+    def logcdf(x: float, sh) -> float: return -K.exp(_genext_loglogcdf(x, sh[0]))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return K.exp(_GenextremeK.logcdf(x, sh))
+    @staticmethod
+    def sf(x: float, sh) -> float: return -K.expm1(_GenextremeK.logcdf(x, sh))
+    @staticmethod
+    def ppf(q: float, sh) -> float:
+        c = sh[0]
+        x = -K.log(-K.log(q))
+        if x == x and c != 0:
+            return -K.expm1(-c * x) / c
+        return x
+    @staticmethod
+    def isf(q: float, sh) -> float:
+        c = sh[0]
+        x = -K.log(-K.log1p(-q))
+        if x == x and c != 0:
+            return -K.expm1(-c * x) / c
+        return x
+    @staticmethod
+    def stats(sh):
+        c = sh[0]
+        g1 = K.gamma(c + 1)
+        g2 = K.gamma(2 * c + 1)
+        g3 = K.gamma(3 * c + 1)
+        g4 = K.gamma(4 * c + 1)
+        g2mg12 = (c * _PI) ** 2.0 / 6.0 if fabs(c) < 1e-7 else g2 - g1 ** 2.0
+        gam2k = (K.expm1(K.gammaln(2.0 * c + 1.0) - 2 * K.gammaln(c + 1.0)) / c ** 2.0
+                 if fabs(c) >= 1e-7 else _PI ** 2.0 / 6.0)
+        eps = 1e-14
+        gamk = K.expm1(K.gammaln(c + 1)) / c if fabs(c) >= eps else -_EULER
+        m = NAN if c < -1.0 else -gamk
+        v = NAN if c < -0.5 else g1 ** 2.0 * gam2k
+        sk = 12 * K.sqrt(6.0) * _ZETA3 / _PI ** 3
+        if fabs(c) > eps ** 0.29:
+            if c >= -1. / 3:
+                sgn = 1.0 if c > 0 else -1.0
+                sk = sgn * (-g3 + (g2 + 2 * g2mg12) * g1) / g2mg12 ** 1.5
+            else:
+                sk = NAN
+        ku = 12.0 / 5.0
+        if fabs(c) > eps ** 0.23:
+            if c >= -1. / 4:
+                ku = (g4 + (-4 * g3 + 3 * (g2 + g2mg12) * g1) * g1) / g2mg12 ** 2 - 3
+            else:
+                ku = NAN
+        return (m, v, sk, ku)
+    @staticmethod
+    def entropy(sh) -> float: return _EULER * (1 - sh[0]) + 1
+    @staticmethod
+    def fitstart(data: np.ndarray[float, 1]) -> List[float]:
+        return [0.5 if _skew1(data) < 0 else -0.5]
+
+# -------------------------------------------------------------- genpareto
+
+@tuple
+class _GenparetoK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 1
+    @staticmethod
+    def check(sh) -> bool: return _isfin(sh[0])
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def b(sh) -> float: return -1. / sh[0] if sh[0] < 0 else INF
+    @staticmethod
+    def logpdf(x: float, sh) -> float:
+        c = sh[0]
+        if x == x and c != 0:
+            return -K.xlog1py(c + 1., c * x) / c
+        return -x
+    @staticmethod
+    def pdf(x: float, sh) -> float: return K.exp(_GenparetoK.logpdf(x, sh))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return -M.inv_boxcox1p(-x, -sh[0])
+    @staticmethod
+    def sf(x: float, sh) -> float: return M.inv_boxcox(-x, -sh[0])
+    @staticmethod
+    def logsf(x: float, sh) -> float:
+        c = sh[0]
+        if x == x and c != 0:
+            return -K.log1p(c * x) / c
+        return -x
+    @staticmethod
+    def ppf(q: float, sh) -> float: return -M.boxcox1p(-q, -sh[0])
+    @staticmethod
+    def isf(q: float, sh) -> float: return -K.boxcox(q, -sh[0])
+    @staticmethod
+    def stats(sh):
+        xi = sh[0]
+        m = 1 / (1 - xi) if xi < 1 else INF
+        v = 1 / (1 - xi) ** 2 / (1 - 2 * xi) if xi < 0.5 else NAN
+        s = 2 * (1 + xi) * K.sqrt(1 - 2 * xi) / (1 - 3 * xi) if xi < 1 / 3 else NAN
+        k = (3 * (1 - 2 * xi) * (2 * xi ** 2 + xi + 3) / (1 - 3 * xi) / (1 - 4 * xi) - 3
+             if xi < 0.25 else NAN)
+        return (m, v, s, k)
+    @staticmethod
+    def entropy(sh) -> float: return 1. + sh[0]
+
+# ------------------------------------------------------------ genlogistic
+
+@tuple
+class _GenlogisticK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 1
+    @staticmethod
+    def logpdf(x: float, sh) -> float:
+        c = sh[0]
+        mult = (-(c - 1) if x < 0 else 0.0) - 1
+        absx = fabs(x)
+        return K.log(c) + mult * absx - (c + 1) * K.log1p(K.exp(-absx))
+    @staticmethod
+    def pdf(x: float, sh) -> float: return K.exp(_GenlogisticK.logpdf(x, sh))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return K.pow(1 + K.exp(-x), -sh[0])
+    @staticmethod
+    def logcdf(x: float, sh) -> float: return -sh[0] * K.log1p(K.exp(-x))
+    @staticmethod
+    def ppf(q: float, sh) -> float: return -K.log(_powm1(q, -1.0 / sh[0]))
+    @staticmethod
+    def sf(x: float, sh) -> float: return -K.expm1(_GenlogisticK.logcdf(x, sh))
+    @staticmethod
+    def isf(q: float, sh) -> float: return _GenlogisticK.ppf(1 - q, sh)
+    @staticmethod
+    def stats(sh):
+        c = sh[0]
+        mu = _EULER + K.digamma(c)
+        mu2 = _PI * _PI / 6.0 + G2.zeta(2.0, c)
+        g1 = -2 * G2.zeta(3.0, c) + 2 * _ZETA3
+        g1 /= K.pow(mu2, 1.5)
+        g2 = _PI ** 4 / 15.0 + 6 * G2.zeta(4.0, c)
+        g2 /= mu2 ** 2.0
+        return (mu, mu2, g1, g2)
+    @staticmethod
+    def entropy(sh) -> float:
+        c = sh[0]
+        if c < 8e6:
+            return -K.log(c) + K.digamma(c + 1) + _EULER + 1
+        return 1 / (2 * c) + _EULER + 1
+
+# --------------------------------------------------------------- gompertz
+
+@tuple
+class _GompertzK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 1
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def logpdf(x: float, sh) -> float:
+        c = sh[0]
+        return K.log(c) + x - c * K.expm1(x)
+    @staticmethod
+    def pdf(x: float, sh) -> float: return K.exp(_GompertzK.logpdf(x, sh))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return -K.expm1(-sh[0] * K.expm1(x))
+    @staticmethod
+    def ppf(q: float, sh) -> float: return K.log1p(-1.0 / sh[0] * K.log1p(-q))
+    @staticmethod
+    def sf(x: float, sh) -> float: return K.exp(-sh[0] * K.expm1(x))
+    @staticmethod
+    def isf(p: float, sh) -> float: return K.log1p(-K.log(p) / sh[0])
+    @staticmethod
+    def entropy(sh) -> float:
+        c = sh[0]
+        return 1.0 - K.log(c) - G2.scaled_exp1(c) / c
+
+# --------------------------------------------------------------- hypsecant
+
+@tuple
+class _HypsecantK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 0
+    @staticmethod
+    def pdf(x: float, sh) -> float: return 1.0 / (_PI * cosh(x))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return 2.0 / _PI * atan(K.exp(x))
+    @staticmethod
+    def ppf(q: float, sh) -> float: return K.log(tan(_PI * q / 2.0))
+    @staticmethod
+    def sf(x: float, sh) -> float: return 2.0 / _PI * atan(K.exp(-x))
+    @staticmethod
+    def isf(q: float, sh) -> float: return -K.log(tan(_PI * q / 2.0))
+    @staticmethod
+    def stats(sh): return (0.0, _PI * _PI / 4, 0.0, 2.0)
+    @staticmethod
+    def entropy(sh) -> float: return K.log(2 * _PI)
+
+# -------------------------------------------------------------- loglaplace
+
+@tuple
+class _LoglaplaceK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 1
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def pdf(x: float, sh) -> float:
+        c = sh[0]
+        cd2 = c / 2.0
+        cc = c if x < 1 else -c
+        return cd2 * K.pow(x, cc - 1)
+    @staticmethod
+    def cdf(x: float, sh) -> float:
+        c = sh[0]
+        return 0.5 * K.pow(x, c) if x < 1 else 1 - 0.5 * K.pow(x, -c)
+    @staticmethod
+    def sf(x: float, sh) -> float:
+        c = sh[0]
+        return 1 - 0.5 * K.pow(x, c) if x < 1 else 0.5 * K.pow(x, -c)
+    @staticmethod
+    def ppf(q: float, sh) -> float:
+        c = sh[0]
+        return K.pow(2.0 * q, 1.0 / c) if q < 0.5 else K.pow(2 * (1.0 - q), -1.0 / c)
+    @staticmethod
+    def isf(q: float, sh) -> float:
+        c = sh[0]
+        return K.pow(2.0 * (1.0 - q), 1.0 / c) if q > 0.5 else K.pow(2 * q, -1.0 / c)
+    @staticmethod
+    def munp(n: float, sh) -> float:
+        c2 = sh[0] ** 2
+        n2 = n ** 2
+        return c2 / (c2 - n2) if n2 < c2 else INF
+    @staticmethod
+    def entropy(sh) -> float: return K.log(2.0 / sh[0]) + 1.0
+
+# ---------------------------------------------------------------- powerlaw
+
+@tuple
+class _PowerlawK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 1
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def b(sh) -> float: return 1.0
+    @staticmethod
+    def pdf(x: float, sh) -> float:
+        a = sh[0]
+        if x == 0 and a < 1:
+            return 0.0
+        return a * K.pow(x, a - 1.0)
+    @staticmethod
+    def logpdf(x: float, sh) -> float:
+        a = sh[0]
+        if x == 0 and a < 1:
+            return -INF
+        return K.log(a) + K.xlogy(a - 1, x)
+    @staticmethod
+    def cdf(x: float, sh) -> float: return K.pow(x, sh[0] * 1.0)
+    @staticmethod
+    def logcdf(x: float, sh) -> float: return sh[0] * K.log(x)
+    @staticmethod
+    def ppf(q: float, sh) -> float: return K.pow(q, 1.0 / sh[0])
+    @staticmethod
+    def sf(p: float, sh) -> float: return -_powm1(p, sh[0])
+    @staticmethod
+    def munp(n: float, sh) -> float: return sh[0] / (sh[0] + n)
+    @staticmethod
+    def stats(sh):
+        a = sh[0]
+        return (a / (a + 1.0),
+                a / (a + 2.0) / (a + 1.0) ** 2,
+                -2.0 * ((a - 1.0) / (a + 3.0)) * K.sqrt((a + 2.0) / a),
+                6 * (((a - 1) * a - 6) * a + 2) / (a * (a + 3.0) * (a + 4)))
+    @staticmethod
+    def entropy(sh) -> float:
+        a = sh[0]
+        return 1 - 1.0 / a - K.log(a)
+
+# ------------------------------------------------------------ burr / fisk
+
+def _burr_pdf(x: float, c: float, d: float) -> float:
+    if x == 0:
+        return c * d * K.pow(x, c * d - 1) / (1 + K.pow(x, c))
+    return c * d * K.pow(x, -c - 1.0) / K.pow(1 + K.pow(x, -c), d + 1.0)
+
+def _burr_logpdf(x: float, c: float, d: float) -> float:
+    if x == 0:
+        return K.log(c) + K.log(d) + K.xlogy(c * d - 1, x) - (d + 1) * K.log1p(K.pow(x, c))
+    return K.log(c) + K.log(d) + K.xlogy(-c - 1, x) - K.xlog1py(d + 1, K.pow(x, -c))
+
+def _burr_stats(c: float, d: float):
+    e1 = K.beta(d + 1 / c, 1. - 1 / c) * d
+    e2 = K.beta(d + 2 / c, 1. - 2 / c) * d
+    e3 = K.beta(d + 3 / c, 1. - 3 / c) * d
+    e4 = K.beta(d + 4 / c, 1. - 4 / c) * d
+    mu = e1 if c > 1.0 else NAN
+    mu2c = e2 - mu ** 2
+    mu2 = mu2c if c > 2.0 else NAN
+    g1 = (e3 - 3 * e2 * e1 + 2 * e1 ** 3) / K.sqrt(mu2c ** 3) if c > 3.0 else NAN
+    g2 = (((e4 - 4 * e3 * e1 + 6 * e2 * e1 ** 2 - 3 * e1 ** 4) / mu2c ** 2) - 3
+          if c > 4.0 else NAN)
+    return (mu, mu2, g1, g2)
+
+def _burr_munp(n: float, c: float, d: float) -> float:
+    if c > n and n == n and d == d:
+        nc = 1. * n / c
+        return d * K.beta(1.0 - nc, d + nc)
+    return NAN
+
+@tuple
+class _BurrK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 2
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def pdf(x: float, sh) -> float: return _burr_pdf(x, sh[0], sh[1])
+    @staticmethod
+    def logpdf(x: float, sh) -> float: return _burr_logpdf(x, sh[0], sh[1])
+    @staticmethod
+    def cdf(x: float, sh) -> float: return K.pow(1 + K.pow(x, -sh[0]), -sh[1])
+    @staticmethod
+    def logcdf(x: float, sh) -> float: return K.log1p(K.pow(x, -sh[0])) * (-sh[1])
+    @staticmethod
+    def logsf(x: float, sh) -> float: return K.log1p(-K.pow(1 + K.pow(x, -sh[0]), -sh[1]))
+    @staticmethod
+    def sf(x: float, sh) -> float: return K.exp(_BurrK.logsf(x, sh))
+    @staticmethod
+    def ppf(q: float, sh) -> float: return K.pow(K.pow(q, -1.0 / sh[1]) - 1, -1.0 / sh[0])
+    @staticmethod
+    def isf(q: float, sh) -> float:
+        return K.pow(K.expm1(K.xlog1py(-1.0 / sh[1], -q)), -1.0 / sh[0])
+    @staticmethod
+    def stats(sh): return _burr_stats(sh[0], sh[1])
+    @staticmethod
+    def munp(n: float, sh) -> float: return _burr_munp(n, sh[0], sh[1])
+
+@tuple
+class _FiskK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 1
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def pdf(x: float, sh) -> float: return _burr_pdf(x, sh[0], 1.0)
+    @staticmethod
+    def logpdf(x: float, sh) -> float: return _burr_logpdf(x, sh[0], 1.0)
+    @staticmethod
+    def cdf(x: float, sh) -> float: return _BurrK.cdf(x, (sh[0], 1.0))
+    @staticmethod
+    def logcdf(x: float, sh) -> float: return _BurrK.logcdf(x, (sh[0], 1.0))
+    @staticmethod
+    def sf(x: float, sh) -> float: return _BurrK.sf(x, (sh[0], 1.0))
+    @staticmethod
+    def logsf(x: float, sh) -> float: return _BurrK.logsf(x, (sh[0], 1.0))
+    @staticmethod
+    def ppf(q: float, sh) -> float: return _BurrK.ppf(q, (sh[0], 1.0))
+    @staticmethod
+    def isf(q: float, sh) -> float: return _BurrK.isf(q, (sh[0], 1.0))
+    @staticmethod
+    def stats(sh): return _burr_stats(sh[0], 1.0)
+    @staticmethod
+    def munp(n: float, sh) -> float: return _burr_munp(n, sh[0], 1.0)
+    @staticmethod
+    def entropy(sh) -> float: return 2 - K.log(sh[0])
+
+@tuple
+class _Burr12K:
+    @staticmethod
+    def nshape() -> Literal[int]: return 2
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def logpdf(x: float, sh) -> float:
+        c = sh[0]
+        d = sh[1]
+        return K.log(c) + K.log(d) + K.xlogy(c - 1, x) + K.xlog1py(-d - 1, K.pow(x, c))
+    @staticmethod
+    def pdf(x: float, sh) -> float: return K.exp(_Burr12K.logpdf(x, sh))
+    @staticmethod
+    def logsf(x: float, sh) -> float: return K.xlog1py(-sh[1], K.pow(x, sh[0]))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return -K.expm1(_Burr12K.logsf(x, sh))
+    @staticmethod
+    def logcdf(x: float, sh) -> float: return K.log1p(-K.pow(1 + K.pow(x, sh[0]), -sh[1]))
+    @staticmethod
+    def sf(x: float, sh) -> float: return K.exp(_Burr12K.logsf(x, sh))
+    @staticmethod
+    def ppf(q: float, sh) -> float:
+        return K.pow(K.expm1(-1 / sh[1] * K.log1p(-q)), 1 / sh[0])
+    @staticmethod
+    def isf(p: float, sh) -> float:
+        return K.pow(K.expm1(-1 / sh[1] * K.log(p)), 1 / sh[0])
+    @staticmethod
+    def munp(n: float, sh) -> float:
+        c = sh[0]
+        d = sh[1]
+        if c * d > n:
+            nc = 1. * n / c
+            return d * K.beta(1.0 + nc, d - nc)
+        return NAN
+
+# ---------------------------------------------------------------- dweibull
+
+@tuple
+class _DweibullK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 1
+    @staticmethod
+    def rvs(rs, sh, size):
+        u = rs.uniform(size=size)
+        w = _map_ppf(_WeibullMinK, rs.uniform(size=size), sh)
+        return w * np.where(u >= 0.5, 1.0, -1.0)
+    @staticmethod
+    def pdf(x: float, sh) -> float:
+        c = sh[0]
+        ax = fabs(x)
+        return c / 2.0 * K.pow(ax, c - 1.0) * K.exp(-K.pow(ax, c))
+    @staticmethod
+    def logpdf(x: float, sh) -> float:
+        c = sh[0]
+        ax = fabs(x)
+        return K.log(c) - K.log(2.0) + K.xlogy(c - 1.0, ax) - K.pow(ax, c)
+    @staticmethod
+    def cdf(x: float, sh) -> float:
+        cx1 = 0.5 * K.exp(-K.pow(fabs(x), sh[0]))
+        return 1 - cx1 if x > 0 else cx1
+    @staticmethod
+    def ppf(q: float, sh) -> float:
+        fac = 2. * (q if q <= 0.5 else 1. - q)
+        fac = K.pow(-K.log(fac), 1.0 / sh[0])
+        return fac if q > 0.5 else -fac
+    @staticmethod
+    def sf(x: float, sh) -> float:
+        h = 0.5 * _WeibullMinK.sf(fabs(x), sh)
+        return h if x > 0 else 1 - h
+    @staticmethod
+    def isf(q: float, sh) -> float:
+        dq = 2. * (q if q <= 0.5 else 1. - q)
+        w = _WeibullMinK.isf(dq, sh)
+        return -w if q > 0.5 else w
+    @staticmethod
+    def munp(n: float, sh) -> float:
+        return (1 - (int(n) % 2)) * K.gamma(1.0 + 1.0 * n / sh[0])
+    @staticmethod
+    def stats(sh): return (0.0, _NA, 0.0, _NA)
+    @staticmethod
+    def entropy(sh) -> float: return _WeibullMinK.entropy(sh) - K.log(0.5)
+
+# --------------------------------------------------------------- exponweib
+
+@tuple
+class _ExponweibK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 2
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def logpdf(x: float, sh) -> float:
+        a = sh[0]
+        c = sh[1]
+        negxc = -K.pow(x, c)
+        exm1c = -K.expm1(negxc)
+        return (K.log(a) + K.log(c) + K.xlogy(a - 1.0, exm1c) + negxc + K.xlogy(c - 1.0, x))
+    @staticmethod
+    def pdf(x: float, sh) -> float: return K.exp(_ExponweibK.logpdf(x, sh))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return K.pow(-K.expm1(-K.pow(x, sh[1])), sh[0])
+    @staticmethod
+    def ppf(q: float, sh) -> float:
+        return K.pow(-K.log1p(-K.pow(q, 1.0 / sh[0])), 1.0 / sh[1])
+    @staticmethod
+    def sf(x: float, sh) -> float:
+        return -K.expm1(K.xlog1py(sh[0], -K.exp(-K.pow(x, sh[1]))))
+    @staticmethod
+    def isf(p: float, sh) -> float:
+        return K.pow(-K.log(-K.expm1(K.xlog1py(1 / sh[0], -p))), 1 / sh[1])
+
+# ------------------------------------------------------------- levy / levy_l
+
+@tuple
+class _LevyK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 0
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def open_support() -> Literal[bool]: return True
+    @staticmethod
+    def pdf(x: float, sh) -> float:
+        return 1 / K.sqrt(2 * _PI * x) / x * K.exp(-1 / (2 * x))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return K.erfc(K.sqrt(0.5 / x))
+    @staticmethod
+    def sf(x: float, sh) -> float: return K.erf(K.sqrt(0.5 / x))
+    @staticmethod
+    def ppf(q: float, sh) -> float:
+        val = _norm_isf(q / 2)
+        return 1.0 / (val * val)
+    @staticmethod
+    def isf(p: float, sh) -> float: return 1 / (2 * K.erfinv(p) ** 2)
+    @staticmethod
+    def stats(sh): return (INF, INF, NAN, NAN)
+
+@tuple
+class _LevyLK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 0
+    @staticmethod
+    def b(sh) -> float: return 0.0
+    @staticmethod
+    def open_support() -> Literal[bool]: return True
+    @staticmethod
+    def pdf(x: float, sh) -> float:
+        ax = fabs(x)
+        return 1 / K.sqrt(2 * _PI * ax) / ax * K.exp(-1 / (2 * ax))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return 2 * _norm_cdf(1 / K.sqrt(fabs(x))) - 1
+    @staticmethod
+    def sf(x: float, sh) -> float: return 2 * _norm_sf(1 / K.sqrt(fabs(x)))
+    @staticmethod
+    def ppf(q: float, sh) -> float:
+        val = _norm_ppf((q + 1.0) / 2)
+        return -1.0 / (val * val)
+    @staticmethod
+    def isf(p: float, sh) -> float: return -1 / _norm_isf(p / 2) ** 2
+    @staticmethod
+    def stats(sh): return (INF, INF, NAN, NAN)
+
+# -------------------------------------------------------------------- moyal
+
+@tuple
+class _MoyalK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 0
+    @staticmethod
+    def rvs(rs, sh, size): return -np.log(rs.standard_gamma(0.5, size) * 2.0)
+    @staticmethod
+    def pdf(x: float, sh) -> float:
+        return K.exp(-0.5 * (x + K.exp(-x))) / K.sqrt(2 * _PI)
+    @staticmethod
+    def cdf(x: float, sh) -> float: return K.erfc(K.exp(-0.5 * x) / K.sqrt(2.0))
+    @staticmethod
+    def sf(x: float, sh) -> float: return K.erf(K.exp(-0.5 * x) / K.sqrt(2.0))
+    @staticmethod
+    def ppf(x: float, sh) -> float: return -K.log(2 * K.erfcinv(x) ** 2)
+    @staticmethod
+    def stats(sh):
+        return (_LOG2 + _EULER, _PI ** 2 / 2, 28 * K.sqrt(2.0) * _ZETA3 / _PI ** 3, 4.)
+    @staticmethod
+    def munp(n: float, sh) -> float:
+        l = _LOG2 + _EULER
+        if n == 1.0:
+            return l
+        elif n == 2.0:
+            return _PI ** 2 / 2 + l ** 2
+        elif n == 3.0:
+            return 1.5 * _PI ** 2 * l + l ** 3 + 14 * _ZETA3
+        elif n == 4.0:
+            return 4 * 14 * _ZETA3 * l + 3 * _PI ** 2 * l ** 2 + l ** 4 + 7 * _PI ** 4 / 4
+        return _generic_munp(_MoyalK, n, sh)
+
+# --------------------------------------------- arcsine / anglit / bradford
+
+@tuple
+class _ArcsineK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 0
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def b(sh) -> float: return 1.0
+    @staticmethod
+    def pdf(x: float, sh) -> float: return 1.0 / _PI / K.sqrt(x * (1 - x))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return 2.0 / _PI * asin(K.sqrt(x))
+    @staticmethod
+    def ppf(q: float, sh) -> float: return K.sin(_PI / 2.0 * q) ** 2.0
+    @staticmethod
+    def stats(sh): return (0.5, 1.0 / 8, 0.0, -3.0 / 2.0)
+    @staticmethod
+    def entropy(sh) -> float: return -0.24156447527049044468
+
+@tuple
+class _AnglitK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 0
+    @staticmethod
+    def a(sh) -> float: return -_PI / 4
+    @staticmethod
+    def b(sh) -> float: return _PI / 4
+    @staticmethod
+    def pdf(x: float, sh) -> float: return K.cos(2 * x)
+    @staticmethod
+    def cdf(x: float, sh) -> float: return K.sin(x + _PI / 4) ** 2.0
+    @staticmethod
+    def sf(x: float, sh) -> float: return K.cos(x + _PI / 4) ** 2.0
+    @staticmethod
+    def ppf(q: float, sh) -> float: return asin(K.sqrt(q)) - _PI / 4
+    @staticmethod
+    def stats(sh):
+        return (0.0, _PI * _PI / 16 - 0.5, 0.0, -2 * (_PI ** 4 - 96) / (_PI * _PI - 8) ** 2)
+    @staticmethod
+    def entropy(sh) -> float: return 1 - K.log(2.0)
+
+@tuple
+class _BradfordK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 1
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def b(sh) -> float: return 1.0
+    @staticmethod
+    def pdf(x: float, sh) -> float:
+        c = sh[0]
+        return c / (c * x + 1.0) / K.log1p(c)
+    @staticmethod
+    def cdf(x: float, sh) -> float: return K.log1p(sh[0] * x) / K.log1p(sh[0])
+    @staticmethod
+    def ppf(q: float, sh) -> float: return K.expm1(q * K.log1p(sh[0])) / sh[0]
+    @staticmethod
+    def stats(sh):
+        c = sh[0]
+        k = K.log(1.0 + c)
+        mu = (c - k) / (c * k)
+        mu2 = ((c + 2.0) * k - 2.0 * c) / (2 * c * k * k)
+        g1 = K.sqrt(2.0) * (12 * c * c - 9 * c * k * (c + 2) + 2 * k * k * (c * (c + 3) + 3))
+        g1 /= K.sqrt(c * (c * (k - 2) + 2 * k)) * (3 * c * (k - 2) + 6 * k)
+        g2 = (c ** 3 * (k - 3) * (k * (3 * k - 16) + 24) + 12 * k * c * c * (k - 4) * (k - 3)
+              + 6 * c * k * k * (3 * k - 14) + 12 * k ** 3)
+        g2 /= 3 * c * (c * (k - 2) + 2 * k) ** 2
+        return (mu, mu2, g1, g2)
+    @staticmethod
+    def entropy(sh) -> float:
+        c = sh[0]
+        k = K.log(1 + c)
+        return k / 2.0 - K.log(c / k)
+
+# ------------------------------------------------------ rdist / semicircular
+
+@tuple
+class _RdistK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 1
+    @staticmethod
+    def a(sh) -> float: return -1.0
+    @staticmethod
+    def b(sh) -> float: return 1.0
+    @staticmethod
+    def rvs(rs, sh, size): return 2 * rs.beta(sh[0] / 2, sh[0] / 2, size) - 1
+    @staticmethod
+    def logpdf(x: float, sh) -> float:
+        c = sh[0]
+        return -K.log(2.0) + _BetaK.logpdf((x + 1) / 2, (c / 2, c / 2))
+    @staticmethod
+    def pdf(x: float, sh) -> float: return K.exp(_RdistK.logpdf(x, sh))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return _BetaK.cdf((x + 1) / 2, (sh[0] / 2, sh[0] / 2))
+    @staticmethod
+    def sf(x: float, sh) -> float: return _BetaK.sf((x + 1) / 2, (sh[0] / 2, sh[0] / 2))
+    @staticmethod
+    def ppf(q: float, sh) -> float: return 2 * _BetaK.ppf(q, (sh[0] / 2, sh[0] / 2)) - 1
+    @staticmethod
+    def munp(n: float, sh) -> float:
+        c = sh[0]
+        num = (1 - (int(n) % 2)) * K.beta((n + 1.0) / 2, c / 2.0)
+        return num / K.beta(1. / 2, c / 2.)
+
+@tuple
+class _SemicircularK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 0
+    @staticmethod
+    def a(sh) -> float: return -1.0
+    @staticmethod
+    def b(sh) -> float: return 1.0
+    @staticmethod
+    def rvs(rs, sh, size):
+        r = np.sqrt(rs.uniform(size=size))
+        a = np.cos(_PI * rs.uniform(size=size))
+        return r * a
+    @staticmethod
+    def pdf(x: float, sh) -> float: return 2.0 / _PI * K.sqrt(1 - x * x)
+    @staticmethod
+    def logpdf(x: float, sh) -> float: return K.log(2 / _PI) + 0.5 * K.log1p(-x * x)
+    @staticmethod
+    def cdf(x: float, sh) -> float:
+        return 0.5 + 1.0 / _PI * (x * K.sqrt(1 - x * x) + asin(x))
+    @staticmethod
+    def ppf(q: float, sh) -> float: return _RdistK.ppf(q, (3.0,))
+    @staticmethod
+    def stats(sh): return (0.0, 0.25, 0.0, -1.0)
+    @staticmethod
+    def entropy(sh) -> float: return 0.64472988584940017414
+
+# ------------------------------------------------------------------ gibrat
+
+@tuple
+class _GibratK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 0
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def open_support() -> Literal[bool]: return True
+    @staticmethod
+    def rvs(rs, sh, size): return np.exp(rs.standard_normal(size))
+    @staticmethod
+    def logpdf(x: float, sh) -> float: return _LognormK.logpdf(x, (1.0,))
+    @staticmethod
+    def pdf(x: float, sh) -> float: return K.exp(_LognormK.logpdf(x, (1.0,)))
+    @staticmethod
+    def cdf(x: float, sh) -> float: return _norm_cdf(K.log(x))
+    @staticmethod
+    def ppf(q: float, sh) -> float: return K.exp(_norm_ppf(q))
+    @staticmethod
+    def sf(x: float, sh) -> float: return _norm_sf(K.log(x))
+    @staticmethod
+    def isf(p: float, sh) -> float: return K.exp(_norm_isf(p))
+    @staticmethod
+    def stats(sh):
+        p = 2.718281828459045
+        return (K.sqrt(p), p * (p - 1), K.sqrt(p - 1) * (2 + p), (((p + 2) * p + 3) * p) * p - 6.0)
+    @staticmethod
+    def entropy(sh) -> float: return 0.5 * K.log(2 * _PI) + 0.5
+
+# ------------------------------------------------------------------ mielke
+
+@tuple
+class _MielkeK:
+    @staticmethod
+    def nshape() -> Literal[int]: return 2
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def pdf(x: float, sh) -> float:
+        k = sh[0]
+        s = sh[1]
+        return k * K.pow(x, k - 1.0) / K.pow(1.0 + K.pow(x, s), 1.0 + k * 1.0 / s)
+    @staticmethod
+    def logpdf(x: float, sh) -> float:
+        k = sh[0]
+        s = sh[1]
+        return K.log(k) + K.log(x) * (k - 1) - K.log1p(K.pow(x, s)) * (1 + k / s)
+    @staticmethod
+    def cdf(x: float, sh) -> float:
+        k = sh[0]
+        s = sh[1]
+        return K.pow(x, k) / K.pow(1.0 + K.pow(x, s), k * 1.0 / s)
+    @staticmethod
+    def ppf(q: float, sh) -> float:
+        k = sh[0]
+        s = sh[1]
+        qsk = K.pow(q, s * 1.0 / k)
+        return K.pow(qsk / (1.0 - qsk), 1.0 / s)
+    @staticmethod
+    def munp(n: float, sh) -> float:
+        k = sh[0]
+        s = sh[1]
+        if n < s:
+            return K.gamma((k + n) / s) * K.gamma(1 - n / s) / K.gamma(k / s)
+        return INF
+
+# ------------------------------------------------------------------ kappa3
+
+@tuple
+class _Kappa3K:
+    @staticmethod
+    def nshape() -> Literal[int]: return 1
+    @staticmethod
+    def a(sh) -> float: return 0.0
+    @staticmethod
+    def pdf(x: float, sh) -> float:
+        a = sh[0]
+        return a * K.pow(a + K.pow(x, a), -1.0 / a - 1)
+    @staticmethod
+    def cdf(x: float, sh) -> float:
+        a = sh[0]
+        return x * K.pow(a + K.pow(x, a), -1.0 / a)
+    @staticmethod
+    def sf(x: float, sh) -> float:
+        a = sh[0]
+        sf = 1.0 - _Kappa3K.cdf(x, sh)
+        if sf < 0.01:
+            sf2 = -K.expm1(K.xlog1py(-1.0 / a, a * K.pow(x, -a)))
+            if not (sf2 > 0.01):
+                return sf2
+        return sf
+    @staticmethod
+    def ppf(q: float, sh) -> float:
+        a = sh[0]
+        return K.pow(a / (K.pow(q, -a) - 1.0), 1.0 / a)
+    @staticmethod
+    def isf(q: float, sh) -> float:
+        a = sh[0]
+        return K.pow(a / K.expm1(K.xlog1py(-a, -q)), 1.0 / a)
+    @staticmethod
+    def stats(sh):
+        a = sh[0]
+        return (_NA if 1 < a else NAN, _NA if 2 < a else NAN,
+                _NA if 3 < a else NAN, _NA if 4 < a else NAN)
+    @staticmethod
+    def munp(n: float, sh) -> float:
+        if n >= sh[0]:
+            return NAN
+        return _generic_munp(_Kappa3K, n, sh)
+
 norm = rv_continuous[_NormK]('norm')
 t = rv_continuous[_TK]('t')
 chi2 = rv_continuous[_Chi2K]('chi2')
@@ -1294,3 +2135,26 @@ wald = rv_continuous[_WaldK]('wald')
 rice = rv_continuous[_RiceK]('rice')
 truncexpon = rv_continuous[_TruncexponK]('truncexpon')
 triang = rv_continuous[_TriangK]('triang')
+genextreme = rv_continuous[_GenextremeK]('genextreme')
+genpareto = rv_continuous[_GenparetoK]('genpareto')
+genlogistic = rv_continuous[_GenlogisticK]('genlogistic')
+gompertz = rv_continuous[_GompertzK]('gompertz')
+hypsecant = rv_continuous[_HypsecantK]('hypsecant')
+loglaplace = rv_continuous[_LoglaplaceK]('loglaplace')
+powerlaw = rv_continuous[_PowerlawK]('powerlaw')
+burr = rv_continuous[_BurrK]('burr')
+fisk = rv_continuous[_FiskK]('fisk')
+burr12 = rv_continuous[_Burr12K]('burr12')
+dweibull = rv_continuous[_DweibullK]('dweibull')
+exponweib = rv_continuous[_ExponweibK]('exponweib')
+levy = rv_continuous[_LevyK]('levy')
+levy_l = rv_continuous[_LevyLK]('levy_l')
+moyal = rv_continuous[_MoyalK]('moyal')
+arcsine = rv_continuous[_ArcsineK]('arcsine')
+anglit = rv_continuous[_AnglitK]('anglit')
+bradford = rv_continuous[_BradfordK]('bradford')
+rdist = rv_continuous[_RdistK]('rdist')
+semicircular = rv_continuous[_SemicircularK]('semicircular')
+gibrat = rv_continuous[_GibratK]('gibrat')
+mielke = rv_continuous[_MielkeK]('mielke')
+kappa3 = rv_continuous[_Kappa3K]('kappa3')

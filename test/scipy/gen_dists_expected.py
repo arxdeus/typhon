@@ -23,6 +23,19 @@ GROUPS = {
         ('invgamma', (5.5,), 1e-12), ('invgauss', (0.7,), 1e-9), ('wald', (), 1e-9),
         ('rice', (1.3,), 1e-9), ('truncexpon', (2.2,), 1e-12), ('triang', (0.3,), 1e-12),
     ],
+    'ext': [
+        ('genextreme', (-0.2,), 1e-11), ('genpareto', (0.15,), 1e-11),
+        ('genlogistic', (1.7,), 1e-11), ('gompertz', (1.3,), 1e-11), ('hypsecant', (), 1e-11),
+        ('loglaplace', (3.2,), 1e-11), ('powerlaw', (1.8,), 1e-11), ('burr', (10.5, 4.3), 1e-10),
+        ('fisk', (5.0,), 1e-10), ('burr12', (10.0, 4.0), 1e-10), ('dweibull', (2.1,), 1e-11),
+        ('exponweib', (2.5, 1.7), 1e-10),
+    ],
+    'misc': [
+        ('levy', (), 1e-9), ('levy_l', (), 1e-9), ('moyal', (), 1e-10), ('arcsine', (), 1e-11),
+        ('anglit', (), 1e-11), ('bradford', (0.3,), 1e-11), ('rdist', (1.6,), 1e-10),
+        ('semicircular', (), 1e-11), ('gibrat', (), 1e-11), ('mielke', (10.4, 4.6), 1e-9),
+        ('kappa3', (5.0,), 1e-9),
+    ],
 }
 
 def fl(v):
