@@ -27,6 +27,7 @@ from .reductions import *
 from .reductions import min as amin, max as amax
 from .util import AxisError, TooHardError
 from .errstate import errstate, seterr, geterr, seterrcall, geterrcall
+from .extras import *
 
 import linalg
 import fft
