@@ -1107,6 +1107,22 @@ impl<'a> TypecheckVisitor<'a> {
             if tuple_expr.is_some() {
                 self.result_expr = tuple_expr;
             }
+        } else if let Some(sl) = self.cache.ast[orig_index].kind.as_slice().cloned()
+            && !self.find_method(Some(cls), "__static_slice__")?.is_empty()
+        {
+            // Case: `obj[a:b:c]` with literal bounds on a class whose item types are static
+            // (e.g. sklearn Pipeline over a tuple of steps): call
+            // `obj.__static_slice__(has_a, a, has_b, b, has_c, c)` with Literal arguments.
+            let mut args = Vec::new();
+            for p in [sl.start, sl.stop, sl.step] {
+                let none = p.is_none() || self.cache.ast[p.unwrap()].kind.as_none().is_some();
+                args.push(self.n_expr(BoolExpr { value: !none }));
+                let v = if none { self.n_expr(IntExpr { value: "0".into(), suffix: String::new(), int_value: Some(0) }) } else { self.cache.ast.clone_expr(p.unwrap(), false) };
+                args.push(v);
+            }
+            let d = self.dot_n(head, "__static_slice__");
+            let c = self.call_n(d, args);
+            self.result_expr = self.transform(Some(c))?;
         } else {
             // Case: normal __getitem__
             let d = self.dot_n(head, "__getitem__");

@@ -101,6 +101,25 @@ impl<'a> TypecheckVisitor<'a> {
             self.ast_mut()[e].attrs.set(Attr::TupleCall);
         }
 
+        // `dict(a=1, b='x')` with keyword arguments only -> `{'a': 1, 'b': 'x'}`
+        // so that mixed value types get the same Union inference as a dict literal.
+        if crate::ast::is_id(self.ast(), Some(self.callee(e)), "dict") {
+            let items = self.call_items(e);
+            if !items.is_empty()
+                && items.iter().all(|a| !a.name.is_empty() && !a.name.starts_with('*') && a.value.is_some())
+            {
+                let src = self.ast()[e].src;
+                let mut kv = Vec::new();
+                for a in items {
+                    let k = self.ast_mut().new_expr(crate::ast::StringExpr::new(a.name.clone(), ""), a.src);
+                    kv.push(self.ast_mut().new_expr(crate::ast::TupleExpr { items: vec![k, a.value.unwrap()] }, a.src));
+                }
+                let d = self.ast_mut().new_expr(crate::ast::DictExpr { items: kv }, src);
+                self.result_expr = self.transform(Some(d))?;
+                return Ok(());
+            }
+        }
+
         self.validate_call(e)?;
 
         // Check if this call is partial call

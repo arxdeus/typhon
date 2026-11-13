@@ -180,6 +180,18 @@ class Pipeline[S]:
     def __getitem__(self, i: Literal[int]):
         return self.steps[i][1]
 
+    def __static_slice__(self, has_start: Literal[bool], start: Literal[int],
+                         has_stop: Literal[bool], stop: Literal[int],
+                         has_step: Literal[bool], step: Literal[int]):
+        """pipe[a:b] -> Pipeline of the selected steps (sklearn requires step 1)."""
+        if has_step:
+            if step != 1:
+                compile_error("Pipeline slicing only supports a step of 1")
+        n: Literal[int] = static.len(self.steps)
+        a: Literal[int] = (start + n if start < 0 else start) if has_start else 0
+        b: Literal[int] = (stop + n if stop < 0 else stop) if has_stop else n
+        return Pipeline(self.steps[a:b], memory=self.memory, verbose=self.verbose)
+
     def head(self):
         """Equivalent of pipeline[:-1] (slices are not static in Typhon)."""
         return Pipeline(_drop_last(self.steps), memory=self.memory, verbose=self.verbose)

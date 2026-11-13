@@ -5,6 +5,7 @@
 # filtering raises NotImplementedError.
 
 import math
+import internal.static as static
 import numpy as np
 from scipy.signal import firwin as _sp_firwin, firwin2 as _sp_firwin2
 from scipy.signal import minimum_phase as _sp_minimum_phase
@@ -731,42 +732,62 @@ class IIRParams:
         return key in ("padlen", "order", "ftype", "output")
 
 
-def _iir_params_from(iir_params) -> IIRParams:
-    """Accept None, IIRParams, or a homogeneous dict.
+def _iir_set_value(p: IIRParams, k: str, v):
+    if isinstance(v, Union):
+        for tag, T in static.vars_types(v, with_index=True):
+            if Union._get_tag(v) == tag:
+                _iir_set_value(p, k, Union._get_data(v, T))
+    elif isinstance(v, str):
+        if k == "ftype":
+            p.ftype = v
+        elif k == "output":
+            p.output = v
+        else:
+            raise ValueError(f"iir_params[{k!r}] must be numeric, got a str")
+    elif isinstance(v, NoneType):
+        if k == "rp":
+            p.rp = None
+        elif k == "rs":
+            p.rs = None
+        elif k not in ("padlen", "gpass", "gstop"):
+            raise ValueError(f"iir_params[{k!r}] cannot be None")
+    elif isinstance(v, Optional):
+        if v is None:
+            _iir_set_value(p, k, None)
+        else:
+            _iir_set_value(p, k, v.__val__())
+    elif isinstance(v, int) or isinstance(v, float) or isinstance(v, bool):
+        if k == "order":
+            p.order = int(v)
+        elif k == "padlen":
+            p.padlen = int(v)
+        elif k == "rp":
+            p.rp = float(v)
+        elif k == "rs":
+            p.rs = float(v)
+        else:
+            raise ValueError(f"unsupported numeric iir_params key {k}")
+    else:
+        compile_error("unsupported iir_params value type")
 
-    Typhon dicts hold one value type, so mne's mixed dict(order=4, ftype='butter')
-    is spelled IIRParams(order=4, ftype='butter') (or a str-valued dict for
-    ftype/output and a number-valued dict for order/rp/rs/padlen).
+
+def _iir_params_from(iir_params) -> IIRParams:
+    """Accept None, IIRParams, or a str-keyed dict.
+
+    mne's mixed dict(order=4, ftype='butter', output='sos') is a dict with
+    Union[int|str] values; each entry is dispatched on its runtime member.
     """
     p = IIRParams()
     if isinstance(iir_params, NoneType):
         return p
     elif isinstance(iir_params, IIRParams):
         return iir_params
-    elif isinstance(iir_params, Dict[str, str]):
+    elif hasattr(iir_params, "items"):
         for k, v in iir_params.items():
-            if k == "ftype":
-                p.ftype = v
-            elif k == "output":
-                p.output = v
-            else:
-                raise ValueError(f"unsupported iir_params key {k} for a str-valued dict")
-        return p
-    elif isinstance(iir_params, Dict[str, int]) or isinstance(iir_params, Dict[str, float]):
-        for k, v in iir_params.items():
-            if k == "order":
-                p.order = int(v)
-            elif k == "padlen":
-                p.padlen = int(v)
-            elif k == "rp":
-                p.rp = float(v)
-            elif k == "rs":
-                p.rs = float(v)
-            else:
-                raise ValueError(f"unsupported iir_params key {k} for a numeric dict")
+            _iir_set_value(p, k, v)
         return p
     else:
-        compile_error("iir_params must be None, mne.filter.IIRParams or a homogeneous dict")
+        compile_error("iir_params must be None, mne.filter.IIRParams or a dict")
 
 
 def _iir_default_output_check(p: IIRParams):
