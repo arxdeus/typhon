@@ -182,6 +182,7 @@ pub const SCIPY: &[&str] = &[
     "sklearn/test_gp_clf.py", "sklearn/test_mlp.py", "sklearn/test_mlp2.py",
     "mne/test_proj_ref.py", "mne/test_csd_annot.py", "mne/test_montage_io.py",
     "mne/test_epochs_more.py",
+    "scipy/test_stats_resampling.py", "scipy/test_stats_tests3.py", "scipy/test_mstats.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
