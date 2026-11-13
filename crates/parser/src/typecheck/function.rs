@@ -826,8 +826,15 @@ impl<'a> TypecheckVisitor<'a> {
         // Parse arguments to the context. Needs to be done after adding generics
         // to support cases like `foo(a: T, T: type)`
         for a in args.iter_mut() {
+            let is_str = a.ty.is_some_and(|t| self.cache.ast[t].kind.as_string().is_some());
             let aty = self.parse_fwd_ref(a.ty);
-            a.ty = self.transform_type(aty, true)?;
+            a.ty = match self.transform_type(aty, true) {
+                // Forward reference to a class defined later (`b: 'B'`, or `b: B` in a
+                // method): keep the annotation, the signature loop below turns it into a
+                // generic. Plain functions keep the eager "not defined" error.
+                Err(e) if aty.is_some() && (is_str || parent_class.is_some()) && e.to_string().contains("is not defined") => aty,
+                r => r?,
+            };
         }
 
         // Unify base type generics with argument types. Add non-generic arguments to the
