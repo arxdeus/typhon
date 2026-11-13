@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use indexmap::IndexSet;
 use rustc_hash::{FxHashMap, FxHashSet};
+use smallvec::SmallVec;
 use typhon_ir::pass::{Analysis, AnalysisResult, PassContext};
 use typhon_ir::util::irtools::{get_func, has_attribute, return_type};
 use typhon_ir::util::side_effect::{DERIVES_ATTR, NO_CAPTURE_ATTR, NO_SIDE_EFFECT_ATTR, PURE_ATTR, SELF_CAPTURES_ATTR};
@@ -56,7 +57,47 @@ impl CaptureInfo {
 }
 
 fn should_track_type(m: &Module, t: Option<TypeId>) -> bool {
-    t.map(|t| !m.type_is_atomic(t)).unwrap_or(false)
+    let Some(t) = t else { return false };
+    ATOMIC_CACHE.with(|c| {
+        let mut c = c.borrow_mut();
+        match c.as_mut() {
+            Some(map) => !*map.entry(t).or_insert_with(|| m.type_is_atomic(t)),
+            None => !m.type_is_atomic(t),
+        }
+    })
+}
+
+thread_local! {
+    /// `Type::isAtomic` memo, active only while a [`AtomicCacheGuard`] is alive (the module
+    /// is borrowed immutably for the guard's lifetime, so types cannot change).
+    static ATOMIC_CACHE: RefCell<Option<FxHashMap<TypeId, bool>>> = const { RefCell::new(None) };
+}
+
+struct AtomicCacheGuard {
+    outer: bool,
+}
+
+impl AtomicCacheGuard {
+    fn new() -> Self {
+        let outer = ATOMIC_CACHE.with(|c| {
+            let mut c = c.borrow_mut();
+            if c.is_some() {
+                false
+            } else {
+                *c = Some(FxHashMap::default());
+                true
+            }
+        });
+        Self { outer }
+    }
+}
+
+impl Drop for AtomicCacheGuard {
+    fn drop(&mut self) {
+        if self.outer {
+            ATOMIC_CACHE.with(|c| *c.borrow_mut() = None);
+        }
+    }
 }
 fn should_track_var(m: &Module, v: VarId) -> bool {
     should_track_type(m, m.var_type(v))
@@ -96,6 +137,7 @@ impl CaptureAnalysis {
     }
 
     pub fn compute(m: &Module, rd: &RDResult, dom: &DominatorResult) -> CaptureResult {
+        let _atomic = AtomicCacheGuard::new();
         let cc = CaptureContext::new(rd, None);
         let mut results: FxHashMap<Id, Vec<CaptureInfo>> = FxHashMap::default();
         let main = m.main_func();
@@ -132,6 +174,7 @@ impl Analysis for CaptureAnalysis {
 
 /// `escapes(func, value, cr)`: capture info of an arbitrary value within `func`.
 pub fn escapes(m: &Module, func: FuncId, value: ValueId, cr: &CaptureResult) -> CaptureInfo {
+    let _atomic = AtomicCacheGuard::new();
     if !should_track_value(m, value) {
         return CaptureInfo::nothing();
     }
@@ -275,10 +318,6 @@ impl DerivedSet {
             }
         }
         false
-    }
-
-    fn is_derived_val(&self, m: &Module, v: ValueId) -> bool {
-        self.derived_vals.contains(&m.value_uid(v))
     }
 
     fn set_derived_var(&mut self, m: &Module, cfg: &CFGraph, v: VarId, cause: CfValue, should_arg_capture: bool) {
@@ -581,11 +620,12 @@ impl<'c, 'a> CaptureTracker<'c, 'a> {
         self.dsets.iter().map(|d| d.size()).sum()
     }
 
-    fn dsets_of_val(&self, m: &Module, v: Option<ValueId>) -> Vec<usize> {
-        let Some(v) = v else { return Vec::new() };
-        (0..self.dsets.len()).filter(|i| self.dsets[*i].is_derived_val(m, v)).collect()
+    fn dsets_of_val(&self, m: &Module, v: Option<ValueId>) -> SmallVec<[usize; 8]> {
+        let Some(v) = v else { return SmallVec::new() };
+        let uid = m.value_uid(v);
+        (0..self.dsets.len()).filter(|i| self.dsets[*i].derived_vals.contains(&uid)).collect()
     }
-    fn dsets_of_var(&self, m: &Module, v: VarId, loc: CfValue) -> Vec<usize> {
+    fn dsets_of_var(&self, m: &Module, v: VarId, loc: CfValue) -> SmallVec<[usize; 8]> {
         (0..self.dsets.len()).filter(|i| self.dsets[*i].is_derived_var(m, v, loc, &self.rd)).collect()
     }
 
