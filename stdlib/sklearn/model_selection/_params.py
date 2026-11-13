@@ -326,6 +326,42 @@ def _set_param_rt(est, key: str, val: _PV) -> bool:
             if st[0] == head:
                 ok = _set_param_rt(st[1], rest, val)
         return ok
+    elif hasattr(est, "_sk_clone") and hasattr(est, "transformers"):
+        # ColumnTransformer: (name, transformer, columns) entries
+        i = key.find("__")
+        if i < 0:
+            return False
+        head = key[:i]
+        rest = key[i + 2:]
+        ok = False
+        for st in est.transformers:
+            if st[0] == head:
+                ok = _set_param_rt(st[1], rest, val)
+        if not ok and head == "remainder":
+            ok = _set_param_rt(est.remainder, rest, val)
+        return ok
+    elif hasattr(est, "_sk_clone") and hasattr(est, "transformer_list"):
+        # FeatureUnion: (name, transformer) entries
+        i = key.find("__")
+        if i < 0:
+            return False
+        head = key[:i]
+        rest = key[i + 2:]
+        ok = False
+        for st in est.transformer_list:
+            if st[0] == head:
+                ok = _set_param_rt(st[1], rest, val)
+        return ok
+    elif key.find("__") >= 0:
+        # nested estimator field (GridSearchCV.estimator, TransformedTargetRegressor.regressor, ...)
+        i = key.find("__")
+        head = key[:i]
+        rest = key[i + 2:]
+        ok = False
+        for k, v in static.vars(est):
+            if k == head and (hasattr(v, "fit") or hasattr(v, "steps")):
+                ok = _set_param_rt(v, rest, val)
+        return ok
     else:
         ok = False
         for k, v in static.vars(est):

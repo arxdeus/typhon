@@ -79,6 +79,23 @@ class ColumnTransformer[T, R = str]:
         self.output_indices_ = {}
         self._widths = []
 
+    def get_params(self, deep: bool = True) -> Dict[str, str]:
+        from ..pipeline import _nested_params
+        out = Dict[str, str]()
+        out["n_jobs"] = "None" if self.n_jobs is None else str(self.n_jobs)
+        out["sparse_threshold"] = str(self.sparse_threshold)
+        out["verbose"] = "True" if self.verbose else "False"
+        _nested_params(out, self.transformers, deep)
+        if isinstance(self.remainder, str):
+            out["remainder"] = repr(self.remainder)
+        return out
+
+    def set_params(self, **params):
+        from ..pipeline import _set_kw
+        keys = params.__keys__()
+        _set_kw(self, keys, params.args, 0)
+        return self
+
     def _sk_clone(self):
         r = self.remainder
         if isinstance(r, str):

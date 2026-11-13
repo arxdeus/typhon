@@ -79,6 +79,25 @@ def _set_kw(est, keys, vals, i: int):
             raise ValueError(f"Invalid parameter {keys[i]!r} for estimator Pipeline.")
         _set_kw(est, keys, vals[1:], i + 1)
 
+def _nested_params(out: Dict[str, str], steps, deep: bool):
+    from .base import get_params as _gp, _param_repr
+    for st in steps:
+        nm = st[0]
+        e = st[1]
+        if isinstance(e, str):
+            out[nm] = e
+        else:
+            out[nm] = _param_repr(e)
+            if deep and hasattr(e, "fit"):
+                if hasattr(e, "steps"):
+                    sub = Dict[str, str]()
+                    _nested_params(sub, e.steps, deep)
+                    for k, v in sub.items():
+                        out[nm + "__" + k] = v
+                else:
+                    for k, v in _gp(e, False).items():
+                        out[nm + "__" + k] = v
+
 class _NamedSteps[S]:
     """Pipeline.named_steps. Step names are runtime strings, so lookup by
     name (ns["lr"]) is not available; use pipe[i] / keys()."""
@@ -123,6 +142,14 @@ class Pipeline[S]:
         out = List[str]()
         for st in self.steps:
             out.append(st[0])
+        return out
+
+    def get_params(self, deep: bool = True) -> Dict[str, str]:
+        """memory/verbose, each step name and (deep) step__param entries (reprs)."""
+        out = Dict[str, str]()
+        out["memory"] = "None" if self.memory is None else repr(self.memory)
+        out["verbose"] = "True" if self.verbose else "False"
+        _nested_params(out, self.steps, deep)
         return out
 
     def set_params(self, **params):
@@ -271,6 +298,18 @@ class FeatureUnion[T, W = NoneType]:
         self.transformer_weights = transformer_weights
         self.n_jobs = n_jobs
         self.verbose = verbose
+
+    def get_params(self, deep: bool = True) -> Dict[str, str]:
+        out = Dict[str, str]()
+        out["n_jobs"] = "None" if self.n_jobs is None else str(self.n_jobs)
+        out["verbose"] = "True" if self.verbose else "False"
+        _nested_params(out, self.transformer_list, deep)
+        return out
+
+    def set_params(self, **params):
+        keys = params.__keys__()
+        _set_kw(self, keys, params.args, 0)
+        return self
 
     def _sk_clone(self):
         return FeatureUnion(_clone_steps(self.transformer_list), n_jobs=self.n_jobs,

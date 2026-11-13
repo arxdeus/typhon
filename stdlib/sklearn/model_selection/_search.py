@@ -132,6 +132,26 @@ class _BaseSearch[E, P, S, CV, R]:
         self.refit_time_ = 0.0
         self.scorer_names_ = []
 
+    def get_params(self, deep: bool = True) -> Dict[str, str]:
+        """refit/cv/scoring fields, estimator, and (deep) estimator__param entries."""
+        from ..base import get_params as _gp, _param_repr
+        out = Dict[str, str]()
+        out["n_iter"] = str(self.n_iter)
+        out["return_train_score"] = "True" if self.return_train_score else "False"
+        out["estimator"] = _param_repr(self.estimator)
+        if deep:
+            if hasattr(self.estimator, "get_params"):
+                for k, v in self.estimator.get_params(True).items():
+                    out["estimator__" + k] = v
+        return out
+
+    def set_params(self, **params):
+        """estimator__param=value (nested, any depth)."""
+        from .._params_kw import set_kw as _set_kw2
+        keys = params.__keys__()
+        _set_kw2(self, keys, params.args, 0)
+        return self
+
     def _candidates(self) -> List[Dict[str, _PV]]:
         if self._random:
             return _sample_params(self._space, self.n_iter, self.random_state)
