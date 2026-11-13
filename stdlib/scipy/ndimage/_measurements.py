@@ -404,3 +404,170 @@ def labeled_comprehension(input, labels, index, func, out_dtype: type, default,
         for i in range(len(out)):
             arr[i] = out[i]
         return arr
+
+# --- value_indices ---------------------------------------------------------
+
+def value_indices(arr, *, ignore_value = None):
+    """Dict mapping each distinct value to the flat-order index arrays (one
+    per axis, as a tuple list) of its occurrences."""
+    a = np.ascontiguousarray(np.asarray(arr))
+    sh = _shape(a)
+    nd = len(sh)
+    groups = Dict[type(a.data[0]), List[int]]()
+    order = List[type(a.data[0])]()
+    for p in range(a.size):
+        v = a.data[p]
+        if ignore_value is not None and v == type(v)(ignore_value):
+            continue
+        if v not in groups:
+            groups[v] = List[int]()
+            order.append(v)
+        groups[v].append(p)
+    out = Dict[type(a.data[0]), List[np.ndarray[int, 1]]]()
+    st = _strides(sh)
+    for v in order:
+        flat = groups[v]
+        cols = List[np.ndarray[int, 1]]()
+        for k in range(nd):
+            c = np.empty(len(flat), dtype=int)
+            for i in range(len(flat)):
+                c[i] = (flat[i] // st[k]) % sh[k]
+            cols.append(c)
+        out[v] = cols
+    return out
+
+# --- watershed_ift (NI_WatershedIFT) ---------------------------------------
+
+def watershed_ift(input, markers, structure = None, output = None):
+    a = np.ascontiguousarray(np.asarray(input))
+    if a.dtype is not u8 and a.dtype is not u16:
+        raise TypeError('only 8 and 16 unsigned inputs are supported')
+    sh = _shape(a)
+    nd = len(sh)
+    if nd > 7:
+        raise RuntimeError('too many dimensions')
+    if structure is None:
+        from ._morphology import generate_binary_structure
+        S = np.asarray(generate_binary_structure(nd, 1))
+    else:
+        S = np.asarray(structure, dtype=bool)
+    if len(S.shape) != nd:
+        raise RuntimeError('structure and input must have equal rank')
+    for d in S.shape:
+        if d != 3:
+            raise RuntimeError('structure dimensions must be equal to 3')
+    M = np.ascontiguousarray(np.asarray(markers))
+    if M.shape != a.shape:
+        raise RuntimeError('input and markers must have equal shape')
+    ps = _bool_buf(S)
+    size = a.size
+    maxval = 0
+    for j in range(size):
+        v = int(a.data[j])
+        if v > maxval:
+            maxval = v
+    cost = [0] * size
+    nxt = [-1] * size
+    prv = [-1] * size
+    done = [False] * size
+    first = [-1] * (maxval + 1)
+    last = [-1] * (maxval + 1)
+    lab = [0] * size
+    for j in range(size):
+        label = int(M.data[j])
+        lab[j] = label
+        if label != 0:
+            cost[j] = 0
+            if first[0] < 0:
+                first[0] = j
+                nxt[j] = -1
+                prv[j] = -1
+                last[0] = j
+            else:
+                if label > 0:
+                    nxt[j] = first[0]
+                    prv[j] = -1
+                    prv[first[0]] = j
+                    first[0] = j
+                else:
+                    nxt[j] = -1
+                    prv[j] = last[0]
+                    nxt[last[0]] = j
+                    last[0] = j
+        else:
+            cost[j] = maxval + 1
+    st = _strides(sh)
+    ssize = len(ps)
+    nstr = List[int]()
+    coords = [-1] * nd
+    for kk in range(ssize):
+        if ps[kk] and kk != ssize // 2:
+            off = 0
+            for l in range(nd):
+                off += coords[l] * st[l]
+            if off != 0:
+                nstr.append(off)
+        l = nd - 1
+        while l >= 0:
+            if coords[l] < 1:
+                coords[l] += 1
+                break
+            else:
+                coords[l] = -1
+            l -= 1
+    nneigh = len(nstr)
+    for jj in range(maxval + 1):
+        while first[jj] >= 0:
+            v = first[jj]
+            first[jj] = nxt[v]
+            if first[jj] >= 0:
+                prv[first[jj]] = -1
+            prv[v] = -1
+            nxt[v] = -1
+            done[v] = True
+            for hh in range(nneigh):
+                p = v + nstr[hh]
+                if p < 0 or p >= size:
+                    continue
+                if done[p]:
+                    continue
+                wvp = int(a.data[p]) - int(a.data[v])
+                if wvp < 0:
+                    wvp = -wvp
+                pcost = cost[p]
+                mx = cost[v] if cost[v] > wvp else wvp
+                if mx < pcost:
+                    cost[p] = mx
+                    label = lab[v]
+                    lab[p] = label
+                    if nxt[p] >= 0 or prv[p] >= 0:
+                        pv = prv[p]
+                        nx = nxt[p]
+                        if first[pcost] == p:
+                            first[pcost] = nx
+                        if last[pcost] == p:
+                            last[pcost] = pv
+                        if pv >= 0:
+                            nxt[pv] = nx
+                        if nx >= 0:
+                            prv[nx] = pv
+                    if label < 0:
+                        prv[p] = last[mx]
+                        nxt[p] = -1
+                        if last[mx] >= 0:
+                            nxt[last[mx]] = p
+                        last[mx] = p
+                        if first[mx] < 0:
+                            first[mx] = p
+                    else:
+                        nxt[p] = first[mx]
+                        prv[p] = -1
+                        if first[mx] >= 0:
+                            prv[first[mx]] = p
+                        first[mx] = p
+                        if last[mx] < 0:
+                            last[mx] = p
+    out = np.empty(M.shape, dtype=M.dtype)
+    for j in range(size):
+        out.data[j] = type(out.data[0])(lab[j])
+    return out

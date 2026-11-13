@@ -762,3 +762,91 @@ def generic_filter(input, function, size = None, footprint = None, output = None
         out[jj] = float(function(vals, *extra_arguments))
         _next_coord(coord, sh)
     return _emit(out, a.shape, _proto(a, output), output)
+
+def generic_laplace(input, derivative2, output = None, mode = 'reflect', cval: float = 0.0,
+                    extra_arguments = (), extra_keywords = None, *, axes = None):
+    # derivative2(input, axis, output, mode, cval, *extra_arguments) -> array
+    a = _arr(input)
+    sh = _shape(a)
+    ax = _check_axes(axes, len(sh))
+    p = _proto(a, output)
+    if len(ax) == 0:
+        return _emit(_quantize(_fbuf(a), p), a.shape, p, output)
+    modes = _seq_str(mode, len(ax))
+    acc = _quantize(_fbuf(np.asarray(derivative2(a, ax[0], None, modes[0], cval, *extra_arguments))), p)
+    for ii in range(1, len(ax)):
+        t = _quantize(_fbuf(np.asarray(derivative2(a, ax[ii], None, modes[ii], cval, *extra_arguments))), p)
+        for k in range(len(acc)):
+            acc[k] += t[k]
+        acc = _quantize(acc, p)
+    return _emit(acc, a.shape, p, output)
+
+def generic_gradient_magnitude(input, derivative, output = None, mode = 'reflect',
+                               cval: float = 0.0, extra_arguments = (), extra_keywords = None,
+                               *, axes = None):
+    a = _arr(input)
+    sh = _shape(a)
+    ax = _check_axes(axes, len(sh))
+    p = _proto(a, output)
+    if len(ax) == 0:
+        return _emit(_quantize(_fbuf(a), p), a.shape, p, output)
+    modes = _seq_str(mode, len(ax))
+    acc = _quantize(_fbuf(np.asarray(derivative(a, ax[0], None, modes[0], cval, *extra_arguments))), p)
+    for k in range(len(acc)):
+        acc[k] = acc[k] * acc[k]
+    acc = _quantize(acc, p)
+    for ii in range(1, len(ax)):
+        t = _quantize(_fbuf(np.asarray(derivative(a, ax[ii], None, modes[ii], cval, *extra_arguments))), p)
+        for k in range(len(acc)):
+            acc[k] += _quantize([t[k] * t[k]], p)[0]
+        acc = _quantize(acc, p)
+    for k in range(len(acc)):
+        acc[k] = sqrt(acc[k])
+    return _emit(acc, a.shape, p, output)
+
+def vectorized_filter(input, function, *, size = None, footprint = None, output = None,
+                      mode = 'reflect', cval = None, origin = None, axes = None,
+                      batch_memory = 1 << 30):
+    """Apply `function(window_values, axis=-1)` over every neighbourhood
+    (flattened footprint values, C order). Equivalent to scipy's
+    sliding-window formulation for reducing functions."""
+    a = _arr(input)
+    sh = _shape(a)
+    nd = len(sh)
+    ax = _check_axes(axes, nd)
+    fsh = List[int]()
+    mask = List[bool]()
+    if footprint is None:
+        if size is None:
+            raise ValueError('Either `size` or `footprint` must be provided.')
+        fsh = _seq_int(size, len(ax))
+        mask = [True] * _prod(fsh)
+    else:
+        F = np.asarray(footprint)
+        fsh = _shape(F)
+        mask = _bool_buf(F)
+    fsh2 = _expand_fp(nd, ax, fsh, 'footprint')
+    origins = _expand_origin(nd, ax, 0 if origin is None else origin)
+    _check_origins(origins, fsh2)
+    # vectorized_filter centres even-sized windows one step to the left of
+    # generic_filter (borders i//2 + o before, (i-1)//2 - o after)
+    org2 = [0] * nd
+    for i in range(nd):
+        org2[i] = origins[i] + (0 if fsh2[i] % 2 == 1 else 0)
+    cv = 0.0 if cval is None else float(cval)
+    fp = _Footprint(fsh2, mask, org2)
+    src = _fbuf(a)
+    st = _strides(sh)
+    n = _prod(sh)
+    out = [0.0] * n
+    offs = [0] * len(fp)
+    coord = [0] * nd
+    m = _extend_mode_to_code(mode)
+    for jj in range(n):
+        _gather_offsets(fp, sh, st, coord, m, offs)
+        vals = np.empty(len(offs), dtype=float)
+        for i in range(len(offs)):
+            vals[i] = cv if offs[i] < 0 else src[offs[i]]
+        out[jj] = float(function(vals, axis=-1))
+        _next_coord(coord, sh)
+    return _emit(out, a.shape, _proto(a, output), output)
