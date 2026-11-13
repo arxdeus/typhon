@@ -25,3 +25,4 @@ from .artemis123 import read_raw_artemis123
 from .nihon import read_raw_nihon
 from .nsx import read_raw_nsx
 from .boxy import read_raw_boxy
+from .kit import read_raw_kit
