@@ -6,9 +6,6 @@
 # (?pbtrf / ?pbtrs), eig_banded / eigvals_banded (?sbevd, ?sbevx, ?hbevd),
 # eigh_tridiagonal / eigvalsh_tridiagonal (?stevd, ?stev, ?sterf, ?stebz +
 # ?stein), solve_toeplitz (Levinson recursion), solve_circulant.
-#
-# Deviations: eig_banded with complex input supports select='a' only;
-# eigh_tridiagonal does not implement lapack_driver='stemr'.
 
 import numpy as np
 from numpy.linalg import LinAlgError
@@ -252,8 +249,6 @@ def _eig_banded_impl(a_band, lower: bool, eigvals_only: Literal[bool], select, s
         m = n
         ldz = max(n, 1)
     else:
-        if _is_complex(T):
-            raise NotImplementedError("eig_banded: select != 'a' is not supported for complex input")
         if eigvals_only:
             mev = 1
         mmax = mev if not eigvals_only else 1
@@ -264,11 +259,16 @@ def _eig_banded_impl(a_band, lower: bool, eigvals_only: Literal[bool], select, s
         rng = _ch('V' if s == 1 else 'I')
         VL = vl; VU = vu; IL = fint(il); IU = fint(iu); ABSTOL = 2 * _safe_min
         M = fint(0)
-        work = Ptr[T](max(7 * n, 1)); iwork = Ptr[fint](max(5 * n, 1)); ifail = Ptr[fint](max(n, 1))
+        iwork = Ptr[fint](max(5 * n, 1)); ifail = Ptr[fint](max(n, 1))
         LDZ = fint(ldz)
         jz = _ch('N' if eigvals_only else 'V')
-        dsbevx_(__ptr__(jz).as_byte(), __ptr__(rng).as_byte(), __ptr__(uplo).as_byte(), __ptr__(N).as_byte(), __ptr__(KD).as_byte(), A.as_byte(), __ptr__(LDAB).as_byte(), Q.as_byte(), __ptr__(LDQ).as_byte(), __ptr__(VL).as_byte(), __ptr__(VU).as_byte(), __ptr__(IL).as_byte(), __ptr__(IU).as_byte(), __ptr__(ABSTOL).as_byte(), __ptr__(M).as_byte(), W.as_byte(), Z.as_byte(), __ptr__(LDZ).as_byte(), work.as_byte(), iwork.as_byte(), ifail.as_byte(), __ptr__(info).as_byte())
-        _check_info(int(info), 'sbevx')
+        if _is_complex(T):
+            workc = Ptr[T](max(n, 1)); rworkc = Ptr[float](max(7 * n, 1))
+            zhbevx_(__ptr__(jz).as_byte(), __ptr__(rng).as_byte(), __ptr__(uplo).as_byte(), __ptr__(N).as_byte(), __ptr__(KD).as_byte(), A.as_byte(), __ptr__(LDAB).as_byte(), Q.as_byte(), __ptr__(LDQ).as_byte(), __ptr__(VL).as_byte(), __ptr__(VU).as_byte(), __ptr__(IL).as_byte(), __ptr__(IU).as_byte(), __ptr__(ABSTOL).as_byte(), __ptr__(M).as_byte(), W.as_byte(), Z.as_byte(), __ptr__(LDZ).as_byte(), workc.as_byte(), rworkc.as_byte(), iwork.as_byte(), ifail.as_byte(), __ptr__(info).as_byte())
+        else:
+            work = Ptr[T](max(7 * n, 1))
+            dsbevx_(__ptr__(jz).as_byte(), __ptr__(rng).as_byte(), __ptr__(uplo).as_byte(), __ptr__(N).as_byte(), __ptr__(KD).as_byte(), A.as_byte(), __ptr__(LDAB).as_byte(), Q.as_byte(), __ptr__(LDQ).as_byte(), __ptr__(VL).as_byte(), __ptr__(VU).as_byte(), __ptr__(IL).as_byte(), __ptr__(IU).as_byte(), __ptr__(ABSTOL).as_byte(), __ptr__(M).as_byte(), W.as_byte(), Z.as_byte(), __ptr__(LDZ).as_byte(), work.as_byte(), iwork.as_byte(), ifail.as_byte(), __ptr__(info).as_byte())
+        _check_info(int(info), 'hbevx' if _is_complex(T) else 'sbevx')
         m = int(M)
     w = _vec(W, m)
     if eigvals_only:
@@ -323,7 +323,27 @@ def _eigh_tri_impl(d, e, eigvals_only: Literal[bool], select, select_range,
     E[n - 1] = 0.0
     N = fint(n); info = fint(0)
     if drv == 'stemr':
-        raise NotImplementedError("eigh_tridiagonal: lapack_driver='stemr' is not supported")
+        # ?STEMR requires e of size n
+        jz2 = _ch('N' if eigvals_only else 'V')
+        rg2 = _ch('A' if s == 0 else ('V' if s == 1 else 'I'))
+        VL2 = vl; VU2 = vu; IL2 = fint(il); IU2 = fint(iu)
+        M2 = fint(0); NZC = fint(n); LDZ2 = fint(n if not eigvals_only else 1)
+        W2 = Ptr[float](n)
+        Z2 = Ptr[float](max(n * n, 1))
+        isuppz = Ptr[fint](max(2 * n, 1))
+        tryrac = fint(1)
+        lw2 = (18 * n) if not eigvals_only else (12 * n)
+        liw2 = (10 * n) if not eigvals_only else (8 * n)
+        work2 = Ptr[float](max(lw2, 1)); iwork2 = Ptr[fint](max(liw2, 1))
+        LW2 = fint(max(lw2, 1)); LIW2 = fint(max(liw2, 1))
+        dstemr_(__ptr__(jz2).as_byte(), __ptr__(rg2).as_byte(), __ptr__(N).as_byte(), D.as_byte(), E.as_byte(), __ptr__(VL2).as_byte(), __ptr__(VU2).as_byte(), __ptr__(IL2).as_byte(), __ptr__(IU2).as_byte(), __ptr__(M2).as_byte(), W2.as_byte(), Z2.as_byte(), __ptr__(LDZ2).as_byte(), __ptr__(NZC).as_byte(), isuppz.as_byte(), __ptr__(tryrac).as_byte(), work2.as_byte(), __ptr__(LW2).as_byte(), iwork2.as_byte(), __ptr__(LIW2).as_byte(), __ptr__(info).as_byte())
+        _check_info(int(info), 'stemr (eigh_tridiagonal)')
+        m2 = int(M2)
+        w2v = _vec(W2, m2)
+        if eigvals_only:
+            return w2v
+        else:
+            return (w2v, _from_f(Z2, n, m2, n))
     if drv == 'sterf' or drv == 'stev' or drv == 'stevd':
         if s != 0:
             raise ValueError(f'{drv} can only be used when select == "a"')

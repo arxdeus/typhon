@@ -23,3 +23,5 @@ from ._matfuncs2 import cosm, sinm, tanm, coshm, sinhm, tanhm, funm, signm, \
 
 class LinAlgWarning(Exception):
     pass
+from ._decomp_update import qr_update, qr_insert, qr_delete, qr_multiply, cdf2rdf, \
+                    clarkson_woodruff_transform, find_best_blas_type
