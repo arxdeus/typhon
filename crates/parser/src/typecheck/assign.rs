@@ -253,6 +253,27 @@ impl<'a> TypecheckVisitor<'a> {
         self.transform_type(e, false)
     }
 
+    /// `x is None`, `x is not None`, `not (...)` and `and`/`or` combinations of those.
+    fn is_none_test(&self, e: ExprId) -> bool {
+        match &self.cache.ast[e].kind {
+            k if k.as_binary().is_some() => {
+                let b = k.as_binary().unwrap();
+                match b.op.as_str() {
+                    "is" | "is not" => b.rexpr.is_some_and(|r| self.cache.ast[r].kind.tag() == ExprTag::None),
+                    "&&" | "||" | "and" | "or" => {
+                        b.lexpr.is_some_and(|l| self.is_none_test(l)) && b.rexpr.is_some_and(|r| self.is_none_test(r))
+                    }
+                    _ => false,
+                }
+            }
+            k if k.as_unary().is_some() => {
+                let u = k.as_unary().unwrap();
+                (u.op == "!" || u.op == "not") && u.expr.is_some_and(|x| self.is_none_test(x))
+            }
+            _ => false,
+        }
+    }
+
     /// `transformAssignment(stmt, mustExist)`.
     /// `a[x] = b` -> `a.__setitem__(x, b)`; `a.x = b` -> `AssignMemberStmt`;
     /// `a: type = b` / `a = b` -> `AssignStmt` or an update.
@@ -361,8 +382,20 @@ impl<'a> TypecheckVisitor<'a> {
             };
         }
 
-        // Construct collection literals with their declared union storage (union_*_layout).
+        // `flag = x is None` (single binding, no annotation): keep the compile-time literal so
+        // that `if flag:` prunes branches that would not typecheck for a NoneType argument.
         let rhs0 = self.as_assign(s).rhs;
+        if type_expr.is_none() && rhs0.is_some_and(|r| self.is_none_test(r)) && self.ctx.borrow().in_function() {
+            let func = self.ctx.borrow().base_ref().func;
+            let single = func
+                .and_then(|f| self.cache.ast[f].attrs.get_bindings().map(|b| b.bindings.get(&name).is_some_and(|bd| bd.count == 1 && !bd.is_nonlocal)))
+                .unwrap_or(false);
+            if single {
+                self.cache.ast[s].attrs.set(Attr::MaybeLiteral);
+            }
+        }
+
+        // Construct collection literals with their declared union storage (union_*_layout).
         if let (Some(te), Some(r)) = (type_expr, rhs0) {
             if matches!(self.cache.ast[r].kind.tag(), ExprTag::List | ExprTag::Set | ExprTag::Dict) {
                 let t = self.extract_type_expr(te);

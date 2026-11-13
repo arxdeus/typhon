@@ -465,3 +465,34 @@ def h(x: Optional[int]):
 print g(None), g(4)  #: -1 8
 h(None)  #: True True
 h(2)  #: False False
+
+#%% none_flag_static_prune
+# `flag = x is None` keeps a static literal: the dead branch is never compiled for NoneType.
+def need_float(v):
+    return v.__float__()
+def ff(x=None):
+    weighted = x is not None
+    if weighted:
+        return need_float(x)
+    return 0.0
+print(ff(None), ff(2)) #: 0.0 2.0
+def gg(a=None, b=None):
+    both = a is not None and b is not None
+    if both:
+        return need_float(a) + need_float(b)
+    return -1.0
+print(gg(None, 1), gg(1, 2)) #: -1.0 3.0
+z = 0
+flag = z is None
+z = 3
+print(flag) #: False
+
+#%% is_identity_hook
+@tuple
+class V:
+    a: int
+    def __is__(self, o: V) -> bool:
+        return self.a == o.a
+    def __eq__(self, o: V) -> List[bool]:
+        return [True]
+print(V(1) is V(1), V(1) is V(2), V(1) is not V(2)) #: True False True
