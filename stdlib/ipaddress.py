@@ -171,10 +171,15 @@ class IPv4Network:
     def __eq__(self, o: IPv4Network) -> bool:
         return self.network_address._ip == o.network_address._ip and self.prefixlen == o.prefixlen
 
-def ip_address(address: str) -> IPv4Address:
+# ip_address/ip_network return a Union when the family is only known at run time.
+def ip_address(address: str) -> Union[IPv4Address, IPv6Address]:
+    if ":" in address:
+        return IPv6Address(address)
     return IPv4Address(address)
 
-def ip_network(address: str, strict: bool = True) -> IPv4Network:
+def ip_network(address: str, strict: bool = True) -> Union[IPv4Network, IPv6Network]:
+    if ":" in address:
+        return IPv6Network(address, strict)
     return IPv4Network(address, strict)
 
 
