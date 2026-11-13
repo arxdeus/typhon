@@ -966,6 +966,164 @@ def _solve_l1r_lr(prob: _Prob, w: Ptr[float], eps: float, Cp: float, Cn: float,
         Gmax_old = Gmax_new
     return newton_iter
 
+class _McsvmCS:
+    """liblinear Solver_MCSVM_CS (Crammer-Singer multi-class SVM)."""
+    prob: _Prob
+    nr_class: int
+    C: List[float]
+    eps: float
+    max_iter: int
+
+    def __init__(self, prob: _Prob, nr_class: int, weighted_C: List[float], eps: float, max_iter: int):
+        self.prob = prob
+        self.nr_class = nr_class
+        self.eps = eps
+        self.max_iter = max_iter
+        self.C = [prob.W[i] * weighted_C[int(prob.y[i])] for i in range(prob.l)]
+
+    def sub_problem(self, B: List[float], A_i: float, yi: int, C_yi: float, active_i: int,
+                    alpha_new: List[float]):
+        D = [B[k] for k in range(active_i)]
+        if yi < active_i:
+            D[yi] += A_i * C_yi
+        D.sort(reverse=True)
+        beta = D[0] - A_i * C_yi
+        r = 1
+        while r < active_i and beta < r * D[r]:
+            beta += D[r]
+            r += 1
+        beta /= r
+        for r in range(active_i):
+            if r == yi:
+                alpha_new[r] = min(C_yi, (beta - B[r]) / A_i)
+            else:
+                alpha_new[r] = min(0.0, (beta - B[r]) / A_i)
+
+    def shrunk(self, G: List[float], i: int, m: int, yi: int, alpha_i: float, minG: float) -> bool:
+        bound = 0.0
+        if m == yi:
+            bound = self.C[i]
+        return alpha_i == bound and G[m] < minG
+
+    def solve(self, w: Ptr[float], rng: _StdMT) -> int:
+        prob = self.prob
+        l = prob.l
+        nc = self.nr_class
+        n = prob.n
+        eps = self.eps
+        B = [0.0] * nc
+        G = [0.0] * nc
+        alpha = [0.0] * (l * nc)
+        alpha_new = [0.0] * nc
+        index = list(range(l))
+        QD = [0.0] * l
+        d_ind = [0] * nc
+        d_val = [0.0] * nc
+        alpha_index = [0] * (nc * l)
+        y_index = [0] * l
+        active_size = l
+        active_size_i = [nc] * l
+        eps_shrink = max(10.0 * eps, 1.0)
+        start_from_all = True
+        for k in range(n * nc):
+            w[k] = 0.0
+        for i in range(l):
+            for m in range(nc):
+                alpha_index[i * nc + m] = m
+            r = prob.row(i)
+            q = 0.0
+            for k in range(n):
+                q += r[k] * r[k]
+            QD[i] = q
+            y_index[i] = int(prob.y[i])
+        it = 0
+        while it < self.max_iter:
+            stopping = -_INF
+            for i in range(active_size):
+                j = i + rng.rint(active_size - i)
+                index[i], index[j] = index[j], index[i]
+            s = 0
+            while s < active_size:
+                i = index[s]
+                Ai = QD[i]
+                ab = i * nc
+                if Ai > 0:
+                    asz = active_size_i[i]
+                    for m in range(asz):
+                        G[m] = 1.0
+                    if y_index[i] < asz:
+                        G[y_index[i]] = 0.0
+                    xr = prob.row(i)
+                    for f in range(n):
+                        v = xr[f]
+                        for m in range(asz):
+                            G[m] += w[f * nc + alpha_index[ab + m]] * v
+                    minG = _INF
+                    maxG = -_INF
+                    for m in range(asz):
+                        if alpha[ab + alpha_index[ab + m]] < 0 and G[m] < minG:
+                            minG = G[m]
+                        if G[m] > maxG:
+                            maxG = G[m]
+                    if y_index[i] < asz:
+                        if alpha[ab + int(prob.y[i])] < self.C[i] and G[y_index[i]] < minG:
+                            minG = G[y_index[i]]
+                    m = 0
+                    while m < active_size_i[i]:
+                        if self.shrunk(G, i, m, y_index[i], alpha[ab + alpha_index[ab + m]], minG):
+                            active_size_i[i] -= 1
+                            while active_size_i[i] > m:
+                                a = active_size_i[i]
+                                if not self.shrunk(G, i, a, y_index[i], alpha[ab + alpha_index[ab + a]], minG):
+                                    alpha_index[ab + m], alpha_index[ab + a] = alpha_index[ab + a], alpha_index[ab + m]
+                                    G[m], G[a] = G[a], G[m]
+                                    if y_index[i] == a:
+                                        y_index[i] = m
+                                    elif y_index[i] == m:
+                                        y_index[i] = a
+                                    break
+                                active_size_i[i] -= 1
+                        m += 1
+                    if active_size_i[i] <= 1:
+                        active_size -= 1
+                        index[s], index[active_size] = index[active_size], index[s]
+                        continue
+                    if maxG - minG <= 1e-12:
+                        s += 1
+                        continue
+                    else:
+                        stopping = max(maxG - minG, stopping)
+                    asz = active_size_i[i]
+                    for m in range(asz):
+                        B[m] = G[m] - Ai * alpha[ab + alpha_index[ab + m]]
+                    self.sub_problem(B, Ai, y_index[i], self.C[i], asz, alpha_new)
+                    nz = 0
+                    for m in range(asz):
+                        d = alpha_new[m] - alpha[ab + alpha_index[ab + m]]
+                        alpha[ab + alpha_index[ab + m]] = alpha_new[m]
+                        if abs(d) >= 1e-12:
+                            d_ind[nz] = alpha_index[ab + m]
+                            d_val[nz] = d
+                            nz += 1
+                    for f in range(n):
+                        v = xr[f]
+                        for m in range(nz):
+                            w[f * nc + d_ind[m]] += d_val[m] * v
+                s += 1
+            it += 1
+            if stopping < eps_shrink:
+                if stopping < eps and start_from_all:
+                    break
+                else:
+                    active_size = l
+                    for i in range(l):
+                        active_size_i[i] = nc
+                    eps_shrink = max(eps_shrink / 2, eps)
+                    start_from_all = True
+            else:
+                start_from_all = False
+        return it
+
 # --------------------------------------------------------------- driver
 
 def _train_one(prob: _Prob, solver_type: int, w: Ptr[float], eps: float, Cp: float, Cn: float,
@@ -1065,6 +1223,18 @@ def train_wrap(X, y, solver_type: int, eps: float, bias: float, C: float, class_
         Ws[k] = Wv[perm[k]]
     sy = [0.0] * l
     sub = _Prob(Xs.data, l, nb, sy, Ws)
+    if solver_type == 4:
+        for c in range(nr_class):
+            for k in range(start[c], start[c] + count[c]):
+                sy[k] = float(c)
+        W4 = np.zeros((nr_class, nb))
+        flat = Ptr[float](nr_class * nb)
+        solver = _McsvmCS(sub, nr_class, wC, eps, 100000)
+        it4 = solver.solve(flat, rng)
+        for f in range(nb):
+            for m in range(nr_class):
+                W4[m, f] = flat[f * nr_class + m]
+        return W4, np.array([it4])
     if nr_class == 2:
         e0 = start[0] + count[0]
         for k in range(l):

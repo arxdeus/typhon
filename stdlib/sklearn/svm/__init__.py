@@ -527,8 +527,6 @@ def _fit_liblinear(X, yf: List[float], C: float, fit_intercept: bool, intercept_
     seed = _seed_of(random_state)
     sw = np.ones(n) if isinstance(sample_weight, NoneType) else np.asarray(sample_weight, dtype=float)
     st = _ll_solver_type(multi_class, penalty, loss, dual)
-    if st == 4:
-        raise NotImplementedError("multi_class='crammer_singer' is not supported")
     raw, n_iter = _ll_train(Xa, np.array(yf), st, tol, bias, C, _farr(cw), max_iter, seed, epsilon, sw)
     nf = Xa.shape[1]
     if fit_intercept:
