@@ -402,3 +402,147 @@ def CSP(n_components: int = 4, reg = None, log: Optional[bool] = None, cov_est: 
         compile_error("transform_into must be 'average_power' or 'csp_space'")
     return _CSP[transform_into](n_components, reg, log, cov_est, transform_into, norm_trace,
                                 cov_method_params, restr_type, info, rank, component_order)
+
+
+class _SPoC[TI: Literal[str]]:
+    """Source Power Comodulation (mne.decoding.SPoC)."""
+    n_components: int
+    reg_kind: str
+    reg_value: float
+    log: Optional[bool]
+    restr_type: Optional[str]
+    info: Optional[Info]
+    rank_dict: Optional[Dict[str, int]]
+    rank_str: Optional[str]
+    filters_: np.ndarray[float, 2]
+    patterns_: np.ndarray[float, 2]
+    evals_: np.ndarray[float, 1]
+    sorter_: np.ndarray[int, 1]
+    mean_: np.ndarray[float, 1]
+    std_: np.ndarray[float, 1]
+    n_features_in_: int
+    _fitted: bool
+    _estimator_type: ClassVar[str] = "regressor"
+
+    def __init__(self, n_components: int = 4, reg = None, log: Optional[bool] = None,
+                 restr_type: Optional[str] = "restricting", info: Optional[Info] = None,
+                 rank = None):
+        c = _CSP[TI](n_components, reg, log, "epoch", TI, False, None, restr_type, info, rank,
+                     "mutual_info")
+        self.n_components = n_components
+        self.reg_kind = c.reg_kind
+        self.reg_value = c.reg_value
+        self.log = log
+        if TI == "csp_space" and log is not None:
+            raise TypeError("log must be an instance of None when transform_into is 'csp_space'")
+        self.restr_type = restr_type
+        self.info = info
+        self.rank_dict = c.rank_dict
+        self.rank_str = c.rank_str
+        self.filters_ = np.zeros((0, 0))
+        self.patterns_ = np.zeros((0, 0))
+        self.evals_ = np.zeros(0)
+        self.sorter_ = np.zeros(0, dtype=int)
+        self.mean_ = np.zeros(0)
+        self.std_ = np.zeros(0)
+        self.n_features_in_ = 0
+        self._fitted = False
+
+    def fit(self, X, y):
+        Xa = np.asarray(X).astype(float)
+        if Xa.ndim != 3:
+            compile_error("X must be 3-D (n_epochs, n_channels, n_times)")
+        target = np.asarray(y).astype(float)
+        if target.shape[0] != Xa.shape[0]:
+            raise ValueError(f"Found input variables with inconsistent numbers of samples: [{Xa.shape[0]}, {target.shape[0]}]")
+        self.n_features_in_ = Xa.shape[1]
+        n_ep = Xa.shape[0]
+        n_ch = Xa.shape[1]
+        rank = Dict[str, int]()
+        given = self.rank_dict is not None
+        if self.info is None:
+            info = create_info(n_ch, 1000.0, "mag")
+            if given:
+                s = 0
+                for v in self.rank_dict.__val__().values():
+                    s += v
+                rank["mag"] = s
+        else:
+            info = self.info.__val__()
+            if given:
+                rank = self.rank_dict.__val__()
+        if not given:
+            Xh = np.concatenate([Xa[i] for i in range(n_ep)], axis=1)
+            kind = "estimated" if self.rank_str is None else self.rank_str.__val__()
+            rank = _compute_rank_data(Xh, info, kind)
+        target -= target.mean()
+        target /= target.std()
+        S = np.zeros((n_ch, n_ch))
+        R = np.zeros((n_ch, n_ch))
+        for e in range(n_ep):
+            cv = _regularized_covariance(Xa[e], self.reg_kind, self.reg_value, info, rank)
+            S += cv * target[e]
+            R += cv
+        S /= n_ep
+        R /= n_ep
+        if self.restr_type is not None:
+            restr = _restr_mat(R, info, rank)
+            S_r = restr @ S @ restr.T
+            R_r = restr @ R @ restr.T
+            w, v = scipy.linalg.eigh(S_r, R_r)
+            evecs = restr.T @ v
+        else:
+            w, evecs = scipy.linalg.eigh(S, R)
+        ix = np.argsort(np.abs(w))[::-1].copy()
+        self.evals_ = w[ix].copy()
+        evecs = evecs[:, ix].copy()
+        self.sorter_ = ix
+        self.filters_ = evecs.T.copy()
+        self.patterns_ = pinv(evecs)
+        pick = self.filters_[:self.n_components]
+        feats = np.zeros((n_ep, pick.shape[0]))
+        for e in range(n_ep):
+            proj = np.dot(pick, Xa[e])
+            feats[e] = (proj ** 2).mean(axis=1)
+        self.mean_ = feats.mean(axis=0)
+        self.std_ = feats.std(axis=0)
+        self._fitted = True
+        return self
+
+    def _project(self, X):
+        if not self._fitted:
+            raise ValueError("This SPoC instance is not fitted yet.")
+        Xa = np.asarray(X).astype(float)
+        pick = self.filters_[:self.n_components]
+        out = np.zeros((Xa.shape[0], pick.shape[0], Xa.shape[2]))
+        for e in range(Xa.shape[0]):
+            out[e] = pick @ Xa[e]
+        return out
+
+    def transform(self, X):
+        if TI == "csp_space":
+            return self._project(X)
+        else:
+            Y = self._project(X)
+            F = (Y ** 2).mean(axis=2)
+            lg = True if self.log is None else self.log.__val__()
+            if lg:
+                F = np.log(F)
+            else:
+                F -= self.mean_
+                F /= self.std_
+            return F
+
+    def fit_transform(self, X, y):
+        return self.fit(X, y).transform(X)
+
+
+def SPoC(n_components: int = 4, reg = None, log: Optional[bool] = None,
+         transform_into: Literal[str] = "average_power", cov_method_params = None, *,
+         restr_type: Optional[str] = "restricting", info: Optional[Info] = None, rank = None):
+    """mne.decoding.SPoC. transform_into must be a compile-time string literal."""
+    if transform_into != "average_power" and transform_into != "csp_space":
+        compile_error("transform_into must be 'average_power' or 'csp_space'")
+    if not isinstance(cov_method_params, NoneType):
+        raise ValueError("cov_method_params is not supported in Typhon mne")
+    return _SPoC[transform_into](n_components, reg, log, restr_type, info, rank)
