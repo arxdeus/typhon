@@ -9,3 +9,11 @@ from .brainvision import read_raw_brainvision
 from .eeglab import read_raw_eeglab
 from .gdf import read_raw_gdf
 from ._misc import get_channel_type_constants, anonymize_info, write_info, read_fiducials, write_fiducials, DigPoint, read_raw
+from .egi import read_raw_egi
+from .cnt import read_raw_cnt
+from .bci2k import read_raw_bci2k
+from .nedf import read_raw_nedf
+from .besa import read_evoked_besa
+from .._containers import RawArray as BaseRaw
+from .._containers import RawArray as Raw
+from ._match import match_channel_orders
