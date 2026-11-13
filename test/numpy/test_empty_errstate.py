@@ -57,3 +57,18 @@ def test_array_of_arrays():
     assert np.array(e).shape == (0, 0)
 
 test_array_of_arrays()
+
+@test
+def test_array_nested_promotion():
+    t = np.array([(0, 0, 0), (0, 1, 0)])
+    assert t.shape == (2, 3) and t[1, 1] == 1
+    c = np.array([[1., 2.+1j], [3., 4.]])
+    assert c.dtype is complex and c[0, 1] == 2.+1j and c[1, 0] == 3.
+    f = np.array([[1, 2], [3.5, 4]])
+    assert f.dtype is float and f[1, 0] == 3.5
+    out = np.empty(3, dtype=List[int])
+    for i in range(3):
+        out[i] = [i, i + 1]
+    assert out[2] == [2, 3]
+
+test_array_nested_promotion()

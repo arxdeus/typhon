@@ -558,6 +558,7 @@ def _getset(arr, indexes, item, dtype: type = NoneType):
             return p[0]
         else:
             p[0] = util.cast(item, dtype)
+            return
 
     ans_shape = _new_shape(mindex, keep)
     ans_strides = _new_strides(mindex, strides, keep)
@@ -565,6 +566,9 @@ def _getset(arr, indexes, item, dtype: type = NoneType):
 
     if item is None:
         return sub
+    elif (isinstance(item, List) or isinstance(item, Tuple)) and isinstance(item, dtype):
+        # object-array semantics: a sequence of the element type is one element
+        _assign_one(sub, item)
     elif isinstance(item, ndarray) or isinstance(item, List) or isinstance(item, Tuple):
         arr_item = asarray(item)
 
