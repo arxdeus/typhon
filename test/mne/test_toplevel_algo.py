@@ -208,12 +208,12 @@ def make_src():
 @test
 def test_label_extraction():
     rr_l, rr_r, nn_l, nn_r, vn_l, vn_r = make_src()
-    src = mne.setup_volume_source_space(pos=dict(rr=rr_l, nn=nn_l))
+    src = mne.setup_volume_source_space(pos={"rr": rr_l, "nn": nn_l})
     sl = src.copy()
     sp_l = sl[0]
     sp_l.type = "surf"
     sp_l.vertno = vn_l
-    sr = mne.setup_volume_source_space(pos=dict(rr=rr_r, nn=nn_r))
+    sr = mne.setup_volume_source_space(pos={"rr": rr_r, "nn": nn_r})
     sp_r = sr[0]
     sp_r.type = "surf"
     sp_r.vertno = vn_r

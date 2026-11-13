@@ -10,7 +10,7 @@ from ._op import InverseOperator, FIFFV_MNE_FREE_ORI
 from ._inverse import apply_inverse, _vertno
 
 
-def _inverse_matrix(inv: InverseOperator, fwd: Forward, method: str, lambda2: float):
+def _inverse_matrix(inv: InverseOperator, fwd: Forward, method: Literal[str], lambda2: float):
     """_get_matrix_from_inverse_operator: (n_dipoles, n_good_channels)."""
     from .._containers import Evoked
     names = list(inv.info.ch_names)
@@ -31,7 +31,7 @@ def _inverse_matrix(inv: InverseOperator, fwd: Forward, method: str, lambda2: fl
 
 
 def make_inverse_resolution_matrix(forward: Forward, inverse_operator: InverseOperator,
-                                   method: str = "dSPM", lambda2: float = 1.0 / 9.0, verbose = None):
+                                   method: Literal[str] = "dSPM", lambda2: float = 1.0 / 9.0, verbose = None):
     """mne.minimum_norm.make_inverse_resolution_matrix."""
     inv = inverse_operator
     fwd = forward
@@ -130,7 +130,7 @@ def get_cross_talk(resmat, inv_or_fwd_src, idx, mode: str = "", *, n_comp: int =
 
 def _groups(idx) -> List[List[int]]:
     g = List[List[int]]()
-    if len(idx) > 0 and isinstance(idx[0], int):
+    if isinstance(idx, List[int]):
         g.append([int(i) for i in idx])
     else:
         for grp in idx:
@@ -151,6 +151,6 @@ def _get_psf_ctf_api(resmat, srcobj, idx, func: str, mode: str, n_comp: int, nor
                    _groups(idx), func, mode, n_comp, norm)
     stcs = [_STC[np.ndarray[float, 2]](r[0], [v.copy() for v in vertno], 0.0, 1.0, None, src.kind)
             for r in res]
-    if len(stcs) == 1:
+    if isinstance(idx, List[int]):
         return stcs[0]
     return stcs

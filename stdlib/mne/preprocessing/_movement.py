@@ -175,7 +175,8 @@ def annotate_movement(raw, pos, rotation_velocity_limit = None, translation_velo
             de.append(a.description[k])
     if not isinstance(orig_time, NoneType):
         on = [o + ft for o in on]
-    annot = Annotations(on, du, de, orig_time)
+    order = sorted(range(len(on)), key=lambda k: on[k])
+    annot = Annotations([on[k] for k in order], [du[k] for k in order], [de[k] for k in order], orig_time)
     return annot, np.zeros((0, 0))
 
 

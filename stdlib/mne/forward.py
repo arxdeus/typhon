@@ -219,6 +219,24 @@ def _eeg_spherepot(rrs, c: _Coils, sphere: ConductorModel):
     return B
 
 
+class _Sol:
+    """fwd["sol"]: dict-like with data and row_names."""
+    data: np.ndarray[float, 2]
+    row_names: List[str]
+
+    def __init__(self, data: np.ndarray[float, 2], row_names: List[str]):
+        self.data = data
+        self.row_names = row_names
+
+    def __getitem__(self, key: Literal[str]):
+        if key == "data":
+            return self.data
+        elif key == "row_names":
+            return self.row_names
+        else:
+            compile_error("unsupported sol key")
+
+
 class Forward:
     """Forward solution (mne.Forward); gain rows follow `ch_names`."""
     sol: np.ndarray[float, 2]
@@ -264,7 +282,7 @@ class Forward:
 
     def __getitem__(self, key: Literal[str]):
         if key == "sol":
-            return {"data": self.sol}
+            return _Sol(self.sol, self.ch_names)
         elif key == "nsource":
             return self.nsource
         elif key == "nchan":

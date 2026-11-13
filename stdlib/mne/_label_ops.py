@@ -112,11 +112,11 @@ def extract_label_time_course(stcs, labels, src: SourceSpaces, mode: str = "auto
     Labels. Modes: mean, mean_flip, pca_flip, max, auto (= mean_flip)."""
     single = not isinstance(stcs, List)
     sl = List[_STC[np.ndarray[float, 2]]]()
-    if single:
-        sl.append(stcs)
-    else:
+    if isinstance(stcs, List):
         for s in stcs:
             sl.append(s)
+    else:
+        sl.append(stcs)
     res = List[np.ndarray[float, 2]]()
     for stc in sl:
         md = "mean_flip" if mode == "auto" else mode
@@ -153,9 +153,9 @@ def extract_label_time_course(stcs, labels, src: SourceSpaces, mode: str = "auto
         if len(bad) > 0 and not allow_empty:
             raise ValueError(f"source space does not contain any vertices for {len(bad)} label{'s' if len(bad) != 1 else ''}:\n{bad}")
         res.append(tc)
-    if single:
-        return res[0]
-    return res
+    if isinstance(stcs, List):
+        return res
+    return res[0]
 
 
 def labels_to_stc(labels, values, tmin: float = 0.0, tstep: float = 1.0, subject = None, src = None,

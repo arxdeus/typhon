@@ -310,14 +310,21 @@ def write_forward_solution(fname, fwd: Forward, overwrite: bool = False, verbose
         n_vert += s.nuse
     n_col = n_vert if ori == 1 else 3 * n_vert
     sol = fwd._orig_sol
+    n_meg = 0
+    n_eeg = 0
+    for t in fwd.info.ch_types:
+        if t == "mag" or t == "grad":
+            n_meg += 1
+        elif t == "eeg":
+            n_eeg += 1
     for pass_ in range(2):
+        # mne writes the MEG block from the first n_meg rows of the solution and the
+        # EEG block from the following n_eeg rows (row order of the solution)
         rows = List[int]()
-        for i in range(len(fwd.ch_names)):
-            ti = fwd.info.ch_names.index(fwd.ch_names[i])
-            t = fwd.info.ch_types[ti]
-            is_meg = t == "mag" or t == "grad"
-            if (pass_ == 0 and is_meg) or (pass_ == 1 and t == "eeg"):
-                rows.append(i)
+        lo = 0 if pass_ == 0 else n_meg
+        hi = n_meg if pass_ == 0 else n_meg + n_eeg
+        for i in range(lo, min(hi, len(fwd.ch_names))):
+            rows.append(i)
         if len(rows) == 0:
             continue
         data = np.zeros((n_col, len(rows)))
