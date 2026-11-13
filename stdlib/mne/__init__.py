@@ -28,6 +28,9 @@ import event
 import io
 import time_frequency
 import decoding
+from .cov import (Covariance, compute_covariance, compute_raw_covariance, make_ad_hoc_cov,
+                  regularize, compute_whitener, prepare_noise_cov, whiten_evoked,
+                  pick_channels_cov)
 
 
 def set_log_level(verbose = None, return_old_level: bool = False, add_frames = None):
