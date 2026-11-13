@@ -323,3 +323,5 @@ class GaussianMixture:
     def score(self, X, y = None):
         lik = np.sum(self._get_wlik(np.asarray(X, dtype=float)), axis=1)
         return float(np.mean(self._log(lik)))
+
+from .artifact_detection import Potato, PotatoField
