@@ -992,3 +992,21 @@ test_MT19937_zipf(1234, 1.1, 3)
 test_MT19937_zipf(1234, 3, 1)
 test_MT19937_zipf(1234, 45, np.array([1, 1, 1]), 3)
 test_MT19937_zipf(1234, np.array([17.8, 4.32]), np.array([1, 1]))
+
+@test
+def test_randomstate_optional_seed_paths():
+    # RandomState() on one path and RandomState(int) on another (sklearn check_random_state pattern).
+    def f(s: Optional[int]):
+        return np.random.RandomState() if s is None else np.random.RandomState(s)
+    def g(s):
+        if s is None:
+            return np.random.RandomState()
+        return np.random.RandomState(s)
+    assert f(3).rand() == 0.5507979025745755
+    assert g(3).rand() == 0.5507979025745755
+    assert g(np.int64(5)).rand() == 0.22199317108973948
+    assert f(None).rand() < 1.0 and g(None).randint(10) < 10
+    vals = [f(None).rand() for _ in range(50)]
+    assert len(set(vals)) > 40
+
+test_randomstate_optional_seed_paths()
