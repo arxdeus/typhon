@@ -240,6 +240,8 @@ class FastICA:
     mean_: np.ndarray[float, 1]
     whitening_: np.ndarray[float, 2]
     n_iter_: int
+    _unmixing: np.ndarray[float, 2]
+    _S: np.ndarray[float, 2]
 
     def __init__(self, n_components: Optional[int] = None, *, algorithm: str = "parallel",
                  whiten = "unit-variance", fun: str = "logcosh", fun_args: Optional[Dict[str, float]] = None,
@@ -264,6 +266,8 @@ class FastICA:
         self.mean_ = np.empty(0)
         self.whitening_ = np.empty((0, 0))
         self.n_iter_ = 0
+        self._unmixing = np.empty((0, 0))
+        self._S = np.empty((0, 0))
 
     def _fit(self, X):
         from ..utils import _LegacyGauss
@@ -337,15 +341,19 @@ class FastICA:
                 W[j, :] = w
             self.n_iter_ = mx
         if self.whiten:
+            S = ((W @ K) @ XT).T
             if self.whiten == "unit-variance":
-                S = ((W @ K) @ XT).T
                 Sstd = np.std(S, axis=0)
                 W = W / Sstd[:, None]
+                S = S / Sstd
+            self._S = S
             self.components_ = W @ K
             self.whitening_ = K
         else:
+            self._S = (W @ XT).T
             self.components_ = W
             self.mean_ = np.zeros(nf)
+        self._unmixing = W
         self.mixing_ = sl.pinv(self.components_)
         return self
 
@@ -366,6 +374,29 @@ class FastICA:
         if self.whiten:
             out += self.mean_
         return out
+
+def fastica(X, n_components: Optional[int] = None, *, algorithm: str = "parallel",
+            whiten = "unit-variance", fun: str = "logcosh", fun_args: Optional[Dict[str, float]] = None,
+            max_iter: int = 200, tol: float = 1e-04, w_init = None, whiten_solver: str = "svd",
+            random_state: Optional[int] = None, return_X_mean: Literal[bool] = False,
+            compute_sources: bool = True, return_n_iter: Literal[bool] = False):
+    """(K, W, S[, X_mean][, n_iter]); K / X_mean are None when whiten is False."""
+    est = FastICA(n_components=n_components, algorithm=algorithm, whiten=whiten, fun=fun,
+                  fun_args=fun_args, max_iter=max_iter, tol=tol, w_init=w_init,
+                  whiten_solver=whiten_solver, random_state=random_state)
+    est._fit(X)
+    has_w = est.whiten != ""
+    K = est.whitening_ if has_w else None
+    Xm = est.mean_ if has_w else None
+    S = est._S if compute_sources else None
+    if return_X_mean and return_n_iter:
+        return K, est._unmixing, S, Xm, est.n_iter_
+    elif return_X_mean:
+        return K, est._unmixing, S, Xm
+    elif return_n_iter:
+        return K, est._unmixing, S, est.n_iter_
+    else:
+        return K, est._unmixing, S
 
 from ._truncated_svd import TruncatedSVD
 from ._nmf import NMF
