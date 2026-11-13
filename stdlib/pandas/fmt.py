@@ -5,7 +5,8 @@
 # display.width=80, max_columns=0 (fit terminal of 80x60), max_rows=60,
 # min_rows=10, precision=6.
 
-from .scalar import K_FLOAT, K_INT, K_BOOL, K_STR, NA_STR, _isnan
+from .scalar import K_FLOAT, K_INT, K_BOOL, K_STR, K_DT, K_TD, NA_STR, _isnan
+from ._dt import NAT, fmt_ts, mode_for, fmt_td
 from .core import Column
 
 DISPLAY_WIDTH: Literal[int] = 80
@@ -94,7 +95,15 @@ def format_floats(vals: List[float], na_rep: str = "NaN") -> List[str]:
     # pandas then pads NaN entries to the formatted width (left side)
     return fv
 
+def _dt_strs(c: Column) -> List[str]:
+    if c.kind == K_DT:
+        mode = mode_for(c.i)
+        return ["NaT" if x == NAT else fmt_ts(x, mode) for x in c.i]
+    return ["NaT" if x == NAT else fmt_td(x) for x in c.i]
+
 def format_column(c: Column) -> List[str]:
+    if c.kind == K_DT or c.kind == K_TD:
+        return [" " + x for x in _dt_strs(c)]
     if c.kind == K_FLOAT:
         return format_floats(c.f)
     if c.kind == K_INT:
@@ -105,6 +114,8 @@ def format_column(c: Column) -> List[str]:
 
 def format_index(c: Column) -> List[str]:
     # index labels are formatted without the leading sign space
+    if c.kind == K_DT or c.kind == K_TD:
+        return _dt_strs(c)
     if c.kind == K_FLOAT:
         return [s.strip() for s in format_floats(c.f)]
     if c.kind == K_INT:

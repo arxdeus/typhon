@@ -7,7 +7,9 @@
 import numpy as np
 from numpy import ndarray
 import internal.static as static
-from .scalar import Scalar, K_FLOAT, K_INT, K_BOOL, K_STR, K_NONE, NA_STR, _isnan
+from .scalar import Scalar, K_FLOAT, K_INT, K_BOOL, K_STR, K_NONE, K_DT, K_TD, NA_STR, _isnan
+from . import _dt as DT
+from ._dt import Timestamp, Timedelta
 from .core import *
 from .core import _dtype_name, _kind_of_dtype, _fixed_bounds, _lerp_quantile, _sorted_valid
 from .index import Index
@@ -237,6 +239,18 @@ class Series:
         sm = StringMethods.__new__()
         sm.s = self
         return sm
+
+    @property
+    def dt(self):
+        dp = DatetimeProperties.__new__()
+        dp.s = self
+        return dp
+
+    def resample(self, rule: str):
+        r = Resampler.__new__()
+        r.s = self
+        r.freq = rule
+        return r
 
     @property
     def loc(self):
@@ -1249,6 +1263,15 @@ def _col_binop(a: Column, b: Column, op: int) -> Column:
                 r = x >= y
             out.append(r)
         return Column.bools(out)
+    if a.kind == K_DT or a.kind == K_TD or b.kind == K_DT or b.kind == K_TD:
+        sc = List[Scalar](n)
+        for k in range(n):
+            sc.append(a.get(k)._arith(b.get(k), op) if not (a.isna_at(k) or b.isna_at(k)) else Scalar.none())
+        r = Column.from_scalars(sc)
+        if r.kind == K_FLOAT and (a.kind == K_DT or a.kind == K_TD or b.kind == K_DT or b.kind == K_TD):
+            # all-NaT result keeps a datetime-like dtype
+            pass
+        return r
     if a.kind == K_STR or b.kind == K_STR:
         if op == 0 and a.kind == K_STR and b.kind == K_STR:
             return Column.strs([a.s[k] + b.s[k] if a.s[k] != NA_STR and b.s[k] != NA_STR else NA_STR for k in range(n)])
@@ -2627,8 +2650,8 @@ class _Grouper:
         self.codes = codes
         self.keys = keys
         self.key_col = Column.from_scalars(keys) if col.kind != K_STR else Column.strs([k.s for k in keys])
-        if col.kind == K_INT and len(keys) > 0:
-            self.key_col = Column.ints([k.i for k in keys])
+        if (col.kind == K_INT or col.kind == K_DT or col.kind == K_TD) and len(keys) > 0:
+            self.key_col = Column(col.kind, List[float](), [k.i for k in keys], List[str]())
         self.name = name
         self.levels = List[Column]()
         self.lnames = List[Optional[str]]()
@@ -4090,3 +4113,377 @@ class StringMethods:
 
     def join(self, sep: str) -> Series:
         return self._out(S.smap(self._chk(), lambda x: sep.join([c for c in x])))
+
+
+# ---------------------------------------------------------------------------
+# datetime: to_datetime, date_range, Series.dt, resample, merge_asof
+
+def to_datetime(arg, format: Optional[str] = None) -> Series:
+    s = Series(arg)
+    if s._col.kind == K_DT:
+        return s
+    return s._with(s._col.astype(K_DT))
+
+def to_timedelta(arg) -> Series:
+    s = Series(arg)
+    return s._with(s._col.astype(K_TD))
+
+def _dt_arg(x) -> Optional[int]:
+    if x is None:
+        return None
+    if isinstance(x, Optional):
+        return _dt_arg(x.__val__())
+    if isinstance(x, str):
+        return DT.parse_ts(x)
+    if isinstance(x, Timestamp):
+        return x.value
+    return int(x)
+
+def date_range(start = None, end = None, periods: Optional[int] = None, freq: str = "D",
+               normalize: bool = False, name: Optional[str] = None) -> Index:
+    vals = DT.date_range_ns(_dt_arg(start), _dt_arg(end), periods, freq, normalize)
+    return Index._wrap(Column(K_DT, List[float](), vals, List[str]()), name, False)
+
+def timedelta_range(start = None, end = None, periods: Optional[int] = None, freq: str = "D") -> Index:
+    k, n, a = DT.parse_freq(freq)
+    s0 = Timedelta(start).value if start is not None else 0
+    out = List[int]()
+    if periods is not None:
+        for i in range(periods.__val__()):
+            out.append(s0 + i * n)
+    else:
+        e0 = Timedelta(end).value
+        cur = s0
+        while cur <= e0:
+            out.append(cur)
+            cur += n
+    return Index._wrap(Column(K_TD, List[float](), out, List[str]()), None, False)
+
+class DatetimeProperties:
+    s: Series
+
+    def _f(self, f) -> Series:
+        c = self.s._col
+        return self.s._with(Column.ints([f(x) for x in c.i]))
+    @property
+    def days(self) -> Series:
+        return self._f(lambda x: x // DT.NS_DAY)
+    @property
+    def seconds(self) -> Series:
+        return self._f(lambda x: (x % DT.NS_DAY) // DT.NS_SEC)
+    @property
+    def microseconds(self) -> Series:
+        return self._f(lambda x: (x % DT.NS_SEC) // 1000)
+    @property
+    def nanoseconds(self) -> Series:
+        return self._f(lambda x: x % 1000)
+    def total_seconds(self) -> Series:
+        c = self.s._col
+        return self.s._with(Column.floats([NAN if x == DT.NAT else float(x) / 1e9 for x in c.i]))
+
+
+    def _c(self) -> Column:
+        if self.s._col.kind != K_DT:
+            raise AttributeError("Can only use .dt accessor with datetimelike values")
+        return self.s._col
+
+    def _field(self, f) -> Series:
+        c = self._c()
+        has_nat = False
+        for x in c.i:
+            if x == DT.NAT:
+                has_nat = True
+        if has_nat:
+            return self.s._with(Column.floats([NAN if x == DT.NAT else float(f(x)) for x in c.i]))
+        return self.s._with(Column.ints([f(x) for x in c.i]))
+
+    @property
+    def year(self) -> Series:
+        return self._field(lambda x: DT.fields(x)[0])
+    @property
+    def month(self) -> Series:
+        return self._field(lambda x: DT.fields(x)[1])
+    @property
+    def day(self) -> Series:
+        return self._field(lambda x: DT.fields(x)[2])
+    @property
+    def hour(self) -> Series:
+        return self._field(lambda x: DT.fields(x)[3])
+    @property
+    def minute(self) -> Series:
+        return self._field(lambda x: DT.fields(x)[4])
+    @property
+    def second(self) -> Series:
+        return self._field(lambda x: DT.fields(x)[5])
+    @property
+    def microsecond(self) -> Series:
+        return self._field(lambda x: (x % DT.NS_SEC) // 1000)
+    @property
+    def nanosecond(self) -> Series:
+        return self._field(lambda x: x % 1000)
+    @property
+    def dayofweek(self) -> Series:
+        return self._field(lambda x: DT.dayofweek(x))
+    @property
+    def day_of_week(self) -> Series:
+        return self.dayofweek
+    @property
+    def weekday(self) -> Series:
+        return self.dayofweek
+    @property
+    def dayofyear(self) -> Series:
+        return self._field(lambda x: DT.dayofyear(x))
+    @property
+    def day_of_year(self) -> Series:
+        return self.dayofyear
+    @property
+    def quarter(self) -> Series:
+        return self._field(lambda x: (DT.fields(x)[1] - 1) // 3 + 1)
+    @property
+    def days_in_month(self) -> Series:
+        return self._field(lambda x: DT.days_in_month(DT.fields(x)[0], DT.fields(x)[1]))
+    @property
+    def is_leap_year(self) -> Series:
+        c = self._c()
+        return self.s._with(Column.bools([DT.is_leap(DT.fields(x)[0]) for x in c.i]))
+    @property
+    def is_month_start(self) -> Series:
+        c = self._c()
+        return self.s._with(Column.bools([DT.fields(x)[2] == 1 for x in c.i]))
+    @property
+    def is_month_end(self) -> Series:
+        c = self._c()
+        return self.s._with(Column.bools([DT.fields(x)[2] == DT.days_in_month(DT.fields(x)[0], DT.fields(x)[1]) for x in c.i]))
+    def day_name(self) -> Series:
+        c = self._c()
+        return self.s._with(Column.strs([DT._DAYS[DT.dayofweek(x)] if x != DT.NAT else NA_STR for x in c.i]))
+    def month_name(self) -> Series:
+        c = self._c()
+        return self.s._with(Column.strs([DT._MONTHS[DT.fields(x)[1] - 1] if x != DT.NAT else NA_STR for x in c.i]))
+    def normalize(self) -> Series:
+        c = self._c()
+        return self.s._with(Column(K_DT, List[float](), [DT.floor_day(x) if x != DT.NAT else x for x in c.i], List[str]()))
+    def strftime(self, fmt: str) -> Series:
+        c = self._c()
+        return self.s._with(Column.strs([DT.strftime_ns(x, fmt) if x != DT.NAT else NA_STR for x in c.i]))
+    def floor(self, freq: str) -> Series:
+        c = self._c()
+        k, n, a = DT.parse_freq(freq)
+        return self.s._with(Column(K_DT, List[float](), [(x // n) * n if x != DT.NAT else x for x in c.i], List[str]()))
+    def ceil(self, freq: str) -> Series:
+        c = self._c()
+        k, n, a = DT.parse_freq(freq)
+        return self.s._with(Column(K_DT, List[float](), [-((-x) // n) * n if x != DT.NAT else x for x in c.i], List[str]()))
+    def round(self, freq: str) -> Series:
+        c = self._c()
+        k, n, a = DT.parse_freq(freq)
+        out = List[int]()
+        for x in c.i:
+            if x == DT.NAT:
+                out.append(x)
+            else:
+                q = x // n
+                r = x - q * n
+                if 2 * r > n or (2 * r == n and q % 2 == 1):
+                    q += 1
+                out.append(q * n)
+        return self.s._with(Column(K_DT, List[float](), out, List[str]()))
+
+def _resample_bins(idx: Column, freq: str, closed_right: bool, label_right: bool) -> Tuple[List[int], List[int]]:
+    # returns (bin labels, code per row); rows outside bins get -1
+    kind, n, arg = DT.parse_freq(freq)
+    lo = DT.NAT
+    hi = DT.NAT
+    for x in idx.i:
+        if x == DT.NAT:
+            continue
+        if lo == DT.NAT or x < lo:
+            lo = x
+        if hi == DT.NAT or x > hi:
+            hi = x
+    edges = List[int]()
+    if kind == 0:
+        # fixed tick: bins aligned to the origin (start_day) like pandas
+        origin = DT.floor_day(lo) if n >= DT.NS_DAY or DT.NS_DAY % n == 0 else lo
+        if n % DT.NS_DAY == 0:
+            origin = DT.floor_day(lo)
+        first = origin + ((lo - origin) // n) * n
+        cur = first
+        while cur <= hi:
+            edges.append(cur)
+            cur += n
+        edges.append(cur)
+        labs = edges[:-1]
+        codes = List[int]()
+        for x in idx.i:
+            if x == DT.NAT:
+                codes.append(-1)
+            else:
+                codes.append((x - first) // n)
+        return (labs, codes)
+    # anchored: bin edges are the anchors; the label is the right edge
+    first_anchor = DT.roll_forward(DT.floor_day(lo), kind, arg)
+    if kind == 1:
+        first_anchor = DT.floor_day(lo)
+    anchors = List[int]()
+    cur = first_anchor
+    if kind == 1:
+        # business day: each bin is a day, weekends are folded forward onto Monday
+        labs = List[int]()
+        codes = List[int]()
+        lab_pos = Dict[int, int]()
+        for x in idx.i:
+            d = DT.floor_day(x)
+            wd = DT.dayofweek(d)
+            if wd >= 5:
+                d = d + (7 - wd) * DT.NS_DAY
+            if d not in lab_pos:
+                lab_pos[d] = len(labs)
+                labs.append(d)
+        order = list(range(len(labs)))
+        order.sort(key=lambda t: labs[t])
+        sorted_labs = [labs[t] for t in order]
+        rank = Dict[int, int]()
+        for t in range(len(sorted_labs)):
+            rank[sorted_labs[t]] = t
+        for x in idx.i:
+            d = DT.floor_day(x)
+            wd = DT.dayofweek(d)
+            if wd >= 5:
+                d = d + (7 - wd) * DT.NS_DAY
+            codes.append(rank[d])
+        return (sorted_labs, codes)
+    # the anchor on/after lo is the first label; earlier anchors are not needed
+    labs = List[int]()
+    while True:
+        labs.append(cur)
+        if cur >= DT.floor_day(hi) + (DT.NS_DAY - 1) and cur >= hi:
+            break
+        cur = DT.step_anchor(cur, kind, n, arg)
+    codes = List[int]()
+    for x in idx.i:
+        # first label whose bin (prev_label, label] contains x (daily resolution)
+        pos = 0
+        while pos < len(labs) and DT.floor_day(x) > labs[pos]:
+            pos += 1
+        codes.append(pos)
+    return (labs, codes)
+
+class Resampler:
+    s: Series
+    freq: str
+
+    def _bins(self):
+        return _resample_bins(self.s.index._col, self.freq, False, False)
+
+    def _agg(self, how: str, ddof: int = 1) -> Series:
+        labs, codes = self._bins()
+        g = _Grouper.__new__()
+        g.codes = codes
+        g.keys = List[Scalar]()
+        g.name = self.s.index.name
+        g.levels = List[Column]()
+        g.lnames = List[Optional[str]]()
+        # only emit the bins in order (including empty ones, as pandas does)
+        G = len(labs)
+        for t in range(G):
+            g.keys.append(Scalar(K_DT, 0.0, labs[t], ""))
+        g.key_col = Column(K_DT, List[float](), labs, List[str]())
+        col = _agg_col(g, self.s._col, how, ddof)
+        if how == "sum":
+            pass
+        return Series._new(col, g.index(), self.s.name)
+
+    def sum(self) -> Series:
+        return self._agg("sum")
+    def mean(self) -> Series:
+        return self._agg("mean")
+    def min(self) -> Series:
+        return self._agg("min")
+    def max(self) -> Series:
+        return self._agg("max")
+    def count(self) -> Series:
+        return self._agg("count")
+    def first(self) -> Series:
+        return self._agg("first")
+    def last(self) -> Series:
+        return self._agg("last")
+    def median(self) -> Series:
+        return self._agg("median")
+    def std(self) -> Series:
+        return self._agg("std")
+    def var(self) -> Series:
+        return self._agg("var")
+    def size(self) -> Series:
+        return self._agg("size")
+
+    def ohlc(self):
+        o = self._agg("first")
+        h = self._agg("max")
+        l = self._agg("min")
+        c = self._agg("last")
+        return DataFrame._new([o._col, h._col, l._col, c._col], Index.strs(["open", "high", "low", "close"]), o.index)
+
+def merge_asof(left: DataFrame, right: DataFrame, on: str, by: Optional[str] = None,
+               direction: str = "backward", tolerance = None, suffixes: Tuple[str, str] = ("_x", "_y"),
+               allow_exact_matches: bool = True):
+    lj = left._col_pos(on)
+    rj = right._col_pos(on)
+    lk = left._cols[lj].to_floats()
+    rk = right._cols[rj].to_floats()
+    tol = float("inf")
+    if tolerance is not None:
+        if isinstance(tolerance, Timedelta):
+            tol = float(tolerance.value)
+        elif isinstance(tolerance, Optional):
+            pass
+        else:
+            tol = float(tolerance)
+    pos = List[int](len(lk))
+    ropos = list(range(len(rk)))
+    ropos.sort(key=lambda t: rk[t])
+    bylj = -1
+    byrj = -1
+    if by is not None:
+        bylj = left._col_pos(by.__val__())
+        byrj = right._col_pos(by.__val__())
+    for i in range(len(lk)):
+        best = -1
+        bestd = float("inf")
+        for t in ropos:
+            if by is not None:
+                if left._cols[bylj].get(i) != right._cols[byrj].get(t):
+                    continue
+            d = lk[i] - rk[t]
+            ok = False
+            if direction == "backward":
+                ok = d > 0.0 or (d == 0.0 and allow_exact_matches)
+            elif direction == "forward":
+                ok = d < 0.0 or (d == 0.0 and allow_exact_matches)
+                d = -d
+            else:
+                ok = True
+                d = abs(d)
+            if ok and abs(d) <= tol:
+                if direction == "backward" or direction == "nearest":
+                    if abs(d) < bestd or (direction == "backward" and abs(d) <= bestd):
+                        bestd = abs(d)
+                        best = t
+                else:
+                    if abs(d) < bestd:
+                        bestd = abs(d)
+                        best = t
+        pos.append(best)
+    cols = List[Column]()
+    labels = List[Scalar]()
+    for j in range(len(left._cols)):
+        cols.append(left._cols[j].copy())
+        nm = left.columns[j]
+        labels.append(nm if (j == lj or right.columns.get_loc_opt(nm) < 0) else Scalar.of(str(nm) + suffixes[0]))
+    for j in range(len(right._cols)):
+        if j == rj or (by is not None and j == byrj):
+            continue
+        cols.append(right._cols[j].take(pos))
+        nm = right.columns[j]
+        labels.append(nm if left.columns.get_loc_opt(nm) < 0 else Scalar.of(str(nm) + suffixes[1]))
+    return DataFrame._new(cols, Index._wrap(Column.from_scalars(labels)), left.index.copy())

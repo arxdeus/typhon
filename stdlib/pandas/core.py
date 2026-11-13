@@ -6,7 +6,8 @@
 
 import numpy as np
 from numpy import ndarray
-from .scalar import Scalar, K_FLOAT, K_INT, K_BOOL, K_STR, K_NONE, NA_STR, _isnan
+from .scalar import Scalar, K_FLOAT, K_INT, K_BOOL, K_STR, K_NONE, K_DT, K_TD, NA_STR, _isnan
+from ._dt import NAT, Timestamp, Timedelta, fmt_ts_full, fmt_td, parse_ts, parse_td
 
 NAN = float("nan")
 
@@ -27,6 +28,10 @@ def _dtype_name(kind: int) -> str:
         return "int64"
     if kind == K_BOOL:
         return "bool"
+    if kind == K_DT:
+        return "datetime64[us]"
+    if kind == K_TD:
+        return "timedelta64[ns]"
     return "str"
 
 def _kind_of_dtype(dtype) -> int:
@@ -39,6 +44,10 @@ def _kind_of_dtype(dtype) -> int:
             return K_BOOL
         if dtype in ("str", "string", "object"):
             return K_STR
+        if dtype in ("datetime64[ns]", "datetime64", "datetime64[us]", "M8[ns]"):
+            return K_DT
+        if dtype in ("timedelta64[ns]", "timedelta64", "m8[ns]"):
+            return K_TD
         raise TypeError(f"data type '{dtype}' not understood")
     elif dtype is float:
         return K_FLOAT
@@ -198,6 +207,10 @@ class Column:
             return Column.strs(data.copy())
         elif T is Scalar:
             return Column.from_scalars(data)
+        elif T is Timestamp:
+            return Column(K_DT, List[float](), [x.value for x in data], List[str]())
+        elif T is Timedelta:
+            return Column(K_TD, List[float](), [x.value for x in data], List[str]())
         elif isinstance(T, Optional):
             return Column.from_scalars([Scalar.of(x) for x in data])
         elif hasattr(T, "__index__"):
@@ -220,7 +233,7 @@ class Column:
 
     @property
     def is_numeric(self) -> bool:
-        return self.kind != K_STR
+        return self.kind != K_STR and self.kind != K_DT and self.kind != K_TD
 
     def copy(self) -> Column:
         return Column(self.kind, self.f.copy(), self.i.copy(), self.s.copy())
@@ -239,9 +252,13 @@ class Column:
             if self.s[k] == NA_STR:
                 return NAN
             raise TypeError("cannot convert str column to float")
+        if (self.kind == K_DT or self.kind == K_TD) and self.i[k] == NAT:
+            return NAN
         return float(self.i[k])
 
     def isna_at(self, k: int) -> bool:
+        if self.kind == K_DT or self.kind == K_TD:
+            return self.i[k] == NAT
         if self.kind == K_FLOAT:
             return _isnan(self.f[k])
         if self.kind == K_STR:
@@ -258,6 +275,8 @@ class Column:
                 self.s.append(NA_STR)
             else:
                 self.s.append(str(v))
+        elif self.kind == K_DT or self.kind == K_TD:
+            self.i.append(NAT if v.isna() else v.i)
         else:
             if v.kind == K_FLOAT:
                 self.i.append(int(v.f))
@@ -279,6 +298,8 @@ class Column:
                 self.s[k] = NA_STR
             else:
                 self.s[k] = str(v)
+        elif self.kind == K_DT or self.kind == K_TD:
+            self.i[k] = NAT if v.isna() else v.i
         else:
             if v.kind == K_FLOAT or v.kind == K_NONE:
                 self.astype_inplace(K_FLOAT)
@@ -309,6 +330,17 @@ class Column:
         if kind == self.kind:
             return self.copy()
         n = len(self)
+        if kind == K_DT or kind == K_TD:
+            if self.kind == K_STR:
+                return Column(kind, List[float](), [NAT if self.s[k] == NA_STR else _parse_dt(self.s[k], kind) for k in range(n)], List[str]())
+            if self.kind == K_FLOAT:
+                return Column(kind, List[float](), [NAT if _isnan(x) else int(x) for x in self.f], List[str]())
+            return Column(kind, List[float](), self.i.copy(), List[str]())
+        if self.kind == K_DT or self.kind == K_TD:
+            if kind == K_FLOAT:
+                return Column.floats([NAN if self.i[k] == NAT else float(self.i[k]) for k in range(n)])
+            if kind == K_INT:
+                return Column.ints(self.i.copy())
         if kind == K_FLOAT:
             if self.kind == K_STR:
                 return Column.floats([NAN if self.s[k] == NA_STR else float(self.s[k]) for k in range(n)])
@@ -342,6 +374,8 @@ class Column:
             return Column.floats([self.f[k] if k >= 0 else NAN for k in idx])
         if self.kind == K_STR:
             return Column.strs([self.s[k] if k >= 0 else NA_STR for k in idx])
+        if self.kind == K_DT or self.kind == K_TD:
+            return Column(self.kind, List[float](), [self.i[k] if k >= 0 else NAT for k in idx], List[str]())
         if has_missing:
             return Column.floats([float(self.i[k]) if k >= 0 else NAN for k in idx])
         return Column(self.kind, List[float](), [self.i[k] for k in idx], List[str]())
@@ -355,7 +389,9 @@ class Column:
         b = o
         kind = a.kind
         if a.kind != b.kind:
-            if a.kind == K_STR or b.kind == K_STR:
+            if a.kind == K_DT or b.kind == K_DT or a.kind == K_TD or b.kind == K_TD:
+                kind = K_STR
+            elif a.kind == K_STR or b.kind == K_STR:
                 kind = K_STR
             elif a.kind == K_FLOAT or b.kind == K_FLOAT:
                 kind = K_FLOAT
@@ -374,6 +410,8 @@ class Column:
             return self.f.copy()
         if self.kind == K_STR:
             return [self.getf(k) for k in range(n)]
+        if self.kind == K_DT or self.kind == K_TD:
+            return [NAN if x == NAT else float(x) for x in self.i]
         return [float(x) for x in self.i]
 
     def scalars(self) -> List[Scalar]:
@@ -397,11 +435,18 @@ class Column:
             return r
         if self.kind == K_INT:
             return str(self.i[k])
+        if self.kind == K_DT:
+            return na_rep if self.i[k] == NAT else fmt_ts_full(self.i[k])
+        if self.kind == K_TD:
+            return na_rep if self.i[k] == NAT else fmt_td(self.i[k])
         if self.kind == K_BOOL:
             return "True" if self.i[k] else "False"
         if self.s[k] == NA_STR:
             return na_rep
         return self.s[k]
+
+def _parse_dt(s: str, kind: int) -> int:
+    return parse_ts(s) if kind == K_DT else parse_td(s)
 
 def _float_repr(x: float) -> str:
     if x == float("inf"):
