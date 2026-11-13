@@ -1304,3 +1304,14 @@ class FwdB2:
     def __init__(self, v: int): self.v = v
 a = FwdA2()
 print a.kids()[0].v, a.maybe() is None  #: 1 True
+
+#%% overload_most_specific_after_generic,barebones
+from typing import List
+@overload
+def ovs(x):
+    return "any"
+@overload
+def ovs(x: List[str]):
+    return "liststr"
+print(ovs(1), ovs(["a"]))
+#: any liststr
