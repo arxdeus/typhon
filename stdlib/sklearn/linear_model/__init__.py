@@ -11,3 +11,6 @@ from ._least_angle import (Lars, LassoLars, LarsCV, LassoLarsCV, LassoLarsIC, la
                            lars_path_gram)
 from ._omp import (OrthogonalMatchingPursuit, OrthogonalMatchingPursuitCV, orthogonal_mp,
                    orthogonal_mp_gram)
+from ._stochastic_gradient import SGDClassifier, SGDRegressor, SGDOneClassSVM
+from ._perceptron import Perceptron
+from ._passive_aggressive import PassiveAggressiveClassifier, PassiveAggressiveRegressor
