@@ -18,7 +18,7 @@ mne.set_log_level("ERROR")
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEST_DIR = os.path.dirname(HERE)
 NAMES = ["test_io_fif", "test_io_edf_bv_eeglab", "test_raw_api", "test_events",
-         "test_events_epochs", "test_filter_picks", "test_proj_ref", "test_csd_annot", "test_montage_io", "test_epochs_more", "test_filter_more", "test_epochs_utils"]
+         "test_events_epochs", "test_filter_picks", "test_proj_ref", "test_csd_annot", "test_montage_io", "test_epochs_more", "test_filter_more", "test_epochs_utils", "test_preproc_misc"]
 
 
 def run(name):
