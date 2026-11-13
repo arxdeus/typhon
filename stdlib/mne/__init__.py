@@ -144,3 +144,4 @@ import beamformer
 import simulation
 
 from ._annot_io import read_annotations
+import minimum_norm

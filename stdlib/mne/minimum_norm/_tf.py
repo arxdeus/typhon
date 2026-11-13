@@ -58,6 +58,7 @@ def source_induced_power(epochs, inverse_operator: InverseOperator, freqs, label
         for f in range(n_f):
             tfr = cwt(x, [Ws[f]], use_fft, "same", decim)
             tf2 = tfr.reshape((x.shape[0], -1))
+            pf = np.zeros((n_src, n_t), dtype=complex)
             for part in range(2):
                 t = np.real(tf2) if part == 0 else np.imag(tf2)
                 sol = np.dot(K, t)
@@ -65,15 +66,15 @@ def source_induced_power(epochs, inverse_operator: InverseOperator, freqs, label
                 for s in range(n_src):
                     for k in range(n_t):
                         if part == 0:
-                            plv[s, f, k] += pick[s, k]
+                            pf[s, k] += pick[s, k]
                         else:
-                            plv[s, f, k] += 1j * pick[s, k]
+                            pf[s, k] += 1j * pick[s, k]
                 if free:
                     sol = combine_xyz(sol, True)
                 else:
                     sol = sol * sol
                 power[:, f, :] += sol
-    # plv is normalised per epoch in mne: recompute per epoch
+            plv[:, f, :] += pf / np.abs(pf)
     power = power / float(n_ep)
     if has_nn:
         power = power * (nn ** 2)[:, :, None]
