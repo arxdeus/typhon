@@ -108,6 +108,16 @@ fn func_of_call(m: &Module, v: ValueId) -> Option<(FuncId, Vec<ValueId>)> {
     Some((f, call.args.clone()))
 }
 
+/// `func_of_call` that only clones the arguments when the callee has the given name.
+fn named_func_of_call(m: &Module, v: ValueId, name: &str) -> Option<(FuncId, Vec<ValueId>)> {
+    let call = m.as_call_instr(v)?;
+    let f = get_func(m, call.callee)?;
+    if m.func(f)?.unmangled_name != name {
+        return None;
+    }
+    Some((f, call.args.clone()))
+}
+
 /// `isCallOf(value, name, inputs, output, method)`.
 pub fn is_call_of_types(
     m: &mut Module,
@@ -117,7 +127,7 @@ pub fn is_call_of_types(
     output: Option<TypeId>,
     method: bool,
 ) -> bool {
-    let Some((f, args)) = func_of_call(m, value) else { return false };
+    let Some((f, args)) = named_func_of_call(m, value, name) else { return false };
     let fd = m.func(f).unwrap();
     if fd.unmangled_name != name || args.len() != inputs.len() {
         return false;
@@ -153,7 +163,7 @@ pub fn is_call_of_types(
 
 /// `isCallOf(value, name, numArgs, output, method)` (`num_args < 0`: no check).
 pub fn is_call_of(m: &mut Module, value: ValueId, name: &str, num_args: i32, output: Option<TypeId>, method: bool) -> bool {
-    let Some((f, args)) = func_of_call(m, value) else { return false };
+    let Some((f, args)) = named_func_of_call(m, value, name) else { return false };
     let fd = m.func(f).unwrap();
     if fd.unmangled_name != name || (num_args >= 0 && args.len() != num_args as usize) {
         return false;
