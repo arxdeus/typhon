@@ -56,3 +56,7 @@ from .contingency import somersd, page_trend_test, relative_risk, odds_ratio, \
     crosstab
 from ._kde_binned import gaussian_kde, binned_statistic, binned_statistic_2d, \
     binned_statistic_dd, weightedtau
+
+# --- resampling / extra tests (lane scipy-stats-tests-2) ---
+from ._resampling import bootstrap, permutation_test, monte_carlo_test, \
+    BootstrapResult, PermutationTestResult, MonteCarloTestResult
