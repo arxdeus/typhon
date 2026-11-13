@@ -640,22 +640,24 @@ def fit_dipole(evoked: Evoked, cov: Covariance, bem: ConductorModel, trans = Non
     rp = np.dot(proj_op, resid)
     for k in range(len(order)):
         residual.data[order[k], :] = rp[k, :]
-    if fixed_position and ori_a is not None:
+    if isinstance(pos, NoneType) or isinstance(ori, NoneType):
+        conf = Dict[str, np.ndarray[float, 1]]()
+        if not fixed_position:
+            for ki in range(6):
+                conf[_CONF_KEYS[ki]] = conf_out[:, ki].copy()
+            dip = Dipole(times, pos_out, amp_out, ori_out, gof_out, comment, conf, khi2_out, nfree_out)
+            return dip, residual
+        dip2 = Dipole(times, pos_out, amp_out, ori_out, gof_out, comment, None)
+        return dip2, residual
+    else:
         dd = np.zeros((2, nt))
         dd[0] = amp_out
         dd[1] = gof_out
         oinfo = Info(["dip 01", "goodness"], info.sfreq, ["dipole", "gof"])
-        oinfo.locs[0] = [float(pos_a[0]), float(pos_a[1]), float(pos_a[2]), float(ori_a.__val__()[0]),
-                         float(ori_a.__val__()[1]), float(ori_a.__val__()[2]), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        oa = ori_a.__val__()
+        oinfo.locs[0] = [float(pos_a[0]), float(pos_a[1]), float(pos_a[2]), float(oa[0]),
+                         float(oa[1]), float(oa[2]), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         return DipoleFixed(oinfo, dd, times, ev.nave, 100, comment), residual
-    conf = Dict[str, np.ndarray[float, 1]]()
-    if not fixed_position:
-        for ki in range(6):
-            conf[_CONF_KEYS[ki]] = conf_out[:, ki].copy()
-        dip = Dipole(times, pos_out, amp_out, ori_out, gof_out, comment, conf, khi2_out, nfree_out)
-        return dip, residual
-    dip2 = Dipole(times, pos_out, amp_out, ori_out, gof_out, comment, None)
-    return dip2, residual
 
 
 def make_forward_dipole(dipole: Dipole, bem: ConductorModel, info: Info, trans = None, n_jobs = None,
