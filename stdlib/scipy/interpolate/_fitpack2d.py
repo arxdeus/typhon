@@ -217,6 +217,9 @@ def LSQBivariateSpline(x, y, z, tx, ty, w = None, bbox = (None, None, None, None
         raise ValueError("Invalid input data")
     return _from_raw(tx1[:nx].copy(), ty1[:ny].copy(), c[:(nx - kx - 1) * (ny - ky - 1)].copy(), kx, ky, fp)
 
+_SURF_CACHE_TX = [np.zeros(0)]
+_SURF_CACHE_TY = [np.zeros(0)]
+
 def bisplrep(x, y, z, w = None, xb = None, xe = None, yb = None, ye = None, kx: int = 3, ky: int = 3,
              task: int = 0, s: Optional[float] = None, eps: float = 1e-16, tx = None, ty = None,
              full_output: Literal[int] = 0, nxest: Optional[int] = None, nyest: Optional[int] = None,
@@ -229,8 +232,6 @@ def bisplrep(x, y, z, w = None, xb = None, xe = None, yb = None, ye = None, kx: 
     yev = float(np.max(ya)) if ye is None else float(ye)
     if task < -1 or task > 1:
         raise TypeError("task must be -1, 0 or 1")
-    if task == 1:
-        raise NotImplementedError("bisplrep: task=1 is not supported")
     sv = float(m) - _sqrt(2.0 * m) if s is None else s
     nxe = int(kx + _sqrt(m / 2)) if nxest is None else nxest
     nye = int(ky + _sqrt(m / 2)) if nyest is None else nyest
@@ -247,6 +248,16 @@ def bisplrep(x, y, z, w = None, xb = None, xe = None, yb = None, ye = None, kx: 
         txa = np.asarray(tx, dtype=float).ravel()
     if ty is not None:
         tya = np.asarray(ty, dtype=float).ravel()
+    if task == 1:
+        # continue from the knots of the previous call
+        txa = _SURF_CACHE_TX[0]
+        tya = _SURF_CACHE_TY[0]
+        if txa.size == 0 or tya.size == 0:
+            raise TypeError("task=1 requires a previous bisplrep call")
+        nx0 = txa.size
+        ny0 = tya.size
+        nxe = max(nxe, nx0)
+        nye = max(nye, ny0)
     if task == -1:
         if txa.size == 0 or tya.size == 0:
             raise TypeError("Knots must be given for task=-1")
@@ -265,6 +276,8 @@ def bisplrep(x, y, z, w = None, xb = None, xe = None, yb = None, ye = None, kx: 
     if ier == 10:
         raise ValueError("Invalid inputs.")
     ncoef = (nx - kx - 1) * (ny - ky - 1)
+    _SURF_CACHE_TX[0] = T1[:nx].copy()
+    _SURF_CACHE_TY[0] = T2[:ny].copy()
     tck = (T1[:nx].copy(), T2[:ny].copy(), c[:ncoef].copy(), kx, ky)
     if full_output:
         return tck, fp, ier

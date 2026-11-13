@@ -187,6 +187,9 @@ def _fprank(a, f, n: int, m: int, na: int, tol: float, c):
     sq += stor3
     return sq, rank
 
+# fp0 of the last surfit call (task=1 continues from it, like the Fortran save)
+_FP0 = [0.0]
+
 def surfit(iopt: int, xin, yin, z, w, xb: float, xe: float, yb: float, ye: float,
            kxx: int, kyy: int, s: float, nxest: int, nyest: int, eps_in: float,
            tx, ty, nx0: int, ny0: int):
@@ -284,9 +287,15 @@ def surfit(iopt: int, xin, yin, z, w, xb: float, xe: float, yb: float, ye: float
         ny = ny0
     else:
         acc = tol * s
-        nx = nminx
-        ny = nminy
-        ier = -2
+        if iopt == 1 and _FP0[0] > s:
+            # continue from the knots of the previous call (task=1)
+            nx = nx0
+            ny = ny0
+            fp0 = _FP0[0]
+        else:
+            nx = nminx
+            ny = nminy
+            ier = -2
     ncof = 0
     nk1x = 0
     nk1y = 0
@@ -718,4 +727,5 @@ def surfit(iopt: int, xin, yin, z, w, xb: float, xe: float, yb: float, ye: float
         l = nx
         nx = ny
         ny = l
+    _FP0[0] = fp0
     return nx, ny, c, fp, ier
