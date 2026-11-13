@@ -22,3 +22,7 @@ from ._regression import (d2_absolute_error_score, d2_pinball_score, d2_tweedie_
                           mean_poisson_deviance, mean_squared_error, mean_squared_log_error,
                           mean_tweedie_deviance, median_absolute_error, r2_score,
                           root_mean_squared_error, root_mean_squared_log_error)
+from .pairwise import (euclidean_distances, nan_euclidean_distances, pairwise_distances,
+                       pairwise_distances_argmin, pairwise_distances_argmin_min,
+                       pairwise_distances_chunked, pairwise_kernels)
+from ._scorer import check_scoring, get_scorer, get_scorer_names, make_scorer
