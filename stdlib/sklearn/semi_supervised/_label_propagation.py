@@ -43,7 +43,7 @@ class _BaseLabelPropagation:
             return kernel_matrix(self.X_, self.X_, "rbf", self.gamma, 3.0, 1.0, True)
         from ..neighbors import NearestNeighbors
         nn = NearestNeighbors(n_neighbors=self.n_neighbors).fit(self.X_)
-        return nn.kneighbors_graph(self.X_, self.n_neighbors, mode="connectivity")
+        return nn.kneighbors_graph(self.X_, self.n_neighbors, mode="connectivity").toarray()
 
     def _build_graph(self) -> np.ndarray[float, 2]:
         A = self._affinity()
