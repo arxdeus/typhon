@@ -399,6 +399,23 @@ impl<'a> TypecheckVisitor<'a> {
             let g = types.generalize(*m, 0); // generics are not yet generalized when parsing methods
             let gc = types.get_class(g).unwrap();
             let mt = self.instantiate_type(gc, Some(realized))?;
+            // Base generics not fixed by the subclass (`class C(Base)` where Base has
+            // `x: Literal[str] = "..."`) take their defaults.
+            if !types.can_realize(mt) {
+                if let Some(mc) = types.get_class(mt) {
+                    for bg in types.generics(mc) {
+                        let gt = types.follow(bg.ty());
+                        if let Some(l) = types.link(gt) {
+                            if matches!(l.kind, crate::types::LinkKind::Unbound) {
+                                if let Some(d) = l.default_type {
+                                    let mut undo = crate::types::Unification::new();
+                                    types.unify(gt, d, Some(&mut undo), self)?;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             typhon_common::seqassert!(types.can_realize(mt), "cannot realize {}", types.debug_string(mt, 2));
             real.borrow_mut().bases.push(mt);
         }

@@ -9,7 +9,7 @@ use crate::ast::{
 };
 use crate::cache::{Function, FN_DISPATCH_SUFFIX, VAR_USED_SUFFIX};
 use crate::ids::{ExprId, StmtId, TypeId};
-use crate::types::LiteralKind;
+use crate::types::{LinkKind, LiteralKind};
 
 impl<'a> TypecheckVisitor<'a> {
     /// `visit(IdExpr*)`: resolve an identifier, check captures, set type.
@@ -737,13 +737,46 @@ impl<'a> TypecheckVisitor<'a> {
         }
 
         // Case: object generic access (`obj.T`)
-        let generic = types.generics(typ).into_iter().find(|g| member == self.get_unmangled_name(&g.name));
+        let generic = types.generics(typ).into_iter().find(|g| member == self.get_unmangled_name(&g.name)).or_else(|| {
+            // Inherited static attributes (`class C(Base)`, Base has `t: Literal[str] = "x"`)
+            types
+                .hidden_generics(typ)
+                .into_iter()
+                .find(|g| g.static_kind != LiteralKind::Runtime && member == self.get_unmangled_name(&g.name))
+        });
         if let Some(g) = generic {
             if g.static_kind != LiteralKind::Runtime {
-                if let Some(t) = ty {
-                    self.unify(t, g.ty())?;
+                // `Literal[...]` class attribute with a default (`n: Literal[int] = 3`)
+                // read before inference applied the default: use the default value
+                // (for every defaulted static generic of the instance, so that the
+                // object expression is complete when it is kept as a side effect).
+                for og in types.generics(typ).into_iter().chain(types.hidden_generics(typ)) {
+                    if og.static_kind == LiteralKind::Runtime {
+                        continue;
+                    }
+                    let gt = types.follow(og.ty());
+                    if let Some(l) = types.link(gt) {
+                        if matches!(l.kind, LinkKind::Unbound) {
+                            if let Some(d) = l.default_type {
+                                if types.static_expr(d, &mut self.cache.ast).is_some() {
+                                    let mut undo = crate::types::Unification::new();
+                                    types.unify(gt, d, Some(&mut undo), self)?;
+                                }
+                            }
+                        }
+                    }
                 }
-                if self.realize(g.ty())?.is_some() {
+                let realized_now = self.realize(g.ty())?.is_some();
+                // A defaulted static generic is replaced by its literal once realized:
+                // linking the expression type to it now would later clash with the
+                // literal's runtime type (`'int' does not match expected type '3'`).
+                let has_default = types.link(types.follow(g.ty())).is_some_and(|l| l.default_type.is_some());
+                if !realized_now && !has_default {
+                    if let Some(t) = ty {
+                        self.unify(t, g.ty())?;
+                    }
+                }
+                if realized_now {
                     let s = types.static_expr(g.ty(), &mut self.cache.ast).expect("not a static");
                     return Ok((self.wrap_side2(has_side, expr, s)?, true));
                 }

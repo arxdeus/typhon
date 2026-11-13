@@ -1247,3 +1247,37 @@ print C[float, 4](2.0).x, C[float, 2](1.5).get(), C[int, 1](3).N  #: 2.0 3.0 1
 def mk(n: Literal[int]):
     return C[float, n](1.0)
 print mk(3).get()  #: 3.0
+
+#%% class_static_attr_default,barebones
+class M:
+    n: Literal[int] = 3
+    s: Literal[str] = "ab"
+    def f(self):
+        return self.s
+m = M()
+print m.n, m.s, m.f(), M.n, M.s  #: 3 ab ab 3 ab
+print M().n  #: 3
+z = M().n
+print z, M[5, "q"]().n, M[5, "q"].s  #: 3 5 q
+
+#%% class_static_attr_inherited,barebones
+class Base:
+    _estimator_type: Literal[str] = "classifier"
+    def kind(self):
+        return self._estimator_type
+class Mix:
+    def hello(self):
+        return 1
+class C(Mix, Base):
+    a: int
+    def __init__(self):
+        self.a = 2
+class D(Base):
+    _estimator_type: Literal[str] = "regressor"
+c = C()
+print c._estimator_type, c.kind(), c.hello(), C._estimator_type  #: classifier classifier 1 classifier
+d = D()
+print d._estimator_type, d.kind()  #: regressor regressor
+def lit(x: Literal[str]):
+    return "lit:" + x
+print lit(c._estimator_type)  #: lit:classifier

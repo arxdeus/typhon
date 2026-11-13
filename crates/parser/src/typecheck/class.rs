@@ -1893,6 +1893,22 @@ impl<'a> TypecheckVisitor<'a> {
                 typhon_common::bail_e!(ErrorKind::CUSTOM, self.src, "cannot use '{}' as a base class", n);
             }
             let cls_typ = self.extract_class_type_expr(*cls).unwrap();
+            // `class C(Base)` where Base has `t: Literal[str] = "x"`: a bare base keeps
+            // its static defaults (otherwise the inherited generic stays unbound).
+            for bg in types.generics(cls_typ) {
+                if bg.static_kind == LiteralKind::Runtime {
+                    continue;
+                }
+                let gt = types.follow(bg.ty());
+                if let Some(l) = types.link(gt) {
+                    if matches!(l.kind, LinkKind::Unbound) {
+                        if let Some(d) = l.default_type {
+                            let mut undo = crate::types::Unification::new();
+                            types.unify(gt, d, Some(&mut undo), self)?;
+                        }
+                    }
+                }
+            }
             let cls_name = types.class_name(cls_typ).unwrap().to_string();
             let Some(cached_ast) = self.cache.get_class_by_type(cls_typ).and_then(|c| c.ast) else {
                 typhon_common::bail_e!(ErrorKind::CLASS_NO_INHERIT, self.src, "nested", "surrounding");
