@@ -77,3 +77,4 @@ from ._final_misc import DegenerateDataWarning, ConstantInputWarning, NearConsta
     FitError, PermutationMethod, MonteCarloMethod, BootstrapMethod, kstat, kstatvar, gstd, bayes_mvs, mvsdist
 from ._survival import CensoredData, ecdf, ECDFResult, EmpiricalDistributionFunction, logrank, \
     LogRankResult, spearmanrho, bws_test, ppcc_max, wasserstein_distance_nd
+from ._quantile import quantile, estimated_cdf
