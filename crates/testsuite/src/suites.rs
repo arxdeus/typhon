@@ -74,6 +74,7 @@ pub const STDLIB: &[&str] = &[
     "stdlib/numcore_test.py", "stdlib/struct_more_test.py", "stdlib/deque_more_test.py",
     "stdlib/functools_more_test.py", "stdlib/zlib_deflate_test.py", "stdlib/decimal_test.py",
     "stdlib/ipaddress_test.py", "stdlib/calendar_test.py",
+    "stdlib/array_test.py", "stdlib/collections_more_test.py", "stdlib/statistics_more_test.py",
 ];
 
 pub const CNUMERICS: &[&str] = &[
@@ -197,7 +198,10 @@ pub const SCIPY: &[&str] = &[
     "mne/test_filter_more.py",
     "pyriemann/test_ajd.py", "pyriemann/test_estimation.py", "pyriemann/test_estimators2.py",
     "pyriemann/test_mest.py", "pyriemann/test_covx.py", "pyriemann/test_spectral.py",
-    "pyriemann/test_spatial.py", "pyriemann/test_classif.py", "pyriemann/test_means2.py",
+    "pyriemann/test_spatial.py", "pyriemann/test_classif_a.py", "pyriemann/test_classif_b.py",
+    "pyriemann/test_means2.py", "pyriemann/test_clust2.py", "pyriemann/test_datasets.py",
+    "pyriemann/test_potato.py", "pyriemann/test_tl2.py", "pandas/test_str.py",
+    "mne/test_cov.py", "mne/test_forward_sphere.py",
     "pyriemann/test_misc.py", "pandas/test_ewm.py", "pandas/test_stats2.py",
     "pandas/test_groupby2.py",
     "scipy/test_special_seq.py", "scipy/test_special_orthopoly.py",
