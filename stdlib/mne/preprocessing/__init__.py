@@ -23,3 +23,6 @@ from ._otp import oversampled_temporal_projection
 from ._maxwell_filter import (maxwell_filter, compute_maxwell_basis, find_bad_channels_maxwell,
                               maxwell_filter_prepare_emptyroom)
 from ._ica_ext import ica_find_ecg_events, ica_find_eog_events, corrmap, get_score_funcs
+from ._movement import annotate_movement, compute_average_dev_head_t
+from ._bridged import interpolate_bridged_electrodes
+from ._pca_obs import apply_pca_obs
