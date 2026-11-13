@@ -200,6 +200,7 @@ pub const SCIPY: &[&str] = &[
     "pyriemann/test_spatial.py", "pyriemann/test_classif.py", "pyriemann/test_means2.py",
     "pyriemann/test_misc.py", "pandas/test_ewm.py", "pandas/test_stats2.py",
     "pandas/test_groupby2.py",
+    "scipy/test_special_seq.py", "scipy/test_special_orthopoly.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
