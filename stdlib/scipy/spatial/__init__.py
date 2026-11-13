@@ -4,7 +4,7 @@
 # ``distance`` submodule and the Qhull-based ConvexHull, Delaunay, Voronoi,
 # HalfspaceIntersection (beneath-beyond reimplementation, see _qhull.py).
 
-from ._kdtree import KDTree, cKDTree, distance_matrix, minkowski_distance, \
+from ._kdtree import KDTree, cKDTree, Rectangle, distance_matrix, minkowski_distance, \
                      minkowski_distance_p
 import scipy.spatial.distance as distance
 from ._procrustes import procrustes

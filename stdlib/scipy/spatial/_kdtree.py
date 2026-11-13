@@ -513,3 +513,55 @@ class KDTree:
             compile_error("Invalid output type")
 
 cKDTree = KDTree
+
+def _mink0(delta, p: float) -> float:
+    s = 0.0
+    if p == inf:
+        for i in range(delta.size):
+            s = max(s, abs(delta[i]))
+        return s
+    for i in range(delta.size):
+        s += abs(delta[i]) ** p
+    return s ** (1.0 / p)
+
+class Rectangle:
+    """Hyperrectangle class (scipy.spatial.Rectangle)."""
+    def __init__(self, maxes, mins):
+        a = np.asarray(maxes, dtype=float)
+        b = np.asarray(mins, dtype=float)
+        self.maxes = np.maximum(a, b)
+        self.mins = np.minimum(a, b)
+        self.m = self.maxes.shape[0]
+
+    def __repr__(self) -> str:
+        return f"<Rectangle {[(float(self.mins[i]), float(self.maxes[i])) for i in range(self.m)]}>"
+
+    def volume(self) -> float:
+        return float(np.prod(self.maxes - self.mins))
+
+    def split(self, d: int, split: float):
+        mid = self.maxes.copy()
+        mid[d] = split
+        less = Rectangle(self.mins, mid)
+        mid2 = self.mins.copy()
+        mid2[d] = split
+        greater = Rectangle(mid2, self.maxes)
+        return (less, greater)
+
+    def min_distance_point(self, x, p: float = 2.0) -> float:
+        xa = np.asarray(x, dtype=float)
+        delta = np.maximum(0.0, np.maximum(self.mins - xa, xa - self.maxes))
+        return _mink0(delta, p)
+
+    def max_distance_point(self, x, p: float = 2.0) -> float:
+        xa = np.asarray(x, dtype=float)
+        delta = np.maximum(self.maxes - xa, xa - self.mins)
+        return _mink0(delta, p)
+
+    def min_distance_rectangle(self, other: Rectangle, p: float = 2.0) -> float:
+        delta = np.maximum(0.0, np.maximum(self.mins - other.maxes, other.mins - self.maxes))
+        return _mink0(delta, p)
+
+    def max_distance_rectangle(self, other: Rectangle, p: float = 2.0) -> float:
+        delta = np.maximum(self.maxes - other.mins, other.maxes - self.mins)
+        return _mink0(delta, p)

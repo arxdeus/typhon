@@ -104,3 +104,12 @@ def test_kdtree_extra():
     assert sorted(t1.query_pairs(0.3)) == [(0, 13), (1, 12), (1, 14), (2, 13), (2, 15), (3, 14), (3, 16), (4, 15), (4, 17), (5, 16), (5, 18), (6, 17), (6, 19)]
     assert t1.query_ball_tree(t2, 0.4) == [[], [10], [], [], [], [0, 7, 14], [], [0, 7, 14], [2, 9], [1, 4, 8, 11], [6, 13], [1, 8], [3, 10], [], [], [], [], [], [0, 7, 14], [2, 9]]
 test_kdtree_extra()
+@test
+def test_rectangle():
+    R1 = S.Rectangle(np.array([1.0, 2.0, 0.5]), np.array([-1.0, 0.0, 1.5]))
+    R2 = S.Rectangle(np.array([3.0, 4.0, 3.0]), np.array([2.0, 2.5, 2.0]))
+    assert closec([R1.volume(), R1.min_distance_point(np.array([2.0, -1.0, 1.0])), R1.max_distance_point(np.array([2.0, -1.0, 1.0]), p=1.0)], [4.0, 1.4142135623730951, 6.5])
+    assert closec([R1.min_distance_rectangle(R2), R1.max_distance_rectangle(R2), R1.min_distance_rectangle(R2, p=np.inf)], [1.224744871391589, 6.18465843842649, 1.0])
+    lo, hi = R1.split(1, 0.7)
+    assert closec(np.concatenate([lo.mins, lo.maxes, hi.mins, hi.maxes]), [-1.0, 0.0, 0.5, 1.0, 0.7, 1.5, -1.0, 0.7, 0.5, 1.0, 2.0, 1.5])
+test_rectangle()

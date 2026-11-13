@@ -555,3 +555,9 @@ def squareform(X, force: str = 'no', checks: bool = True):
         return out
     else:
         compile_error("The first argument must be one or two dimensional array.")
+
+def rel_entr(x: float, y: float) -> float:
+    return _rel_entr(x, y)
+
+def norm(x, ord = None):
+    return np.linalg.norm(x, ord)
