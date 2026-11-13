@@ -555,3 +555,27 @@ test(5) #: int
 test(None) #: int
 
 # %%
+
+#%% assign_reuse_different_types
+def reuse_f(n):
+    x = 1
+    print(x)
+    x = 'a'
+    print(x)
+    r = [1, 2]
+    for i in r:
+        print(i)
+    r = 'ab'
+    print(r)
+reuse_f(2)
+#: 1
+#: a
+#: 1
+#: 2
+#: ab
+
+#%% list_none_bool_int_json
+import json
+print(json.dumps([None, True, 1]))  #: [null, true, 1]
+print(json.dumps([1, None, True]))  #: [1, null, true]
+print([None, True, 1])  #: [None, True, 1]
