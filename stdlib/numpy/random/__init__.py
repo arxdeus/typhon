@@ -179,3 +179,6 @@ def weibull(*args, **kwargs):
 
 def zipf(*args, **kwargs):
     return _rand.zipf(*args, **kwargs)
+
+def set_bit_generator(bitgen):
+    raise NotImplementedError("set_bit_generator: the global RandomState is fixed to MT19937")

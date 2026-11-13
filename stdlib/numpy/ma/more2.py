@@ -6,7 +6,7 @@
 import numpy as np
 from numpy.util import normalize_axis_index
 from core import MaskedArray, default_fill_value, _dm, _binop, _unop, nomask, masked
-from more1 import _ma1, _from
+from more1 import _ma1, _from, around
 
 def set_fill_value(a, fill_value):
     a.set_fill_value(fill_value)
@@ -257,3 +257,37 @@ def ndenumerate(a, compressed: bool = True):
             continue
         out.append((idx, x._data[idx]))
     return out
+
+# ---- aliases and leftovers ----
+def append(a, b, axis = None):
+    if axis is None:
+        return concatenate_flat(a, b)
+    return _concat2(a, b, axis)
+
+def _concat2(a, b, axis: int):
+    x = _ma1(a)
+    y = _ma1(b)
+    return MaskedArray(np.concatenate((x._data, y._data), axis=axis),
+                       np.concatenate((x._mask, y._mask), axis=axis),
+                       False, x._fill, False)
+
+def concatenate_flat(a, b):
+    x = _ma1(a)
+    y = _ma1(b)
+    return MaskedArray(np.concatenate((x._data.ravel(), y._data.ravel())),
+                       np.concatenate((x._mask.ravel(), y._mask.ravel())),
+                       False, x._fill, False)
+
+def in1d(ar1, ar2, assume_unique: bool = False, invert: bool = False):
+    return isin(ar1, ar2, assume_unique, invert)
+
+def round_(a, decimals: int = 0):
+    return around(a, decimals)
+
+def alltrue(a, axis = None):
+    return _ma1(a).all(axis)
+
+def sometrue(a, axis = None):
+    return _ma1(a).any(axis)
+
+masked_print_option = '--'

@@ -2810,3 +2810,32 @@ def fromregex(file, regexp: str, dtype: type = float):
             row.append(dtype(g))
         rows.append(row)
     return array(rows)
+
+class _BytesSink:
+    buf: List[str]
+
+    def __init__(self):
+        self.buf = List[str]()
+
+    def write(self, b):
+        self.buf.append(str(b))
+
+@extend
+class ndarray:
+    def dump(self, file):
+        # numpy pickles; this port stores the .npy container instead
+        if isinstance(file, str):
+            with open(file, 'wb') as f:
+                _save(f, self)
+        else:
+            _save(file, self)
+
+    def dumps(self):
+        s = _BytesSink()
+        _save(s, self)
+        return ''.join(s.buf)
+
+    def setflags(self, write = None, align = None, uic = None):
+        # writeable/aligned are not tracked per array; only validate like numpy
+        if uic is not None and bool(uic):
+            raise ValueError("cannot set WRITEBACKIFCOPY flag to True")

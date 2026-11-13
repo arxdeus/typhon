@@ -17,3 +17,11 @@ from .legendre import Legendre
 from .hermite import Hermite
 from .hermite_e import HermiteE
 from .laguerre import Laguerre
+
+_default_printstyle = 'ascii'
+
+def set_default_printstyle(style: str):
+    global _default_printstyle
+    if style != 'ascii' and style != 'unicode':
+        raise ValueError("Unsupported format string '" + style + "'. Valid options are 'ascii' or 'unicode'")
+    _default_printstyle = style
