@@ -470,3 +470,6 @@ def _calc_h(cosang: np.ndarray[float, 2], stiffness: float = 4, n_legendre_terms
         for j in range(cosang.shape[1]):
             out[i, j] = _legval(cosang[i, j], factors)
     return out
+
+
+from ._more import read_custom_montage, make_1020_channel_selections, combine_channels

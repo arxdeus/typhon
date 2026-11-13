@@ -22,6 +22,7 @@ from .channels import make_standard_montage, make_dig_montage, equalize_channels
 from ._info import DigMontage, Projection
 from ._proj import (compute_proj_raw, compute_proj_epochs, compute_proj_evoked)
 import filter
+import transforms
 import event
 import io
 import time_frequency

@@ -52,3 +52,7 @@ def checks(name: str, got):
     if g != want:
         print("TEST FAILED:", name, g, want)
 
+
+
+def V(x):
+    return x.__val__()
