@@ -89,7 +89,7 @@ def read_raw_boxy(fname, preload = False, verbose = None) -> RawArray:
         elif "#DATA BEGINS" in line:
             start_line = ln + 3
         elif ln == start_line - 2:
-            col_names = _col_names(_first_tok(line))
+            col_names = _col_names(line.split(" ")[0])
             filetype = "non-parsed" if "exmux" in col_names else "parsed"
             if "digaux" in col_names:
                 mrk_col = col_names.index("digaux")

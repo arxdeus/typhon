@@ -1,0 +1,28 @@
+[FileInfo]
+File=test_persyst.dat
+FileType=Interleaved
+SamplingRate=200
+HeaderLength=0
+DataType=0
+Calibration=0.1
+WaveformCount=3
+
+[ChannelMap]
+Fp1-Ref=0
+Fp2-Ref=1
+Cz-Ref=2
+
+[Patient]
+First=A
+Last=B
+Birthdate=01/02/80
+Sex=M
+Hand=R
+Id=7
+TestDate=03/04/2020
+TestTime=10:20:30
+
+[Comments]
+0.01,0.02,0,0,eyes closed
+0.05,0.0,0,0,blink
+0.08,0.03,0,0,eyes closed

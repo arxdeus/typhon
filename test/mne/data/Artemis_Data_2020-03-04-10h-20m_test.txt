@@ -1,0 +1,32 @@
+<start main header>
+Temporal Filter Active?	FALSE
+Decimation Active?	FALSE
+Spatial Filter Active?	FALSE
+DAQ Sample Rate	1000
+Purpose	pt
+Notes	nt
+Subject ID	12
+Project Name	proj
+Head Tracking Channel 1	OFF
+Head Tracking Channel 2	OFF
+Head Tracking Channel 3	OFF
+Head Tracking Channel 4	OFF
+<end main header>
+<start per channel header>
+DAQ Map	scaling	x	x	x	x	x
+MEG_001	1.0	1	2	3	4	FALSE
+MEG_002	1.5	1	2	3	4	FALSE
+REF_001	2.0	1	2	3	4	FALSE
+REF_007	2.5	1	2	3	4	FALSE
+REF_013	0.0	1	2	3	4	FALSE
+TRG_001	3.5	1	2	3	4	FALSE
+AUX_001	4.0	1	2	3	4	FALSE
+MIO_001	4.5	1	2	3	4	TRUE
+<end per channel header>
+<start comments>
+hello
+world
+<end comments>
+<start length>
+20
+<end length>

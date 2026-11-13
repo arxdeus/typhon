@@ -138,5 +138,9 @@ def read_raw_persyst(fname, preload = False, verbose = None) -> RawArray:
                 on.append(c_on[i])
                 du.append(c_du[i])
                 ds.append(o)
-    raw.set_annotations(Annotations(on, du, ds), False)
+    idx = List[int]()
+    for i in range(len(on)):
+        idx.append(i)
+    idx.sort(key = lambda i: on[i])
+    raw.set_annotations(Annotations([on[i] for i in idx], [du[i] for i in idx], [ds[i] for i in idx]), False)
     return raw

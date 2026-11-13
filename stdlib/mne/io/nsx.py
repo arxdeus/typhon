@@ -45,22 +45,22 @@ def read_raw_nsx(input_fname, stim_channel = "auto", eog = None, misc = None,
     ver_major = _u8(b, 8)
     ver_minor = _u8(b, 9)
     bih = _uint_le(b, 10, 4)
-    period = _uint_le(b, 314, 4)
-    tres = _uint_le(b, 318, 4)
-    yr = _uint_le(b, 322, 2)
-    mo = _uint_le(b, 324, 2)
-    dy = _uint_le(b, 328, 2)
-    hr = _uint_le(b, 330, 2)
-    mi = _uint_le(b, 332, 2)
-    sc = _uint_le(b, 334, 2)
-    nch = _uint_le(b, 338, 4)
+    period = _uint_le(b, 286, 4)
+    tres = _uint_le(b, 290, 4)
+    yr = _uint_le(b, 294, 2)
+    mo = _uint_le(b, 296, 2)
+    dy = _uint_le(b, 300, 2)
+    hr = _uint_le(b, 302, 2)
+    mi = _uint_le(b, 304, 2)
+    sc = _uint_le(b, 306, 2)
+    nch = _uint_le(b, 310, 4)
     names = List[str]()
     types = List[str]()
     cals = List[float]()
     rngs = List[float]()
     his = List[float]()
     los = List[float]()
-    base = 342
+    base = 314
     for i in range(nch):
         o = base + i * 66
         names.append(_cs(b, o + 4, 16))
@@ -122,7 +122,7 @@ def read_raw_nsx(input_fname, stim_channel = "auto", eog = None, misc = None,
             info.coil_types[i] = 1
         if kinds[i] == "stim":
             info.units[i] = -1
-    info.meas_date = _utc_secs(yr, mo, dy, hr, mi, sc) + float(_uint_le(b, 336, 2)) / 1000.0
+    info.meas_date = _utc_secs(yr, mo, dy, hr, mi, sc) + float(_uint_le(b, 308, 2)) / 1000.0
     # online filters
     hp = his[:128]
     lp = los[:128]

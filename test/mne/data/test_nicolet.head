@@ -1,0 +1,9 @@
+elec_names=[Fz,Cz,EOG1]
+conversion_factor=0.5
+num_channels=3
+rec_id=1
+adm_id=2
+pat_id=3
+num_samples=30
+sample_freq=250.0
+start_ts=2020-03-04 10:20:30.0
