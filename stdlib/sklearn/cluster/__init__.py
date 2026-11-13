@@ -14,3 +14,6 @@ from ._optics import OPTICS, compute_optics_graph, cluster_optics_dbscan, cluste
 from ._hdbscan import HDBSCAN
 from ._structured import ward_tree, linkage_tree
 from ._birch import Birch
+from ._bisect_kmeans import BisectingKMeans
+from ._bicluster import SpectralCoclustering, SpectralBiclustering
+from ._functions import k_means, affinity_propagation, mean_shift, spectral_clustering
