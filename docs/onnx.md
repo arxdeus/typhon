@@ -45,13 +45,36 @@ lib.ort_run(h, x.ctypes.data, 2, 4, out.ctypes.data, 6)
 * **Link**: `-linker-flags="-L<dir> -lonnxruntime"` and `from C import OrtGetApiBase() -> cobj`. The library records `@rpath/libonnxruntime.1.dylib` (macOS) or `libonnxruntime.so` (Android), so the loader must find ORT next to it. Tested: OK (exe and lib).
 * **dlopen**: no link-time dependency. `from internal.dlopen import dlopen, dlsym`; `h = dlopen("/path/libonnxruntime.dylib")`; `dlsym(h, "OrtGetApiBase", Function[[], cobj])()`. The rest is identical. Tested: OK (`stateful_dl.py`, `otool -L` shows no onnxruntime dependency). Good when the ORT path is only known at runtime.
 
-## Android
+## Android / iOS
 
-Take `libonnxruntime.so` from the `onnxruntime-android` AAR (`jni/<abi>/`), put it into `jniLibs/<abi>/` next to `libfoo.so`. Either link with `-L<dir> -lonnxruntime` (the loader resolves `DT_NEEDED` from the APK lib dir; Java must `System.loadLibrary("onnxruntime")` first on old API levels) or `dlopen("libonnxruntime.so")` by bare name, which resolves within the app's native library path. The AAR also ships the C headers (`headers/`). Not run here (no device test).
+Verified on the Android arm64 emulator (API 35) and the iOS simulator (arm64) with the model `log_power_lda_model/artifacts/model.onnx` (input `features` double [N,12], output `label` int64 [N]). Minimal lib: `core.py` + `ort_android.py` / `ort_ios.py` in `/Users/mind/.jcode/scratch/ort-mobile/src/` (about 90 lines, session from a path, features to labels), driven by a C `dlopen` driver (`driver.c`). The OrtApi slot table is the same for API 30 and 31 for the slots used.
 
-## iOS
+**Binaries**
+* Android: Maven Central `com.microsoft.onnxruntime:onnxruntime-android:1.31.1` (AAR is a zip, 55 MB). `jni/<abi>/libonnxruntime.so` (arm64-v8a 34.2 MB, armeabi-v7a 24.2 MB, x86 and x86_64 also included) and `headers/` (API 31).
+* iOS: CocoaPods `onnxruntime-c`. The newest pod is **1.30.0** (API 30), 1.31.x is not published for iOS yet. Zip: `https://download.onnxruntime.ai/pod-archive-onnxruntime-c-1.30.0.zip` containing `onnxruntime.xcframework` (slices `ios-arm64` 48 MB, `ios-arm64_x86_64-simulator` 98 MB for both archs, macOS) and `Headers/`. The framework binary is a **static archive**, so it is linked into your image. Request API 30 there (`GetApi(30)`), it returns null for a newer version than the library has.
 
-dlopen of non-bundled dylibs is not allowed, and the App Store wants frameworks embedded and signed. Use the `onnxruntime-c` pod or xcframework and link it into the app (`-framework onnxruntime`, or `-L` + `-lonnxruntime` for the static variant). Resolve `OrtGetApiBase` through the link (`from C import`), or `dlopen` of the embedded `onnxruntime.framework/onnxruntime` by path inside the app bundle. Not run here.
+**Build**
+```
+typhon build -release -lib -target android-arm64 -o libort_android.so ort_android.py        # dlopen("libonnxruntime.so")
+typhon build -release -lib -target ios-sim-arm64 -o libort_ios.dylib ort_ios.py \
+  "-linker-flags=-F<pod>/onnxruntime.xcframework/ios-arm64_x86_64-simulator -framework onnxruntime -framework Foundation -framework CoreML -framework Network -framework Accelerate -framework UIKit -lc++ -lz"
+```
+For the device use `-target ios-arm64` with the `ios-arm64` slice.
+
+**Android** uses dlopen: the Typhon `.so` (6.0 MB, no ORT dependency) and `libonnxruntime.so` go side by side into the APK `jniLibs/<abi>/`. `dlopen("libonnxruntime.so")` by bare name resolves in the app native library path (in the emulator test: `LD_LIBRARY_PATH` to the push dir). Linking with `-lonnxruntime` also works (DT_NEEDED).
+
+**iOS** cannot dlopen a loose dylib in an app, and `onnxruntime.framework` is static, so link it (`from C import OrtGetApiBase() -> cobj`). The frameworks above are required by the CoreML and network bits in the archive (missing ones show as undefined `_OBJC_CLASS_$_UIDevice`, `_nw_path_*`, `_objc_retainBlock`). The resulting simulator dylib is 38 MB (ORT is inside it); in an app, link the archive into the app binary once instead. Package as an embedded framework or static link, per the Apple signing rules.
+
+**Measured** (CPU time, 64 random feature rows scaled so that labels 0 and 2 both occur, 2000 calls each, labels compared with Python onnxruntime 1.31.1 on the same features):
+
+| platform | ORT | label mismatches | session load | predict 1 row | predict 64 rows |
+|---|---|---|---|---|---|
+| Android arm64 emulator (host CPU) | 1.31.1 | 0 of 64 | 65 ms | 6.6 us | 6.9 us |
+| iOS simulator arm64 | 1.30.0 | 0 of 64 | 87 ms | 8.4 us | 29.7 us |
+
+Emulator and simulator run on the host CPU, so phone numbers will be slower. The iOS 64 row figure is higher than Android, probably because the simulator build uses the thread pool and CPU time counts all threads.
+
+**Size.** The stock `libonnxruntime.so` is 34 MB (arm64) because it contains every operator kernel. A model that only needs MatMul, Add, ArgMax, Gather and similar can use an ORT **minimal build** (`--minimal_build` with `--include_ops_by_config required_operators.config` and `--disable_ml_ops`, `--disable_exceptions` optional), which needs the model converted to ORT format (`python -m onnxruntime.tools.convert_onnx_models_to_ort`, which also produces the operator config). Such builds are typically well under 2 MB, but they load `.ort` files only and must be built from source for each ABI (not done here). The iOS static archive shrinks the same way, and the linker already strips unused objects when the archive is linked into an app.
 
 ## Training
 
