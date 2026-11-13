@@ -16,7 +16,7 @@ import scipy.special._cdf as CD
 from C import acos(float) -> float
 from C import rint(float) -> float
 from C import ldexp(float, i32) -> float
-from ._common import _f64, _slices, _var, _rank_avg, _pvalue_norm, _pvalue_t
+from ._common import _check_policy, _omit1, _omit2, _f64, _slices, _var, _rank_avg, _pvalue_norm, _pvalue_t
 from ._stats import _Result2, SignificanceResult, _map_slices, _map_slices2, \
                     _ksample, chi2_contingency
 from scipy.optimize import fsolve, brentq
@@ -1388,7 +1388,9 @@ class _KS1[C, A]:
     args: A
     alternative: str
     mode: str
-    def __call__(self, x0):
+    omit: bool
+    def __call__(self, x00):
+        x0 = _omit1(x00) if self.omit else x00
         x = np.sort(x0)
         cv = _cdf_of(self.cdf, self.args, x)
         return _ks1_core(x, cv, self.alternative, self.mode)
@@ -1410,11 +1412,13 @@ def _map4(a, axis, f):
             g[idx] = r[3]
         return (s, p, l, g)
 
-def ks_1samp(x, cdf, args = (), alternative: str = 'two-sided', method: str = 'auto', *, axis = 0):
+def ks_1samp(x, cdf, args = (), alternative: str = 'two-sided', method: str = 'auto', *, axis = 0,
+             nan_policy: str = 'propagate'):
+    _check_policy(x, nan_policy)
     if method != 'auto' and method != 'exact' and method != 'approx' and method != 'asymp':
         raise ValueError(f"Invalid value for method: {method!r}. Must be one of 'auto', 'exact', 'approx', 'asymp'.")
     alt = _norm_alt(alternative)
-    r = _map4(x, axis, _KS1(cdf, args, alt, method))
+    r = _map4(x, axis, _KS1(cdf, args, alt, method, nan_policy == 'omit'))
     return KstestResult(r[0], r[1], r[2], r[3])
 
 def _prob_outside_square(n: int, h: int) -> float:
@@ -1550,9 +1554,10 @@ def _ks2_prob(d0: float, n1: int, n2: int, mode0: str, alternative: str) -> floa
 class _KS2:
     alternative: str
     mode: str
-    def __call__(self, a, b):
-        d1 = np.sort(a)
-        d2 = np.sort(b)
+    omit: bool
+    def __call__(self, a0, b0):
+        d1 = np.sort(_omit1(a0) if self.omit else a0)
+        d2 = np.sort(_omit1(b0) if self.omit else b0)
         n1 = d1.shape[0]
         n2 = d2.shape[0]
         if min(n1, n2) == 0:
@@ -1606,20 +1611,23 @@ def _map4_2(a, b, axis, f):
             g[idx] = r[3]
         return (s, p, l, g)
 
-def ks_2samp(data1, data2, alternative: str = 'two-sided', method: str = 'auto', *, axis = 0):
+def ks_2samp(data1, data2, alternative: str = 'two-sided', method: str = 'auto', *, axis = 0,
+             nan_policy: str = 'propagate'):
+    _check_policy(data1, nan_policy)
+    _check_policy(data2, nan_policy)
     if method != 'auto' and method != 'exact' and method != 'asymp':
         raise ValueError(f'Invalid value for mode: {method}')
     alt = _norm_alt(alternative)
-    r = _map4_2(data1, data2, axis, _KS2(alt, method))
+    r = _map4_2(data1, data2, axis, _KS2(alt, method, nan_policy == 'omit'))
     return KstestResult(r[0], r[1], r[2], r[3])
 
 def kstest(rvs, cdf, args = (), N: int = 20, alternative: str = 'two-sided',
-           method: str = 'auto', *, axis = 0):
+           method: str = 'auto', *, axis = 0, nan_policy: str = 'propagate'):
     alt = 'two-sided' if alternative == 'two_sided' else alternative
     if isinstance(cdf, np.ndarray) or isinstance(cdf, List):
-        return ks_2samp(rvs, cdf, alternative=alt, method=method, axis=axis)
+        return ks_2samp(rvs, cdf, alternative=alt, method=method, axis=axis, nan_policy=nan_policy)
     else:
-        return ks_1samp(rvs, cdf, args=args, alternative=alt, method=method, axis=axis)
+        return ks_1samp(rvs, cdf, args=args, alternative=alt, method=method, axis=axis, nan_policy=nan_policy)
 
 # ------------------------------------------------------------------ Cramer-von Mises
 

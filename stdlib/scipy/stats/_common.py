@@ -137,3 +137,50 @@ def _pvalue_norm(z: float, alternative: str) -> float:
 
 def _div(a: float, b: float) -> float:
     return a.cdiv(b)
+
+# ------------------------------------------------------------------ nan_policy
+
+def _check_policy(a, nan_policy: str):
+    """Validates ``nan_policy`` and raises for 'raise' when ``a`` has NaNs."""
+    if nan_policy != 'propagate' and nan_policy != 'omit' and nan_policy != 'raise':
+        raise ValueError("nan_policy must be one of {'propagate', 'raise', 'omit'}")
+    if nan_policy == 'raise':
+        x = _f64(a)
+        if bool(np.any(np.isnan(x))):
+            raise ValueError("The input contains nan values")
+
+def _omit1(x):
+    """1-D float array without NaNs."""
+    n = x.shape[0]
+    k = 0
+    for i in range(n):
+        if x[i] == x[i]:
+            k += 1
+    if k == n:
+        return x
+    out = np.empty(k, dtype=float)
+    j = 0
+    for i in range(n):
+        if x[i] == x[i]:
+            out[j] = x[i]
+            j += 1
+    return out
+
+def _omit2(x, y):
+    """Drop pairs where either element is NaN."""
+    n = min(x.shape[0], y.shape[0])
+    k = 0
+    for i in range(n):
+        if x[i] == x[i] and y[i] == y[i]:
+            k += 1
+    if k == n and x.shape[0] == y.shape[0]:
+        return x, y
+    ox = np.empty(k, dtype=float)
+    oy = np.empty(k, dtype=float)
+    j = 0
+    for i in range(n):
+        if x[i] == x[i] and y[i] == y[i]:
+            ox[j] = x[i]
+            oy[j] = y[i]
+            j += 1
+    return ox, oy

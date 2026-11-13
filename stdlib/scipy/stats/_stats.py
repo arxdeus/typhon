@@ -9,7 +9,7 @@
 import numpy as np
 import internal.static as static
 import scipy.special._kernels as K
-from ._common import _f64, _slices, _reduce, _reduce2, _mean, _moment, _var, \
+from ._common import _check_policy, _omit1, _omit2, _f64, _slices, _reduce, _reduce2, _mean, _moment, _var, \
                      _rank_avg, _tie_term, _pvalue_t, _pvalue_norm
 
 NAN = K.NAN
@@ -168,7 +168,9 @@ def _trim_var_mean_len(a0, trim: float):
     m = _mean(np.ascontiguousarray(a[lo:hi]))
     return v, m, float(n - 2 * g)
 
-def _ttest_ind_1d(a, b, equal_var: bool, alternative: str, trim: float = 0.0):
+def _ttest_ind_1d(a0, b0, equal_var: bool, alternative: str, trim: float = 0.0, omit: bool = False):
+    a = _omit1(a0) if omit else a0
+    b = _omit1(b0) if omit else b0
     n1 = float(a.shape[0])
     n2 = float(b.shape[0])
     if n1 == 0 or n2 == 0:
@@ -207,13 +209,16 @@ def ttest_ind(a, b, *, axis = 0, equal_var: bool = True, nan_policy: str = 'prop
     t-test. Permutation/Monte Carlo ``method`` is not supported."""
     if not (0 <= trim < 0.5):
         raise ValueError("Trimming percentage should be 0 <= `trim` < .5.")
+    _check_policy(a, nan_policy)
+    _check_policy(b, nan_policy)
+    om = nan_policy == 'omit'
     if axis is None:
-        r = _ttest_ind_1d(_f64(a).ravel(), _f64(b).ravel(), equal_var, alternative, trim)
+        r = _ttest_ind_1d(_f64(a).ravel(), _f64(b).ravel(), equal_var, alternative, trim, om)
         return TtestResult(r[0], r[1], r[2])
     ma, shp = _slices(a, axis)
     mb, shpb = _slices(b, axis)
     if static.len(shp) == 0:
-        r = _ttest_ind_1d(np.ascontiguousarray(ma), np.ascontiguousarray(mb), equal_var, alternative, trim)
+        r = _ttest_ind_1d(np.ascontiguousarray(ma), np.ascontiguousarray(mb), equal_var, alternative, trim, om)
         return TtestResult(r[0], r[1], r[2])
     else:
         shp2 = np.broadcast_shapes(shp, shpb)
@@ -224,13 +229,14 @@ def ttest_ind(a, b, *, axis = 0, equal_var: bool = True, nan_policy: str = 'prop
         d = np.empty(shp2, dtype=float)
         for idx in np.ndindex(shp2):
             r = _ttest_ind_1d(np.ascontiguousarray(ba[idx]), np.ascontiguousarray(bb[idx]),
-                              equal_var, alternative, trim)
+                              equal_var, alternative, trim, om)
             s[idx] = r[0]
             p[idx] = r[1]
             d[idx] = r[2]
         return TtestResult(s, p, d)
 
-def _ttest_1samp_1d(a, popmean: float, alternative: str):
+def _ttest_1samp_1d(a0, popmean: float, alternative: str, omit: bool = False):
+    a = _omit1(a0) if omit else a0
     n = float(a.shape[0])
     df = n - 1.0
     m = _mean(a)
@@ -242,12 +248,14 @@ def _ttest_1samp_1d(a, popmean: float, alternative: str):
 
 def ttest_1samp(a, popmean, axis = 0, nan_policy: str = 'propagate',
                 alternative: str = 'two-sided'):
+    _check_policy(a, nan_policy)
+    om = nan_policy == 'omit'
     if axis is None:
-        r = _ttest_1samp_1d(_f64(a).ravel(), float(popmean), alternative)
+        r = _ttest_1samp_1d(_f64(a).ravel(), float(popmean), alternative, om)
         return TtestResult(r[0], r[1], r[2])
     m, shp = _slices(a, axis)
     if static.len(shp) == 0:
-        r = _ttest_1samp_1d(np.ascontiguousarray(m), float(popmean), alternative)
+        r = _ttest_1samp_1d(np.ascontiguousarray(m), float(popmean), alternative, om)
         return TtestResult(r[0], r[1], r[2])
     else:
         pm = np.broadcast_to(np.asarray(popmean).astype(float), shp)
@@ -255,7 +263,7 @@ def ttest_1samp(a, popmean, axis = 0, nan_policy: str = 'propagate',
         p = np.empty(shp, dtype=float)
         d = np.empty(shp, dtype=float)
         for idx in np.ndindex(shp):
-            r = _ttest_1samp_1d(np.ascontiguousarray(m[idx]), float(pm[idx]), alternative)
+            r = _ttest_1samp_1d(np.ascontiguousarray(m[idx]), float(pm[idx]), alternative, om)
             s[idx] = r[0]
             p[idx] = r[1]
             d[idx] = r[2]
@@ -263,7 +271,7 @@ def ttest_1samp(a, popmean, axis = 0, nan_policy: str = 'propagate',
 
 def ttest_rel(a, b, axis = 0, nan_policy: str = 'propagate', alternative: str = 'two-sided'):
     d = _f64(a) - _f64(b)
-    return ttest_1samp(d, 0.0, axis=axis, alternative=alternative)
+    return ttest_1samp(d, 0.0, axis=axis, nan_policy=nan_policy, alternative=alternative)
 
 # ----------------------------------------------------------- descriptive
 
@@ -274,11 +282,27 @@ def sem(a, axis = 0, ddof: int = 1, nan_policy: str = 'propagate'):
     return _reduce(a, axis, f)
 
 def zscore(a, axis = 0, ddof: int = 0, nan_policy: str = 'propagate'):
-    return zmap(a, a, axis=axis, ddof=ddof)
+    return zmap(a, a, axis=axis, ddof=ddof, nan_policy=nan_policy)
 
 def zmap(scores, compare, axis = 0, ddof: int = 0, nan_policy: str = 'propagate'):
     s = _f64(scores)
     c = _f64(compare)
+    _check_policy(c, nan_policy)
+    if nan_policy == 'omit':
+        m, shp = _slices(c, axis)
+        if static.len(shp) == 0:
+            o = _omit1(np.ascontiguousarray(m))
+            return (s - float(np.mean(o))) / float(np.std(o, ddof=ddof))
+        mn = np.empty(shp, dtype=float)
+        sd = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            o = _omit1(np.ascontiguousarray(m[idx]))
+            mn[idx] = float(np.mean(o))
+            sd[idx] = float(np.std(o, ddof=ddof))
+        ax = int(axis)
+        if ax < 0:
+            ax += c.ndim
+        return (s - np.expand_dims(mn, ax)) / np.expand_dims(sd, ax)
     if axis is None:
         cf = c.ravel()
         mn = np.mean(cf)
@@ -358,7 +382,15 @@ def rankdata(a, method: str = 'average', *, axis = None, nan_policy: str = 'prop
     Deviation: always returns a float64 array."""
     if method not in ('average', 'min', 'max', 'dense', 'ordinal'):
         raise ValueError(f'unknown method "{method}"')
-    def r1(x):
+    _check_policy(a, nan_policy)
+    def r1(x0):
+        has_nan = False
+        for v in x0:
+            if v != v:
+                has_nan = True
+        if has_nan and nan_policy == 'propagate':
+            return np.full(x0.shape[0], NAN)
+        x = _omit1(x0) if has_nan else x0
         n = x.shape[0]
         order = np.argsort(x, kind='mergesort')
         out = np.empty(n, dtype=float)
@@ -381,6 +413,16 @@ def rankdata(a, method: str = 'average', *, axis = None, nan_policy: str = 'prop
                 else:
                     out[order[k]] = float(k + 1)
             i = j + 1
+        if has_nan:
+            full = np.empty(x0.shape[0], dtype=float)
+            q = 0
+            for t in range(x0.shape[0]):
+                if x0[t] != x0[t]:
+                    full[t] = NAN
+                else:
+                    full[t] = out[q]
+                    q += 1
+            return full
         return out
     if axis is None:
         x = _f64(a)
@@ -790,8 +832,11 @@ def _mwu1(x, y, use_continuity: bool, alternative: str, method: str):
     return (U1, p)
 
 def mannwhitneyu(x, y, use_continuity: bool = True, alternative: str = 'two-sided',
-                 axis = 0, method: str = 'auto'):
-    res = _map_slices2(x, y, axis, lambda u, v: _mwu1(u, v, use_continuity, alternative, method))
+                 axis = 0, method: str = 'auto', nan_policy: str = 'propagate'):
+    _check_policy(x, nan_policy)
+    _check_policy(y, nan_policy)
+    om = nan_policy == 'omit'
+    res = _map_slices2(x, y, axis, lambda u, v: _mwu1(_omit1(u) if om else u, _omit1(v) if om else v, use_continuity, alternative, method))
     return MannwhitneyuResult(res[0], res[1])
 
 def _wilcoxon_pmf(n: int):

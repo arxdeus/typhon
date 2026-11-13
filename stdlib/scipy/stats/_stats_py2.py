@@ -7,7 +7,7 @@ import numpy as np
 import internal.static as static
 import scipy.special._kernels as K
 from C import rint(float) -> float
-from ._common import _f64, _slices, _reduce, _mean, _moment, _var, _rank_avg, \
+from ._common import _check_policy, _omit1, _omit2, _f64, _slices, _reduce, _mean, _moment, _var, _rank_avg, \
                      _tie_term, _pvalue_t, _pvalue_norm
 from ._stats import _Result2, SignificanceResult, _map_slices, _map_slices2, \
                     _ksample, _skew1, _kurt1, _pearson1, PearsonRResult, pearsonr, _lambda_value
@@ -559,12 +559,18 @@ class _KT:
     method: str
     variant: str
     alternative: str
+    omit: bool
     def __call__(self, x, y):
+        if self.omit:
+            p = _omit2(x, y)
+            return _kendalltau1(p[0], p[1], self.method, self.variant, self.alternative)
         return _kendalltau1(x, y, self.method, self.variant, self.alternative)
 
 def kendalltau(x, y, *, nan_policy: str = 'propagate', method: str = 'auto',
                variant: str = 'b', alternative: str = 'two-sided', axis = None):
-    r = _map_slices2(x, y, axis, _KT(method, variant, alternative))
+    _check_policy(x, nan_policy)
+    _check_policy(y, nan_policy)
+    r = _map_slices2(x, y, axis, _KT(method, variant, alternative, nan_policy == 'omit'))
     return SignificanceResult(r[0], r[1])
 
 # ------------------------------------------------------------------ robust slopes

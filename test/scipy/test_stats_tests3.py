@@ -71,7 +71,7 @@ def test_misc_funcs():
     assert close(list(r.clipped) + [r.lower, r.upper], sc)
     ot = st.obrientransform(x, y)
     assert close(list(ot[0]) + list(ot[1]), ob)
-    ds_ = st.directional_stats(np.array([[3., 4], [6, -8], [1, 2]]))
+    ds_ = st.directional_stats(np.array([[3., 4.], [6., -8.], [1., 2.]]))
     assert close(list(ds_.mean_direction) + [ds_.mean_resultant_length], ds)
     assert close([st.expectile(x), st.expectile(x, 0.2), st.expectile(x, 0.8, weights=y)], ex)
     s1 = st.siegelslopes(y, x, method='separate')
