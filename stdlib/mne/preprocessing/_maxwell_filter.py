@@ -149,6 +149,10 @@ def _prep_maxwell(info: Info, origin, int_order: int, ext_order: int, regularize
         if o.shape[0] != 3:
             raise ValueError("origin must be a 3-element array")
         org = o
+    info = info.copy()
+    for k in range(len(meg_picks)):
+        if mag_mask[k] and (info.coil_types[meg_picks[k]] == 3022 or info.coil_types[meg_picks[k]] == 3023):
+            info.coil_types[meg_picks[k]] = 3024
     coils = _prep_mf_coils(info, meg_picks)
     S_recon = _basis(coils, org, int_order, 0)
     return _MFPrep(meg_picks, good_mask, mag_mask, cs, ms, org, coils, int_order, ext_order, reg,
