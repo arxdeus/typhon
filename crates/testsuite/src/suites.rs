@@ -145,6 +145,8 @@ pub const SCIPY: &[&str] = &[
     "scipy/test_special_misc.py", "scipy/test_special_misc2.py", "scipy/test_special_bessel.py",
     "scipy/test_special_gamma_hyp.py", "scipy/test_special_orth_ellip.py",
     "scipy/test_special_cdfs.py",
+    "scipy/test_dists_common.py", "scipy/test_dists_more.py", "scipy/test_dists_ext.py",
+    "scipy/test_dists_misc.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
