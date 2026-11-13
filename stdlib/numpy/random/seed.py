@@ -74,6 +74,7 @@ class SeedSequence:
     pool_size: int
     n_children_spawned: int
     pool: ndarray[u32, 1]
+    _orig_entropy: ndarray[u32, 1]
 
     @property
     def spawn_key(self) -> List[int]:
@@ -94,6 +95,7 @@ class SeedSequence:
             run_entropy = random_seed_time_pid()
         else:
             run_entropy = _coerce_to_uint32_array(entropy)
+        self._orig_entropy = run_entropy.copy()
 
         spawn_entropy = _coerce_to_uint32_array(spawn_key) if spawn_key is not None else empty(0, dtype=u32)
 
@@ -159,7 +161,7 @@ class SeedSequence:
         for i in range(self.n_children_spawned,
                        self.n_children_spawned + n_children):
             seqs.append(SeedSequence(
-                self.entropy,
+                self._orig_entropy,
                 spawn_key=(sk + [i]),
                 pool_size=self.pool_size
             ))

@@ -11,6 +11,8 @@
 import numpy as np
 from numpy.random import Generator, PCG64
 import scipy.special._kernels as K
+NAN = K.NAN
+INF = K.INF
 from ._sobol_dn import SOBOL_DN, SOBOL_MAXDIM
 
 # ------------------------------------------------------------------ helpers
@@ -313,15 +315,61 @@ class LatinHypercube:
 
     def __init__(self, d: int, *, scramble: bool = True, strength: int = 1,
                  optimization = None, rng = None):
-        if strength != 1:
-            raise ValueError(f"{strength!r} is not a valid strength. Only strength=1 is supported")
+        if strength != 1 and strength != 2:
+            raise ValueError(f"{strength!r} is not a valid strength. It must be one of {{1, 2}}")
         self.d = d
         self.scramble = scramble
         self.strength = strength
         self.rng = _child_rng(rng)
         self.num_generated = 0
 
+    def _random_oa_lhs(self, n: int):
+        p = int(K.sqrt(float(n)))
+        n_row = p * p
+        n_col = p + 1
+        isprime = p >= 2
+        q = 2
+        while q * q <= p:
+            if p % q == 0:
+                isprime = False
+            q += 1
+        if not isprime or n != n_row:
+            raise ValueError("n is not the square of a prime number.")
+        if self.d > p + 1:
+            raise ValueError("n is too small for d. Must be n > (d-1)**2")
+        oa = np.zeros((n_row, n_col), dtype=int)
+        for r in range(n_row):
+            oa[r, 0] = r % p
+            oa[r, 1] = r // p
+        for p_ in range(1, p):
+            for r in range(n_row):
+                oa[r, 2 + p_ - 1] = (oa[r, 0] + p_ * oa[r, 1]) % p
+        oa2 = np.empty((n_row, n_col), dtype=int)
+        for j in range(n_col):
+            perms = self.rng.permutation(p)
+            for r in range(n_row):
+                oa2[r, j] = perms[oa[r, j]]
+        out = np.zeros((n_row, n_col))
+        eng = LatinHypercube(1, scramble=self.scramble, strength=1, rng=self.rng)
+        for j in range(n_col):
+            for k in range(p):
+                lhs = eng.random(p)
+                c = 0
+                for r in range(n_row):
+                    if oa2[r, j] == k:
+                        out[r, j] = lhs[c, 0] + oa2[r, j]
+                        c += 1
+        res = np.empty((n_row, self.d))
+        for r in range(n_row):
+            for c in range(self.d):
+                res[r, c] = out[r, c] / p
+        return res
+
     def random(self, n: int = 1, *, workers: int = 1):
+        if self.strength == 2:
+            r2 = self._random_oa_lhs(n)
+            self.num_generated += n
+            return r2
         samples = np.full((n, self.d), 0.5)
         if self.scramble:
             samples = self.rng.uniform(size=(n, self.d))
@@ -360,16 +408,18 @@ def _low_0_bit(x: int) -> int:
 def _direction_numbers(dim: int):
     if dim > SOBOL_MAXDIM:
         raise ValueError(f"Maximum supported dimensionality is {SOBOL_MAXDIM}.")
-    s = ''
-    for part in SOBOL_DN:
-        s += part
-    recs = s.split(';')
     polys = []
     vinits = []
+    pos = 0
+    n = len(SOBOL_DN)
     for d in range(dim):
-        fields = recs[d].split(' ')
+        end = pos
+        while end < n and SOBOL_DN[end] != ';':
+            end += 1
+        fields = SOBOL_DN[pos:end].split(' ')
         polys.append(int(fields[0]))
         vinits.append([int(f) for f in fields[1:]])
+        pos = end + 1
     return polys, vinits
 
 def _initialize_v(dim: int, bits: int):
@@ -401,7 +451,7 @@ def _initialize_v(dim: int, bits: int):
     return v
 
 class Sobol:
-    MAXDIM: ClassVar[int] = 1111
+    MAXDIM: ClassVar[int] = 21201
     d: int
     scramble: bool
     bits: int
@@ -534,3 +584,314 @@ class Sobol:
 
     def integers(self, l_bounds, *, u_bounds = None, n: int = 1, endpoint: bool = False, workers: int = 1):
         return _integers(self, l_bounds, u_bounds, n, endpoint)
+
+# ------------------------------------------------------------------ PoissonDisk
+
+class PoissonDisk:
+    d: int
+    radius: float
+    radius_squared: float
+    radius_factor: float
+    surface: bool
+    ncandidates: int
+    cell_size: float
+    l_bounds: np.ndarray[float, 1]
+    u_bounds: np.ndarray[float, 1]
+    grid_size: np.ndarray[int, 1]
+    rng: Generator[PCG64]
+    num_generated: int
+    grid: np.ndarray[float32, 1]
+    pool: List[np.ndarray[float, 1]]
+    ncells: int
+
+    def __init__(self, d: int, *, radius: float = 0.05, hypersphere: str = "volume",
+                 ncandidates: int = 30, optimization = None, rng = None,
+                 l_bounds = None, u_bounds = None):
+        if d < 0:
+            raise ValueError('d must be a non-negative integer value')
+        self.d = d
+        self.rng = _child_rng(rng)
+        self.num_generated = 0
+        if hypersphere != "volume" and hypersphere != "surface":
+            raise ValueError(f"'{hypersphere}' is not a valid hypersphere sampling method. It must be one of {{'volume', 'surface'}}")
+        self.surface = hypersphere == "surface"
+        self.radius_factor = 1.001 if self.surface else 2.0
+        self.radius = radius
+        self.radius_squared = radius * radius
+        self.ncandidates = ncandidates
+        self.u_bounds = np.ones(d)
+        self.l_bounds = np.zeros(d)
+        if not isinstance(u_bounds, NoneType):
+            self.u_bounds = np.broadcast_to(np.asarray(u_bounds).astype(float), (d,)).copy()
+        if not isinstance(l_bounds, NoneType):
+            self.l_bounds = np.broadcast_to(np.asarray(l_bounds).astype(float), (d,)).copy()
+        for i in range(d):
+            if not (self.l_bounds[i] < self.u_bounds[i]):
+                raise ValueError("Bounds are not consistent 'l_bounds' < 'u_bounds'")
+        self.cell_size = radius / K.sqrt(float(d)) if d > 0 else INF
+        self.grid_size = np.empty(d, dtype=int)
+        self.ncells = 1
+        for i in range(d):
+            g = int(K.ceil((self.u_bounds[i] - self.l_bounds[i]) / self.cell_size))
+            self.grid_size[i] = g
+            self.ncells *= g
+        self.pool = List[np.ndarray[float, 1]]()
+        self.grid = np.full(self.ncells * d, NAN, dtype=float32)
+
+    def _cell(self, cand) -> np.ndarray[int, 1]:
+        idx = np.empty(self.d, dtype=int)
+        for i in range(self.d):
+            idx[i] = int((cand[i] - self.l_bounds[i]) / self.cell_size)
+        return idx
+
+    def _lin(self, idx) -> int:
+        k = 0
+        for i in range(self.d):
+            k = k * self.grid_size[i] + idx[i]
+        return k
+
+    def _in_limits(self, c) -> bool:
+        for i in range(self.d):
+            if c[i] > self.u_bounds[i] or c[i] < self.l_bounds[i]:
+                return False
+        return True
+
+    def _in_neighborhood(self, c) -> bool:
+        d = self.d
+        idx = self._cell(c)
+        lin = self._lin(idx)
+        if self.grid[lin * d] == self.grid[lin * d]:
+            return True
+        lo = np.empty(d, dtype=int)
+        hi = np.empty(d, dtype=int)
+        cur = np.empty(d, dtype=int)
+        for i in range(d):
+            lo[i] = max(idx[i] - 2, 0)
+            hi[i] = min(idx[i] + 3, self.grid_size[i])
+            cur[i] = lo[i]
+            if hi[i] <= lo[i]:
+                return False
+        while True:
+            l2 = self._lin(cur)
+            if self.grid[l2 * d] == self.grid[l2 * d]:
+                s = 0.0
+                for i in range(d):
+                    df = c[i] - float(self.grid[l2 * d + i])
+                    s += df * df
+                if s < self.radius_squared:
+                    return True
+            j = d - 1
+            while j >= 0:
+                cur[j] += 1
+                if cur[j] < hi[j]:
+                    break
+                cur[j] = lo[j]
+                j -= 1
+            if j < 0:
+                break
+        return False
+
+    def _add(self, cand, out: List[np.ndarray[float, 1]]):
+        self.pool.append(cand)
+        idx = self._cell(cand)
+        lin = self._lin(idx)
+        for i in range(self.d):
+            self.grid[lin * self.d + i] = float32(cand[i])
+        out.append(cand)
+
+    def _candidates(self, center, radius: float):
+        d = self.d
+        nc = self.ncandidates
+        x = self.rng.standard_normal(size=(nc, d))
+        out = np.empty((nc, d))
+        if self.surface:
+            for r in range(nc):
+                s = 0.0
+                for i in range(d):
+                    s += x[r, i] * x[r, i]
+                nrm = K.sqrt(s)
+                for i in range(d):
+                    out[r, i] = center[i] + (x[r, i] / nrm) * radius
+        else:
+            for r in range(nc):
+                ssq = 0.0
+                for i in range(d):
+                    ssq += x[r, i] * x[r, i]
+                fr = radius * K.gammainc(d / 2, ssq / 2) ** (1 / d) / K.sqrt(ssq)
+                for i in range(d):
+                    out[r, i] = center[i] + x[r, i] * fr
+        return out
+
+    def _random_n(self, n: int):
+        cur = List[np.ndarray[float, 1]]()
+        if n == 0 or self.d == 0:
+            return np.empty((0, self.d))
+        num_drawn = 0
+        if len(self.pool) == 0:
+            self._add(self.rng.uniform(self.l_bounds, self.u_bounds), cur)
+            num_drawn = 1
+        while len(self.pool) > 0 and num_drawn < n:
+            ic = int(self.rng.integers(0, len(self.pool)))
+            center = self.pool[ic]
+            self.pool.pop(ic)
+            cands = self._candidates(center, self.radius * self.radius_factor)
+            for r in range(cands.shape[0]):
+                cand = np.ascontiguousarray(cands[r])
+                if self._in_limits(cand) and not self._in_neighborhood(cand):
+                    self._add(cand, cur)
+                    num_drawn += 1
+                    if num_drawn >= n:
+                        break
+        self.num_generated += num_drawn
+        out = np.empty((len(cur), self.d))
+        for r in range(len(cur)):
+            for i in range(self.d):
+                out[r, i] = cur[r][i]
+        return out
+
+    def random(self, n: int = 1, *, workers: int = 1):
+        return self._random_n(n)
+
+    def fill_space(self):
+        return self._random_n(4611686018427387904)
+
+# ------------------------------------------------------------------ MultinomialQMC
+
+class _MultinomialQMC[E]:
+    pvals: np.ndarray[float, 1]
+    n_trials: int
+    engine: E
+
+    def __init__(self, pvals: np.ndarray[float, 1], n_trials: int, engine: E):
+        self.pvals = pvals
+        self.n_trials = n_trials
+        self.engine = engine
+
+    def random(self, n: int = 1):
+        k = self.pvals.shape[0]
+        sample = np.empty((n, k))
+        cum = np.empty(k)
+        tot = float32(0.0)
+        for i in range(k):
+            t = float(tot) + self.pvals[i]
+            cum[i] = t
+            tot = float32(t)
+        for s in range(n):
+            draws = self.engine.random(self.n_trials)
+            counts = np.zeros(k, dtype=int)
+            for t in range(self.n_trials):
+                v = float(float32(draws[t, 0]))
+                lo = 0
+                hi = k - 1
+                while hi > lo:
+                    m = (lo + hi) // 2
+                    if v > cum[m]:
+                        lo = m + 1
+                    else:
+                        hi = m
+                counts[hi] += 1
+            for i in range(k):
+                sample[s, i] = float(counts[i])
+        return sample
+
+def MultinomialQMC(pvals, n_trials: int, *, engine = None, rng = None):
+    p = np.atleast_1d(np.asarray(pvals).astype(float))
+    if float(np.min(p)) < 0:
+        raise ValueError('Elements of pvals must be non-negative.')
+    if abs(float(np.sum(p)) - 1.0) > 1e-8 + 1e-5:
+        raise ValueError('Elements of pvals must sum to 1.')
+    if isinstance(engine, NoneType):
+        return _MultinomialQMC(p, n_trials, Sobol(1, scramble=True, bits=30, rng=rng))
+    else:
+        if engine.d != 1:
+            raise ValueError("Dimension of `engine` must be 1.")
+        return _MultinomialQMC(p, n_trials, engine)
+
+# ------------------------------------------------------------------ MultivariateNormalQMC
+
+class _MultivariateNormalQMC[E]:
+    mean: np.ndarray[float, 1]
+    root: np.ndarray[float, 2]
+    has_root: bool
+    inv_transform: bool
+    d: int
+    engine: E
+
+    def __init__(self, mean: np.ndarray[float, 1], root: np.ndarray[float, 2], has_root: bool,
+                 inv_transform: bool, engine: E):
+        self.mean = mean
+        self.root = root
+        self.has_root = has_root
+        self.inv_transform = inv_transform
+        self.d = mean.shape[0]
+        self.engine = engine
+
+    def _standard_normal_samples(self, n: int = 1):
+        s = self.engine.random(n)
+        if self.inv_transform:
+            out = np.empty((n, self.d))
+            for i in range(n):
+                for j in range(self.d):
+                    out[i, j] = K.ndtri(0.5 + (1 - 1e-10) * (s[i, j] - 0.5))
+            return out
+        else:
+            out = np.empty((n, self.d))
+            for i in range(n):
+                for j in range(0, s.shape[1], 2):
+                    R = K.sqrt(-2 * K.log(s[i, j]))
+                    th = 2 * 3.141592653589793 * s[i, j + 1]
+                    if j < self.d:
+                        out[i, j] = R * K.cos(th)
+                    if j + 1 < self.d:
+                        out[i, j + 1] = R * K.sin(th)
+            return out
+
+    def random(self, n: int = 1):
+        base = self._standard_normal_samples(n)
+        if self.has_root:
+            return base @ self.root + self.mean
+        else:
+            return base + self.mean
+
+def MultivariateNormalQMC(mean, cov = None, *, cov_root = None, inv_transform: bool = True,
+                 engine = None, rng = None):
+    m = np.atleast_1d(np.asarray(mean).astype(float))
+    d = m.shape[0]
+    root = np.zeros((d, d))
+    has_root = False
+    if not isinstance(cov, NoneType):
+        c = np.atleast_2d(np.asarray(cov).astype(float))
+        if c.shape[0] != d:
+            raise ValueError("Dimension mismatch between mean and covariance.")
+        if not bool(np.allclose(c, c.T)):
+            raise ValueError("Covariance matrix is not symmetric.")
+        has_root = True
+        root = _cov_root(c)
+    elif not isinstance(cov_root, NoneType):
+        r = np.atleast_2d(np.asarray(cov_root).astype(float))
+        if r.shape[0] != d:
+            raise ValueError("Dimension mismatch between mean and covariance.")
+        has_root = True
+        root = r
+    edim = d if inv_transform else 2 * ((d + 1) // 2)
+    if isinstance(engine, NoneType):
+        return _MultivariateNormalQMC(m, root, has_root, inv_transform, Sobol(edim, scramble=True, bits=30, rng=rng))
+    else:
+        if engine.d != edim:
+            raise ValueError("Dimension of `engine` must be consistent with dimensions of mean and covariance. If `inv_transform` is False, it must be an even number.")
+        return _MultivariateNormalQMC(m, root, has_root, inv_transform, engine)
+
+def _cov_root(c):
+    try:
+        return np.linalg.cholesky(c).T.copy()
+    except Exception:
+        w, v = np.linalg.eigh(c)
+        for x in w:
+            if x < -1.0e-8:
+                raise ValueError("Covariance matrix not PSD.")
+        n = c.shape[0]
+        out = np.empty((n, n))
+        for i in range(n):
+            for j in range(n):
+                out[j, i] = v[i, j] * K.sqrt(max(w[j], 0.0))
+        return out
