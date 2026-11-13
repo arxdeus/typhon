@@ -94,8 +94,8 @@ pr_cvp = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1
 pr_cvs_mdm = [1.0, 1.0, 1.0, 1.0]
 pr_gs = [0.9583333333333334, 0.8750000000000001, 0.8750000000000001]
 pr_gs_best = 0
-pr_coef = [0.9546426931831269, -0.1308754818944015, -0.19051336537674576, 0.34948887307880716, 0.8133543256084471, -0.10721705744327314, -0.32742836662177177, 0.8107066175139572, -0.016684089522638158, 0.7597820293108802]
-pr_proba = [0.9863316194407927, 0.013668380559207306, 0.014734874197476433, 0.9852651258025236, 0.9801093942854798, 0.01989060571452012, 0.13286124495156637, 0.8671387550484336, 0.9720598428962489, 0.02794015710375112, 0.11985845855153177, 0.8801415414484682]
+pr_coef = [0.9548696854139518, -0.1310573184102492, -0.19034320772842775, 0.3498995329808483, 0.8128755818364654, -0.10587068151800821, -0.3278290576659999, 0.8102349999753672, -0.01593117187578884, 0.759235612565271]
+pr_proba = [0.9863118233435074, 0.013688176656492532, 0.014756097862493434, 0.9852439021375066, 0.980083339530802, 0.019916660469198093, 0.13293702061127743, 0.8670629793887226, 0.9719549258065509, 0.02804507419344918, 0.11996775722746178, 0.8800322427725382]
 
 @test
 def t_covariance():
@@ -164,10 +164,9 @@ def t_pyriemann_pipelines():
     g = GridSearchCV(make_pipeline(Covariances("scm"), TangentSpace(), SVC()), {"svc__C": [0.01, 1.0, 100.0]}, cv=cv).fit(XS, ys)
     assert close(g.cv_results_["mean_test_score"], pr_gs, 1e-12) and g.best_index_ == pr_gs_best
     lr = make_pipeline(Covariances("oas"), TangentSpace(), StandardScaler(), LogisticRegression(max_iter=1000)).fit(XS, ys)
-    # near-separable: L-BFGS (tol=1e-12) stops ~1e-7 short of the optimum,
-    # the Newton port reaches it; compare coefficients in absolute terms
-    assert close(lr.steps[-1][1].coef_, pr_coef, 1e-6, 1e-6)
-    assert close(lr.predict_proba(XS[:6]), pr_proba, 1e-6, 1e-9)
+    # default lbfgs (tol=1e-4), bit-equal to sklearn 1.9.1
+    assert close(lr.steps[-1][1].coef_, pr_coef, 1e-9, 1e-10)
+    assert close(lr.predict_proba(XS[:6]), pr_proba, 1e-9, 1e-10)
 
 t_covariance()
 t_scalers()
