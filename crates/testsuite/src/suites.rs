@@ -113,6 +113,7 @@ pub const NUMPY: &[&str] = &[
     "numpy/test_reductions.py", "numpy/test_routines.py", "numpy/test_sorting.py",
     "numpy/test_statistics.py", "numpy/test_ufunc.py", "numpy/test_window.py",
     "numpy/test_polynomial.py", "numpy/test_testing.py", "numpy/test_ma.py",
+    "numpy/test_empty_errstate.py", "numpy/test_strings.py", "numpy/test_lib_more.py",
 ];
 
 pub const SCIPY: &[&str] = &[
@@ -147,6 +148,11 @@ pub const SCIPY: &[&str] = &[
     "scipy/test_special_cdfs.py",
     "scipy/test_dists_common.py", "scipy/test_dists_more.py", "scipy/test_dists_ext.py",
     "scipy/test_dists_misc.py",
+    "sklearn/test_metrics_cls.py", "sklearn/test_metrics_rank_reg.py",
+    "sklearn/test_metrics_pairwise.py", "sklearn/test_utils.py",
+    "scipy/test_linalg2.py", "scipy/test_linalg_matfuncs.py", "scipy/test_signal_design.py",
+    "scipy/test_signal_filter.py", "scipy/test_signal_spectral.py",
+    "sklearn/test_cluster_bisect_bicluster.py", "mne/test_ica_picard.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
