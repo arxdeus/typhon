@@ -105,36 +105,8 @@ impl<'a> TypecheckVisitor<'a> {
         self.sp_set_arg(e, 1, typ_expr);
         let target_type = self.extract_type_expr(typ_expr);
 
-        // Python semantics on an Optional value: `isinstance(x, NoneType)` is `x is None`,
-        // `isinstance(x, T)` (T matching the payload) is `x is not None`.
-        let tcls = types.get_class(target_type).expect("not a class");
-        let a0 = self.sp_arg(e, 0);
-        if types.is(typ, &st.optional)
-            && !types.is(tcls, &st.optional)
-            && !Self::is_type_expr(self.cache, a0)
-        {
-            let inner = self.extract_class_generic(typ, 0);
-            let is_none_target = types.is(tcls, &st.none_type);
-            let matches_inner = !is_none_target && {
-                let mut us = Unification::new();
-                let s = types.unify(inner, target_type, Some(&mut us), self)?;
-                us.undo(&types);
-                s >= 0
-            };
-            if is_none_target || matches_inner {
-                let d = self.sp_dot(a0, "__has__");
-                let c = self.sp_call(d, vec![]);
-                let r = if is_none_target {
-                    let f = self.sp_bool(false);
-                    self.sp_bin(c, "==", f)
-                } else {
-                    c
-                };
-                return self.transform(Some(r));
-            }
-        }
-
         // Check type match
+        let tcls = types.get_class(target_type).expect("not a class");
         if types.class_name(tcls) == types.class_name(typ) {
             let mut us = Unification::new();
             let s = types.unify(typ, target_type, Some(&mut us), self)?;
