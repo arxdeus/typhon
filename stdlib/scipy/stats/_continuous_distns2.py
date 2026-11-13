@@ -266,6 +266,31 @@ class _SkewnormK:
         return (const, 1 - const * const,
                 ((4 - _PI) / 2) * (const / K.sqrt(1 - const * const)) ** 3,
                 (2 * (_PI - 3)) * (const ** 4 / (1 - const * const) ** 2))
+    @staticmethod
+    def fitstart_full(data: np.ndarray[float, 1], fx: List[float]) -> List[float]:
+        # skewnorm_gen.fit (method='mle'): method-of-moments start
+        fa = fx[0]
+        floc = fx[1]
+        fscale = fx[2]
+        a = fa
+        d = 0.0
+        if a != a:
+            s = _skew1(data)
+            s = min(max(s, -0.99), 0.99)
+            s_23 = K.pow(fabs(s), 2 / 3)
+            sg = 1.0 if s > 0 else (-1.0 if s < 0 else 0.0)
+            d = sg * K.sqrt(_PI / 2 * s_23 / (s_23 + K.pow((4 - _PI) / 2, 2 / 3)))
+            a = K.sqrt(d * d / (1 - d * d)) * sg
+        else:
+            d = a / K.sqrt(1 + a * a)
+        scale = fscale
+        if scale != scale:
+            v = float(np.var(data))
+            scale = K.sqrt(v / (1 - 2 * d * d / _PI))
+        loc = floc
+        if loc != loc:
+            loc = float(np.mean(data)) - scale * d * K.sqrt(2 / _PI)
+        return [a, loc, scale]
 
 class _SkewPdf:
     a: float
@@ -483,6 +508,12 @@ class _NakagamiK:
         if nu > 5e4:
             return Cv + (0.5 * K.log(2 * _PI) + 0.5) - 1 / (12 * nu)
         return A + Bv + Cv
+    @staticmethod
+    def fitstart_full(data: np.ndarray[float, 1], fx: List[float]) -> List[float]:
+        # nakagami_gen._fitstart: (1.0, min(data), sqrt(sum((data - loc)**2) / n))
+        loc = float(np.min(data))
+        scale = K.sqrt(float(np.sum((data - loc) ** 2)) / len(data))
+        return [1.0, loc, scale]
 
 # ---------------------------------------------------------------- loggamma
 

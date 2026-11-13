@@ -692,6 +692,17 @@ def _fit(Kr: type, data, args, f0, f1, f2, f3, floc, fscale, loc, scale, method:
         start[i] = float(args[i])
     sh0 = tuple(start[i] for i in static.range(NS))
     l0, s0 = _fit_loc_scale_support(Kr, x, sh0)
+    if hasattr(Kr, 'fitstart_full') and static.len(args) == 0:
+        # kernel-specific (shape..., loc, scale) guesses; NaN entries keep the
+        # generic value (scipy fit overrides that pass loc/scale to super().fit)
+        full = Kr.fitstart_full(x, fixed)
+        for i in range(NS):
+            if full[i] == full[i]:
+                start[i] = full[i]
+        if full[NS] == full[NS]:
+            l0 = full[NS]
+        if full[NS + 1] == full[NS + 1]:
+            s0 = full[NS + 1]
     lg = _opt(loc)
     sg = _opt(scale)
     if lg == lg:

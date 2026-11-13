@@ -697,6 +697,40 @@ class _WeibullMinK:
     def entropy(sh) -> float:
         c = sh[0]
         return -_EULER / c - K.log(c) + _EULER + 1
+    @staticmethod
+    def fitstart_full(data: np.ndarray[float, 1], fx: List[float]) -> List[float]:
+        # weibull_min_gen.fit: method-of-moments start passed to super().fit
+        fc = fx[0]
+        floc = fx[1]
+        fscale = fx[2]
+        s = _skew1(data)
+        if s < _weib_skew(1e4) and fc != fc:
+            return [NAN, NAN, NAN]
+        c = fc
+        if c != c:
+            from scipy.optimize import bisect
+            c = bisect(_WeibSkewEq(s), 0.02, 1e4)
+        scale = fscale
+        if scale != scale:
+            v = float(np.var(data))
+            scale = K.sqrt(v / (K.gamma(1 + 2 / c) - K.gamma(1 + 1 / c) ** 2))
+        loc = floc
+        if loc != loc:
+            loc = float(np.mean(data)) - scale * K.gamma(1 + 1 / c)
+        return [c, loc, scale]
+
+def _weib_skew(c: float) -> float:
+    g1 = K.gamma(1 + 1 / c)
+    g2 = K.gamma(1 + 2 / c)
+    g3 = K.gamma(1 + 3 / c)
+    return (2 * g1 ** 3 - 3 * g1 * g2 + g3) / (g2 - g1 ** 2) ** (3 / 2)
+
+class _WeibSkewEq:
+    s: float
+    def __init__(self, s: float):
+        self.s = s
+    def __call__(self, c: float) -> float:
+        return _weib_skew(c) - self.s
 
 @tuple
 class _WeibullMaxK:
