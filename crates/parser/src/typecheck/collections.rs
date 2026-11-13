@@ -304,9 +304,12 @@ impl<'a> TypecheckVisitor<'a> {
                     seen[di].insert(String::new(), None); // not realizable (yet): never build a union from it
                 }
                 let ec = types.get_class(element_types[di]);
-                if ec.is_none() {
+                let mc = types.get_class(member);
+                if ec.is_none() || mc.is_none() {
+                    // Slot or item type still unbound (e.g. generic dict values): bind them
+                    // together and let realization refine the slot.
                     self.unify(element_types[di], member)?;
-                } else if let Some(t) = self.collection_lctyp(ec, types.get_class(member).unwrap())? {
+                } else if let Some(t) = self.collection_lctyp(ec, mc.unwrap())? {
                     element_types[di] = t;
                 } else if !declared_slot[di] {
                     need_union[di] = true; // candidate: re-checked against the final slot type

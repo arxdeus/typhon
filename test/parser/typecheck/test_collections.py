@@ -441,3 +441,10 @@ b = [[1, 2], [3.5, 4]]
 print b  #: [[1.0, 2.0], [3.5, 4.0]]
 c = [[1., 2.+1j], [3., 4.]]
 print c  #: [[(1+0j), (2+1j)], [(3+0j), (4+0j)]]
+
+#%% dict_literal_generic_values,barebones
+def mk(T: type):
+    return T()
+def fdl(x, T: type):
+    return {'a': mk(T), 'b': x}, [[], [x]], {'k': [], 'j': [x]}
+print fdl(1, int)  #: ({'a': 0, 'b': 1}, [[], [1]], {'k': [], 'j': [1]})
