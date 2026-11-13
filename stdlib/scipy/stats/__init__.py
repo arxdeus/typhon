@@ -81,3 +81,6 @@ from ._quantile import quantile, estimated_cdf
 from ._multivariate2 import random_table, matrix_t, normal_inverse_gamma, unitary_group
 from ._levy_stable import levy_stable
 from ._covariance import Covariance
+from ._distribution import Normal, Uniform, Logistic, Binomial, Mixture, order_statistic, truncate, \
+    make_distribution
+from ._distribution import abs, exp, log
