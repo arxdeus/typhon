@@ -91,4 +91,61 @@ def desc():
     emit('yj_fix', st.yeojohnson(Z, 0.7))
     emit('yjn', [st.yeojohnson_normmax(x), st.yeojohnson_normmax(-x)])
 
-{'desc': desc}[sys.argv[1]]()
+def tests1():
+    big = np.cos(np.arange(40.) * 1.3) * 2 + np.arange(40.) * 0.1
+    emit('big', big)
+    for nm, f in [('skt', st.skewtest), ('kut', st.kurtosistest), ('nt', st.normaltest)]:
+        r = f(big); emit(nm, [r.statistic, r.pvalue])
+    r = st.skewtest(big, alternative='less'); emit('skt_l', [r.statistic, r.pvalue])
+    r = st.kurtosistest(x, alternative='greater'); emit('kut_g', [r.statistic, r.pvalue])
+    r = st.normaltest(big.reshape(8, 5), axis=0); emit('nt_ax', [r.statistic, r.pvalue])
+    r = st.jarque_bera(big); emit('jb', [r.statistic, r.pvalue])
+    obs = np.array([16., 18., 16., 14., 12., 12.]); ex = np.array([16., 16., 16., 16., 16., 8.])
+    out = []
+    for args in [(obs,), (obs, ex)]:
+        r = st.chisquare(*args); out += [r.statistic, r.pvalue]
+    r = st.chisquare(obs, ddof=1); out += [r.statistic, r.pvalue]
+    for lam in ['log-likelihood', 'freeman-tukey', 'mod-log-likelihood', 'neyman', 'cressie-read', 1.5]:
+        r = st.power_divergence(obs, ex, lambda_=lam); out += [r.statistic, r.pvalue]
+    emit('chi', out)
+    r = st.chisquare(np.array([[16., 18.], [16., 14.], [12., 12.]])); emit('chi_ax', [r.statistic, r.pvalue])
+    out = []
+    for ev in [True, False]:
+        for alt in ['two-sided', 'less', 'greater']:
+            r = st.ttest_ind_from_stats(15.0, 2.0, 13, 13.5, 3.1, 11, equal_var=ev, alternative=alt); out += [r.statistic, r.pvalue]
+    emit('tfs', out)
+    b = (x > 3.5).astype(float)
+    r = st.pointbiserialr(b, y); emit('pbs', [r.statistic, r.pvalue])
+    out = []
+    for alt in ['two-sided', 'less', 'greater']:
+        r = st.ranksums(x, y[:9], alternative=alt); out += [r.statistic, r.pvalue]
+        r = st.brunnermunzel(x, y[:9], alternative=alt); out += [r.statistic, r.pvalue]
+    r = st.brunnermunzel(x, y[:9], distribution='normal'); out += [r.statistic, r.pvalue]
+    emit('rk', out)
+    r = st.friedmanchisquare(x[:6], y[:6], x[6:]); emit('fr', [r.statistic, r.pvalue])
+    r = st.friedmanchisquare(np.array([1., 2, 3, 4]), np.array([1., 3, 3, 5]), np.array([2., 2, 4, 4])); emit('fr_t', [r.statistic, r.pvalue])
+    r = st.alexandergovern(x, y[:9], big[:7]); emit('ag', [r.statistic, r.pvalue])
+    out = []
+    for alt in ['two-sided', 'less', 'greater']:
+        r = st.kendalltau(x, y, alternative=alt); out += [r.statistic, r.pvalue]
+    xt = np.round(x); yt = np.round(y)
+    r = st.kendalltau(xt, yt); out += [r.statistic, r.pvalue]
+    r = st.kendalltau(xt, yt, variant='c'); out += [r.statistic, r.pvalue]
+    r = st.kendalltau(x, y, method='asymptotic'); out += [r.statistic, r.pvalue]
+    r = st.kendalltau(big, big[::-1] ** 2); out += [r.statistic, r.pvalue]
+    emit('kt', out)
+    out = []
+    r = st.theilslopes(y, x); out += list(r)
+    r = st.theilslopes(y, x, method='joint', alpha=0.9); out += list(r)
+    r = st.theilslopes(big); out += list(r)
+    r = st.siegelslopes(y, x); out += list(r)
+    r = st.siegelslopes(y, x, method='separate'); out += list(r)
+    emit('slopes', out)
+    ps = np.array([0.01, 0.2, 0.3, 0.04, 0.5])
+    out = []
+    for m in ['fisher', 'pearson', 'mudholkar_george', 'tippett', 'stouffer']:
+        r = st.combine_pvalues(ps, method=m); out += [r.statistic, r.pvalue]
+    r = st.combine_pvalues(ps, method='stouffer', weights=np.array([1., 2, 3, 4, 5])); out += [r.statistic, r.pvalue]
+    emit('cp', out)
+
+{'desc': desc, 'tests1': tests1}[sys.argv[1]]()
