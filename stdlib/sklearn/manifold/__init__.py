@@ -2,4 +2,4 @@
 
 from ._t_sne import TSNE
 from ._embedding import (MDS, ClassicalMDS, Isomap, LocallyLinearEmbedding, SpectralEmbedding,
-                         trustworthiness)
+                         trustworthiness, spectral_embedding, smacof, locally_linear_embedding)

@@ -377,7 +377,8 @@ class LocallyLinearEmbedding:
             raise ValueError(f"Expected n_neighbors < n_samples, but n_samples = {N}, n_neighbors = {k}")
         self._fit_X = Xa
         self._brute = _use_brute(Xa, k + 1)
-        _, nb = _knn(Xa, Xa, k, True, self._brute)
+        _, nb1 = _knn(Xa, Xa, k + 1, False, self._brute)
+        nb = np.ascontiguousarray(nb1[:, 1:])   # kneighbors(X)[:, 1:] as sklearn (self assumed first)
         M = np.zeros((N, N))
         if self.method == "standard":
             W = _barycenter_weights(Xa, Xa, nb, self.reg)
@@ -563,34 +564,92 @@ class SpectralEmbedding:
         Xa = np.asarray(X, dtype=float)
         A = self._affinity(Xa)
         self.affinity_matrix_ = A
-        n = A.shape[0]
-        nc = self.n_components + 1
-        # csgraph laplacian(normed=True, return_diag=True)
-        m = A.copy()
-        for i in range(n):
-            m[i, i] = 0.0
-        w = m.sum(axis=0)
-        dd = np.empty(n)
+        self.embedding_ = spectral_embedding(A, n_components=self.n_components)
+        return self
+
+    def fit_transform(self, X, y = None):
+        return self.fit(X).embedding_
+
+def spectral_embedding(adjacency, *, n_components: int = 8, eigen_solver = None, random_state = None,
+                       eigen_tol = "auto", norm_laplacian: bool = True, drop_first: bool = True):
+    """Laplacian eigenmaps of a dense adjacency matrix (smallest eigenpairs of
+    the (normalised) graph Laplacian computed densely)."""
+    A = np.asarray(adjacency, dtype=float)
+    n = A.shape[0]
+    if A.ndim != 2 or A.shape[1] != n:
+        raise ValueError("adjacency must be a square matrix")
+    nc = n_components + 1 if drop_first else n_components
+    m = A.copy()
+    for i in range(n):
+        m[i, i] = 0.0
+    w = m.sum(axis=0)
+    dd = np.ones(n)
+    L = np.empty((n, n))
+    if norm_laplacian:
         for i in range(n):
             dd[i] = 1.0 if w[i] == 0 else np.sqrt(w[i])
         L = -(m / dd) / dd[:, None]
         for i in range(n):
             L[i, i] = 0.0 if w[i] == 0 else 1.0
-        # smallest eigenvalues of L (arpack sigma ~ 0 shift-invert)
-        ev, V = sl.eigh(L, subset_by_index=[0, nc - 1])
-        emb = np.ascontiguousarray(V.T[:nc]) / dd
-        for r in range(nc):
-            best = 0
-            for c in range(n):
-                if abs(emb[r, c]) > abs(emb[r, best]):
-                    best = c
-            if emb[r, best] < 0:
-                emb[r] = -emb[r]
-        self.embedding_ = np.ascontiguousarray(emb[1:nc].T)
-        return self
+    else:
+        L = -m
+        for i in range(n):
+            L[i, i] = w[i]
+    ev, V = sl.eigh(L, subset_by_index=[0, nc - 1])
+    emb = np.ascontiguousarray(V.T[:nc])
+    if norm_laplacian:
+        emb = emb / dd
+    for r in range(nc):
+        best = 0
+        for c in range(n):
+            if abs(emb[r, c]) > abs(emb[r, best]):
+                best = c
+        if emb[r, best] < 0:
+            emb[r] = -emb[r]
+    if drop_first:
+        return np.ascontiguousarray(emb[1:nc].T)
+    return np.ascontiguousarray(emb[:nc].T)
 
-    def fit_transform(self, X, y = None):
-        return self.fit(X).embedding_
+def smacof(dissimilarities, *, metric: bool = True, n_components: int = 2, init = None,
+           n_init: int = 8, n_jobs = None, max_iter: int = 300, verbose: int = 0,
+           eps: float = 1e-6, random_state: Optional[int] = None,
+           return_n_iter: Literal[bool] = False, normalized_stress = "auto"):
+    D = np.asarray(dissimilarities, dtype=float)
+    ns = False
+    if isinstance(normalized_stress, str):
+        ns = not metric
+    else:
+        ns = bool(normalized_stress)
+    has_init = False
+    init_arr = np.empty((0, 0))
+    if init is not None:
+        has_init = True
+        init_arr = np.array(init, dtype=float)
+    rs = np.random.RandomState(random_state)
+    ni = 1 if has_init else n_init
+    best_stress = 0.0
+    best_pos = np.empty((0, 0))
+    best_iter = 0
+    for t in range(ni):
+        pos, stress, nit = _smacof_single(D, metric, n_components, init_arr, has_init, max_iter,
+                                          eps, rs, ns)
+        if t == 0 or stress < best_stress:
+            best_stress = stress
+            best_pos = pos.copy()
+            best_iter = nit
+    if return_n_iter:
+        return best_pos, best_stress, best_iter
+    return best_pos, best_stress
+
+def locally_linear_embedding(X, *, n_neighbors: int, n_components: int, reg: float = 1e-3,
+                             eigen_solver: str = "auto", tol: float = 1e-6, max_iter: int = 100,
+                             method: str = "standard", hessian_tol: float = 1e-4,
+                             modified_tol: float = 1e-12, random_state = None, n_jobs = None):
+    est = LocallyLinearEmbedding(n_neighbors=n_neighbors, n_components=n_components, reg=reg,
+                                 eigen_solver=eigen_solver, tol=tol, max_iter=max_iter, method=method,
+                                 hessian_tol=hessian_tol, modified_tol=modified_tol)
+    est.fit(X)
+    return est.embedding_, est.reconstruction_error_
 
 # ------------------------------------------------------------------ trustworthiness
 

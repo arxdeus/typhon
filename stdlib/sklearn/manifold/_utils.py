@@ -4,6 +4,8 @@
 # (scipy's PAVA) and linear interpolation.
 
 import numpy as np
+from ..neighbors._dist import _kneighbors_heap
+from ..neighbors._binary_tree import _make_tree
 from ..decomposition._extmath import _row_sq_einsum
 
 def _fma64(a: float, b: float, c: float) -> float:
@@ -43,16 +45,30 @@ def _knn(Xfit, Xq, k: int, exclude_self: bool, brute: bool):
                     t = Xq[i, a] - Xfit[j, a]
                     s += t * t
                 D[i, j] = np.sqrt(s)
+    kk = k + 1 if exclude_self else k
     dist = np.empty((q, k))
     ind = np.empty((q, k), dtype=int)
+    d0 = np.empty((q, kk))
+    i0 = np.empty((q, kk), dtype=int)
+    if brute:
+        d0, i0 = _kneighbors_heap(Xq, Xfit, D, 0, kk)
+    else:
+        t = _make_tree(0, Xfit, 30, "euclidean", 2.0)
+        d0, i0 = t.query(Xq, kk, True)
     for i in range(q):
-        row = D[i].copy()
+        skip = -1
         if exclude_self:
-            row[i] = np.inf
-        order = np.argsort(row, kind="stable")
-        for t in range(k):
-            ind[i, t] = order[t]
-            dist[i, t] = row[order[t]]
+            skip = 0
+            for j in range(kk):
+                if i0[i, j] == i:
+                    skip = j
+                    break
+        c = 0
+        for j in range(kk):
+            if j != skip and c < k:
+                ind[i, c] = i0[i, j]
+                dist[i, c] = d0[i, j] if not brute else D[i, i0[i, j]]
+                c += 1
     return dist, ind
 
 def _euclidean_distances(X, Y, same: bool):
