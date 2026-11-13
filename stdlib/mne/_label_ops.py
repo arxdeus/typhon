@@ -245,7 +245,7 @@ def mesh_dist(tris, vert):
     return csr_array(coo_array((np.array(d), (np.array(r, dtype=int), np.array(c, dtype=int))), shape=(n, n)))
 
 
-def label_adjacency(labels, src: SourceSpaces, tris) -> coo_matrix:
+def label_adjacency(labels, src: SourceSpaces, tris):
     """mne.label_adjacency. tris: [lh_tris, rh_tris] (full vertex indices of the used triangles)."""
     n_lh = src.spaces[0].vertno.shape[0]
     n = n_lh + src.spaces[1].vertno.shape[0]
