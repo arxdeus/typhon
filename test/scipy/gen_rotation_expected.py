@@ -1,7 +1,7 @@
 # Generates test/scipy/test_rotation.py from the reference scipy 1.18.1.
 import warnings; warnings.simplefilter('ignore')
 import numpy as np
-from scipy.spatial.transform import Rotation as R, Slerp
+from scipy.spatial.transform import Rotation as R, Slerp, RotationSpline
 from _gen_common import Gen
 setup = ['E = np.array([[30.0, 20.0, 10.0], [-50.0, 80.0, 170.0], [0.0, 90.0, 0.0], [120.0, -45.0, 33.0]])',
          'r = R.from_euler("zyx", E, degrees=True)', 'qs = np.array([0.1, 0.2, 0.3, 0.9])', 's = R.from_quat(qs)',
@@ -9,7 +9,7 @@ setup = ['E = np.array([[30.0, 20.0, 10.0], [-50.0, 80.0, 170.0], [0.0, 90.0, 0.
          'ax2 = np.array([[0.0, 0.0, 1.0], [0.6, 0.8, 0.0], [0.0, 0.0, 1.0]])',
          'a = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.3, 0.2, 0.9], [-0.5, 0.4, 0.1]])',
          'V = np.array([[1.0, 2.0, 3.0], [-1.0, 0.5, 0.0], [0.0, 0.0, 1.0], [2.0, -2.0, 1.0]])']
-ns = {'np': np, 'R': R, 'Slerp': Slerp}
+ns = {'np': np, 'R': R, 'Slerp': Slerp, 'RotationSpline': RotationSpline}
 for l in setup: exec(l, ns)
 ns['b'] = ns['r'][0].apply(ns['a']) + 0.01 * np.cos(np.arange(12.0)).reshape(4, 3)
 setup.append('b = r[0].apply(a) + 0.01 * np.cos(np.arange(12.0)).reshape(4, 3)')
@@ -53,4 +53,10 @@ g.raw('    est, rssd = R.align_vectors(a[0], -a[0])'); est, rssd = R.align_vecto
 g.E('est.as_quat()')
 g.raw('    sl = Slerp(np.array([0.0, 1.0, 3.0, 4.5]), r)'); ns['sl'] = Slerp(np.array([0.0, 1.0, 3.0, 4.5]), ns['r'])
 g.E('sl(np.array([0.0, 0.5, 2.0, 3.0, 4.2, 4.5])).as_quat()'); g.E('sl(1.7).as_quat()')
-g.write('test_rotation.py', 'gen_rotation_expected.py', ['import numpy as np', 'from scipy.spatial.transform import Rotation as R, Slerp'], setup)
+g.test('test_rotation_spline')
+g.raw('    sp = RotationSpline(np.array([0.0, 1.0, 3.0, 4.5]), r)'); ns['sp'] = RotationSpline(np.array([0.0, 1.0, 3.0, 4.5]), ns['r'])
+g.E('sp(np.array([0.0, 0.5, 2.0, 3.0, 4.2, 4.5])).as_quat()', tol=1e-9); g.E('sp(1.7).as_quat()', tol=1e-9)
+g.E('sp(np.array([0.2, 2.5, 4.0]), 1)', tol=1e-8); g.E('sp(np.array([0.2, 2.5, 4.0]), 2)', tol=1e-8)
+g.raw('    sp2 = RotationSpline(np.array([0.0, 2.0]), r[1:3])'); ns['sp2'] = RotationSpline(np.array([0.0, 2.0]), ns['r'][1:3])
+g.E('sp2(np.array([0.5, 1.5])).as_quat()'); g.E('sp2(np.array([0.5, 1.5]), 1)')
+g.write('test_rotation.py', 'gen_rotation_expected.py', ['import numpy as np', 'from scipy.spatial.transform import Rotation as R, Slerp, RotationSpline'], setup)
