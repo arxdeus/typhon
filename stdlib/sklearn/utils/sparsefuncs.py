@@ -161,3 +161,65 @@ def count_nonzero(X, axis = None, sample_weight = None):
 def csc_median_axis_0(X):
     D = X.toarray()
     return np.median(D, axis=0)
+
+def incr_mean_variance_axis(X, *, axis: int, last_mean, last_var, last_n, weights = None):
+    """Incremental mean and variance of a CSR/CSC matrix (implicit zeros
+    counted). last_n: array or scalar sample count."""
+    _check_fmt(X)
+    if axis != 0 and axis != 1:
+        raise ValueError(f"Unknown axis value: {axis}. Use 0 for rows, or 1 for columns")
+    lm = np.asarray(last_mean, dtype=float).copy()
+    lv = np.asarray(last_var, dtype=float).copy()
+    k = lm.shape[0]
+    ln = np.full(k, 0.0)
+    if static.len(np.asarray(last_n).shape) == 0:
+        ln = np.full(k, float(last_n))
+    else:
+        ln = np.asarray(last_n, dtype=float).copy()
+    if lv.shape[0] != k or ln.shape[0] != k:
+        raise ValueError("last_mean, last_var, last_n do not have the same shapes.")
+    n, m = X.shape
+    if (axis == 1 and k != n) or (axis == 0 and k != m):
+        raise ValueError(f"If axis={axis}, then last_mean, last_n, last_var should be of size {'n_samples ' + str(n) if axis == 1 else 'n_features ' + str(m)} (Got {k}).")
+    r = mean_variance_axis(X, axis, weights, True)
+    nm = r[0]
+    nv = r[1]
+    nn = r[2]
+    first = True
+    for i in range(k):
+        if ln[i] > 0:
+            first = False
+    if first:
+        return nm, nv, nn
+    um = np.empty(k)
+    uv = np.empty(k)
+    un = np.empty(k)
+    for i in range(k):
+        un[i] = ln[i] + nn[i]
+        if nn[i] > 0:
+            lon = ln[i] / nn[i]
+            lmi = lm[i] * ln[i]
+            lvi = lv[i] * ln[i]
+            nmi = nm[i] * nn[i]
+            nvi = nv[i] * nn[i]
+            uv[i] = lvi + nvi + lon / un[i] * (lmi / lon - nmi) ** 2
+            um[i] = (lmi + nmi) / un[i]
+            uv[i] /= un[i]
+        else:
+            uv[i] = lv[i]
+            um[i] = lm[i]
+            un[i] = ln[i]
+    return um, uv, un
+
+def csr_row_norms(X):
+    """Squared L2 norm of each row of a CSR matrix."""
+    _check_fmt(X)
+    n = X.shape[0]
+    out = np.zeros(n)
+    for r in range(n):
+        s = 0.0
+        for i in range(X.indptr[r], X.indptr[r + 1]):
+            v = float(X.data[i])
+            s += v * v
+        out[r] = s
+    return out
