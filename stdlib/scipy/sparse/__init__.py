@@ -42,3 +42,38 @@ def isspmatrix_lil(x) -> bool:
 
 def isspmatrix_dok(x) -> bool:
     return _isfmt(x, "dok")
+
+class SparseWarning(Warning):
+    pass
+
+class SparseEfficiencyWarning(SparseWarning):
+    pass
+
+def matrix_transpose(x):
+    return x.transpose()
+
+def permute_dims(a, axes = (1, 0), copy: bool = True):
+    # Only the transposing permutation (1, 0) / (-1, -2) is supported: the
+    # identity permutation would return a different static type.
+    a0 = int(axes[0]) % 2
+    a1 = int(axes[1]) % 2
+    if len(axes) != 2 or a0 == a1:
+        raise ValueError("axes don't match array")
+    if a0 != 1:
+        raise ValueError("permute_dims: only axes=(1, 0) is supported")
+    return a.transpose()
+
+def swapaxes(a, axis1: int, axis2: int):
+    if axis1 < -2 or axis1 > 1 or axis2 < -2 or axis2 > 1:
+        raise ValueError("axis out of bounds for 2-D sparse array")
+    if axis1 % 2 == axis2 % 2:
+        raise ValueError("swapaxes: axis1 == axis2 is not supported")
+    return a.transpose()
+
+def get_index_dtype(arrays = (), maxval = None, check_contents: bool = False):
+    import numpy as np
+    # Indices are stored as 64-bit ints in this port, but scipy reports int32
+    # whenever the values fit; maxval beyond int32 is rejected (type would differ).
+    if maxval is not None and int(maxval) > 2147483647:
+        raise ValueError("get_index_dtype: maxval exceeds int32 range (int64 index dtype is not selectable)")
+    return np.int32
