@@ -168,6 +168,17 @@ impl<'ctx> LlvmVisitor<'ctx> {
         b.at_end(ll::append_block(self.c, ctor, "entry"));
         b.call(ll::function_type(main), main, &[b.c_i32(0), b.null_ptr()]);
         b.ret_void();
+        if ll::triple(mm).contains("android") {
+            // bionic's loader only runs `.init_array`; the default `.ctors` section
+            // that `llvm.global_ctors` lowers to is ignored, so module globals would
+            // stay uninitialized when a library is loaded with dlopen.
+            let ptr_arr = ll::array_ty(b.ptr(), 1);
+            let g = ll::new_global(mm, ptr_arr, false, LLVMInternalLinkage, Some(ll::const_array(b.ptr(), &[ctor])), ".main.init_array");
+            ll::set_section(g, ".init_array");
+            let used = ll::new_global(mm, ptr_arr, false, LLVMAppendingLinkage, Some(ll::const_array(b.ptr(), &[g])), "llvm.used");
+            ll::set_section(used, "llvm.metadata");
+            return;
+        }
         let entry = ll::const_struct(self.c, &[b.c_i32(65535), ctor, b.null_ptr()]);
         let arr_ty = ll::array_ty(entry_ty, 1);
         ll::new_global(mm, arr_ty, true, LLVMAppendingLinkage, Some(ll::const_array(entry_ty, &[entry])), "llvm.global_ctors");

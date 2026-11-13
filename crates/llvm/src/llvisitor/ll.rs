@@ -230,6 +230,10 @@ pub fn new_global(m: LLVMModuleRef, ty: Ty, constant: bool, linkage: llvm_sys::L
     }
     g
 }
+pub fn set_section(g: V, name: &str) {
+    let n = cstr(name);
+    unsafe { LLVMSetSection(g, n.as_ptr()) }
+}
 pub fn set_initializer(g: V, init: V) {
     unsafe { LLVMSetInitializer(g, init) }
 }
