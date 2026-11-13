@@ -188,3 +188,38 @@ def array_repr(a):
 
 def array2string(a):
     return str(asarray(a))
+
+class printoptions:
+    precision: int
+    threshold: int
+    edgeitems: int
+    linewidth: int
+    suppress: bool
+    _o: Tuple[int, int, int, int, bool]
+
+    def __init__(self, precision: int = -1, threshold: int = -1, edgeitems: int = -1,
+                 linewidth: int = -1, suppress: bool = False):
+        self.precision = precision
+        self.threshold = threshold
+        self.edgeitems = edgeitems
+        self.linewidth = linewidth
+        self.suppress = suppress
+        self._o = (_popts.precision, _popts.threshold, _popts.edgeitems,
+                   _popts.linewidth, _popts.suppress)
+
+    def __enter__(self):
+        self._o = (_popts.precision, _popts.threshold, _popts.edgeitems,
+                   _popts.linewidth, _popts.suppress)
+        set_printoptions(self.precision, self.threshold, self.edgeitems,
+                         self.linewidth, self.suppress)
+        return get_printoptions()
+
+    def __exit__(self):
+        _popts.precision = self._o[0]
+        _popts.threshold = self._o[1]
+        _popts.edgeitems = self._o[2]
+        _popts.linewidth = self._o[3]
+        _popts.suppress = self._o[4]
+
+def get_include() -> str:
+    return ''
