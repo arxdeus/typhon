@@ -4,4 +4,4 @@
 
 from ._classes import (BaseDecisionTree, DecisionTreeClassifier, DecisionTreeRegressor,
                        ExtraTreeClassifier, ExtraTreeRegressor)
-from ._export import export_text
+from ._export import export_text, export_graphviz
