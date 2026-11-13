@@ -20,6 +20,12 @@ from . import _specfun as SPF
 from . import _faddeeva as FD
 from . import _struve as ST
 from . import _lambertw as LW
+from . import _kelvin as KV
+from . import _parcyl as PC
+from . import _legendre as LG
+from . import _legendre_p as LP
+import cmath
+from C import log1p(float) -> float as _log1p
 
 def _is_arr(x) -> Literal[bool]:
     return isinstance(x, np.ndarray) or isinstance(x, List) or isinstance(x, Tuple)
@@ -608,3 +614,285 @@ def log_softmax(x, axis = None):
         mx = np.where(np.isfinite(mx), mx, 0.0)
         tmp = a - mx
         return tmp - np.log(np.sum(np.exp(tmp), axis=axis, keepdims=True))
+
+# Kelvin, parabolic cylinder, Faddeeva, Legendre, misc (_kelvin, _parcyl, _legendre, _legendre_p)
+def ber(x): return _map1(KV.ber, x)
+def bei(x): return _map1(KV.bei, x)
+def ker(x): return _map1(KV.ker, x)
+def kei(x): return _map1(KV.kei, x)
+def berp(x): return _map1(KV.berp, x)
+def beip(x): return _map1(KV.beip, x)
+def kerp(x): return _map1(KV.kerp, x)
+def keip(x): return _map1(KV.keip, x)
+def _kelvin_i(x: float, i: int) -> complex: return KV.kelvin(x)[i]
+def kelvin(x):
+    """(Be, Ke, Bep, Kep) complex Kelvin function values."""
+    if _is_arr(x):
+        a = np.asarray(x)
+        o0 = np.empty(a.shape, dtype=complex)
+        o1 = np.empty(a.shape, dtype=complex)
+        o2 = np.empty(a.shape, dtype=complex)
+        o3 = np.empty(a.shape, dtype=complex)
+        for idx in np.ndindex(a.shape):
+            t = KV.kelvin(float(a[idx]))
+            o0[idx] = t[0]
+            o1[idx] = t[1]
+            o2[idx] = t[2]
+            o3[idx] = t[3]
+        return (o0, o1, o2, o3)
+    else:
+        return KV.kelvin(float(x))
+def _klvnzo(nt: int, kd: int):
+    if nt <= 0 or nt != int(nt):
+        raise ValueError("nt must be positive integer scalar.")
+    return np.array(KV.klvnzo(nt, kd))
+def ber_zeros(nt): return _klvnzo(int(nt), 1)
+def bei_zeros(nt): return _klvnzo(int(nt), 2)
+def ker_zeros(nt): return _klvnzo(int(nt), 3)
+def kei_zeros(nt): return _klvnzo(int(nt), 4)
+def berp_zeros(nt): return _klvnzo(int(nt), 5)
+def beip_zeros(nt): return _klvnzo(int(nt), 6)
+def kerp_zeros(nt): return _klvnzo(int(nt), 7)
+def keip_zeros(nt): return _klvnzo(int(nt), 8)
+def kelvin_zeros(nt):
+    n = int(nt)
+    return (_klvnzo(n, 1), _klvnzo(n, 2), _klvnzo(n, 3), _klvnzo(n, 4),
+            _klvnzo(n, 5), _klvnzo(n, 6), _klvnzo(n, 7), _klvnzo(n, 8))
+
+def _pbdv0(v: float, x: float) -> float: return PC.pbdv(v, x)[0]
+def _pbdv1(v: float, x: float) -> float: return PC.pbdv(v, x)[1]
+def _pbvv0(v: float, x: float) -> float: return PC.pbvv(v, x)[0]
+def _pbvv1(v: float, x: float) -> float: return PC.pbvv(v, x)[1]
+def _pbwa0(a: float, x: float) -> float: return PC.pbwa(a, x)[0]
+def _pbwa1(a: float, x: float) -> float: return PC.pbwa(a, x)[1]
+def pbdv(v, x):
+    """Parabolic cylinder function D_v(x) and its derivative: (d, dp)."""
+    return (_map2(_pbdv0, v, x), _map2(_pbdv1, v, x))
+def pbvv(v, x):
+    """Parabolic cylinder function V_v(x) and its derivative: (v, vp)."""
+    return (_map2(_pbvv0, v, x), _map2(_pbvv1, v, x))
+def pbwa(a, x):
+    """Parabolic cylinder function W(a, x) and its derivative: (w, wp)."""
+    return (_map2(_pbwa0, a, x), _map2(_pbwa1, a, x))
+
+def wofz(z):
+    """Faddeeva function w(z) = exp(-z**2) erfc(-iz)."""
+    if _is_arr(z):
+        a = np.asarray(z)
+        out = np.empty(a.shape, dtype=complex)
+        for idx in np.ndindex(a.shape):
+            out[idx] = FD.w(complex(a[idx]))
+        return out
+    else:
+        return FD.w(complex(z))
+def voigt_profile(x, sigma, gamma): return _map3(FD.voigt_profile, x, sigma, gamma)
+
+def lpmv(m, v, x): return _map3(LG.lpmv, m, v, x)
+def tklmbda(x, lmbda): return _map2(LG.tklmbda, x, lmbda)
+
+def _softplus1(x: float) -> float:
+    # np.logaddexp(0, x)
+    if x != x:
+        return x
+    if x > 0:
+        return x + _log1p(K.exp(-x))
+    elif x <= 0:
+        return _log1p(K.exp(x))
+    return x
+def softplus(x): return _map1(_softplus1, x)
+
+def multigammaln(a, d):
+    """log of the multivariate gamma function of dimension d."""
+    dd = int(d)
+    if float(dd) != float(d):
+        raise ValueError("d should be a positive integer (dimension)")
+    A = np.asarray(a).astype(float)
+    for v in A.flat:
+        if v <= 0.5 * (dd - 1):
+            raise ValueError("condition a > 0.5 * (d-1) not met")
+    if _is_arr(a):
+        out = np.empty(A.shape, dtype=float)
+        for idx in np.ndindex(A.shape):
+            r = (dd * (dd - 1) * 0.25) * K.log(3.141592653589793)
+            s = 0.0
+            for j in range(1, dd + 1):
+                s += K.gammaln(A[idx] - (j - 1.0) / 2)
+            out[idx] = r + s
+        return out
+    else:
+        av = float(a)
+        r = (dd * (dd - 1) * 0.25) * K.log(3.141592653589793)
+        s = 0.0
+        for j in range(1, dd + 1):
+            s += K.gammaln(av - (j - 1.0) / 2)
+        return r + s
+
+# ---- 1.18 Legendre API (legendre_p, assoc_legendre_p, sph_legendre_p, sph_harm_y)
+def _is_cplx(z) -> Literal[bool]:
+    if isinstance(z, complex):
+        return True
+    elif isinstance(z, np.ndarray):
+        return z.dtype is complex
+    else:
+        return False
+
+def _dual_k(d, k: int):
+    if k == 0:
+        return d.v
+    elif k == 1:
+        return d.d1
+    else:
+        return d.d2
+
+def _lp_core(kind: int, n, m, z, norm: bool, branch_cut: int, diff_n: int, T: type):
+    if diff_n < 0 or diff_n > 2:
+        raise ValueError("diff_n must be 0, 1 or 2")
+    shp = _bshape(n, m, z)
+    N = np.broadcast_to(np.asarray(n), shp)
+    M = np.broadcast_to(np.asarray(m), shp)
+    Z = np.broadcast_to(np.asarray(z), shp)
+    out = np.empty((diff_n + 1,) + shp, dtype=T)
+    for idx in np.ndindex(shp):
+        d = LP.legendre_p_d(0, T(0.0), T)
+        if kind == 0:
+            d = LP.legendre_p_d(int(N[idx]), T(Z[idx]), T)
+        else:
+            d = LP.assoc_legendre_p_d(norm, int(N[idx]), int(M[idx]), T(Z[idx]), branch_cut, T)
+        for k in range(diff_n + 1):
+            out[(k,) + idx] = _dual_k(d, k)
+    return out
+
+def legendre_p(n, z, *, diff_n: int = 0):
+    """Legendre polynomial P_n(z); result has leading axis of size diff_n + 1."""
+    if _is_cplx(z):
+        return _lp_core(0, n, 0, z, False, 2, diff_n, complex)
+    else:
+        return _lp_core(0, n, 0, z, False, 2, diff_n, float)
+
+def assoc_legendre_p(n, m, z, *, branch_cut: int = 2, norm: bool = False, diff_n: int = 0):
+    """Associated Legendre P_n^m(z) (1.18 API)."""
+    if _is_cplx(z):
+        return _lp_core(1, n, m, z, norm, branch_cut, diff_n, complex)
+    else:
+        return _lp_core(1, n, m, z, norm, branch_cut, diff_n, float)
+
+def sph_legendre_p(n, m, theta, *, diff_n: int = 0):
+    """Spherical Legendre P_n^m(cos theta) normalized as in sph_harm_y."""
+    shp = _bshape(n, m, theta)
+    N = np.broadcast_to(np.asarray(n), shp)
+    M = np.broadcast_to(np.asarray(m), shp)
+    TH = np.broadcast_to(np.asarray(theta), shp)
+    out = np.empty((diff_n + 1,) + shp, dtype=float)
+    for idx in np.ndindex(shp):
+        d = LP.sph_legendre_p_d(int(N[idx]), int(M[idx]), float(TH[idx]))
+        for k in range(diff_n + 1):
+            out[(k,) + idx] = _dual_k(d, k)
+    return out
+
+def _sphy_parts(n: int, m: int, th: float, ph: float):
+    d = LP.sph_legendre_p_d(n, m, th)
+    e = cmath.exp(complex(0.0, float(m) * ph))
+    return (d, e)
+
+def sph_harm_y(n, m, theta, phi, *, diff_n: Literal[int] = 0):
+    """Spherical harmonic Y_n^m(theta, phi) (theta polar, phi azimuthal)."""
+    shp = _bshape(n, m, theta, phi)
+    N = np.broadcast_to(np.asarray(n), shp)
+    M = np.broadcast_to(np.asarray(m), shp)
+    TH = np.broadcast_to(np.asarray(theta), shp)
+    PH = np.broadcast_to(np.asarray(phi), shp)
+    y = np.empty(shp, dtype=complex)
+    if diff_n == 0 and not (_is_arr(n) or _is_arr(m) or _is_arr(theta) or _is_arr(phi)):
+        t0 = _sphy_parts(int(n), int(m), float(theta), float(phi))
+        return t0[0].v * t0[1]
+    elif diff_n == 0:
+        for idx in np.ndindex(shp):
+            t = _sphy_parts(int(N[idx]), int(M[idx]), float(TH[idx]), float(PH[idx]))
+            y[idx] = t[0].v * t[1]
+        return y
+    elif diff_n == 1:
+        g = np.empty((2,) + shp, dtype=complex)
+        for idx in np.ndindex(shp):
+            mm = int(M[idx])
+            t = _sphy_parts(int(N[idx]), mm, float(TH[idx]), float(PH[idx]))
+            y[idx] = t[0].v * t[1]
+            g[(0,) + idx] = t[0].d1 * t[1]
+            g[(1,) + idx] = complex(0.0, float(mm)) * t[0].v * t[1]
+        return (y, g)
+    else:
+        g = np.empty((2,) + shp, dtype=complex)
+        h = np.empty((2, 2) + shp, dtype=complex)
+        for idx in np.ndindex(shp):
+            mm = int(M[idx])
+            t = _sphy_parts(int(N[idx]), mm, float(TH[idx]), float(PH[idx]))
+            im = complex(0.0, float(mm))
+            y[idx] = t[0].v * t[1]
+            g[(0,) + idx] = t[0].d1 * t[1]
+            g[(1,) + idx] = im * t[0].v * t[1]
+            h[(0, 0) + idx] = t[0].d2 * t[1]
+            h[(0, 1) + idx] = im * t[0].d1 * t[1]
+            h[(1, 0) + idx] = im * t[0].d1 * t[1]
+            h[(1, 1) + idx] = -float(mm * mm) * t[0].v * t[1]
+        return (y, g, h)
+
+def legendre_p_all(n, z, *, diff_n: int = 0):
+    """All P_j(z), 0 <= j <= n; shape (diff_n + 1, n + 1, *z.shape)."""
+    nn = int(n)
+    zs = np.asarray(z).shape
+    T = complex if _is_cplx(z) else float
+    out = np.empty((diff_n + 1, nn + 1) + zs, dtype=T)
+    Z = np.asarray(z)
+    for idx in np.ndindex(zs):
+        for j in range(nn + 1):
+            d = LP.legendre_p_d(j, T(Z[idx]), T)
+            for k in range(diff_n + 1):
+                out[(k, j) + idx] = _dual_k(d, k)
+    return out
+
+def assoc_legendre_p_all(n, m, z, *, branch_cut: int = 2, norm: bool = False, diff_n: int = 0):
+    """All P_j^i(z), 0 <= j <= n, -m <= i <= m; shape (diff_n+1, n+1, 2m+1, *z.shape)."""
+    nn = int(n)
+    mm = int(m)
+    zs = np.asarray(z).shape
+    T = complex if _is_cplx(z) else float
+    out = np.empty((diff_n + 1, nn + 1, 2 * mm + 1) + zs, dtype=T)
+    Z = np.asarray(z)
+    for idx in np.ndindex(zs):
+        for j in range(nn + 1):
+            for i in range(-mm, mm + 1):
+                d = LP.assoc_legendre_p_d(norm, j, i, T(Z[idx]), branch_cut, T)
+                col = i if i >= 0 else i + 2 * mm + 1
+                for k in range(diff_n + 1):
+                    out[(k, j, col) + idx] = _dual_k(d, k)
+    return out
+
+def sph_legendre_p_all(n, m, theta, *, diff_n: int = 0):
+    nn = int(n)
+    mm = int(m)
+    zs = np.asarray(theta).shape
+    out = np.empty((diff_n + 1, nn + 1, 2 * mm + 1) + zs, dtype=float)
+    TH = np.asarray(theta)
+    for idx in np.ndindex(zs):
+        for j in range(nn + 1):
+            for i in range(-mm, mm + 1):
+                d = LP.sph_legendre_p_d(j, i, float(TH[idx]))
+                col = i if i >= 0 else i + 2 * mm + 1
+                for k in range(diff_n + 1):
+                    out[(k, j, col) + idx] = _dual_k(d, k)
+    return out
+
+def sph_harm_y_all(n, m, theta, phi):
+    """All Y_j^i(theta, phi), 0 <= j <= n, -m <= i <= m; shape (n+1, 2m+1, *shape)."""
+    nn = int(n)
+    mm = int(m)
+    shp = _bshape(theta, phi)
+    TH = np.broadcast_to(np.asarray(theta), shp)
+    PH = np.broadcast_to(np.asarray(phi), shp)
+    out = np.empty((nn + 1, 2 * mm + 1) + shp, dtype=complex)
+    for idx in np.ndindex(shp):
+        for j in range(nn + 1):
+            for i in range(-mm, mm + 1):
+                t = _sphy_parts(j, i, float(TH[idx]), float(PH[idx]))
+                col = i if i >= 0 else i + 2 * mm + 1
+                out[(j, col) + idx] = t[0].v * t[1]
+    return out

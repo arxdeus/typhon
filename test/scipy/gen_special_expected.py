@@ -363,7 +363,68 @@ def misc():
     g.v('sp.struve(1.0, np.array([0.5, 1.5, 4.0]))', 1e-12)
     g.write()
 
+def misc2():
+    g = Gen('test_special_misc2.py')
+    g.block('kelvin')
+    for x in [0.0, 0.3, 2.0, 5.5, 9.9, 10.0, 15.0, 45.0, -3.0]:
+        for f in ['ber', 'bei', 'ker', 'kei', 'berp', 'beip', 'kerp', 'keip']:
+            # ker/kei series near x = 10 cancel ~7 digits (fma contraction noise)
+            g.s(f'sp.{f}({L(x)})', 1e-8 if (x == 9.9 and f.startswith('ke')) else 1e-12)
+    g.s('sp.kelvin(2.5)[1].imag', 1e-12)
+    g.v('sp.ber_zeros(3)', 1e-12)
+    g.v('sp.kei_zeros(2)', 1e-10)
+    g.v('sp.keip_zeros(2)', 1e-10)
+    g.block('parabolic_cylinder')
+    for v, x in [(0.0, 1.0), (1.0, 2.5), (2.5, -1.5), (-1.5, 0.7), (-2.5, 3.0), (-3.2, -2.0), (3.7, 7.0),
+                 (0.5, 0.0), (-0.5, 1.5), (5.0, -8.0), (-4.0, 1.2)]:
+        g.s(f'sp.pbdv({L(v)}, {L(x)})[0]', 1e-11)
+        g.s(f'sp.pbdv({L(v)}, {L(x)})[1]', 1e-11)
+        g.s(f'sp.pbvv({L(v)}, {L(x)})[0]', 1e-11)
+        g.s(f'sp.pbvv({L(v)}, {L(x)})[1]', 1e-11)
+    for a, x in [(0.0, 0.3), (1.0, -0.4), (-2.0, 2.0), (3.0, -4.5), (0.5, 1.0), (4.0, 6.0)]:
+        g.s(f'sp.pbwa({L(a)}, {L(x)})[0]', 1e-10)
+        g.s(f'sp.pbwa({L(a)}, {L(x)})[1]', 1e-10)
+    g.block('faddeeva')
+    for z in [(1+1j), (0.5-2j), (3+0.05j), (-7+0.5j), (30+1e-12j), (12+0.0001j), (1e-5+0.3j), (0.0001+3j),
+              (100+50j), (5000+1j), (1e8-1e8j), (-2-3j), 2.0, 2j]:
+        g.s(f'sp.wofz({z!r}).real')
+        g.s(f'sp.wofz({z!r}).imag')
+    for x, s, gm in [(0.0, 1.0, 0.0), (1.0, 0.0, 2.0), (0.5, 1.2, 0.3), (-3.0, 0.5, 2.0), (10.0, 1.0, 1.0)]:
+        g.s(f'sp.voigt_profile({L(x)}, {L(s)}, {L(gm)})')
+    g.block('legendre')
+    for m, v, x in [(0, 3.0, 0.3), (1, 3.0, 0.3), (2, 5.0, -0.7), (0, 2.5, 0.4), (1, 2.5, -0.6), (-1, 3.0, 0.2),
+                    (-2, 2.5, 0.5), (3, 7.5, 0.1), (0, -2.5, 0.3), (0, 2.5, -1.0)]:
+        g.s(f'sp.lpmv({m}, {L(v)}, {L(x)})', 1e-12)
+    g.v('sp.legendre_p(3, 0.3, diff_n=2)')
+    g.v('sp.legendre_p(np.array([0, 1, 5]), 0.7)')
+    g.v('sp.assoc_legendre_p(3, 1, 0.3)')
+    g.v('sp.assoc_legendre_p(4, -2, 0.3, diff_n=2)')
+    g.v('sp.assoc_legendre_p(3, 1, 0.3, norm=True, diff_n=1)')
+    g.v('sp.assoc_legendre_p(3, 1, 1.5, branch_cut=3)')
+    g.v('sp.assoc_legendre_p(3, 0, 1.0, diff_n=1)')
+    g.v('sp.assoc_legendre_p(2, 3, 0.3)')
+    g.v('np.real(sp.assoc_legendre_p(3, 1, 0.3+0.2j))')
+    g.v('np.imag(sp.assoc_legendre_p(3, 1, 0.3+0.2j))')
+    g.v('sp.sph_legendre_p(3, 1, 0.4, diff_n=2)')
+    g.s('sp.sph_harm_y(3, 1, 0.5, 0.7).real')
+    g.s('sp.sph_harm_y(3, 1, 0.5, 0.7).imag')
+    g.s('sp.sph_harm_y(4, -3, 1.2, 2.0).real')
+    g.s('sp.sph_harm_y(4, -3, 1.2, 2.0).imag')
+    g.v('np.real(sp.sph_harm_y(3, -2, 0.5, 0.7, diff_n=1)[1])')
+    g.v('np.imag(sp.sph_harm_y(3, -2, 0.5, 0.7, diff_n=1)[1])')
+    g.v('sp.legendre_p_all(3, 0.3)')
+    g.v('sp.assoc_legendre_p_all(3, 2, 0.3)')
+    g.v('np.real(sp.sph_harm_y_all(2, 1, 0.5, 0.7))')
+    g.block('misc')
+    for x, lm in [(0.3, 0.5), (-1.0, 0.14), (2.5, -0.3), (0.0, 1.0), (3.0, 0.5), (0.4, 0.00001)]:
+        g.s(f'sp.tklmbda({L(x)}, {L(lm)})', 1e-12)
+    g.v('sp.softplus(np.array([-800.0, -1.0, 0.0, 1.0, 30.0, 800.0]))')
+    g.s('sp.multigammaln(3.5, 3)')
+    g.s('sp.multigammaln(23.5, 10)')
+    g.write()
+
 if __name__ == '__main__':
+    misc2()
     misc()
     bessel()
     gamma_hyp()
