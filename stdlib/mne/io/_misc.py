@@ -219,3 +219,29 @@ def write_fiducials(fname, pts, coord_frame: str = "unknown", *, overwrite: bool
         w.w.f32(float(pt.r[2]))
     w.end_block(FIFFB_ISOTRAK)
     w.end_file(fn)
+
+
+def read_raw(fname, *, preload = False, verbose = None, **kwargs):
+    """mne.io.read_raw: dispatch on the file extension (fif, edf, bdf, gdf, vhdr, set)."""
+    from .fiff import read_raw_fif
+    from .edf import read_raw_edf, read_raw_bdf
+    from .gdf import read_raw_gdf
+    from .brainvision import read_raw_brainvision
+    from .eeglab import read_raw_eeglab
+    f = str(fname)
+    low = f.lower()
+    if low.endswith(".fif") or low.endswith(".fif.gz"):
+        return read_raw_fif(f, False, preload)
+    if low.endswith(".edf"):
+        return read_raw_edf(f, preload = preload)
+    if low.endswith(".bdf"):
+        return read_raw_bdf(f, preload = preload)
+    if low.endswith(".gdf"):
+        return read_raw_gdf(f, preload = preload)
+    if low.endswith(".vhdr"):
+        return read_raw_brainvision(f, preload = preload)
+    if low.endswith(".set"):
+        return read_raw_eeglab(f, preload = preload)
+    dot = f.rfind(".")
+    ext = f[dot:] if dot >= 0 else ""
+    raise ValueError(f"Unsupported file type ({ext}). Supported (Typhon mne): .fif, .edf, .bdf, .gdf, .vhdr, .set")
