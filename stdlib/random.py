@@ -2,6 +2,7 @@
 import sys
 from math import inf as INF, sqrt as _sqrt, acos as _acos, cos as _cos, sin as _sin
 from math import log as _log, exp as _exp, pi as _pi, e as _e, ceil as _ceil
+from math import lgamma as _lgamma, floor as _floor, log2 as _log2
 from bisect import bisect as _bisect
 from time import time as _time
 
@@ -119,6 +120,24 @@ class RandomGenerator:
         init_key = (u32(s & ((1 << 32) - 1)), u32(s >> 32))
         self.init_array(Ptr[u32](__ptr__(init_key).as_byte()), 2 if init_key[1] else 1)
 
+    def init_bytes_be(self, data: bytes):
+        # seed from big-endian magnitude bytes, as CPython does for large ints
+        n = len(data)
+        words = (n + 3) // 4
+        if words == 0:
+            words = 1
+        key = Ptr[u32](words)
+        for w in range(words):
+            v = 0
+            for b in range(4):
+                idx = n - 1 - (w * 4 + b)
+                if idx >= 0:
+                    v |= int(data[idx]) << (8 * b)
+            key[w] = u32(v)
+        while words > 1 and key[words - 1] == u32(0):
+            words -= 1
+        self.init_array(key, words)
+
     def random_seed_time_pid(self):
         KEY_LEN: Literal[int] = 5
         now = _C.seq_time() * 1000
@@ -151,6 +170,79 @@ class Random:
         else:
             self.gen.seed()
         self.gauss_next = None
+
+    def seed(self, a: str):
+        from hashlib import sha512
+        b = a.encode()
+        d = sha512(b).digest()
+        self.gen.init_bytes_be(b + d)
+        self.gauss_next = None
+
+    def seed(self, a: bytes):
+        from hashlib import sha512
+        d = sha512(a).digest()
+        self.gen.init_bytes_be(a + d)
+        self.gauss_next = None
+
+    def randbytes(self, n: int) -> bytes:
+        out = List[int](n)
+        i = 0
+        while i < n:
+            r = int(self.gen.genrand_int32())
+            rem = n - i
+            if rem < 4:
+                r = r >> (32 - 8 * rem)
+            for b in range(4):
+                if i < n:
+                    out.append((r >> (8 * b)) & 255)
+                    i += 1
+        return bytes(out)
+
+    def binomialvariate(self, n: int = 1, p: float = 0.5) -> int:
+        if n < 0:
+            raise ValueError("n must be non-negative")
+        if p <= 0.0 or p >= 1.0:
+            if p == 0.0:
+                return 0
+            if p == 1.0:
+                return n
+            raise ValueError("p must be in the range 0.0 <= p <= 1.0")
+        if n == 1:
+            return 1 if self.random() < p else 0
+        if p > 0.5:
+            return n - self.binomialvariate(n, 1.0 - p)
+        if n * p < 10.0:
+            x = 0
+            y = 0
+            c = _log2(1.0 - p)
+            if c == 0.0:
+                return x
+            while True:
+                y += int(_floor(_log2(self.random()) / c)) + 1
+                if y > n:
+                    return x
+                x += 1
+        spq = _sqrt(n * p * (1.0 - p))
+        b = 1.15 + 2.53 * spq
+        a = -0.0873 + 0.0248 * b + 0.01 * p
+        c = n * p + 0.5
+        vr = 0.92 - 4.2 / b
+        alpha = (2.83 + 5.1 / b) * spq
+        lpq = _log(p / (1.0 - p))
+        m = int(float(n + 1) * p)
+        h = _lgamma(float(m + 1)) + _lgamma(float(n - m + 1))
+        while True:
+            u = self.random() - 0.5
+            v = self.random()
+            us = 0.5 - abs(u)
+            k = int(_floor((2.0 * a / us + b) * u + c))
+            if k < 0 or k > n:
+                continue
+            if us >= 0.07 and v <= vr:
+                return k
+            v = v * alpha / (a / (us * us) + b)
+            if _log(v) <= h - _lgamma(float(k + 1)) - _lgamma(float(n - k + 1)) + float(k - m) * lpq:
+                return k
 
     def getstate(self):
         return self.gen.getstate(), self.gauss_next
@@ -479,7 +571,7 @@ class Random:
 
 _rnd = Random()
 
-def seed(a: int):
+def seed(a):
     _rnd.seed(a)
 
 def getrandbits(k: int, /):
@@ -545,3 +637,15 @@ def paretovariate(alpha: float):
 
 def weibullvariate(alpha: float, beta: float):
     return _rnd.weibullvariate(alpha, beta)
+
+def randbytes(n: int):
+    return _rnd.randbytes(n)
+
+def binomialvariate(n: int = 1, p: float = 0.5):
+    return _rnd.binomialvariate(n, p)
+
+def getstate():
+    return _rnd.getstate()
+
+def setstate(state):
+    _rnd.setstate(state)
