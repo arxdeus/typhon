@@ -243,6 +243,9 @@ class NMF:
     n_components_: int
     n_iter_: int
     reconstruction_err_: float
+    _W0: np.ndarray[float, 2]
+    _H0: np.ndarray[float, 2]
+    _custom: bool
 
     def __init__(self, n_components: Optional[int] = None, *, init: Optional[str] = None,
                  solver: str = "cd", beta_loss = "frobenius", tol: float = 1e-4,
@@ -270,6 +273,9 @@ class NMF:
         self.n_components_ = 0
         self.n_iter_ = 0
         self.reconstruction_err_ = 0.0
+        self._W0 = np.empty((0, 0))
+        self._H0 = np.empty((0, 0))
+        self._custom = False
 
     def _fit_transform(self, X, H0, update_H: bool):
         n_samples, n_features = X.shape
@@ -283,6 +289,9 @@ class NMF:
                 W = np.full((n_samples, k), float(np.sqrt(X.mean() / k)))
             else:
                 W = np.zeros((n_samples, k))
+        elif self._custom:
+            W = self._W0.copy()
+            H = self._H0.copy()
         else:
             W, H = _initialize_nmf(X, k, self.init, self.random_state)
         aH = self.alpha_W if self.alpha_H_same else self.alpha_H
