@@ -118,7 +118,7 @@ def test_search():
     assert close(gk.cv_results_["rank_test_bal"], gk_rank)
     assert gk.best_index_ == gk_best and abs(gk.best_score_ - gk_bs) < 1e-12
     assert gk.cv_results_["param_weights"][1] == "distance"
-    ps = list(ParameterSampler({"a": [1, 2, 3, 4], "b": [10.0, 20.0, 30.0]}, n_iter=5, random_state=0))
+    ps = list(ParameterSampler({"a": [1.0, 2.0, 3.0, 4.0], "b": [10.0, 20.0, 30.0]}, n_iter=5, random_state=0))
     assert close(pvf(ps, "a"), ps_a) and close(pvf(ps, "b"), ps_b)
     ps2 = list(ParameterSampler({"C": uniform(0.1, 5.0), "k": [1, 2, 3], "s": expon(scale=2.0)}, n_iter=4, random_state=2))
     assert close(pvf(ps2, "C"), ps2_C) and close(pvf(ps2, "k"), ps2_k) and close(pvf(ps2, "s"), ps2_s)

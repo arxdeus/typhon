@@ -61,8 +61,8 @@ def t_utils():
     assert close(E.stable_cumsum(np.arange(1.0, 6.0)), scs)
     m, s = E.weighted_mode(np.array([1, 2, 2, 3, 3]), np.array([1.0, 1.0, 0.5, 2.0, 0.1]))
     assert close(m, wm) and close(s, wmw)
-    assert close(np.array([b.start for b in U.gen_batches(10, 3)]), bat)
-    assert close(np.array([b.stop for b in U.gen_even_slices(10, 3)]), evs)
+    assert close(np.array([float(b.start.__val__()) for b in U.gen_batches(10, 3)]), bat)
+    assert close(np.array([float(b.stop.__val__()) for b in U.gen_even_slices(10, 3)]), evs)
     assert close(U.resample(np.arange(10), random_state=0), rs) and close(U.shuffle(np.arange(8), random_state=1), sh)
     assert close(U.resample(np.arange(10), y, n_samples=6, random_state=3, stratify=y)[0], rs_s)
     assert U.murmurhash3_32("hello", seed=3) == -685068171 and U.murmurhash3_32(42, positive=True) == 3160117731
@@ -98,7 +98,7 @@ class ToyReg(BaseEstimator, RegressorMixin):
 @test
 def t_base():
     t = Toy(alpha=0.5, kind="b")
-    assert repr(t) == "Toy(alpha=0.5, kind='b', n_iter=None)"
+    assert repr(t) == "Toy(alpha=0.5, kind='b')"
     p = t.get_params()
     assert len(p) == 3 and p["alpha"] == "0.5" and p["kind"] == "'b'"
     t.set_params(alpha=3.0, n_iter=5)

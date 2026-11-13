@@ -2,8 +2,11 @@
 
 from ..base import estimator_repr as _estimator_repr
 import numpy as np
+from numpy.random.legacy import RandomState
 from ..base import clone
 from ._base import SimpleImputer, MissingIndicator, _get_mask
+
+_IntArr = np.ndarray[int, 1]
 
 def _default_estimator(estimator):
     if estimator is None:
@@ -32,10 +35,10 @@ class _IterativeImputer[E]:
     random_state: Optional[int]
     add_indicator: bool
     keep_empty_features: bool
-    random_state_: np.random.RandomState
+    random_state_: RandomState
     initial_imputer_: SimpleImputer
     indicator_: MissingIndicator
-    imputation_sequence_: List[Tuple[int, np.ndarray[int, 1], E]]
+    imputation_sequence_: List[Tuple[int, _IntArr, E]]
     n_iter_: int
     n_features_with_missing_: int
     _is_empty_feature: np.ndarray[bool, 1]

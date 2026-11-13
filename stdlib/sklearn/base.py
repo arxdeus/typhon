@@ -81,6 +81,8 @@ def _param_repr(v) -> str:
         return "[" + ", ".join(out) + "]"
     elif hasattr(v, "get_params") and hasattr(v, "fit"):
         return estimator_repr(v)
+    elif isinstance(v, np.ndarray[float, 1]) and len(v) == 1:
+        return repr(float(v[0]))
     else:
         return str(v)
 

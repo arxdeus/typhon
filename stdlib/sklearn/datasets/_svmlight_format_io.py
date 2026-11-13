@@ -155,4 +155,4 @@ def _fmt(v: float) -> str:
     # sklearn writes with "%.16g"-like shortest repr; integers print without ".0"
     if v == float(int(v)) and abs(v) < 1e15:
         return str(int(v))
-    return repr(v)
+    return f"{v:.16g}"

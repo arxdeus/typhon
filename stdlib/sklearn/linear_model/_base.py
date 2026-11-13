@@ -105,6 +105,7 @@ def _r2(y_true, y_pred, sw: np.ndarray[float, 1], has_sw: bool) -> float:
 
 class _LinearRegressorMixin:
     """coef_/intercept_/predict/score for estimators storing _coef/_intercept."""
+    _estimator_type: ClassVar[str] = "regressor"
     @property
     def coef_(self):
         if self._nd() == 1:
@@ -167,6 +168,7 @@ def _expit(x: float) -> float:
         return e / (1.0 + e)
 
 class _LinearClassifierMixin:
+    _estimator_type: ClassVar[str] = "classifier"
     """decision_function/predict/score for classifiers with 2-d _coef."""
     @property
     def coef_(self):

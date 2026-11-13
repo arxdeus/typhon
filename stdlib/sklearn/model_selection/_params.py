@@ -311,7 +311,7 @@ class ParameterSampler[D]:
 
 def _set_param_rt(est, key: str, val: _PV) -> bool:
     """Set parameter `key` (runtime string, `step__param` nesting) on est."""
-    if isinstance(est, str) or isinstance(est, NoneType):
+    if isinstance(est, str) or isinstance(est, NoneType) or isinstance(est, tuple):
         return False
     elif hasattr(est, "_set_param_rt"):
         return est._set_param_rt(key, val)

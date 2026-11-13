@@ -86,7 +86,7 @@ def _svd_flip_1d(u, v):
     u *= s
     v *= s
 
-class _PLS[D: Literal[int] = 1]:
+class _PLS:
     n_components: int
     scale: bool
     deflation_mode: str
@@ -203,10 +203,13 @@ class _PLS[D: Literal[int] = 1]:
         R += self._x_mean
         return R
 
-    def predict(self, X):
+    def _predict_raw(self, X):
         Xa = np.asarray(X, dtype=float) - self._x_mean
-        yp = Xa @ self.coef_.T + self.intercept_
-        if D == 1:
+        return Xa @ self.coef_.T + self.intercept_
+
+    def predict(self, X):
+        yp = self._predict_raw(X)
+        if self._nd() == 1:
             return np.ascontiguousarray(yp.ravel())
         else:
             return yp
@@ -218,13 +221,19 @@ class _PLS[D: Literal[int] = 1]:
         from ..metrics import r2_score
         return float(r2_score(y, self.predict(X)))
 
+def _ndim_of(a: np.ndarray[T, N], T: type, N: Literal[int]) -> Literal[int]:
+    return N
+
 def _retype(est, T: type):
-    n = T.__new__()
+    n = T()
     for k, v in static.vars(est):
         setattr(n, k, v)
     return n
 
-class PLSRegression[D: Literal[int] = 1](_PLS[D]):
+class PLSRegression[D: Literal[int] = 1](_PLS):
+    def _nd(self) -> Literal[int]:
+        return D
+
     def __repr__(self) -> str:
         return _estimator_repr(self)
 
@@ -239,14 +248,17 @@ class PLSRegression[D: Literal[int] = 1](_PLS[D]):
 
     def fit(self, X, y):
         ya = np.asarray(y, dtype=float)
-        if static.len(ya.shape) != D:
-            return _retype(self, PLSRegression[static.len(ya.shape)]).fit(X, ya)
+        if _ndim_of(ya) != D:
+            return _retype(self, PLSRegression[_ndim_of(ya)]).fit(X, ya)
         self._fit(X, ya)
         self.x_scores_ = self._x_scores
         self.y_scores_ = self._y_scores
         return self
 
-class PLSCanonical[D: Literal[int] = 1](_PLS[D]):
+class PLSCanonical[D: Literal[int] = 1](_PLS):
+    def _nd(self) -> Literal[int]:
+        return D
+
     def __repr__(self) -> str:
         return _estimator_repr(self)
 
@@ -256,11 +268,14 @@ class PLSCanonical[D: Literal[int] = 1](_PLS[D]):
 
     def fit(self, X, y):
         ya = np.asarray(y, dtype=float)
-        if static.len(ya.shape) != D:
-            return _retype(self, PLSCanonical[static.len(ya.shape)]).fit(X, ya)
+        if _ndim_of(ya) != D:
+            return _retype(self, PLSCanonical[_ndim_of(ya)]).fit(X, ya)
         return self._fit(X, ya)
 
-class CCA[D: Literal[int] = 1](_PLS[D]):
+class CCA[D: Literal[int] = 1](_PLS):
+    def _nd(self) -> Literal[int]:
+        return D
+
     def __repr__(self) -> str:
         return _estimator_repr(self)
 
@@ -270,8 +285,8 @@ class CCA[D: Literal[int] = 1](_PLS[D]):
 
     def fit(self, X, y):
         ya = np.asarray(y, dtype=float)
-        if static.len(ya.shape) != D:
-            return _retype(self, CCA[static.len(ya.shape)]).fit(X, ya)
+        if _ndim_of(ya) != D:
+            return _retype(self, CCA[_ndim_of(ya)]).fit(X, ya)
         return self._fit(X, ya)
 
 class PLSSVD:
