@@ -1371,3 +1371,38 @@ def seterr(**kwargs):
     return {'singular': 'ignore', 'underflow': 'ignore', 'overflow': 'ignore', 'slow': 'ignore', 'loss': 'ignore', 'no_result': 'ignore', 'domain': 'ignore', 'arg': 'ignore', 'other': 'ignore'}
 def geterr():
     return {'singular': 'ignore', 'underflow': 'ignore', 'overflow': 'ignore', 'slow': 'ignore', 'loss': 'ignore', 'no_result': 'ignore', 'domain': 'ignore', 'arg': 'ignore', 'other': 'ignore'}
+
+# Mathieu functions (xsf specfun port, see _mathieu.py)
+from . import _mathieu as MT
+def mathieu_a(m, q): return _map2(MT.cem_cva, m, q)
+def mathieu_b(m, q): return _map2(MT.sem_cva, m, q)
+def _mt0(m: float, q: float, x: float) -> float: return MT.cem(m, q, x)[0]
+def _mt1(m: float, q: float, x: float) -> float: return MT.cem(m, q, x)[1]
+def _mt2(m: float, q: float, x: float) -> float: return MT.sem(m, q, x)[0]
+def _mt3(m: float, q: float, x: float) -> float: return MT.sem(m, q, x)[1]
+def _mt4(m: float, q: float, x: float) -> float: return MT.mcm1(m, q, x)[0]
+def _mt5(m: float, q: float, x: float) -> float: return MT.mcm1(m, q, x)[1]
+def _mt6(m: float, q: float, x: float) -> float: return MT.msm1(m, q, x)[0]
+def _mt7(m: float, q: float, x: float) -> float: return MT.msm1(m, q, x)[1]
+def _mt8(m: float, q: float, x: float) -> float: return MT.mcm2(m, q, x)[0]
+def _mt9(m: float, q: float, x: float) -> float: return MT.mcm2(m, q, x)[1]
+def _mt10(m: float, q: float, x: float) -> float: return MT.msm2(m, q, x)[0]
+def _mt11(m: float, q: float, x: float) -> float: return MT.msm2(m, q, x)[1]
+def mathieu_cem(m, q, x): return (_map3(_mt0, m, q, x), _map3(_mt1, m, q, x))
+def mathieu_sem(m, q, x): return (_map3(_mt2, m, q, x), _map3(_mt3, m, q, x))
+def mathieu_modcem1(m, q, x): return (_map3(_mt4, m, q, x), _map3(_mt5, m, q, x))
+def mathieu_modsem1(m, q, x): return (_map3(_mt6, m, q, x), _map3(_mt7, m, q, x))
+def mathieu_modcem2(m, q, x): return (_map3(_mt8, m, q, x), _map3(_mt9, m, q, x))
+def mathieu_modsem2(m, q, x): return (_map3(_mt10, m, q, x), _map3(_mt11, m, q, x))
+def mathieu_even_coef(m, q):
+    if q < 0:
+        raise ValueError("q >=0")
+    if float(m) != float(int(m)) or m < 0:
+        raise ValueError("m must be an integer >=0.")
+    return np.array(MT.even_coef(int(m), float(q)))
+def mathieu_odd_coef(m, q):
+    if q < 0:
+        raise ValueError("q >=0")
+    if float(m) != float(int(m)) or m <= 0:
+        raise ValueError("m must be an integer > 0")
+    return np.array(MT.odd_coef(int(m), float(q)))
