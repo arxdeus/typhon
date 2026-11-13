@@ -875,9 +875,10 @@ impl<'a> TypecheckVisitor<'a> {
         // Parse the return type
         let r = self.cache.ast[s].kind.as_function().unwrap().ret;
         // Forward reference to a class defined later in the module (`-> B` before
-        // `class B`): CPython does not evaluate it eagerly, so infer the return type.
+        // `class B`, also nested as `List[B]` / `Optional[B]`): CPython does not
+        // evaluate it eagerly, so infer the return type.
         let ret = match self.transform_type(r, true) {
-            Err(e) if r.is_some_and(|x| self.cache.ast[x].kind.as_id().is_some()) && e.to_string().contains("is not defined") => None,
+            Err(e) if r.is_some() && e.to_string().contains("is not defined") => None,
             x => x?,
         };
         let ret_type = self.extract_class_generic(base_type, 1);

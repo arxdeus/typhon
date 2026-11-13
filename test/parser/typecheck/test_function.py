@@ -1291,3 +1291,16 @@ class FwdB:
     def __init__(self, x: int):
         self.x = x
 print A().f().x, g().x  #: 3 4
+
+#%% return_annotation_forward_ref_nested,barebones
+from typing import List, Optional
+class FwdA2:
+    def kids(self) -> List[FwdB2]:
+        return [FwdB2(1)]
+    def maybe(self) -> Optional[FwdB2]:
+        return None
+class FwdB2:
+    v: int
+    def __init__(self, v: int): self.v = v
+a = FwdA2()
+print a.kids()[0].v, a.maybe() is None  #: 1 True
