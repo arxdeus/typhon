@@ -352,3 +352,91 @@ def write_events(filename, events, *, overwrite: bool = False, verbose = None):
         with open(fn, "w") as f:
             for i in range(ev.shape[0]):
                 f.write(f"{int(ev[i, 0]):6d} {int(ev[i, 1]):6d} {int(ev[i, 2]):3d}\n")
+
+
+def count_events(events, ids = None) -> Dict[int, int]:
+    """mne.count_events."""
+    ev = np.asarray(events).astype(int)
+    counts = Dict[int, int]()
+    for i in range(ev.shape[0]):
+        c = int(ev[i, 2])
+        counts[c] = counts.get(c, 0) + 1
+    out = Dict[int, int]()
+    if isinstance(ids, NoneType):
+        for k in sorted(list(counts.keys())):
+            out[k] = counts[k]
+    else:
+        for i in ids:
+            out[int(i)] = counts.get(int(i), 0)
+    return out
+
+
+def match_event_names(event_names, keys, *, on_missing: str = "raise") -> List[str]:
+    """mne.match_event_names (event_names: list of str or event_id dict)."""
+    names = List[str]()
+    if isinstance(event_names, Dict):
+        for k in event_names.keys():
+            names.append(k)
+    else:
+        names = [str(x) for x in event_names]
+    ks = List[str]()
+    if isinstance(keys, str):
+        ks.append(keys)
+    else:
+        ks = [str(x) for x in keys]
+    matches = Set[str]()
+    for key in ks:
+        parts = key.split("/")
+        for name in names:
+            nparts = name.split("/")
+            if all([p in nparts for p in parts]):
+                matches.add(name)
+    if len(matches) == 0:
+        msg = f'Event name "{ks[-1]}" could not be found. The following events are present in the data: {", ".join(names)}'
+        if on_missing == "raise":
+            raise KeyError(msg)
+        elif on_missing == "warn":
+            print("RuntimeWarning:", msg)
+    return sorted(list(matches))
+
+
+def define_target_events(events, reference_id: int, target_id: int, sfreq: float, tmin: float,
+                         tmax: float, new_id: Optional[int] = None, fill_na: Optional[int] = None):
+    """mne.event.define_target_events. Empty results are returned as (0, 3) / (0,) arrays."""
+    ev = np.asarray(events).astype(int)
+    nid = reference_id if new_id is None else new_id.__val__()
+    tsample = 1e3 / sfreq
+    imin = int(tmin * sfreq)
+    imax = int(tmax * sfreq)
+    rows = List[List[int]]()
+    lag = List[float]()
+    for r in range(ev.shape[0]):
+        if int(ev[r, 2]) != reference_id:
+            continue
+        lower = int(ev[r, 0]) + imin
+        upper = int(ev[r, 0]) + imax
+        first = -1
+        for q in range(ev.shape[0]):
+            if int(ev[q, 0]) > lower and int(ev[q, 0]) < upper and int(ev[q, 2]) == target_id:
+                first = q
+                break
+        if first >= 0:
+            lag.append(abs(float(int(ev[r, 0]) - int(ev[first, 0]))))
+            rows.append([int(ev[r, 0]), int(ev[r, 1]), nid])
+        elif fill_na is not None:
+            rows.append([int(ev[r, 0]), int(ev[r, 1]), fill_na.__val__()])
+            lag.append(float("nan"))
+    out = np.zeros((len(rows), 3), dtype=int)
+    for i in range(len(rows)):
+        for j in range(3):
+            out[i, j] = rows[i][j]
+    anyl = False
+    for v in lag:
+        if np.isnan(v) or v != 0.0:
+            anyl = True
+    la = np.array(lag)
+    if anyl:
+        la = la * tsample
+    else:
+        la = np.zeros(0)
+    return out, la

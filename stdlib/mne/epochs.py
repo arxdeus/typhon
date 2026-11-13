@@ -759,3 +759,149 @@ def EvokedArray(data, info: Info, tmin: float = 0.0, comment: str = "", nave: in
     if not isinstance(baseline, NoneType):
         e.apply_baseline(baseline)
     return e
+
+
+def concatenate_epochs(epochs_list, add_offset: bool = True, *, on_mismatch: str = "raise",
+                       verbose = None) -> EpochsArray:
+    """mne.concatenate_epochs for loaded epochs without metadata."""
+    eps = [e for e in epochs_list]
+    if len(eps) == 0:
+        raise ValueError("epochs_list must not be empty")
+    first = eps[0]
+    first.drop_bad()
+    tmin = first.times[0]
+    tmax = first.times[-1]
+    baseline = first.baseline
+    raw_sfreq = first._raw_sfreq
+    event_id = Dict[str, int]()
+    for k, v in first.event_id.items():
+        event_id[k] = v
+    shift = int((10 + tmax) * first.info.sfreq)
+    events_offset = 0
+    if first.events.shape[0] > 0:
+        events_offset = int(np.max(first.events[:, 0])) + shift
+    ev_all = [first.events.copy()]
+    data_all = [first._data]
+    drop_log = [list(d) for d in first.drop_log]
+    overflow = False
+    for ii in range(1, len(eps)):
+        e = eps[ii]
+        if e.info.ch_names != first.info.ch_names and on_mismatch == "raise":
+            raise ValueError(f"epochs[{ii}].info['ch_names'] must match")
+        if e.times.shape[0] != first.times.shape[0] or not np.allclose(e.times, first.times):
+            raise ValueError("Epochs must have same times")
+        if e.baseline != baseline:
+            raise ValueError("Baseline must be same for all epochs")
+        for k, v in event_id.items():
+            if k in e.event_id and e.event_id[k] != v:
+                raise ValueError(f'event_id values must be the same for identical keys for all concatenated epochs. values "{k}" maps to {v} in epochs_list[0] and to {e.event_id[k]} in epochs_list[{ii}].')
+        for k, v in e.event_id.items():
+            for k2, v2 in event_id.items():
+                if v == v2 and k != k2:
+                    raise ValueError(f'event_id keys must be the same for identical values for all concatenated epochs. keys "{v}" is mapped from {k2} in epochs_list[0] and to {k} in epochs_list[{ii}].')
+        e.drop_bad()
+        evs = e.events.copy()
+        if evs.shape[0] > 0 and add_offset:
+            mx = int(np.max(evs[:, 0]))
+            for r in range(evs.shape[0]):
+                evs[r, 0] += events_offset
+            events_offset += mx + shift
+            if events_offset > 2147483647:
+                overflow = True
+                add_offset = False
+        ev_all.append(evs)
+        data_all.append(e._data)
+        drop_log = drop_log + [list(d) for d in e.drop_log]
+        for k, v in e.event_id.items():
+            event_id[k] = v
+    events = np.concatenate(ev_all, axis=0)
+    if overflow:
+        for r in range(events.shape[0]):
+            events[r, 0] = r + 1
+    data = np.concatenate(data_all, axis=0)
+    out = EpochsArray(data, first.info, events, tmin, event_id)
+    out.selection = [i for i in range(len(drop_log)) if len(drop_log[i]) == 0]
+    out.drop_log = drop_log
+    out._raw_sfreq = raw_sfreq
+    out.baseline = baseline
+    out.times = first.times.copy()
+    out.drop_bad()
+    return out
+
+
+def make_fixed_length_epochs(raw, duration: float = 1.0, preload: bool = False,
+                             reject_by_annotation: bool = True, proj: bool = True,
+                             overlap: float = 0.0, id: int = 1, verbose = None) -> EpochsArray:
+    from .event import make_fixed_length_events
+    events = make_fixed_length_events(raw, id=id, duration=duration, overlap=overlap)
+    delta = 1.0 / raw.info.sfreq
+    return Epochs(raw, events, event_id={str(id): id}, tmin=0.0, tmax=duration - delta,
+                  baseline=None, preload=preload, reject_by_annotation=reject_by_annotation,
+                  proj=proj)
+
+
+def equalize_epoch_counts(epochs_list, method: str = "mintime", *, random_state = None,
+                          rng = None):
+    """mne.epochs.equalize_epoch_counts (in place)."""
+    if len(epochs_list) == 0:
+        raise ValueError("epochs_list must not be empty")
+    for e in epochs_list:
+        e.drop_bad()
+    nums = [[int(e.events[i, 0]) for i in range(e.events.shape[0])] for e in epochs_list]
+    small = 0
+    for k in range(len(nums)):
+        if len(nums[k]) < len(nums[small]):
+            small = k
+    rs = _get_rs(random_state)
+    drops = List[List[int]]()
+    for k in range(len(nums)):
+        keep = List[bool]()
+        if method == "mintime":
+            keep = _minimize_time_diff(nums[small], nums[k])
+        elif method == "truncate":
+            keep = [j < len(nums[small]) for j in range(len(nums[k]))]
+        elif method == "random":
+            keep = [False for _ in range(len(nums[k]))]
+            if isinstance(random_state, int):
+                rs = _get_rs(random_state)
+            pick = rs.choice(np.arange(len(nums[k])), size=len(nums[small]), replace=False)
+            for q in range(pick.shape[0]):
+                keep[int(pick[q])] = True
+        else:
+            raise ValueError(f"Invalid value for the 'method' parameter. Allowed values are 'mintime', 'truncate', and 'random', but got '{method}' instead.")
+        drops.append([j for j in range(len(keep)) if not keep[j]])
+    for k in range(len(epochs_list)):
+        epochs_list[k].drop(drops[k], reason="EQUALIZED_COUNT")
+
+
+def combine_event_ids(epochs, old_event_ids, new_event_id, copy: bool = True):
+    """mne.combine_event_ids."""
+    ep = epochs.copy() if copy else epochs
+    olds = List[str]()
+    if isinstance(old_event_ids, str):
+        olds.append(old_event_ids)
+    else:
+        olds = [str(x) for x in old_event_ids]
+    nid = Dict[str, int]()
+    if isinstance(new_event_id, int):
+        nid[str(new_event_id)] = new_event_id
+    else:
+        if len(new_event_id) != 1:
+            raise ValueError("new_event_id dict must have one entry")
+        for k, v in new_event_id.items():
+            nid[k] = v
+    num = 0
+    for v in nid.values():
+        num = v
+    for v in ep.event_id.values():
+        if v == num:
+            raise ValueError("new_event_id value must not already exist")
+    codes = [ep.event_id[k] for k in olds]
+    for r in range(ep.events.shape[0]):
+        if int(ep.events[r, 2]) in codes:
+            ep.events[r, 2] = num
+    for k in olds:
+        ep.event_id.pop(k)
+    for k, v in nid.items():
+        ep.event_id[k] = v
+    return ep

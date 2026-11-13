@@ -184,3 +184,41 @@ def events_from_annotations(raw, event_id = "auto", regexp = "default",
         ev[k, 0] = int(np.round(x)) if use_rounding else int(x)
         ev[k, 2] = out_id[ann.description[i]]
     return ev, out_id
+
+
+def annotations_from_events(events, sfreq: float, event_desc = None, first_samp: int = 0,
+                            orig_time: Optional[float] = None, verbose = None) -> Annotations:
+    """mne.annotations_from_events (event_desc: dict[int,str] | list[int] | callable | None)."""
+    ev = np.asarray(events).astype(int)
+    onset = List[float]()
+    desc = List[str]()
+    for r in range(ev.shape[0]):
+        code = int(ev[r, 2])
+        d = ""
+        if isinstance(event_desc, NoneType):
+            d = str(code)
+        elif isinstance(event_desc, Dict):
+            if code not in event_desc:
+                continue
+            d = str(event_desc[code])
+        elif isinstance(event_desc, List) or isinstance(event_desc, np.ndarray):
+            found = False
+            for c in event_desc:
+                if int(c) == code:
+                    found = True
+            if not found:
+                continue
+            d = str(code)
+        else:
+            d = str(event_desc(code))
+        onset.append(float(int(ev[r, 0]) - first_samp) / sfreq)
+        desc.append(d)
+    return Annotations(onset, [0.0 for _ in onset], desc, orig_time)
+
+
+def count_annotations(annotations) -> Dict[str, int]:
+    """mne.count_annotations."""
+    c = Dict[str, int]()
+    for d in sorted(annotations.description):
+        c[d] = c.get(d, 0) + 1
+    return c
