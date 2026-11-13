@@ -666,6 +666,12 @@ impl<'a> TypecheckVisitor<'a> {
             let w = self.op_wrap_side(lhs, rhs, sl, sr, b)?;
             return self.transform(w);
         }
+        // Same tuple types with an identity hook (e.g. ndarray views): `return lhs.__is__(rhs)`
+        if !self.find_method(Some(lc), "__is__")?.is_empty() {
+            let d = self.dot_n(lhs, "__is__");
+            let c = self.call_n(d, vec![rhs]);
+            return self.transform(Some(c));
+        }
         // Same tuple types: `return lhs == rhs`
         let b = self.op_new_bin(lhs, "==", rhs, false);
         self.transform(Some(b))

@@ -1228,6 +1228,11 @@ class ndarray[dtype, ndim: Literal[int]]:
             ndarray._size1_error()
         return complex(self._data[0])
 
+    def __is__(self, other: ndarray[dtype, ndim]) -> bool:
+        # identity for value-typed arrays: same buffer, shape and strides
+        return (self._data == other._data and self._shape == other._shape
+                and self._strides == other._strides)
+
     def __bool__(self):
         if self.size != 1:
             raise ValueError("The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()")
