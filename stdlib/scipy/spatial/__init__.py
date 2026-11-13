@@ -7,3 +7,5 @@
 from ._kdtree import KDTree, cKDTree, distance_matrix, minkowski_distance, \
                      minkowski_distance_p
 import scipy.spatial.distance as distance
+from ._procrustes import procrustes
+from ._geometric_slerp import geometric_slerp

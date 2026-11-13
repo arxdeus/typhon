@@ -43,6 +43,11 @@ _MAHA = 10
 _HAMM = 11
 _JACC = 12
 _DICE = 13
+_ROGERS = 14
+_RUSSELL = 15
+_SOKALSN = 16
+_YULE = 17
+_JS = 18
 
 def _metric_code(metric: str) -> int:
     m = metric.lower()
@@ -74,6 +79,16 @@ def _metric_code(metric: str) -> int:
         return _JACC
     if m in ('dice',):
         return _DICE
+    if m in ('rogerstanimoto',):
+        return _ROGERS
+    if m in ('russellrao',):
+        return _RUSSELL
+    if m in ('sokalsneath',):
+        return _SOKALSN
+    if m in ('yule',):
+        return _YULE
+    if m in ('jensenshannon', 'js'):
+        return _JS
     raise ValueError(f"Unknown Distance Metric: {metric}")
 
 def _dist(code: int, a, i: int, b, j: int, p: float, V, VI) -> float:
@@ -178,17 +193,58 @@ def _dist(code: int, a, i: int, b, j: int, p: float, V, VI) -> float:
                 if x != y:
                     ne += 1
         return ne / nz if nz != 0 else 0.0
-    else:  # dice (boolean)
+    elif code == _JS:
+        su = 0.0
+        sv = 0.0
+        for k in range(n):
+            su += a[i, k]
+            sv += b[j, k]
+        js = 0.0
+        for k in range(n):
+            x = a[i, k] / su
+            y = b[j, k] / sv
+            m = (x + y) / 2.0
+            js += _rel_entr(x, m)
+            js += _rel_entr(y, m)
+        return sqrt(js / 2.0)
+    else:  # boolean metrics
         ntt = 0
-        ndiff = 0
+        ntf = 0
+        nft = 0
         for k in range(n):
             x = a[i, k] != 0.0
             y = b[j, k] != 0.0
             if x and y:
                 ntt += 1
-            elif x != y:
-                ndiff += 1
-        return ndiff / (2 * ntt + ndiff)
+            elif x:
+                ntf += 1
+            elif y:
+                nft += 1
+        nff = n - ntt - ntf - nft
+        if code == _DICE:
+            return (ntf + nft) / (2 * ntt + ntf + nft)
+        elif code == _ROGERS:
+            R = 2 * (ntf + nft)
+            return R / (ntt + nff + R)
+        elif code == _RUSSELL:
+            return (n - ntt) / n
+        elif code == _SOKALSN:
+            R = 2 * (ntf + nft)
+            if ntt + R == 0:
+                raise ValueError('Sokal-Sneath dissimilarity is not defined for vectors that are entirely false.')
+            return R / (ntt + R)
+        else:
+            half_R = ntf * nft
+            if half_R == 0:
+                return 0.0
+            return 2.0 * half_R / (ntt * nff + half_R)
+
+def _rel_entr(x: float, y: float) -> float:
+    if x > 0.0 and y > 0.0:
+        return x * np.log(x / y)
+    elif x == 0.0 and y >= 0.0:
+        return 0.0
+    return inf
 
 def _var_cols(X):
     m = X.shape[0]
@@ -329,6 +385,79 @@ def jaccard(u, v) -> float:
 
 def dice(u, v) -> float:
     return _single(_DICE, u, v, 2.0, _nov(), _novi())
+
+def rogerstanimoto(u, v) -> float:
+    return _single(_ROGERS, u, v, 2.0, _nov(), _novi())
+
+def russellrao(u, v) -> float:
+    return _single(_RUSSELL, u, v, 2.0, _nov(), _novi())
+
+def sokalsneath(u, v) -> float:
+    return _single(_SOKALSN, u, v, 2.0, _nov(), _novi())
+
+def yule(u, v) -> float:
+    return _single(_YULE, u, v, 2.0, _nov(), _novi())
+
+def jensenshannon(p, q, base: Optional[float] = None, axis: int = 0, keepdims: bool = False):
+    a = np.asarray(p, dtype=float)
+    b = np.asarray(q, dtype=float)
+    if static.len(a.shape) == 1:
+        js = _single(_JS, a, b, 2.0, _nov(), _novi()) ** 2 * 2.0
+        if base is not None:
+            js /= np.log(base)
+        return sqrt(js / 2.0)
+    else:
+        pa = np.moveaxis(a, axis, -1)
+        qa = np.moveaxis(b, axis, -1)
+        pa = pa / np.sum(pa, axis=-1, keepdims=True)
+        qa = qa / np.sum(qa, axis=-1, keepdims=True)
+        m = (pa + qa) / 2.0
+        tot = np.zeros(pa.shape, dtype=float)
+        for idx in np.ndindex(pa.shape):
+            tot[idx] = _rel_entr(float(pa[idx]), float(m[idx])) + _rel_entr(float(qa[idx]), float(m[idx]))
+        js = np.sum(tot, axis=-1)
+        if base is not None:
+            js = js / np.log(base)
+        return np.sqrt(js / 2.0)
+
+def directed_hausdorff(u, v, rng: int = 0):
+    """Directed Hausdorff distance (RandomState(rng) shuffle as scipy)."""
+    a = _as2d(u)
+    b = _as2d(v)
+    if a.shape[1] != b.shape[1]:
+        raise ValueError('u and v need to have the same number of columns')
+    N1 = a.shape[0]
+    N2 = b.shape[0]
+    dims = a.shape[1]
+    rs = np.random.RandomState(rng)
+    r1 = np.arange(N1)
+    r2 = np.arange(N2)
+    rs.shuffle(r1)
+    rs.shuffle(r2)
+    A = a[r1]
+    B = b[r2]
+    cmax = 0.0
+    d = 0.0
+    j_store = 0
+    i_ret = 0
+    j_ret = 0
+    for i in range(N1):
+        cmin = inf
+        for j in range(N2):
+            d = 0.0
+            for k in range(dims):
+                t = A[i, k] - B[j, k]
+                d += t * t
+            if d < cmax:
+                break
+            if d < cmin:
+                cmin = d
+                j_store = j
+        if cmin >= cmax and d >= cmax:
+            cmax = cmin
+            i_ret = i
+            j_ret = j_store
+    return (sqrt(cmax), int(r1[i_ret]), int(r2[j_ret]))
 
 def is_valid_dm(D, tol: float = 0.0, throw: bool = False, name: str = 'D') -> bool:
     a = np.asarray(D, dtype=float)
