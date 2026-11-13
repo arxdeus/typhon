@@ -49,7 +49,7 @@ impl<'a> TypecheckVisitor<'a> {
         let f = self.ctx.borrow().base_ref().func;
         f.and_then(|f| self.cache.ast[f].kind.as_function().map(|x| x.async_)).unwrap_or(false)
     }
-    fn base_func_has(&self, a: Attr) -> bool {
+    pub(crate) fn base_func_has(&self, a: Attr) -> bool {
         let f = self.ctx.borrow().base_ref().func;
         f.is_some_and(|f| self.cache.ast[f].attrs.has(a))
     }
@@ -874,7 +874,12 @@ impl<'a> TypecheckVisitor<'a> {
 
         // Parse the return type
         let r = self.cache.ast[s].kind.as_function().unwrap().ret;
-        let ret = self.transform_type(r, true)?;
+        // Forward reference to a class defined later in the module (`-> B` before
+        // `class B`): CPython does not evaluate it eagerly, so infer the return type.
+        let ret = match self.transform_type(r, true) {
+            Err(e) if r.is_some_and(|x| self.cache.ast[x].kind.as_id().is_some()) && e.to_string().contains("is not defined") => None,
+            x => x?,
+        };
         let ret_type = self.extract_class_generic(base_type, 1);
         if let Some(re) = ret {
             // Fix for functions returning Literal types

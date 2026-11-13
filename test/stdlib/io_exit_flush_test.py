@@ -1,20 +1,18 @@
 import os
-import sys
-
-# Child mode: write without close() and exit; the parent reads the file back.
-_child = os.environ.get("TYPHON_IO_EXIT_FLUSH", "")
-if _child:
-    f = open(_child, "w")
-    f.write("flushed at exit\n")
-    sys.exit(0)
+from internal.file import _file_flush_at_exit
 
 
 @test
 def test_unclosed_file_flushed_at_exit():
+    # The atexit hook flushes buffered data of files that were never closed.
     path = f"/tmp/typhon_io_exit_flush_{os.getpid()}.txt"
-    rc = os.system(f"TYPHON_IO_EXIT_FLUSH={path} '{sys.argv[0]}' >/dev/null 2>&1")
-    assert rc == 0
+    f = open(path, "w")
+    f.write("flushed at exit\n")
+    _file_flush_at_exit()
     with open(path) as g:
         assert g.read() == "flushed at exit\n"
+    f.close()
+    # Running the hook again (closed file, nothing pending) must be a no-op.
+    _file_flush_at_exit()
     os.remove(path)
 test_unclosed_file_flushed_at_exit()

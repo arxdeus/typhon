@@ -564,7 +564,8 @@ impl<'a> TypecheckVisitor<'a> {
                 let c = self.expr_class(iter).unwrap();
                 // `for x in ()`: unroll to nothing instead of typing `x` with a dummy
                 // element type (the body is dead code, as in Python).
-                let empty = unroll_empty && !allow_non_heterogenous && self.cache.types.generics_len(c) == 0;
+                // Not in generator functions: the yield type is inferred from the loop body.
+                let empty = unroll_empty && !allow_non_heterogenous && !self.base_func_has(Attr::IsGenerator) && self.cache.types.generics_len(c) == 0;
                 if !empty && !self.is_heterogenous(c)? && !allow_non_heterogenous {
                     return Ok((false, false, None, vec![]));
                 }
