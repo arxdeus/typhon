@@ -12,7 +12,7 @@ f"    x = np.array({x.tolist()})", f"    y = np.array({y.tolist()})",
 "    r = st.multiscale_graphcorr(x, y, reps=200, random_state=1)",
 f"    assert abs(r.statistic - {float(r.statistic)!r}) < 1e-9",
 f"    assert abs(r.pvalue - {float(r.pvalue)!r}) < 1e-12",
-f"    assert abs(float(np.sum(r.mgc_map)) - {float(np.sum(r.mgc_map))!r}) < 1e-7",
-f"    assert r.mgc_map.shape == {r.mgc_map_shape if False else tuple(r.mgc_dict['mgc_map'].shape)}",
+f"    assert abs(float(np.sum(r.mgc_dict['mgc_map'])) - {float(np.sum(r.mgc_dict['mgc_map']))!r}) < 1e-7",
+f"    assert r.mgc_map.shape == {tuple(r.mgc_dict['mgc_map'].shape)}",
 f"    assert list(r.opt_scale) == {list(map(int, r.mgc_dict['opt_scale']))}"]
 print("\n".join(o))
