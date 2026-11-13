@@ -17,3 +17,4 @@ from ._ssp import compute_proj_ecg, compute_proj_eog
 
 # beamformer lane
 from ._eog_regression import EOGRegression
+from ._otp import oversampled_temporal_projection

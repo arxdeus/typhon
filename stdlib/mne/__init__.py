@@ -142,3 +142,5 @@ def channel_indices_by_type(info: Info, picks = None) -> Dict[str, List[int]]:
 # beamformer / simulation lane
 import beamformer
 import simulation
+
+from ._annot_io import read_annotations

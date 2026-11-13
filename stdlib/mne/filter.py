@@ -999,3 +999,47 @@ def resample(x, up: float = 1.0, down: float = 1.0, *, axis: int = -1, window = 
 
 def _check_resamp_noop(sfreq: float, o_sfreq: float, rtol: float = 1e-6) -> bool:
     return abs(sfreq - o_sfreq) <= rtol * abs(o_sfreq)
+
+
+def design_mne_c_filter(sfreq: float, l_freq: Optional[float] = None, h_freq: Optional[float] = 40.0,
+                        l_trans_bandwidth: Optional[float] = None,
+                        h_trans_bandwidth: float = 5.0, verbose = None):
+    """Create a FIR filter like that used by MNE-C (mne 1.13.2)."""
+    n_freqs = (4096 + 2 * 2048) // 2 + 1
+    freq_resp = np.ones(n_freqs)
+    lf = 0.0
+    if l_freq is not None:
+        lf = float(l_freq)
+    l_width = 3
+    if l_trans_bandwidth is not None:
+        l_width = (int(float(n_freqs - 1) * l_trans_bandwidth / (0.5 * sfreq)) + 1) // 2
+    hf = sfreq / 2.0
+    if h_freq is not None:
+        hf = float(h_freq)
+    h_width = (int(float(n_freqs - 1) * h_trans_bandwidth / (0.5 * sfreq)) + 1) // 2
+    h_start = int(float(n_freqs - 1) * hf / (0.5 * sfreq))
+    l_start = int(float(n_freqs - 1) * lf / (0.5 * sfreq))
+    if lf > 0:
+        start = l_start - l_width + 1
+        stop = start + 2 * l_width - 1
+        if start < 0 or stop >= n_freqs:
+            raise RuntimeError("l_freq too low or l_trans_bandwidth too large")
+        for i in range(start):
+            freq_resp[i] = 0.0
+        for i in range(start, stop):
+            k = float(i - start - l_width + 1) / float(l_width) + 3.0
+            c = math.cos(math.pi / 4.0 * k)
+            freq_resp[i] = c * c
+    if hf < sfreq / 2.0:
+        start = h_start - h_width + 1
+        stop = start + 2 * h_width - 1
+        if start < 0 or stop >= n_freqs:
+            raise RuntimeError("h_freq too high or h_trans_bandwidth too large")
+        for i in range(start, stop):
+            k = float(i - start - h_width + 1) / float(h_width) + 1.0
+            c = math.cos(math.pi / 4.0 * k)
+            freq_resp[i] *= c * c
+        for i in range(stop, n_freqs):
+            freq_resp[i] = 0.0
+    h = _irfft(freq_resp, n=2 * n_freqs - 1)
+    return np.roll(h, n_freqs - 1)
