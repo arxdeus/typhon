@@ -11,6 +11,7 @@ from .scalar import Scalar, K_FLOAT, K_INT, K_BOOL, K_STR, K_NONE, NA_STR, _isna
 from .core import *
 from .core import _dtype_name, _kind_of_dtype, _fixed_bounds, _lerp_quantile, _sorted_valid
 from .index import Index
+from .window import ewm_kernel, ewmcov_kernel, roll_cov, roll_corr, roll_quantile, get_center_of_mass
 from .fmt import frame_repr, series_repr, format_column, adjoin
 
 def _as_label(x) -> Scalar:
@@ -715,6 +716,10 @@ class Series:
 
     def expanding(self, min_periods: int = 1):
         return Rolling(self.to_frame(), 0, min_periods, False, True, True)
+
+    def ewm(self, com: Optional[float] = None, span: Optional[float] = None, halflife: Optional[float] = None,
+            alpha: Optional[float] = None, min_periods: int = 0, adjust: bool = True, ignore_na: bool = False):
+        return Ewm(self.to_frame(), get_center_of_mass(com, span, halflife, alpha), adjust, ignore_na, min_periods)
 
     def groupby(self, by):
         f = self.to_frame("__value__")
@@ -1765,6 +1770,10 @@ class DataFrame:
     def expanding(self, min_periods: int = 1):
         return Rolling(self, 0, min_periods, False, True, False)
 
+    def ewm(self, com: Optional[float] = None, span: Optional[float] = None, halflife: Optional[float] = None,
+            alpha: Optional[float] = None, min_periods: int = 0, adjust: bool = True, ignore_na: bool = False):
+        return Ewm(self, get_center_of_mass(com, span, halflife, alpha), adjust, ignore_na, min_periods)
+
     def merge(self, right: DataFrame, how: str = "inner", on = None, left_on = None, right_on = None, suffixes: Tuple[str, str] = ("_x", "_y")):
         return merge(self, right, how=how, on=on, left_on=left_on, right_on=right_on, suffixes=suffixes)
 
@@ -2395,6 +2404,30 @@ class Rolling:
     def count(self):
         return self._apply(lambda v, s, e: [float(sum(1 for j in range(s[i], e[i]) if v[j] == v[j])) for i in range(len(s))])
 
+    def quantile(self, quantile: float, interpolation: str = "linear"):
+        mp = self.min_periods
+        return self._apply(lambda v, s, e: roll_quantile(v, s, e, mp, quantile, interpolation))
+
+    def cov(self, other, ddof: int = 1):
+        n = len(self.df)
+        start, end = self._bounds(n)
+        y = other._col.to_floats() if isinstance(other, Series) else other._cols[0].to_floats()
+        cols = List[Column]()
+        for c in self.df._cols:
+            xx, yy = _prep_binary(c.to_floats(), y)
+            cols.append(Column.floats(roll_cov(xx, yy, start, end, self.min_periods, ddof)))
+        return DataFrame._new(cols, self.df.columns.copy(), self.df.index.copy())
+
+    def corr(self, other):
+        n = len(self.df)
+        start, end = self._bounds(n)
+        y = other._col.to_floats() if isinstance(other, Series) else other._cols[0].to_floats()
+        cols = List[Column]()
+        for c in self.df._cols:
+            xx, yy = _prep_binary(c.to_floats(), y)
+            cols.append(Column.floats(roll_corr(xx, yy, start, end, self.min_periods)))
+        return DataFrame._new(cols, self.df.columns.copy(), self.df.index.copy())
+
     def apply(self, func):
         mp = self.min_periods
         def f(v: List[float], s: List[int], e: List[int]) -> List[float]:
@@ -2405,6 +2438,101 @@ class Rolling:
                 out.append(float(func(Series(w))) if cnt >= mp else NAN)
             return out
         return self._apply(f)
+
+def _prep_binary(x: List[float], y: List[float]):
+    # pandas prep_binary: NaN in either input masks both
+    n = len(x)
+    xo = List[float](n)
+    yo = List[float](n)
+    for i in range(n):
+        if x[i] != x[i] or y[i] != y[i]:
+            xo.append(float("nan"))
+            yo.append(float("nan"))
+        else:
+            xo.append(x[i])
+            yo.append(y[i])
+    return xo, yo
+
+class Ewm:
+    df: DataFrame
+    com: float
+    adjust: bool
+    ignore_na: bool
+    min_periods: int
+
+    def __init__(self, df: DataFrame, com: float, adjust: bool, ignore_na: bool, min_periods: int):
+        self.df = df
+        self.com = com
+        self.adjust = adjust
+        self.ignore_na = ignore_na
+        self.min_periods = max(min_periods, 1)
+
+    def _each(self, f):
+        n = len(self.df)
+        cols = List[Column]()
+        for c in self.df._cols:
+            if c.kind == K_STR:
+                raise TypeError("ewm on str column")
+            cols.append(Column.floats(f(c.to_floats(), [0], [n])))
+        return DataFrame._new(cols, self.df.columns.copy(), self.df.index.copy())
+
+    def mean(self):
+        com = self.com
+        adj = self.adjust
+        ign = self.ignore_na
+        mp = self.min_periods
+        return self._each(lambda v, s, e: ewm_kernel(v, s, e, mp, com, adj, ign, True))
+
+    def sum(self):
+        if not self.adjust:
+            raise NotImplementedError("sum is not implemented with adjust=False")
+        com = self.com
+        adj = self.adjust
+        ign = self.ignore_na
+        mp = self.min_periods
+        return self._each(lambda v, s, e: ewm_kernel(v, s, e, mp, com, adj, ign, False))
+
+    def var(self, bias: bool = False):
+        com = self.com
+        adj = self.adjust
+        ign = self.ignore_na
+        mp = self.min_periods
+        return self._each(lambda v, s, e: ewmcov_kernel(v, s, e, mp, v, com, adj, ign, bias))
+
+    def std(self, bias: bool = False):
+        from math import sqrt
+        com = self.com
+        adj = self.adjust
+        ign = self.ignore_na
+        mp = self.min_periods
+        return self._each(lambda v, s, e: [sqrt(x) if x == x else x for x in ewmcov_kernel(v, s, e, mp, v, com, adj, ign, bias)])
+
+    def cov(self, other, bias: bool = False):
+        n = len(self.df)
+        y = other._col.to_floats() if isinstance(other, Series) else other._cols[0].to_floats()
+        cols = List[Column]()
+        for c in self.df._cols:
+            xx, yy = _prep_binary(c.to_floats(), y)
+            cols.append(Column.floats(ewmcov_kernel(xx, [0], [n], self.min_periods, yy, self.com, self.adjust, self.ignore_na, bias)))
+        return DataFrame._new(cols, self.df.columns.copy(), self.df.index.copy())
+
+    def corr(self, other):
+        from math import sqrt
+        n = len(self.df)
+        y0 = other._col.to_floats() if isinstance(other, Series) else other._cols[0].to_floats()
+        cols = List[Column]()
+        for c in self.df._cols:
+            x, y = _prep_binary(c.to_floats(), y0)
+            cv = ewmcov_kernel(x, [0], [n], self.min_periods, y, self.com, self.adjust, self.ignore_na, True)
+            xv = ewmcov_kernel(x, [0], [n], self.min_periods, x, self.com, self.adjust, self.ignore_na, True)
+            yv = ewmcov_kernel(y, [0], [n], self.min_periods, y, self.com, self.adjust, self.ignore_na, True)
+            r = List[float](n)
+            for i in range(n):
+                p = xv[i] * yv[i]
+                dd = sqrt(p) if p >= 0.0 else float("nan")
+                r.append(float("nan") if dd == 0.0 and cv[i] == 0.0 else (cv[i] / dd if dd != 0.0 else (float("inf") if cv[i] > 0.0 else (-float("inf") if cv[i] < 0.0 else float("nan")))))
+            cols.append(Column.floats(r))
+        return DataFrame._new(cols, self.df.columns.copy(), self.df.index.copy())
 
 def _ser(r: DataFrame, series: bool) -> Series:
     s = r._series(0)
