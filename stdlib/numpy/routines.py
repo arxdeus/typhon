@@ -36,7 +36,9 @@ def _inner_type(t):
         return t
 
 def _inner_type_t(T: type):
-    if isinstance(T(), List):
+    if isinstance(T, ndarray):
+        return T.dtype()
+    elif isinstance(T(), List):
         return _inner_type_t(type(T()[0]))
     elif T is NoneType:
         return 0.0
@@ -59,7 +61,9 @@ def _extract_shape(t):
         return ()
 
 def _empty_shape(T: type):
-    if isinstance(T(), List):
+    if isinstance(T, ndarray):
+        return tuple(0 for _ in static.range(T.ndim))
+    elif isinstance(T(), List):
         return (0, *_empty_shape(type(T()[0])))
     else:
         return ()

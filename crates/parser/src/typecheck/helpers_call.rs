@@ -199,7 +199,11 @@ impl<'a> TypecheckVisitor<'a> {
         let mut add_later = vec![];
         for i in block {
             if !added.contains(&i) {
-                add_later.push((i.clone(), self.force_find(&i)));
+                // The name may have been removed again meanwhile (e.g. a walrus or
+                // comprehension temporary scoped inside the call arguments).
+                if let Some(v) = self.find(&i, 0) {
+                    add_later.push((i.clone(), v));
+                }
             }
         }
         self.ctx.borrow_mut().pop_block();

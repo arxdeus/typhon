@@ -46,3 +46,14 @@ except ValueError:
     caught = True
 if not caught:
     print("TEST FAILED: invalid mode accepted")
+
+@test
+def test_array_of_arrays():
+    x = np.array([2.1, 3.4])
+    y = np.array([x, x])
+    assert y.shape == (2, 2) and y[1, 1] == 3.4
+    assert np.array([[x]]).shape == (1, 1, 2)
+    e = List[np.ndarray[float, 1]]()
+    assert np.array(e).shape == (0, 0)
+
+test_array_of_arrays()
