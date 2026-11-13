@@ -377,7 +377,7 @@ class NearestConvexHull(MDM):
         cons = LinearConstraint(np.ones((1, n)), 1.0, 1.0)
         res = minimize(f.fun, w0, method=self.method, jac=f.jac, bounds=bnds,
                        constraints=cons,
-                       options={"maxiter": 50, "ftol": 1e-6, "disp": False})
+                       options={"maxiter": 50.0, "ftol": 1e-6})
         return np.clip(res.x, 0.0, 1.0)
 
     def _predict_distance(self, A, B):
@@ -401,7 +401,7 @@ class NearestConvexHull(MDM):
                 d2[j] = np.trace(B_[i] @ A_[j])
             weights = self._find_weights_to_convex_hull(D1, d2)
             H = gmean(A, metric=self.metric, sample_weight=weights)
-            dist[i] = distance(H, B[i], metric=self.metric)[0, 0]
+            dist[i] = float(distance(H, B[i], metric=self.metric))
         return dist
 
     def _predict_distances(self, X):

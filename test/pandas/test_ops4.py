@@ -4,6 +4,7 @@
 import numpy as np
 import pandas as pd
 import hashlib
+nan = float("nan")
 
 def make_F(n: int, m: int, seed: int = 12345):
     F = np.empty((n, m))
@@ -85,11 +86,11 @@ E_csv_hdr = 'A,B\n"x,y",1.5\n"q""r",NA\nz,3.0\n'
 
 @test
 def test_ops4():
-    assert close(vals(s.rolling(4).skew()), E_r_skew, 1e-09)
-    assert close(vals(s.rolling(5).kurt()), E_r_kurt, 1e-09)
-    assert close(vals(s.rolling(4, 2).sem()), E_r_sem, 1e-09)
-    assert close(vals(s.rolling(4, 2).first()), E_r_first, 1e-09)
-    assert close(vals(s.rolling(4, 2).last()), E_r_last, 1e-09)
+    assert close(fvals(s.rolling(4).skew()), E_r_skew, 1e-09)
+    assert close(fvals(s.rolling(5).kurt()), E_r_kurt, 1e-09)
+    assert close(fvals(s.rolling(4, 2).sem()), E_r_sem, 1e-09)
+    assert close(fvals(s.rolling(4, 2).first()), E_r_first, 1e-09)
+    assert close(fvals(s.rolling(4, 2).last()), E_r_last, 1e-09)
     assert [str(x) for x in s.value_counts(False, True, False, True, 4).index.tolist()] == E_vcb_i
     assert close(vals(s.value_counts(False, True, False, True, 4)), E_vcb, 1e-09)
     assert close(vals(s.value_counts(True, True, False, True, 3)), E_vcbn, 1e-09)

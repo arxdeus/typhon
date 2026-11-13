@@ -8,6 +8,7 @@ from pyriemann.geometry.test import is_sym, is_pos_def, is_hankel, is_sym_pos_de
 from pyriemann.channelselection import FlatChannelRemover, ElectrodeSelection
 from pyriemann.preprocessing import Whitening
 from pyriemann.estimation import Covariances
+from pyriemann.classification import MDM
 from pyriemann.transfer import TLClassifier, MDWM
 from pyriemann.transfer import TLCenter, TLScale, encode_domains
 

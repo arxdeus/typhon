@@ -426,7 +426,7 @@ class Series:
             mids = List[float]()
             for k in range(nbn):
                 mids.append((bl[k] + bl[k + 1]) / 2.0)
-            labs_s = _cut_core(Series(mids), bl, True, None, 3, False, "drop", False)
+            labs_s = _cut_core(Series(mids), bl, True, None, 3, True, "drop", False)
             cnts = [0 for _ in range(nbn)]
             for i in range(len(codes_s)):
                 cv = codes_s._col.getf(i)
@@ -444,7 +444,7 @@ class Series:
             lab_keys = [labs_s._col.get(p) for p in ordp]
             idx_b = Index._wrap(Column.from_scalars(lab_keys), self.name)
             if normalize:
-                return Series._new(Column.floats([float(cnts[p]) / float(tot_n) for p in ordp]), idx_b, "proportion")
+                return Series._new(Column.floats([float(cnts[p]) / float(len(self)) for p in ordp]), idx_b, "proportion")
             return Series._new(Column.ints([cnts[p] for p in ordp]), idx_b, "count")
         order = List[Scalar]()
         counts = Dict[Scalar, int]()
@@ -3374,7 +3374,18 @@ def _roll_edge(v: List[float], s: List[int], e: List[int], mp: int, first: bool)
         if cnt < mp or e[i] <= s[i]:
             out.append(NAN)
         else:
-            out.append(v[s[i]] if first else v[e[i] - 1])
+            r = NAN
+            if first:
+                for j in range(s[i], e[i]):
+                    if v[j] == v[j]:
+                        r = v[j]
+                        break
+            else:
+                for j in range(e[i] - 1, s[i] - 1, -1):
+                    if v[j] == v[j]:
+                        r = v[j]
+                        break
+            out.append(r)
     return out
 
 def _prep_binary(x: List[float], y: List[float]):

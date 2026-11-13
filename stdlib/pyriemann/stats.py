@@ -6,7 +6,7 @@
 
 import numpy as np
 from numpy.random import RandomState
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection._validation import _cvs_impl
 from .classification import MDM
 from .geometry.distance import distance, pairwise_distance
 from .geometry.mean import gmean
@@ -107,7 +107,7 @@ class PermutationModel[M = MDM]:
         return X
 
     def score(self, X, y, groups = None):
-        s = cross_val_score(self.model, X, y, cv=self.cv)
+        s = _cvs_impl(self.model, X, y, None, None, self.cv)
         return float(np.mean(s))
 
     def test(self, X, y, groups = None, verbose: bool = True):
@@ -146,7 +146,8 @@ class PermutationDistance:
             self.global_mean = gmean(X, metric=self.metric)
             return X
         elif self.mode == "pairwise":
-            return pairwise_distance(X, metric=self.metric, squared=True)
+            pw = pairwise_distance(X, metric=self.metric, squared=True)
+            return pw.reshape(pw.shape[0], pw.shape[1], 1)
         return X
 
     def score(self, X, y, groups = None):
@@ -164,7 +165,7 @@ class PermutationDistance:
         between = 0.0
         for ix in range(n_classes):
             di = distance(covmeans[ix], self.global_mean, metric=self.metric, squared=True)
-            between += float(np.sum(y == mdm.classes_[ix])) * float(di[0, 0])
+            between += float(np.sum(y == mdm.classes_[ix])) * float(di)
         between /= n_classes - 1
         within = 0.0
         for ix in range(n_classes):
@@ -187,7 +188,8 @@ class PermutationDistance:
             dist += di / float(np.sum(y == mdm.classes_[ix]))
         return mean_dist / np.sqrt(dist)
 
-    def _score_pairwise(self, X, y):
+    def _score_pairwise(self, X3, y):
+        X = X3.reshape(X3.shape[0], X3.shape[1])
         classes = np.unique(y)
         n_classes = classes.shape[0]
         n_samples = y.shape[0]
