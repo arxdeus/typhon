@@ -220,6 +220,10 @@ pub const SCIPY: &[&str] = &[
     "mne/test_epochs_utils.py", "mne/test_io_gdf.py", "mne/test_io_misc.py", "mne/test_io_read_raw.py",
     "mne/test_layout.py", "mne/test_tf_more.py",
     "pandas/test_dt.py", "pandas/test_multi.py", "pandas/test_ops3.py",
+    "mne/test_beamformer.py", "mne/test_simulation.py", "mne/test_eog_regression.py",
+    "scipy/test_stats_final_dists_a.py", "scipy/test_stats_final_dists_b.py",
+    "scipy/test_stats_final_discrete.py", "scipy/test_stats_final_misc.py",
+    "scipy/test_special_spheroidal.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
