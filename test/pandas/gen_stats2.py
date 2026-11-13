@@ -5,6 +5,7 @@ def lit(a): return repr(a)
 src = open(os.path.join(D, "test_rolling.py")).read()
 head = src.split("def _r(")[0]
 head += '''nan = float("nan")
+inf = float("inf")
 
 def close(got, exp: List[float], tol: float = 1e-12) -> bool:
     if len(got) != len(exp):

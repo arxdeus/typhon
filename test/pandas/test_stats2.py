@@ -18,6 +18,7 @@ def make_y(n: int):
     return np.array([(i * 7 % 5) % 2 for i in range(n)])
 
 nan = float("nan")
+inf = float("inf")
 
 def close(got, exp: List[float], tol: float = 1e-12) -> bool:
     if len(got) != len(exp):

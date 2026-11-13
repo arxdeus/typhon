@@ -2520,6 +2520,116 @@ def _agg_col(g: _Grouper, c: Column, how: str, ddof: int = 1) -> Column:
         return Column.floats([nanmedian(Column.floats([vals[i] for i in m])) for m in mem])
     raise ValueError(f"unsupported aggregation '{how}'")
 
+def _fdiv(x: float, y: float) -> float:
+    # IEEE division (no ZeroDivisionError)
+    if y == 0.0:
+        if x == 0.0 or x != x:
+            return NAN
+        neg_zero = str(y).startswith("-")
+        return float("inf") if (x > 0.0) != neg_zero else -float("inf")
+    return x / y
+
+def _g_cumcount(g: _Grouper, ascending: bool) -> List[int]:
+    n = len(g.codes)
+    out = [0 for _ in range(n)]
+    mem = g.members()
+    for m in mem:
+        L = len(m)
+        for t in range(L):
+            out[m[t]] = t if ascending else L - 1 - t
+    return out
+
+def _shift_list(v: List[float], periods: int) -> List[float]:
+    n = len(v)
+    return [v[k - periods] if 0 <= k - periods < n else NAN for k in range(n)]
+
+def _cum_list(v: List[float], kind: int) -> List[float]:
+    out = List[float](len(v))
+    acc = 0.0 if kind == 0 else 1.0
+    best = NAN
+    for x in v:
+        if x != x:
+            out.append(NAN)
+            continue
+        if kind == 0:
+            acc += x
+            out.append(acc)
+        elif kind == 1:
+            acc *= x
+            out.append(acc)
+        elif kind == 2:
+            best = x if best != best or x > best else best
+            out.append(best)
+        else:
+            best = x if best != best or x < best else best
+            out.append(best)
+    return out
+
+def _sorted_floats(v: List[float]) -> List[float]:
+    a = [x for x in v if x == x]
+    a.sort()
+    return a
+
+def _sem_list(v: List[float]) -> float:
+    c = Column.floats(v)
+    n = nancount(c)
+    if n == 0:
+        return NAN
+    return nanstd(c) / (float(n) ** 0.5)
+
+class GroupRolling[GB]:
+    gb: GB
+    window: int
+    min_periods: int
+
+    def __init__(self, gb: GB, window: int, min_periods: int):
+        self.gb = gb
+        self.window = window
+        self.min_periods = min_periods
+
+    def _run(self, how: int):
+        # results aligned to the original row order (groups' rows stay in place)
+        gb = self.gb
+        mem = gb.g.members()
+        cols = List[Column]()
+        labels = List[int]()
+        for j in gb._value_cols():
+            c = gb.df._cols[j]
+            res = [NAN for _ in range(len(c))]
+            for m in mem:
+                v = c.take(m).to_floats()
+                st, en = _fixed_bounds(len(v), self.window, False)
+                if how == 0:
+                    r = roll_mean(v, st, en, self.min_periods)
+                elif how == 1:
+                    r = roll_sum(v, st, en, self.min_periods)
+                elif how == 2:
+                    r = roll_var(v, st, en, self.min_periods, 1)
+                elif how == 3:
+                    r = [x ** 0.5 if x == x else x for x in roll_var(v, st, en, self.min_periods, 1)]
+                elif how == 4:
+                    r = roll_minmax(v, st, en, self.min_periods, False)
+                else:
+                    r = roll_minmax(v, st, en, self.min_periods, True)
+                for t in range(len(m)):
+                    res[m[t]] = r[t]
+            cols.append(Column.floats(res))
+            labels.append(j)
+        return DataFrame._new(cols, gb.df.columns.take(labels), gb.df.index.copy())
+
+    def mean(self):
+        return self._run(0)
+    def sum(self):
+        return self._run(1)
+    def var(self):
+        return self._run(2)
+    def std(self):
+        return self._run(3)
+    def min(self):
+        return self._run(4)
+    def max(self):
+        return self._run(5)
+
 class DataFrameGroupBy:
     df: DataFrame
     g: _Grouper
@@ -2537,12 +2647,12 @@ class DataFrameGroupBy:
             return self.sel
         return [j for j in range(len(self.df._cols)) if j != self.key_pos]
 
-    def __getitem__(self, key: List[str]):
-        return DataFrameGroupBy(self.df, self.g, self.key_pos, [self.df._col_pos(k) for k in key])
-
     def __getitem__(self, key):
         j = self.df._col_pos(key)
         return SeriesGroupBy(self.g, self.df._cols[j], _label_name(self.df.columns[j]))
+
+    def __getitem__(self, key: List[str]):
+        return DataFrameGroupBy(self.df, self.g, self.key_pos, [self.df._col_pos(k) for k in key])
 
     def __getattr__(self, name: Literal[str]):
         return self[name]
@@ -2631,6 +2741,102 @@ class DataFrameGroupBy:
         r = self._agg(how)
         pos = [c if c >= 0 else 0 for c in self.g.codes]
         return DataFrame._new([c.take(pos) for c in r._cols], r.columns.copy(), self.df.index.copy())
+
+    def cumcount(self, ascending: bool = True) -> Series:
+        return Series._new(Column.ints(_g_cumcount(self.g, ascending)), self.df.index.copy(), None)
+
+    def ngroup(self) -> Series:
+        return Series._new(Column.ints([c for c in self.g.codes]), self.df.index.copy(), None)
+
+    def nth(self, n: int):
+        mem = self.g.members()
+        pos = List[int]()
+        for m in mem:
+            k = n if n >= 0 else len(m) + n
+            if 0 <= k < len(m):
+                pos.append(m[k])
+        pos.sort()
+        return self.df._take_rows(pos)
+
+    def _per_group_cols(self, f):
+        # f(Column of one group's values, List[int] positions) -> Column of same length
+        cols = List[Column]()
+        labels = List[int]()
+        mem = self.g.members()
+        for j in self._value_cols():
+            c = self.df._cols[j]
+            out = Column.empty(K_FLOAT, len(c))
+            res = [NAN for _ in range(len(c))]
+            for m in mem:
+                r = f(c.take(m).to_floats())
+                for t in range(len(m)):
+                    res[m[t]] = r[t]
+            cols.append(Column.floats(res))
+            labels.append(j)
+        return DataFrame._new(cols, self.df.columns.take(labels), self.df.index.copy())
+
+    def shift(self, periods: int = 1):
+        return self._per_group_cols(lambda v: _shift_list(v, periods))
+
+    def diff(self, periods: int = 1):
+        return self._per_group_cols(lambda v: [v[k] - v[k - periods] if 0 <= k - periods < len(v) else NAN for k in range(len(v))])
+
+    def pct_change(self, periods: int = 1):
+        return self._per_group_cols(lambda v: [_fdiv(v[k], v[k - periods]) - 1.0 if 0 <= k - periods < len(v) else NAN for k in range(len(v))])
+
+    def cumsum(self):
+        return self._per_group_cols(lambda v: _cum_list(v, 0))
+
+    def cumprod(self):
+        return self._per_group_cols(lambda v: _cum_list(v, 1))
+
+    def cummax(self):
+        return self._per_group_cols(lambda v: _cum_list(v, 2))
+
+    def cummin(self):
+        return self._per_group_cols(lambda v: _cum_list(v, 3))
+
+    def rank(self, method: str = "average", ascending: bool = True, na_option: str = "keep", pct: bool = False):
+        return self._per_group_cols(lambda v: rank_1d(v, method, ascending, na_option, pct))
+
+    def skew(self):
+        return self._agg_f(lambda v: nanskew_list(v, True))
+
+    def kurt(self):
+        return self._agg_f(lambda v: nankurt_list(v, True))
+
+    def sem(self):
+        return self._agg_f(lambda v: _sem_list(v))
+
+    def quantile(self, q: float = 0.5, interpolation: str = "linear"):
+        return self._agg_f(lambda v: quantile_sorted(_sorted_floats(v), q, interpolation))
+
+    def _agg_f(self, f):
+        mem = self.g.members()
+        cols = List[Column]()
+        labels = List[int]()
+        for j in self._value_cols():
+            c = self.df._cols[j]
+            cols.append(Column.floats([f(c.take(m).to_floats()) for m in mem]))
+            labels.append(j)
+        return DataFrame._new(cols, self.df.columns.take(labels), self.g.index())
+
+    def filter(self, func):
+        mem = self.g.members()
+        pos = List[int]()
+        for m in mem:
+            if func(self.df._take_rows(m)):
+                for i in m:
+                    pos.append(i)
+        pos.sort()
+        return self.df._take_rows(pos)
+
+    def pipe(self, func):
+        return func(self)
+
+    def rolling(self, window: int, min_periods: Optional[int] = None):
+        mp = min_periods if min_periods is not None else window
+        return GroupRolling(self, window, mp)
 
     def __iter__(self):
         mem = self.g.members()
