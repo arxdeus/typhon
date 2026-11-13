@@ -28,3 +28,4 @@ from .boxy import read_raw_boxy
 from .kit import read_raw_kit
 from .eyelink import read_raw_eyelink
 from .nirx import read_raw_nirx
+from .eeglab import read_epochs_eeglab
