@@ -12,6 +12,7 @@ from .core import *
 from .core import _dtype_name, _kind_of_dtype, _fixed_bounds, _lerp_quantile, _sorted_valid
 from .index import Index
 from . import strings as S
+from numpy.random.legacy import check_random_state
 from .nanalgos import nanskew_list, nankurt_list, quantile_sorted, mode_values, interpolate_linear, round_frac, infer_precision, linspace_list
 from .window import ewm_kernel, ewmcov_kernel, roll_cov, roll_corr, roll_quantile, get_center_of_mass
 from .fmt import frame_repr, series_repr, format_column, adjoin
@@ -423,17 +424,71 @@ class Series:
             return Series._new(Column.floats([float(c) / float(tot) for c in cnt]), idx, "proportion")
         return Series._new(Column.ints(cnt), idx, "count")
 
-    def describe(self) -> Series:
+    def describe(self, percentiles: Optional[List[float]] = None) -> Series:
         if self._col.kind == K_STR:
             vc = self.value_counts()
             labels = ["count", "unique", "top", "freq"]
             vals = [Scalar.of(self.count()), Scalar.of(self.nunique()), vc.index[0], vc._col.get(0)]
             return Series._new(Column.from_scalars(vals).astype(K_STR), Index.strs(labels), self.name)
+        pct = [0.25, 0.5, 0.75] if percentiles is None else percentiles
         a = _sorted_valid(self._col)
-        vals = [float(nancount(self._col)), nanmean(self._col), nanstd(self._col),
-                a[0] if len(a) else NAN, _lerp_quantile(a, 0.25), _lerp_quantile(a, 0.5),
-                _lerp_quantile(a, 0.75), a[-1] if len(a) else NAN]
-        return Series._new(Column.floats(vals), Index.strs(["count", "mean", "std", "min", "25%", "50%", "75%", "max"]), self.name)
+        vals = [float(nancount(self._col)), nanmean(self._col), nanstd(self._col), a[0] if len(a) else NAN]
+        for p in pct:
+            vals.append(_lerp_quantile(a, p))
+        vals.append(a[-1] if len(a) else NAN)
+        labels = ["count", "mean", "std", "min"] + [_pct_label(p) for p in pct] + ["max"]
+        return Series._new(Column.floats(vals), Index.strs(labels), self.name)
+
+    def _agg_name(self, f: str) -> Scalar:
+        if f == "sum":
+            return self.sum()
+        elif f == "mean":
+            return Scalar.of(self.mean())
+        elif f == "min":
+            return self.min()
+        elif f == "max":
+            return self.max()
+        elif f == "std":
+            return Scalar.of(self.std())
+        elif f == "var":
+            return Scalar.of(self.var())
+        elif f == "median":
+            return Scalar.of(self.median())
+        elif f == "count":
+            return Scalar.of(self.count())
+        elif f == "nunique":
+            return Scalar.of(self.nunique())
+        elif f == "prod":
+            return self.prod()
+        elif f == "sem":
+            return Scalar.of(self.sem())
+        elif f == "skew":
+            return Scalar.of(self.skew())
+        elif f == "kurt":
+            return Scalar.of(self.kurt())
+        elif f == "first":
+            return self._col.get(0)
+        elif f == "last":
+            return self._col.get(len(self) - 1)
+        elif f == "size":
+            return Scalar.of(len(self))
+        raise AttributeError(f"'{f}' is not a valid function for 'Series' object")
+
+    def agg(self, func: str) -> Scalar:
+        return self._agg_name(func)
+
+    def agg(self, func: List[str]) -> Series:
+        out = List[Scalar]()
+        for f in func:
+            out.append(self._agg_name(f))
+        return Series._new(Column.from_scalars(out), Index.strs(func), self.name)
+
+    def aggregate(self, func):
+        return self.agg(func)
+
+    def sample(self, n: Optional[int] = None, frac: Optional[float] = None, replace: bool = False,
+               random_state: Optional[int] = None):
+        return self._take(_sample_pos(len(self), n, frac, replace, random_state))
 
     def all(self) -> bool:
         for x in self:
@@ -1243,6 +1298,26 @@ def _argsort_col(c: Column, ascending: bool, na_position: str) -> List[int]:
     if na_position == "first":
         return nas + valid
     return valid + nas
+
+
+def _sample_pos(length: int, n: Optional[int], frac: Optional[float], replace: bool,
+                random_state: Optional[int]) -> List[int]:
+    # pandas: rs.choice(axis_length, size=n, replace=replace) on a RandomState
+    if n is not None and frac is not None:
+        raise ValueError("Please enter a value for `frac` OR `n`, not both")
+    k = 1
+    if frac is not None:
+        f = frac.__val__()
+        if f > 1.0 and not replace:
+            raise ValueError("Replace has to be set to `True` when upsampling the population `frac` > 1.")
+        k = int(round(f * length))
+    elif n is not None:
+        k = n.__val__()
+    if k < 0:
+        raise ValueError("A negative number of rows requested. Please provide positive value.")
+    rs = check_random_state(random_state)
+    idx = rs.choice(length, size=k, replace=replace)
+    return [int(idx[i]) for i in range(k)]
 
 def _stable_reverse(v: List[int], c: Column) -> List[int]:
     out = List[int](len(v))
@@ -2065,23 +2140,68 @@ class DataFrame:
     def applymap(self, func):
         return self.map(func)
 
-    def describe(self, percentiles: Optional[List[float]] = None):
+    def describe(self, percentiles: Optional[List[float]] = None, include: Optional[str] = None):
         pct = [0.25, 0.5, 0.75] if percentiles is None else percentiles
+        want_obj = include is not None and (include.__val__() == "all" or include.__val__() == "object")
+        want_num = include is None or include.__val__() == "all" or include.__val__() == "number"
         cols = List[int]()
         for j in range(len(self._cols)):
-            if self._cols[j].kind == K_FLOAT or self._cols[j].kind == K_INT:
+            k = self._cols[j].kind
+            is_num = k == K_FLOAT or k == K_INT
+            if (is_num and want_num) or (k == K_STR and want_obj):
                 cols.append(j)
-        labels = ["count", "mean", "std", "min"] + [_pct_label(p) for p in pct] + ["max"]
+        any_num = False
+        any_str = False
+        for j in cols:
+            if self._cols[j].kind == K_STR:
+                any_str = True
+            else:
+                any_num = True
+        labels = List[str]()
+        if any_str:
+            labels.extend(["count", "unique", "top", "freq"])
+        if any_num or not any_str:
+            labels.extend(["count", "mean", "std", "min"] + [_pct_label(p) for p in pct] + ["max"])
+        # union in pandas order: count unique top freq mean std min pcts max
+        order = List[str]()
+        for l in labels:
+            if l not in order:
+                order.append(l)
         out = List[Column]()
         for j in cols:
             c = self._cols[j]
-            a = _sorted_valid(c)
-            vals = [float(nancount(c)), nanmean(c), nanstd(c), a[0] if len(a) else NAN]
-            for p in pct:
-                vals.append(_lerp_quantile(a, p))
-            vals.append(a[-1] if len(a) else NAN)
-            out.append(Column.floats(vals))
-        return DataFrame._new(out, self.columns.take(cols), Index.strs(labels))
+            sc = Series._new(c, Index.range(len(c)), None).describe(pct)
+            vals = List[Scalar]()
+            for l in order:
+                p = sc.index.get_loc_opt(Scalar.of(l))
+                vals.append(sc._col.get(p) if p >= 0 else Scalar.none())
+            out.append(Column.from_scalars(vals))
+        return DataFrame._new(out, self.columns.take(cols), Index.strs(order))
+
+    def nlargest(self, n: int, columns, keep: str = "first"):
+        asc = False
+        return self.sort_values(columns, ascending=asc).head(n)
+
+    def nsmallest(self, n: int, columns, keep: str = "first"):
+        return self.sort_values(columns).head(n)
+
+    def agg(self, func: str):
+        return self._reduce_s(lambda c: Series._new(c, Index.range(len(c)), None).agg(func), 0, True)
+
+    def agg(self, func: List[str]):
+        cols = self._numeric(True)
+        out = List[Column]()
+        for j in cols:
+            sc = Series._new(self._cols[j], Index.range(len(self._cols[j])), None)
+            out.append(sc.agg(func)._col)
+        return DataFrame._new(out, self.columns.take(cols), Index.strs(func))
+
+    def aggregate(self, func):
+        return self.agg(func)
+
+    def sample(self, n: Optional[int] = None, frac: Optional[float] = None, replace: bool = False,
+               random_state: Optional[int] = None):
+        return self._take_rows(_sample_pos(len(self), n, frac, replace, random_state))
 
     def corr(self, method: str = "pearson", min_periods: int = 1, numeric_only: bool = False):
         cols = self._numeric(numeric_only)

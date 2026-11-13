@@ -126,6 +126,8 @@ class Scalar:
         if self.kind == K_NONE:
             return 0
         if self.kind == K_FLOAT:
+            if self.f != self.f:
+                return 0x7ff8000000000000  # float.__hash__(nan) does not terminate
             if self.f == float(int(self.f)) if self.f == self.f and abs(self.f) < 9e18 else False:
                 return hash(int(self.f))
             return hash(self.f)
