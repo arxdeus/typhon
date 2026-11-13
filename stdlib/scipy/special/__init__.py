@@ -1406,3 +1406,7 @@ def mathieu_odd_coef(m, q):
     if float(m) != float(int(m)) or m <= 0:
         raise ValueError("m must be an integer > 0")
     return np.array(MT.odd_coef(int(m), float(q)))
+
+from . import _wright as WR
+def wright_bessel(a, b, x): return _map3(WR.wright_bessel, a, b, x)
+def log_wright_bessel(a, b, x): return _map3(WR.log_wright_bessel, a, b, x)
