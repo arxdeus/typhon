@@ -8,3 +8,4 @@ from .edf import read_raw_edf, read_raw_bdf
 from .brainvision import read_raw_brainvision
 from .eeglab import read_raw_eeglab
 from .gdf import read_raw_gdf
+from ._misc import get_channel_type_constants, anonymize_info, write_info, read_fiducials, write_fiducials, DigPoint
