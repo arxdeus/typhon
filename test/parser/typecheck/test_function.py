@@ -1307,7 +1307,6 @@ print a.kids()[0].v, a.maybe() is None  #: 1 True
 
 #%% overload_most_specific_after_generic,barebones
 from typing import List
-@overload
 def ovs(x):
     return "any"
 @overload

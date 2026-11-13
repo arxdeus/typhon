@@ -187,26 +187,6 @@ impl<'a> TypecheckVisitor<'a> {
                 let items = self.call_items(e);
                 let pt = types.get_partial(self.ety(self.callee(e)));
                 m = Some(self.find_matching_methods(parent_cls, &methods, &items, pt)?);
-                // Prefer the most specific candidate: an overload with fewer unannotated
-                // (generic) value parameters wins over a catch-all one regardless of the
-                // definition order (stable among equally specific candidates). The
-                // stdlib keeps its latest-first override convention.
-                let in_std = |v: &Self, f: TypeId| {
-                    let a = v.cache.types.func_ast_id(f);
-                    v.ast()[a].attrs.get_str(Attr::Module).is_some_and(|m| m == "std" || m.starts_with("std."))
-                };
-                if let Some(ms) = m.as_mut().filter(|ms| ms.len() > 1 && !ms.iter().any(|f| in_std(self, *f))) {
-                    let untyped = |v: &Self, f: TypeId| -> usize {
-                        let a = v.cache.types.func_ast_id(f);
-                        v.ast()[a].kind.as_function().map_or(0, |fs| {
-                            fs.items.iter().filter(|p| p.is_value() && p.ty.is_none() && !p.name.starts_with('$') && p.name != "self").count()
-                        })
-                    };
-                    let keyed: Vec<usize> = ms.iter().map(|f| untyped(self, *f)).collect();
-                    let mut idx: Vec<usize> = (0..ms.len()).collect();
-                    idx.sort_by_key(|i| keyed[*i]);
-                    *ms = idx.into_iter().map(|i| ms[i]).collect();
-                }
             }
             // partials have dangling ellipsis that messes up with the unbound check below
             let do_dispatch = m.as_ref().is_none_or(|m| m.is_empty()) || part.is_partial;
