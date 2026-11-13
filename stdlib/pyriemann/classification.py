@@ -7,6 +7,8 @@ from .geometry.kernel import kernel
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC as _SKSVC
 from .geometry.distance import distance
+from .geometry.base import logm
+from scipy.optimize import minimize, LinearConstraint
 
 def _softmax(X):
     # sklearn.utils.extmath.softmax
@@ -333,3 +335,79 @@ class MeanField:
             raise ValueError("Classification by MeanField is not available when method_combination is None")
         d = self._predict_distances(X)
         return _softmax(-(d * d))
+
+class _NCHFun:
+    D1: np.ndarray[float, 2]
+    d2: np.ndarray[float, 1]
+
+    def __init__(self, D1: np.ndarray[float, 2], d2: np.ndarray[float, 1]):
+        self.D1 = D1
+        self.d2 = d2
+
+    def fun(self, w):
+        return w @ self.D1 @ w - 2.0 * (self.d2 @ w)
+
+    def jac(self, w):
+        return 2.0 * (self.D1 @ w) - 2.0 * self.d2
+
+class NearestConvexHull(MDM):
+    method: str
+    mats_: np.ndarray[float, 3]
+    classmats_: np.ndarray[int, 1]
+
+    def __init__(self, metric: str = "logeuclid", n_jobs: int = 1, method: str = "SLSQP"):
+        super().__init__(metric, n_jobs)
+        self.method = method
+        self.mats_ = np.empty((0, 0, 0))
+        self.classmats_ = np.empty(0, dtype=int)
+
+    def fit(self, X, y, sample_weight = None):
+        if self.metric != "euclid" and self.metric != "logeuclid":
+            raise ValueError(f"NCH does not support metric {self.metric}")
+        self.mats_ = np.array(np.asarray(X, dtype=float))
+        self.classmats_ = np.array(np.asarray(y, dtype=int))
+        self.classes_ = np.unique(self.classmats_)
+        return self
+
+    def _find_weights_to_convex_hull(self, D1, d2):
+        n = D1.shape[0]
+        w0 = np.full(n, 1.0 / n)
+        f = _NCHFun(D1, d2)
+        bnds = [(0.0, None) for _ in range(n)]
+        cons = LinearConstraint(np.ones((1, n)), 1.0, 1.0)
+        res = minimize(f.fun, w0, method=self.method, jac=f.jac, bounds=bnds,
+                       constraints=cons,
+                       options={"maxiter": 50, "ftol": 1e-6, "disp": False})
+        return np.clip(res.x, 0.0, 1.0)
+
+    def _predict_distance(self, A, B):
+        na = A.shape[0]
+        nb = B.shape[0]
+        A_ = A
+        B_ = B
+        if self.metric == "logeuclid":
+            A_ = logm(A)
+            B_ = logm(B)
+        D1 = np.zeros((na, na))
+        for i in range(na):
+            for j in range(i, na):
+                v = np.trace(A_[i] @ A_[j])
+                D1[i, j] = v
+                D1[j, i] = v
+        dist = np.zeros(nb)
+        for i in range(nb):
+            d2 = np.zeros(na)
+            for j in range(na):
+                d2[j] = np.trace(B_[i] @ A_[j])
+            weights = self._find_weights_to_convex_hull(D1, d2)
+            H = gmean(A, metric=self.metric, sample_weight=weights)
+            dist[i] = distance(H, B[i], metric=self.metric)[0, 0]
+        return dist
+
+    def _predict_distances(self, X):
+        X = np.asarray(X, dtype=float)
+        nc = self.classes_.shape[0]
+        dist = np.empty((X.shape[0], nc))
+        for k in range(nc):
+            dist[:, k] = self._predict_distance(self.mats_[self.classmats_ == self.classes_[k]], X)
+        return dist
