@@ -16,3 +16,11 @@ from _signaltools import lfilter, lfilter_zi, sosfilt, sosfilt_zi, filtfilt, sos
     savgol_coeffs, savgol_filter, upfirdn, resample, resample_poly, decimate
 from _spectral import periodogram, welch, csd, coherence, spectrogram, stft, istft, check_COLA, check_NOLA
 from _peak_finding import find_peaks, peak_prominences, peak_widths, argrelextrema, argrelmax, argrelmin
+from _design_extra import lp2lp, lp2hp, lp2bp, lp2bs, bilinear, findfreqs, freqs, freqs_zpk, \
+    cheb2ord, iirdesign, iircomb
+from _ltisys import tf2ss, ss2tf, zpk2ss, ss2zpk, abcd_normalize, cont2discrete, lti, dlti, \
+    lsim, impulse, step, bode, freqresp, dlsim, dimpulse, dstep, dfreqresp, dbode
+from _signal_extra import remez, firls, minimum_phase, lfiltic, deconvolve, wiener, medfilt2d, \
+    order_filter, hilbert2, correlation_lags, choose_conv_method, vectorstrength, sawtooth, \
+    square, gausspulse, chirp, sweep_poly, unit_impulse, czt_points, czt, zoom_fft, CZT, ZoomFFT, \
+    lombscargle

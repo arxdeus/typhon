@@ -145,6 +145,175 @@ def exponential(M: int, center: Optional[float] = None, tau: float = 1.0, sym: b
         w[i] = _exp(-abs(i - c) / tau)
     return _finish(w, M, sym)
 
+def parzen(M: int, sym: bool = True):
+    if _len_guards(M):
+        return _ones(M)
+    Me = M if sym else M + 1
+    w = np.empty(Me, dtype=float)
+    start = -(Me - 1) / 2.0
+    for i in range(Me):
+        n = start + i
+        an = abs(n)
+        if an <= (Me - 1) / 4.0:
+            w[i] = 1 - 6 * (an / (Me / 2.0)) ** 2.0 + 6 * (an / (Me / 2.0)) ** 3.0
+        else:
+            w[i] = 2 * (1 - an / (Me / 2.0)) ** 3.0
+    return _finish(w, M, sym)
+
+def bohman(M: int, sym: bool = True):
+    if _len_guards(M):
+        return _ones(M)
+    Me = M if sym else M + 1
+    lin = np.linspace(-1.0, 1.0, Me)
+    w = np.zeros(Me, dtype=float)
+    for i in range(1, Me - 1):
+        fac = abs(lin[i])
+        w[i] = (1 - fac) * _cos(_PI * fac) + 1.0 / _PI * _sin(_PI * fac)
+    return _finish(w, M, sym)
+
+def barthann(M: int, sym: bool = True):
+    if _len_guards(M):
+        return _ones(M)
+    Me = M if sym else M + 1
+    w = np.empty(Me, dtype=float)
+    for i in range(Me):
+        fac = abs(i / (Me - 1.0) - 0.5)
+        w[i] = 0.62 - 0.48 * fac + 0.38 * _cos(2 * _PI * fac)
+    return _finish(w, M, sym)
+
+def general_gaussian(M: int, p: float, sig: float, sym: bool = True):
+    if _len_guards(M):
+        return _ones(M)
+    Me = M if sym else M + 1
+    w = np.empty(Me, dtype=float)
+    for i in range(Me):
+        n = i - (Me - 1.0) / 2.0
+        w[i] = _exp(-0.5 * abs(n / sig) ** (2 * p))
+    return _finish(w, M, sym)
+
+def kaiser_bessel_derived(M: int, beta: float, *, sym: bool = True):
+    if not sym:
+        raise ValueError('Kaiser-Bessel Derived windows are only defined for symmetric shapes')
+    elif M < 1:
+        return np.empty(0, dtype=float)
+    elif M % 2:
+        raise ValueError('Kaiser-Bessel Derived windows are only defined for even number of points')
+    kw = kaiser(M // 2 + 1, beta)
+    h = M // 2
+    csum = np.cumsum(kw)
+    w = np.empty(M, dtype=float)
+    tot = csum[h]
+    for i in range(h):
+        v = _sqrt(csum[i] / tot)
+        w[i] = v
+        w[M - 1 - i] = v
+    return w
+
+def chebwin(M: int, at: float, sym: bool = True):
+    if abs(at) < 45:
+        print('UserWarning: This window is not suitable for spectral analysis for attenuation values lower than about 45dB because the equivalent noise bandwidth of a Chebyshev window does not grow monotonically with increasing sidelobe attenuation when the attenuation is smaller than about 45 dB.')
+    if _len_guards(M):
+        return _ones(M)
+    Me = M if sym else M + 1
+    order = Me - 1.0
+    beta = math.cosh(1.0 / order * math.acosh(10 ** (abs(at) / 20.0)))
+    p = np.empty(Me, dtype=complex)
+    for k in range(Me):
+        x = beta * _cos(_PI * k / Me)
+        if x > 1:
+            v = math.cosh(order * math.acosh(x))
+        elif x < -1:
+            v = (2 * (Me % 2) - 1) * math.cosh(order * math.acosh(-x))
+        else:
+            v = _cos(order * math.acos(x))
+        if Me % 2:
+            p[k] = complex(v, 0.0)
+        else:
+            p[k] = v * cmath.exp(complex(0.0, _PI / Me * k))
+    F = np.fft.fft(p)
+    if Me % 2:
+        n = (Me + 1) // 2
+        w = np.empty(2 * n - 1, dtype=float)
+        for i in range(n):
+            w[n - 1 + i] = F[i].real
+        for i in range(1, n):
+            w[n - 1 - i] = F[i].real
+    else:
+        n = Me // 2 + 1
+        w = np.empty(2 * (n - 1), dtype=float)
+        for i in range(1, n):
+            w[n - 2 + i] = F[i].real
+            w[n - 1 - i] = F[i].real
+    mx = -math.inf
+    for v in w:
+        mx = max(mx, v)
+    for i in range(w.size):
+        w[i] = w[i] / mx
+    return _finish(w, M, sym)
+
+def taylor(M: int, nbar: int = 4, sll: float = 30, norm: bool = True, sym: bool = True):
+    if _len_guards(M):
+        return _ones(M)
+    Me = M if sym else M + 1
+    B = 10 ** (sll / 20)
+    A = math.acosh(B) / _PI
+    s2 = nbar ** 2 / (A ** 2 + (nbar - 0.5) ** 2)
+    ma = [float(i) for i in range(1, nbar)]
+    m2 = [v * v for v in ma]
+    Fm = [0.0 for _ in range(nbar - 1)]
+    for mi in range(nbar - 1):
+        sign = 1.0 if mi % 2 == 0 else -1.0
+        numer = 1.0
+        for v in ma:
+            numer *= 1 - m2[mi] / s2 / (A ** 2 + (v - 0.5) ** 2)
+        numer *= sign
+        denom = 1.0
+        for j in range(mi):
+            denom *= 1 - m2[mi] / m2[j]
+        for j in range(mi + 1, nbar - 1):
+            denom *= 1 - m2[mi] / m2[j]
+        Fm[mi] = numer / (2 * denom)
+    def W(n: float) -> float:
+        s = 0.0
+        for k in range(nbar - 1):
+            s += Fm[k] * _cos(2 * _PI * ma[k] * (n - Me / 2.0 + 0.5) / Me)
+        return 1 + 2 * s
+    w = np.empty(Me, dtype=float)
+    for i in range(Me):
+        w[i] = W(float(i))
+    if norm:
+        scale = 1.0 / W((Me - 1) / 2)
+        for i in range(Me):
+            w[i] *= scale
+    return _finish(w, M, sym)
+
+def _sinc(x: float) -> float:
+    if x == 0.0:
+        return 1.0
+    y = _PI * x
+    return _sin(y) / y
+
+def lanczos(M: int, *, sym: bool = True):
+    if _len_guards(M):
+        return _ones(M)
+    Me = M if sym else M + 1
+    w = np.empty(Me, dtype=float)
+    if Me % 2 == 0:
+        h = Me // 2
+        for k in range(h):
+            v = _sinc(2.0 * (h + k) / (Me - 1) - 1.0)
+            w[h + k] = v
+            w[h - 1 - k] = v
+    else:
+        h = (Me + 1) // 2
+        # right side: n in arange((M+1)/2, M)
+        for k in range(Me - h):
+            v = _sinc(2.0 * (h + k) / (Me - 1) - 1.0)
+            w[h + k] = v
+            w[Me - h - 1 - k] = v
+        w[Me - h] = 1.0
+    return _finish(w, M, sym)
+
 def _by_name(name: str, Nx: int, sym: bool, args: List[float]):
     def need(n: int):
         if len(args) != n:
@@ -179,6 +348,34 @@ def _by_name(name: str, Nx: int, sym: bool, args: List[float]):
         need(1); return gaussian(Nx, args[0], sym)
     if name in ('general hamming', 'general_hamming'):
         need(1); return general_hamming(Nx, args[0], sym)
+    if name in ('barthann', 'brthan', 'bth'):
+        need(0); return barthann(Nx, sym)
+    if name in ('bohman', 'bman', 'bmn'):
+        need(0); return bohman(Nx, sym)
+    if name in ('parzen', 'parz', 'par'):
+        need(0); return parzen(Nx, sym)
+    if name in ('lanczos', 'sinc'):
+        need(0); return lanczos(Nx, sym=sym)
+    if name in ('chebwin', 'cheb'):
+        need(1); return chebwin(Nx, args[0], sym)
+    if name in ('general gaussian', 'general_gaussian', 'general gauss', 'general_gauss', 'ggs'):
+        need(2); return general_gaussian(Nx, args[0], args[1], sym)
+    if name in ('kaiser bessel derived', 'kaiser_bessel_derived', 'kbd'):
+        need(1); return kaiser_bessel_derived(Nx, args[0], sym=sym)
+    if name in ('general cosine', 'general_cosine'):
+        if len(args) == 0:
+            raise ValueError(f"'{name}' must have parameters")
+        return general_cosine(Nx, args, sym)
+    if name in ('taylor', 'taylorwin'):
+        if len(args) == 0:
+            return taylor(Nx, sym=sym)
+        elif len(args) == 1:
+            return taylor(Nx, int(args[0]), sym=sym)
+        elif len(args) == 2:
+            return taylor(Nx, int(args[0]), args[1], sym=sym)
+        return taylor(Nx, int(args[0]), args[1], args[2] != 0.0, sym)
+    if name == 'dpss':
+        need(1); return dpss(Nx, args[0], None, sym)
     if name in ('exponential', 'poisson'):
         if len(args) == 0:
             raise ValueError(f"'{name}' must have parameters")
@@ -211,100 +408,6 @@ def get_window(window, Nx: int, fftbins: bool = True):
     return _by_name(name, Nx, sym, args)
 
 # ------------------------------------------------------------------- dpss
-# Eigenvectors of the symmetric tridiagonal DPSS matrix are computed by
-# Sturm-sequence bisection (eigenvalues to full precision) followed by
-# inverse iteration with a partially pivoted tridiagonal LU solve, which is
-# equivalent to LAPACK stebz/stein used by scipy. Sign conventions follow
-# scipy.
-
-def _sturm_count(d: List[float], e2: List[float], x: float) -> int:
-    # number of eigenvalues < x
-    cnt = 0
-    q = d[0] - x
-    if q < 0:
-        cnt += 1
-    for i in range(1, len(d)):
-        if q == 0.0:
-            q = 1e-300
-        q = d[i] - x - e2[i - 1] / q
-        if q < 0:
-            cnt += 1
-    return cnt
-
-def _tri_eig_bisect(d: List[float], e: List[float], k: int) -> float:
-    # k-th smallest eigenvalue (0-based)
-    n = len(d)
-    e2 = [v * v for v in e]
-    lo = math.inf
-    hi = -math.inf
-    for i in range(n):
-        r = (abs(e[i - 1]) if i > 0 else 0.0) + (abs(e[i]) if i < n - 1 else 0.0)
-        lo = min(lo, d[i] - r)
-        hi = max(hi, d[i] + r)
-    for _ in range(200):
-        mid = 0.5 * (lo + hi)
-        if mid == lo or mid == hi:
-            break
-        if _sturm_count(d, e2, mid) > k:
-            hi = mid
-        else:
-            lo = mid
-    return 0.5 * (lo + hi)
-
-def _tri_solve(d: List[float], e: List[float], lam: float, b: List[float]) -> List[float]:
-    # solve (T - lam I) x = b with partial pivoting (Gaussian elimination, banded)
-    n = len(d)
-    # rows stored as [a0, a1, a2] at columns i, i+1, i+2
-    A0 = [d[i] - lam for i in range(n)]
-    A1 = [e[i] if i < n - 1 else 0.0 for i in range(n)]
-    A2 = [0.0] * n
-    L = [0.0] * n  # sub-diagonal element below row i (original)
-    for i in range(n - 1):
-        L[i] = e[i]
-    rhs = list(b)
-    for i in range(n - 1):
-        # candidates: row i (A0[i], A1[i], A2[i]) and row i+1 with sub elem L[i]
-        sub = L[i]
-        if abs(sub) > abs(A0[i]):
-            # swap row i and i+1. Row i+1 entries at cols i, i+1, i+2: sub, A0[i+1], A1[i+1]
-            r0, r1, r2 = sub, A0[i + 1], A1[i + 1]
-            o0, o1, o2 = A0[i], A1[i], A2[i]
-            A0[i], A1[i], A2[i] = r0, r1, r2
-            rhs[i], rhs[i + 1] = rhs[i + 1], rhs[i]
-            f = o0 / r0
-            A0[i + 1] = o1 - f * r1
-            A1[i + 1] = o2 - f * r2
-            rhs[i + 1] -= f * rhs[i]
-        else:
-            piv = A0[i] if A0[i] != 0.0 else 1e-300
-            A0[i] = piv
-            f = sub / piv
-            A0[i + 1] = A0[i + 1] - f * A1[i]
-            A1[i + 1] = A1[i + 1] - f * A2[i]
-            rhs[i + 1] -= f * rhs[i]
-    if A0[n - 1] == 0.0:
-        A0[n - 1] = 1e-300
-    x = [0.0] * n
-    for i in range(n - 1, -1, -1):
-        s = rhs[i]
-        if i + 1 < n:
-            s -= A1[i] * x[i + 1]
-        if i + 2 < n:
-            s -= A2[i] * x[i + 2]
-        x[i] = s / A0[i]
-    return x
-
-def _tri_eigvec(d: List[float], e: List[float], lam: float, seed: int) -> List[float]:
-    n = len(d)
-    # perturb shift slightly to avoid an exactly singular system
-    scale = max([abs(v) for v in d] + [abs(v) for v in e] + [1.0])
-    shift = lam + 2.220446049250313e-16 * scale * 10
-    v = [1.0 + 0.1 * math.sin(1.0 + i * 0.7 + seed) for i in range(n)]
-    for _ in range(4):
-        v = _tri_solve(d, e, shift, v)
-        nrm = math.sqrt(sum([t * t for t in v]))
-        v = [t / nrm for t in v]
-    return v
 
 def _dpss_norm_kind(norm) -> int:
     # 0: 2-norm, 1: approximate, 2: subsample, -1: default
@@ -334,12 +437,15 @@ def _dpss_impl(M: int, NW: float, K: int, sym: bool, nk: int, want_ratios: bool)
     W = float(NW) / Me
     d = [((Me - 1 - 2.0 * i) / 2.0) ** 2 * math.cos(2 * math.pi * W) for i in range(Me)]
     e = [i * (Me - i) / 2.0 for i in range(1, Me)]
+    # scipy: linalg.eigh_tridiagonal(d, e, select='i', select_range=(M-Kmax, M-1))
+    # (LAPACK ?stebz + ?stein), reversed so the largest concentration comes first
+    from scipy.linalg import eigh_tridiagonal
+    _, vecs = eigh_tridiagonal(np.array(d), np.array(e), select='i',
+                               select_range=(Me - K, Me - 1))
     wins = np.empty((K, Me), dtype=float)
     for kk in range(K):
-        lam = _tri_eig_bisect(d, e, Me - 1 - kk)
-        v = _tri_eigvec(d, e, lam, kk)
         for i in range(Me):
-            wins[kk, i] = v[i]
+            wins[kk, i] = vecs[i, K - 1 - kk]
     for kk in range(0, K, 2):
         s = 0.0
         for i in range(Me):
