@@ -34,3 +34,4 @@ import fft
 import strings
 import char
 import fusion
+from .scalar_types import *
