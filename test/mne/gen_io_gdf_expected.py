@@ -1,0 +1,88 @@
+# Writes GDF 1.25 / 2.20 fixtures (test/mne/data/test_gdf1.gdf, test_gdf2.gdf) and generates
+# test/mne/test_io_gdf.py from templates/test_io_gdf.tpl using mne 1.13.2 as the reference.
+import os, struct, sys, warnings
+import numpy as np
+import mne
+warnings.simplefilter("ignore")
+mne.set_log_level("ERROR")
+HERE = os.path.dirname(os.path.abspath(__file__))
+D = os.path.join(HERE, "data")
+
+def pad(s, n):
+    return s.encode("latin-1")[:n].ljust(n, b"\0")
+
+def write_gdf1(fname, data_dig, names, pmin, pmax, dmin, dmax, spr, n_rec, events):
+    nch = len(names)
+    hdr = 256 + 256 * nch
+    h = pad("GDF 1.25", 8) + pad("P001 name", 80) + pad("rec1", 80) + pad("2020010112300025", 16)
+    h += struct.pack("<q", hdr) + b"\0" * 24 + b"\0" * 20 + struct.pack("<q", n_rec) + struct.pack("<II", 1, 1) + struct.pack("<I", nch)
+    assert len(h) == 256
+    h += b"".join(pad(n, 16) for n in names) + b"\0" * (80 * nch) + b"".join(pad("uV", 8) for _ in names)
+    h += struct.pack("<%dd" % nch, *pmin) + struct.pack("<%dd" % nch, *pmax)
+    h += struct.pack("<%dq" % nch, *dmin) + struct.pack("<%dq" % nch, *dmax)
+    h += b"".join(pad("HP:0.5Hz LP:70Hz", 80) for _ in names)
+    h += struct.pack("<%di" % nch, *([spr] * nch)) + struct.pack("<%di" % nch, *([3] * nch)) + b"\0" * (32 * nch)
+    assert len(h) == hdr
+    body = b""
+    for r in range(n_rec):
+        for c in range(nch):
+            body += data_dig[c, r * spr:(r + 1) * spr].astype("<i2").tobytes()
+    ev = b"\x01" + (100).to_bytes(3, "little") + struct.pack("<I", len(events))
+    ev += struct.pack("<%dI" % len(events), *[e[0] + 1 for e in events]) + struct.pack("<%dH" % len(events), *[e[1] for e in events])
+    open(fname, "wb").write(h + body + ev)
+
+def write_gdf2(fname, data_dig, names, pmin, pmax, dmin, dmax, spr, n_rec, events):
+    nch = len(names)
+    hdr = 256 + 256 * nch
+    h = pad("GDF 2.20", 8) + pad("P002 name", 66) + b"\0" * 10 + b"\0" + b"\x46\xaa" + b"\x00"
+    h += pad("rec2", 64) + b"\0\0\0\xff" + struct.pack("<III", 0, 0, 0) + struct.pack("<Q", int((737425.5 + 367 - 1) * 0 + 0))
+    # birthday (u64)
+    h += struct.pack("<Q", 0)
+    h += struct.pack("<H", hdr // 256) + b"\0" * 6 + b"\0" * 8 + b"\0" * 6 + struct.pack("<3H", 0, 0, 0)
+    h += struct.pack("<3f", 0, 0, 0) + struct.pack("<3f", 0, 0, 0) + struct.pack("<q", n_rec) + struct.pack("<II", 1, 1) + struct.pack("<H", nch) + b"\0\0"
+    assert len(h) == 256, len(h)
+    h += b"".join(pad(n, 16) for n in names) + b"\0" * (80 * nch) + b"\0" * (6 * nch)
+    h += struct.pack("<%dH" % nch, *([4275] * nch))
+    h += struct.pack("<%dd" % nch, *pmin) + struct.pack("<%dd" % nch, *pmax)
+    h += struct.pack("<%dd" % nch, *dmin) + struct.pack("<%dd" % nch, *dmax)
+    h += b"\0" * (68 * nch)
+    h += struct.pack("<%df" % nch, *([70.0] * nch)) + struct.pack("<%df" % nch, *([0.5] * nch)) + struct.pack("<%df" % nch, *([50.0] * nch))
+    h += struct.pack("<%di" % nch, *([spr] * nch)) + struct.pack("<%di" % nch, *([5] * nch))
+    h += struct.pack("<%df" % nch, *([0.0] * nch)) * 3
+    h += b"\xff" * nch + b"\0" * (19 * nch)
+    assert len(h) == hdr, (len(h), hdr)
+    body = b""
+    for r in range(n_rec):
+        for c in range(nch):
+            body += data_dig[c, r * spr:(r + 1) * spr].astype("<i4").tobytes()
+    ne = len(events)
+    ev = b"\x03" + ne.to_bytes(3, "little") + struct.pack("<f", 100.0)
+    ev += struct.pack("<%dI" % ne, *[e[0] + 1 for e in events]) + struct.pack("<%dH" % ne, *[e[1] for e in events])
+    ev += struct.pack("<%dH" % ne, *[0] * ne) + struct.pack("<%dI" % ne, *[e[2] for e in events])
+    open(fname, "wb").write(h + body + ev)
+
+rng = np.random.RandomState(7)
+names = ["Fp1", "Fp2", "Cz", "Status"]
+n_rec, spr = 6, 100
+dig = rng.randint(-2000, 2000, size=(4, n_rec * spr)).astype(np.int64)
+dig[3] = (np.arange(n_rec * spr) % 7 == 0) * 3
+pmin, pmax = [-100.0, -200.0, -150.0, 0.0], [100.0, 200.0, 150.0, 8.0]
+dmin1, dmax1 = [-2048] * 3 + [0], [2047] * 3 + [8]
+events = [(10, 5, 1), (250, 7, 20)]
+write_gdf1(os.path.join(D, "test_gdf1.gdf"), dig, names, pmin, pmax, dmin1, dmax1, spr, n_rec, events)
+write_gdf2(os.path.join(D, "test_gdf2.gdf"), dig, names, pmin, pmax, [float(x) for x in dmin1], [float(x) for x in dmax1], spr, n_rec, events)
+
+fexp, sexp = [], []
+def check(n, got, rtol=1e-7, atol=1e-15):
+    fexp.append((n, [float(x) for x in np.asarray(got, dtype=float).ravel()]))
+def checks(n, got):
+    sexp.append((n, [str(v) for v in got]))
+src = open(os.path.join(HERE, "templates", "test_io_gdf.tpl")).read()
+
+
+g = {"np": np, "mne": mne, "check": check, "checks": checks}
+exec(compile(src, "tpl", "exec"), g)
+pre = open(os.path.join(HERE, "templates", "core_prelude.tpl")).read()
+fl = lambda v: "[" + ", ".join(repr(x) for x in v) + "]"
+pre = pre.replace("@@FEXP@@", "\n".join(f"    ({n!r}, {fl(v)})," for n, v in fexp)).replace("@@SEXP@@", "\n".join(f"    ({n!r}, {v!r})," for n, v in sexp))
+open(os.path.join(HERE, "test_io_gdf.py"), "w").write("# Generated by gen_io_gdf_expected.py from templates/test_io_gdf.tpl (mne 1.13.2)\n" + pre + src)

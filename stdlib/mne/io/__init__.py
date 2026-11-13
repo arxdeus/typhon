@@ -7,3 +7,4 @@ from ..epochs import read_epochs as read_epochs_fif
 from .edf import read_raw_edf, read_raw_bdf
 from .brainvision import read_raw_brainvision
 from .eeglab import read_raw_eeglab
+from .gdf import read_raw_gdf
