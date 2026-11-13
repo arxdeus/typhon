@@ -1410,3 +1410,49 @@ def mathieu_odd_coef(m, q):
 from . import _wright as WR
 def wright_bessel(a, b, x): return _map3(WR.wright_bessel, a, b, x)
 def log_wright_bessel(a, b, x): return _map3(WR.log_wright_bessel, a, b, x)
+
+from . import _ellip_harm as EH
+def _eh_call(h2: float, k2: float, n: float, p: float, s: float, sm: float, sn: float) -> float:
+    return EH.ellip_harm(h2, k2, int(n), int(p), s, sm, sn)
+def ellip_harm(h2, k2, n, p, s, signm = 1, signn = 1):
+    if _is_arr(h2) or _is_arr(k2) or _is_arr(n) or _is_arr(p) or _is_arr(s):
+        shp = _bshape(h2, k2, n, p, s)
+        a0 = np.broadcast_to(np.asarray(h2), shp)
+        a1 = np.broadcast_to(np.asarray(k2), shp)
+        a2 = np.broadcast_to(np.asarray(n), shp)
+        a3 = np.broadcast_to(np.asarray(p), shp)
+        a4 = np.broadcast_to(np.asarray(s), shp)
+        out = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            out[idx] = _eh_call(float(a0[idx]), float(a1[idx]), float(a2[idx]), float(a3[idx]), float(a4[idx]), float(signm), float(signn))
+        return out
+    return _eh_call(float(h2), float(k2), float(n), float(p), float(s), float(signm), float(signn))
+def _eh2_call(h2: float, k2: float, n: float, p: float, s: float) -> float:
+    return EH.ellipsoid(h2, k2, int(n), int(p), s)
+def ellip_harm_2(h2, k2, n, p, s):
+    if _is_arr(h2) or _is_arr(k2) or _is_arr(n) or _is_arr(p) or _is_arr(s):
+        shp = _bshape(h2, k2, n, p, s)
+        a0 = np.broadcast_to(np.asarray(h2), shp)
+        a1 = np.broadcast_to(np.asarray(k2), shp)
+        a2 = np.broadcast_to(np.asarray(n), shp)
+        a3 = np.broadcast_to(np.asarray(p), shp)
+        a4 = np.broadcast_to(np.asarray(s), shp)
+        out = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            out[idx] = _eh2_call(float(a0[idx]), float(a1[idx]), float(a2[idx]), float(a3[idx]), float(a4[idx]))
+        return out
+    return _eh2_call(float(h2), float(k2), float(n), float(p), float(s))
+def _en_call(h2: float, k2: float, n: float, p: float) -> float:
+    return EH.ellipsoid_norm(h2, k2, int(n), int(p))
+def ellip_normal(h2, k2, n, p):
+    if _is_arr(h2) or _is_arr(k2) or _is_arr(n) or _is_arr(p):
+        shp = _bshape(h2, k2, n, p)
+        a0 = np.broadcast_to(np.asarray(h2), shp)
+        a1 = np.broadcast_to(np.asarray(k2), shp)
+        a2 = np.broadcast_to(np.asarray(n), shp)
+        a3 = np.broadcast_to(np.asarray(p), shp)
+        out = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            out[idx] = _en_call(float(a0[idx]), float(a1[idx]), float(a2[idx]), float(a3[idx]))
+        return out
+    return _en_call(float(h2), float(k2), float(n), float(p))
