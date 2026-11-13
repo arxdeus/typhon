@@ -222,13 +222,13 @@ class RadiusNeighborsClassifier:
         self.metric = metric
         self.outlier_label = outlier_label
         self.outlier_most_frequent = outlier_label_most_frequent
-        self._nn = _nn(5, radius, algorithm, leaf_size, metric, self.p)
+        self._nn = _nn(0, radius, algorithm, leaf_size, metric, self.p)
         self.classes_ = np.empty(0, dtype=int)
         self._y = np.empty(0, dtype=int)
         self.outlier_label_ = 0
 
     def fit(self, X, y):
-        self._nn = _nn(5, self.radius, self.algorithm, self.leaf_size, self.metric, self.p)
+        self._nn = _nn(0, self.radius, self.algorithm, self.leaf_size, self.metric, self.p)
         self._nn.fit(X)
         self.classes_, self._y = _class_index(y)
         if self.outlier_most_frequent:
@@ -305,11 +305,11 @@ class RadiusNeighborsRegressor:
         self.leaf_size = leaf_size
         self.p = float(p)
         self.metric = metric
-        self._nn = _nn(5, radius, algorithm, leaf_size, metric, self.p)
+        self._nn = _nn(0, radius, algorithm, leaf_size, metric, self.p)
         self._y = np.empty(0)
 
     def fit(self, X, y):
-        self._nn = _nn(5, self.radius, self.algorithm, self.leaf_size, self.metric, self.p)
+        self._nn = _nn(0, self.radius, self.algorithm, self.leaf_size, self.metric, self.p)
         self._nn.fit(X)
         self._y = np.ascontiguousarray(np.asarray(y, dtype=float).ravel())
         return self

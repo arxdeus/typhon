@@ -5,6 +5,7 @@
 # scikit-learn, so all of them are served by this exact backend.
 
 import numpy as np
+from ._tree_util import heap_push, simultaneous_sort_range
 
 def _metric_code(metric: str, p: float) -> int:
     # 0 euclidean, 1 manhattan, 2 chebyshev, 3 general minkowski, 4 cosine,
@@ -29,7 +30,8 @@ def _metric_code(metric: str, p: float) -> int:
         return 4
     if metric == "sqeuclidean":
         return 5
-    raise ValueError(f"Metric '{metric}' not supported by this port")
+    # tree-only metrics (haversine, hamming, ...) have no brute kernel here
+    return -1
 
 def _pairwise(Xq: np.ndarray[float, 2], Xf: np.ndarray[float, 2], code: int,
               p: float) -> np.ndarray[float, 2]:
@@ -108,3 +110,52 @@ def _as2d(X) -> np.ndarray[float, 2]:
     if a.ndim == 1:
         return np.ascontiguousarray(a.reshape((1, -1)))
     return np.ascontiguousarray(a)
+
+
+def _kneighbors_heap(Xq: np.ndarray[float, 2], Xf: np.ndarray[float, 2], D: np.ndarray[float, 2],
+                     code: int, k: int):
+    """ArgKmin (pairwise_distances_reduction) selection: a size-k max-heap fed in
+    index order with the surrogate key (euclidean: -2 x.y + |y|^2), then the
+    introsort of simultaneous_sort.  Returns (distances, indices)."""
+    nq = Xq.shape[0]
+    nf = Xf.shape[0]
+    d = Xq.shape[1]
+    HD = np.full((nq, k), float("inf"))
+    HI = np.zeros((nq, k), dtype=int)
+    ynorm = np.zeros(nf)
+    if code == 0 or code == 5:
+        for j in range(nf):
+            s = 0.0
+            for c in range(d):
+                s += Xf[j, c] * Xf[j, c]
+            ynorm[j] = s
+    chunk = 256
+    nchunks = (nf + chunk - 1) // chunk
+    # parallel_on_Y (used while nq < 256 * n_threads): one heap per Y chunk,
+    # merged into the result heap in chunk order, entries in heap-array order
+    LD = np.empty(k)
+    LI = np.zeros(k, dtype=int)
+    L2D = np.empty((1, k))
+    L2I = np.zeros((1, k), dtype=int)
+    G = Xq @ Xf.T if (code == 0 or code == 5) else np.empty((0, 0))
+    for i in range(nq):
+        for ch in range(nchunks):
+            for c in range(k):
+                L2D[0, c] = float("inf")
+                L2I[0, c] = 0
+            lo = ch * chunk
+            hi = min(nf, lo + chunk)
+            for j in range(lo, hi):
+                key = D[i, j]
+                if code == 0 or code == 5:
+                    key = -2.0 * G[i, j] + ynorm[j]
+                heap_push(L2D, L2I, 0, k, key, j)
+            for c in range(k):
+                heap_push(HD, HI, i, k, L2D[0, c], L2I[0, c])
+        rv = np.ascontiguousarray(HD[i])
+        ri = np.ascontiguousarray(HI[i])
+        simultaneous_sort_range(rv, ri, 0, k)
+        for c in range(k):
+            HI[i, c] = ri[c]
+            HD[i, c] = D[i, ri[c]]
+    return HD, HI

@@ -1156,3 +1156,18 @@ class BallTree(_TreeAPI):
         vi, hvi = _opt_mat(VI)
         _TreeAPI.__init__(self, _BinaryTree(1, data, leaf_size, metric, float(p), wa, hw,
                                             va, hv, vm, hvm, vi, hvi, sa, hs))
+
+def _make_tree(kind: int, X: np.ndarray[float, 2], leaf_size: int, metric: str, p: float) -> _BinaryTree:
+    return _BinaryTree(kind, X, leaf_size, metric, p, np.empty(0), False, np.empty(0), False,
+                       np.empty((0, 0)), False, np.empty((0, 0)), False, np.empty(0), False)
+
+def _tree_kind_for(metric: str, p: float) -> int:
+    """0 if KDTree supports the metric, 1 if only BallTree does, -1 if neither."""
+    if metric == "euclidean" or metric == "l2" or metric == "manhattan" or metric == "cityblock" \
+            or metric == "l1" or metric == "chebyshev" or metric == "infinity" or metric == "minkowski" \
+            or metric == "p":
+        return 0
+    if metric == "cosine" or metric == "sqeuclidean" or metric == "precomputed":
+        return -1
+    code, _ = _metric_info(metric, p)
+    return 1
