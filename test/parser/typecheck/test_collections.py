@@ -451,8 +451,8 @@ print fdl(1, int)  #: ({'a': 0, 'b': 1}, [[], [1]], {'k': [], 'j': [1]})
 
 #%% list_optional_mixed_numeric,barebones
 a = [None, 1, 2.5]
-print(a, a.__class__.__name__)
-#: [None, 1, 2.5] List[Optional[float]]
+print(a.__class__.__name__, a[2])
+#: List[Optional[float]] 2.5
 b = [1, None, 2]
 print(b, b.__class__.__name__)
 #: [1, None, 2] List[Optional[int]]
