@@ -3,7 +3,7 @@
 # Native Typhon implementation of a pandas subset. See docs/libraries/pandas.md.
 
 from .scalar import Scalar
-from .index import Index
+from .index import Index, MultiIndex
 from .frame import Series, DataFrame, DataFrameGroupBy, SeriesGroupBy, Rolling, Ewm, GroupRolling, \
                    concat, merge, isna, isnull, notna, notnull, unique, to_numeric, \
                    read_csv, read_csv_string, concat_series_axis1, \

@@ -142,7 +142,26 @@ def adjoin(cols: List[List[str]], left_first: bool) -> str:
         lines.append("".join(parts))
     return "\n".join(lines)
 
-def frame_repr(cols: List[Column], col_labels: List[str], idx: Column, idx_name: Optional[str], nrows: int, fit: bool) -> str:
+def sparsify_levels(levels: List[Column]) -> List[List[str]]:
+    # MultiIndex display: a label equal to the previous row's (with all outer
+    # levels equal too) is blanked.
+    out = List[List[str]]()
+    n = len(levels[0])
+    prev_same = [True for _ in range(n)]
+    for lv in levels:
+        strs = format_index(lv)
+        col = List[str](n)
+        cur_same = [False for _ in range(n)]
+        for i in range(n):
+            eq = i > 0 and prev_same[i] and lv.get(i) == lv.get(i - 1)
+            cur_same[i] = eq
+            col.append("" if eq else strs[i])
+        out.append(col)
+        prev_same = cur_same
+    return out
+
+def frame_repr(cols: List[Column], col_labels: List[str], idx: Column, idx_name: Optional[str], nrows: int, fit: bool,
+               idx_levels: List[Column] = List[Column](), idx_names: List[Optional[str]] = List[Optional[str]]()) -> str:
     ncols = len(cols)
     # vertical truncation
     row_sel = list(range(nrows))
@@ -154,20 +173,39 @@ def frame_repr(cols: List[Column], col_labels: List[str], idx: Column, idx_name:
         row_sel = list(range(tr_row_num)) + list(range(nrows - tr_row_num, nrows))
     # format every column (full), truncation picks from these
     idx_strs = format_index(idx.take(row_sel))
+    lvl_strs = List[List[str]]()
+    multi = len(idx_levels) > 0
+    if multi:
+        lvl_strs = sparsify_levels([c.take(row_sel) for c in idx_levels])
     data_strs = List[List[str]]()
     for j in range(ncols):
         data_strs.append(format_column(cols[j].take(row_sel)))
     has_idx_name = idx_name is not None
+    if multi:
+        has_idx_name = False
+        for nm in idx_names:
+            if nm is not None:
+                has_idx_name = True
 
     def build(sel: List[int]) -> List[List[str]]:
         strcols = List[List[str]]()
-        ic = List[str]()
-        ic.append("")
-        if has_idx_name:
-            ic.append(idx_name.__val__())
-        ic.extend(idx_strs)
-        iw = _width(ic)
-        strcols.append([s.ljust(iw) for s in ic])
+        if multi:
+            for lj in range(len(lvl_strs)):
+                ic = List[str]()
+                ic.append("")
+                if has_idx_name:
+                    ic.append(idx_names[lj].__val__() if idx_names[lj] is not None else "")
+                ic.extend(lvl_strs[lj])
+                iw = _width(ic)
+                strcols.append([s.ljust(iw) for s in ic])
+        else:
+            ic = List[str]()
+            ic.append("")
+            if has_idx_name:
+                ic.append(idx_name.__val__())
+            ic.extend(idx_strs)
+            iw = _width(ic)
+            strcols.append([s.ljust(iw) for s in ic])
         for j in sel:
             vals = data_strs[j]
             hdr = col_labels[j] if cols[j].kind == K_STR else " " + col_labels[j]
@@ -245,7 +283,8 @@ def _py_round_half_even(x: float) -> int:
         return f
     return f if f % 2 == 0 else f + 1
 
-def series_repr(c: Column, idx: Column, idx_name: Optional[str], name: Optional[str], dtype: str, footer_name: bool = True) -> str:
+def series_repr(c: Column, idx: Column, idx_name: Optional[str], name: Optional[str], dtype: str, footer_name: bool = True,
+                idx_levels: List[Column] = List[Column](), idx_names: List[Optional[str]] = List[Optional[str]]()) -> str:
     n = len(c)
     sel = list(range(n))
     trunc = False
@@ -256,10 +295,29 @@ def series_repr(c: Column, idx: Column, idx_name: Optional[str], name: Optional[
         sel = list(range(half)) + list(range(n - half, n))
     vals = format_column(c.take(sel))
     labs = format_index(idx.take(sel))
+    header = ""
+    if len(idx_levels) > 0:
+        lv = sparsify_levels([c.take(sel) for c in idx_levels])
+        widths = List[int]()
+        for j in range(len(lv)):
+            nm = idx_names[j].__val__() if idx_names[j] is not None else ""
+            widths.append(max(_width(lv[j]), len(nm)))
+        labs = List[str]()
+        for k in range(len(sel)):
+            labs.append("  ".join([lv[j][k].ljust(widths[j]) for j in range(len(lv))]))
+        has_nm = False
+        for nm in idx_names:
+            if nm is not None:
+                has_nm = True
+        if has_nm:
+            header = "  ".join([(idx_names[j].__val__() if idx_names[j] is not None else "").ljust(widths[j]) for j in range(len(lv))])
     iw = _width(labs)
     vw = _width(vals)
     lines = List[str]()
-    if idx_name is not None:
+    if len(idx_levels) > 0:
+        if header != "":
+            lines.append(header)
+    elif idx_name is not None:
         lines.append(idx_name.__val__())
     for k in range(len(sel)):
         if trunc and k == half:

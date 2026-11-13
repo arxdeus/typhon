@@ -490,6 +490,25 @@ class Series:
                random_state: Optional[int] = None):
         return self._take(_sample_pos(len(self), n, frac, replace, random_state))
 
+    def unstack(self, level: int = -1):
+        lv = self.index._lv
+        if len(lv) != 2:
+            raise ValueError("unstack requires a two-level MultiIndex")
+        rl = 0 if level == 1 or level == -1 else 1
+        cl = 1 - rl
+        rg = _Grouper(lv[rl], self.index._lnames[rl])
+        cg = _Grouper(lv[cl], self.index._lnames[cl])
+        G = rg.ngroups
+        H = cg.ngroups
+        vals = [Scalar.none() for _ in range(G * H)]
+        for i in range(len(self)):
+            if rg.codes[i] >= 0 and cg.codes[i] >= 0:
+                vals[cg.codes[i] * G + rg.codes[i]] = self._col.get(i)
+        cols = List[Column]()
+        for h in range(H):
+            cols.append(Column.from_scalars(vals[h * G:(h + 1) * G]))
+        return DataFrame._new(cols, Index._wrap(cg.key_col.copy(), self.index._lnames[cl]), rg.index())
+
     def all(self) -> bool:
         for x in self:
             if not x.__bool__():
@@ -1069,7 +1088,7 @@ class Series:
         if len(self) == 0:
             nm = f"Name: {self.name.__val__()}, " if self.name is not None else ""
             return f"Series([], {nm}dtype: {self.dtype})"
-        return series_repr(self._col, self.index._col, self.index.name, self.name, self.dtype)
+        return series_repr(self._col, self.index._col, self.index.name, self.name, self.dtype, True, self.index._lv, self.index._lnames)
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -1663,6 +1682,14 @@ class DataFrame:
     def reset_index(self, drop: bool = False):
         if drop:
             return DataFrame._new([c.copy() for c in self._cols], self.columns.copy(), Index.range(len(self)))
+        if len(self.index._lv) > 0:
+            cols = [c.copy() for c in self.index._lv] + [c.copy() for c in self._cols]
+            labels = List[Scalar]()
+            for j in range(len(self.index._lv)):
+                nm = self.index._lnames[j]
+                labels.append(Scalar.of(nm.__val__() if nm is not None else f"level_{j}"))
+            labels = labels + self.columns.tolist()
+            return DataFrame._new(cols, Index._wrap(Column.from_scalars(labels)), Index.range(len(self)))
         name = self.index.name if self.index.name is not None else "index"
         cols = [self.index._col.copy()] + [c.copy() for c in self._cols]
         labels = [Scalar.of(name)] + self.columns.tolist()
@@ -1673,6 +1700,19 @@ class DataFrame:
         idx = Index._wrap(self._cols[j].copy(), _label_name(self.columns[j]))
         if drop:
             df = self._take_cols([k for k in range(len(self._cols)) if k != j])
+            df.index = idx
+            return df
+        df = self.copy()
+        df.index = idx
+        return df
+
+    def set_index(self, keys: List[str], drop: bool = True):
+        if len(keys) == 1:
+            return self.set_index(keys[0], drop)
+        pos = [self._col_pos(k) for k in keys]
+        idx = Index._multi([self._cols[j].copy() for j in pos], [_label_name(self.columns[j]) for j in pos])
+        if drop:
+            df = self._take_cols([k for k in range(len(self._cols)) if k not in pos])
             df.index = idx
             return df
         df = self.copy()
@@ -2178,6 +2218,22 @@ class DataFrame:
             out.append(Column.from_scalars(vals))
         return DataFrame._new(out, self.columns.take(cols), Index.strs(order))
 
+    def stack(self):
+        # DataFrame -> Series with a (row, column) MultiIndex; missing values are dropped
+        n = len(self)
+        m = len(self._cols)
+        rows = List[int]()
+        cs = List[int]()
+        vals = List[Scalar]()
+        for i in range(n):
+            for j in range(m):
+                if not self._cols[j].isna_at(i):
+                    rows.append(i)
+                    cs.append(j)
+                    vals.append(self._cols[j].get(i))
+        idx = Index._multi([self.index._col.take(rows), self.columns._col.take(cs)], [self.index.name, self.columns.name])
+        return Series._new(Column.from_scalars(vals), idx, None)
+
     def nlargest(self, n: int, columns, keep: str = "first"):
         asc = False
         return self.sort_values(columns, ascending=asc).head(n)
@@ -2243,7 +2299,17 @@ class DataFrame:
             return DataFrameGroupBy(self, _Grouper(by._col, by.name, sort), -1)
         elif isinstance(by, List):
             if len(by) != 1:
-                raise NotImplementedError("groupby on multiple keys is not supported")
+                kc = List[Column]()
+                kn = List[Optional[str]]()
+                kp = List[int]()
+                for b in by:
+                    jj = self._col_pos(b)
+                    kc.append(self._cols[jj])
+                    kn.append(_label_name(self.columns[jj]))
+                    kp.append(jj)
+                gb = DataFrameGroupBy(self, _Grouper.multi(kc, kn, sort), -1)
+                gb.key_cols = kp
+                return gb
             j = self._col_pos(by[0])
             return DataFrameGroupBy(self, _Grouper(self._cols[j], _label_name(self.columns[j]), sort), j)
         else:
@@ -2383,7 +2449,7 @@ class DataFrame:
             cl = ", ".join([str(c) for c in self.columns])
             il = ", ".join([str(c) for c in self.index])
             return f"Empty DataFrame\nColumns: [{cl}]\nIndex: [{il}]"
-        return frame_repr(self._cols, [str(self.columns[j]) for j in range(len(self.columns))], self.index._col, self.index.name, n, True)
+        return frame_repr(self._cols, [str(self.columns[j]) for j in range(len(self.columns))], self.index._col, self.index.name, n, True, self.index._lv, self.index._lnames)
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -2532,6 +2598,8 @@ class _Grouper:
     keys: List[Scalar]
     key_col: Column
     name: Optional[str]
+    levels: List[Column]               # multi-key: one key column per level (group order)
+    lnames: List[Optional[str]]
 
     def __init__(self, col: Column, name: Optional[str], sort: bool = True):
         first = Dict[Scalar, int]()
@@ -2562,12 +2630,64 @@ class _Grouper:
         if col.kind == K_INT and len(keys) > 0:
             self.key_col = Column.ints([k.i for k in keys])
         self.name = name
+        self.levels = List[Column]()
+        self.lnames = List[Optional[str]]()
+
+    @staticmethod
+    def multi(cols: List[Column], names: List[Optional[str]], sort: bool = True) -> _Grouper:
+        # group by several keys: combine the per-key group codes lexicographically
+        n = len(cols[0])
+        subs = List[_Grouper]()
+        for c in cols:
+            subs.append(_Grouper(c, None, sort))
+        tup = Dict[str, int]()
+        order = List[List[int]]()
+        raw = List[int](n)
+        for i in range(n):
+            ok = True
+            t = List[int]()
+            for sg in subs:
+                if sg.codes[i] < 0:
+                    ok = False
+                t.append(sg.codes[i])
+            if not ok:
+                raw.append(-1)
+                continue
+            key = ",".join([str(x) for x in t])
+            if key not in tup:
+                tup[key] = len(order)
+                order.append(t)
+            raw.append(tup[key])
+        perm = list(range(len(order)))
+        if sort:
+            perm.sort(key=lambda g: order[g])
+        newpos = [0 for _ in range(len(order))]
+        for r in range(len(perm)):
+            newpos[perm[r]] = r
+        g = _Grouper.__new__()
+        g.codes = [newpos[c] if c >= 0 else -1 for c in raw]
+        g.name = None
+        g.lnames = names
+        g.levels = List[Column]()
+        for j in range(len(subs)):
+            pick = List[int]()
+            for r in range(len(perm)):
+                pick.append(order[perm[r]][j])
+            g.levels.append(subs[j].key_col.take(pick))
+        keys = List[Scalar]()
+        for r in range(len(perm)):
+            keys.append(Scalar.of("\x1f".join([str(lv.get(r)) for lv in g.levels])))
+        g.keys = keys
+        g.key_col = Column.from_scalars(keys)
+        return g
 
     @property
     def ngroups(self) -> int:
         return len(self.keys)
 
     def index(self) -> Index:
+        if len(self.levels) > 0:
+            return Index._multi([c.copy() for c in self.levels], self.lnames.copy())
         return Index._wrap(self.key_col.copy(), self.name)
 
     def members(self) -> List[List[int]]:
@@ -2762,24 +2882,28 @@ class DataFrameGroupBy:
     g: _Grouper
     key_pos: int
     sel: Optional[List[int]]
+    key_cols: List[int]
 
     def __init__(self, df: DataFrame, g: _Grouper, key_pos: int, sel: Optional[List[int]] = None):
         self.df = df
         self.g = g
         self.key_pos = key_pos
         self.sel = sel
+        self.key_cols = List[int]()
 
     def _value_cols(self) -> List[int]:
         if self.sel is not None:
             return self.sel
-        return [j for j in range(len(self.df._cols)) if j != self.key_pos]
+        return [j for j in range(len(self.df._cols)) if j != self.key_pos and j not in self.key_cols]
 
     def __getitem__(self, key):
         j = self.df._col_pos(key)
         return SeriesGroupBy(self.g, self.df._cols[j], _label_name(self.df.columns[j]))
 
     def __getitem__(self, key: List[str]):
-        return DataFrameGroupBy(self.df, self.g, self.key_pos, [self.df._col_pos(k) for k in key])
+        gb = DataFrameGroupBy(self.df, self.g, self.key_pos, [self.df._col_pos(k) for k in key])
+        gb.key_cols = self.key_cols
+        return gb
 
     def __getattr__(self, name: Literal[str]):
         return self[name]
