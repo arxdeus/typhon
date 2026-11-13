@@ -71,6 +71,9 @@ pub const STDLIB: &[&str] = &[
     "stdlib/math_more_test.py", "stdlib/random_parity_test.py", "stdlib/hmac_secrets_test.py",
     "stdlib/queue_graphlib_test.py", "stdlib/zlib_timeit_test.py", "stdlib/itertools_more_test.py",
     "stdlib/string_more_test.py",
+    "stdlib/numcore_test.py", "stdlib/struct_more_test.py", "stdlib/deque_more_test.py",
+    "stdlib/functools_more_test.py", "stdlib/zlib_deflate_test.py", "stdlib/decimal_test.py",
+    "stdlib/ipaddress_test.py", "stdlib/calendar_test.py",
 ];
 
 pub const CNUMERICS: &[&str] = &[
