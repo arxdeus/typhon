@@ -10,6 +10,6 @@ def test_mgc():
     r = st.multiscale_graphcorr(x, y, reps=200, random_state=1)
     assert abs(r.statistic - 1.0) < 1e-9
     assert abs(r.pvalue - 0.004975124378109453) < 1e-12
-    assert abs(float(np.sum(r.mgc_dict['mgc_map'])) - 312.535559186088) < 1e-7
+    assert abs(float(np.sum(r.mgc_map)) - 312.535559186088) < 1e-7
     assert r.mgc_map.shape == (20, 20)
     assert list(r.opt_scale) == [7, 5]
