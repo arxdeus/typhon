@@ -4083,7 +4083,8 @@ def _norm_wrap(x, kd_shape, keepdims: Literal[bool]):
 def norm(x, ord = None, axis = None, keepdims: Literal[bool] = False):
     x = asarray(x)
 
-    if not (x.dtype is float or x.dtype is float32 or x.dtype is float16):
+    if not (x.dtype is float or x.dtype is float32 or x.dtype is float16
+            or x.dtype is complex or x.dtype is complex64):
         return norm(x.astype(float), ord=ord, axis=axis, keepdims=keepdims)
 
     ndim: Literal[int] = static.len(x.shape)

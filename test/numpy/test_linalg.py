@@ -992,7 +992,7 @@ def test_norm_nonsystematic():
         d = np.empty((2, ), dtype=np.clongdouble)
         d[0] = 6 + 7j
         d[1] = -6 + 7j
-        res = 7.55953
+        res = 11.615898132184
         assert np.isclose(alg.norm(d, ord=3), res)
         d = d.astype(np.complex128)
         assert np.isclose(alg.norm(d, ord=3), res)
@@ -2437,6 +2437,8 @@ test_norm(np.array([[-4, -3, -2], [-1, 0, 1], [2, 3, 4]]), 7.745966692414834)
 test_norm(np.array([[-4, -3, -2], [-1, 0, 1], [2, 3, 4]]), 7.745966692414834,
           'fro')
 test_norm(np.array([-4, -3, -2, -1, 0, 1, 2, 3, 4]), 4.0, np.inf)
+test_norm(np.array([3 + 4j, 0j]), 5.0)
+test_norm(np.array([[3 + 4j, 0j], [0j, 0j]]), 5.0, 'fro')
 test_norm(np.array([-4, -3, -2, -1, 0, 1, 2, 3, 4]), 0.0, -np.inf)
 test_norm(np.array([[-4, -3, -2], [-1, 0, 1], [2, 3, 4]]), 9.0, np.inf)
 test_norm(np.array([[-4, -3, -2], [-1, 0, 1], [2, 3, 4]]), 2.0, -np.inf)
