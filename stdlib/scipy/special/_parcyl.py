@@ -170,7 +170,7 @@ def vvsa(x: float, va: float) -> float:
         pv *= a0
     return pv
 
-def _pbdv(x: float, v: float) -> Tuple[float, float]:
+def _pbdv_arr(x: float, v: float):
     xa = fabs(x)
     v += -1.0 if v < 0 else 1.0
     nv = int(v)
@@ -263,9 +263,13 @@ def _pbdv(x: float, v: float) -> Tuple[float, float]:
             dp[k] = 0.5 * x * dv[k] - dv[k + 1]
         else:
             dp[k] = -0.5 * x * dv[k] - v1 * dv[k + 1]
-    return (dv[na - 1], dp[na - 1])
+    return (dv, dp, na)
 
-def _pbvv(x: float, v: float) -> Tuple[float, float]:
+def _pbdv(x: float, v: float) -> Tuple[float, float]:
+    t = _pbdv_arr(x, v)
+    return (t[0][t[2] - 1], t[1][t[2] - 1])
+
+def _pbvv_arr(x: float, v: float):
     xa = fabs(x)
     v += -1.0 if v < 0 else 1.0
     nv = int(v)
@@ -363,7 +367,11 @@ def _pbvv(x: float, v: float) -> Tuple[float, float]:
             vp[k] = 0.5 * x * vv[k] - (v1 + 1.0) * vv[k + 1]
         else:
             vp[k] = -0.5 * x * vv[k] + vv[k + 1]
-    return (vv[na - 1], vp[na - 1])
+    return (vv, vp, na)
+
+def _pbvv(x: float, v: float) -> Tuple[float, float]:
+    t = _pbvv_arr(x, v)
+    return (t[0][t[2] - 1], t[1][t[2] - 1])
 
 def pbdv(v: float, x: float) -> Tuple[float, float]:
     if v != v or x != x:
@@ -496,3 +504,19 @@ def pbwa(a: float, x: float) -> Tuple[float, float]:
             return (w[2], -w[3])
         w = _pbwa_series(a, x)
         return (w[0], w[1])
+
+def pbdv_seq(v: float, x: float):
+    n = int(v)
+    v0 = v - n
+    n1 = 1 if n < 1 else n
+    v1 = n1 + v0
+    t = _pbdv_arr(x, v1)
+    return (t[0][:n1 + 1], t[1][:n1 + 1])
+
+def pbvv_seq(v: float, x: float):
+    n = int(v)
+    v0 = v - n
+    n1 = 1 if n <= 1 else n
+    v1 = n1 + v0
+    t = _pbvv_arr(x, v1)
+    return (t[0][:n1 + 1], t[1][:n1 + 1])

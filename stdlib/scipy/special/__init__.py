@@ -896,3 +896,478 @@ def sph_harm_y_all(n, m, theta, phi):
                 col = i if i >= 0 else i + 2 * mm + 1
                 out[(j, col) + idx] = t[0].v * t[1]
     return out
+
+# orthogonal polynomial objects (_orthogonal / _orthopoly)
+from ._orthopoly import orthopoly1d
+from . import _orthogonal as OG
+def jacobi(n, alpha, beta, monic: bool = False): return OG.jacobi(int(n), float(alpha), float(beta), monic)
+def sh_jacobi(n, p, q, monic: bool = False): return OG.sh_jacobi(int(n), float(p), float(q), monic)
+def genlaguerre(n, alpha, monic: bool = False): return OG.genlaguerre(int(n), float(alpha), monic)
+def laguerre(n, monic: bool = False): return OG.laguerre(int(n), monic)
+def hermite(n, monic: bool = False): return OG.hermite(int(n), monic)
+def hermitenorm(n, monic: bool = False): return OG.hermitenorm(int(n), monic)
+def gegenbauer(n, alpha, monic: bool = False): return OG.gegenbauer(int(n), float(alpha), monic)
+def chebyt(n, monic: bool = False): return OG.chebyt(int(n), monic)
+def chebyu(n, monic: bool = False): return OG.chebyu(int(n), monic)
+def chebyc(n, monic: bool = False): return OG.chebyc(int(n), monic)
+def chebys(n, monic: bool = False): return OG.chebys(int(n), monic)
+def sh_chebyt(n, monic: bool = False): return OG.sh_chebyt(int(n), monic)
+def sh_chebyu(n, monic: bool = False): return OG.sh_chebyu(int(n), monic)
+def legendre(n, monic: bool = False): return OG.legendre(int(n), monic)
+def sh_legendre(n, monic: bool = False): return OG.sh_legendre(int(n), monic)
+c_roots = roots_chebyc
+cg_roots = roots_gegenbauer
+h_roots = roots_hermite
+he_roots = roots_hermitenorm
+j_roots = roots_jacobi
+js_roots = roots_sh_jacobi
+l_roots = roots_laguerre
+la_roots = roots_genlaguerre
+s_roots = roots_chebys
+t_roots = roots_chebyt
+ts_roots = roots_sh_chebyt
+u_roots = roots_chebyu
+us_roots = roots_sh_chebyu
+ps_roots = roots_sh_legendre
+
+# ---------------------------------------------------------------------------
+# sequences, zeros, integrals (_specfun2) and python-level helpers of
+# scipy.special._basic
+from . import _specfun2 as S2
+
+def _nonneg_int(n, name: str) -> int:
+    if n != int(n) or n < 0:
+        raise ValueError(name + " must be a non-negative integer.")
+    return int(n)
+
+def _arr(l: List[float], k: int):
+    out = np.empty(k, dtype=float)
+    for i in range(k):
+        out[i] = l[i]
+    return out
+
+def ai_zeros(nt):
+    if nt != int(nt) or nt <= 0:
+        raise ValueError("nt must be a positive integer scalar.")
+    t = S2.airyzo(int(nt), 1)
+    return (np.array(t[0]), np.array(t[1]), np.array(t[2]), np.array(t[3]))
+
+def bi_zeros(nt):
+    if nt != int(nt) or nt <= 0:
+        raise ValueError("nt must be a positive integer scalar.")
+    t = S2.airyzo(int(nt), 2)
+    return (np.array(t[0]), np.array(t[1]), np.array(t[2]), np.array(t[3]))
+
+def _czeros(l: List[complex]):
+    out = np.empty(len(l), dtype=complex)
+    for i in range(len(l)):
+        out[i] = l[i]
+    return out
+
+def erf_zeros(nt):
+    if nt != int(nt) or nt <= 0:
+        raise ValueError("Argument must be positive scalar integer.")
+    return _czeros(S2.cerzo(int(nt)))
+
+def fresnel_zeros(nt):
+    if nt != int(nt) or nt <= 0:
+        raise ValueError("Argument must be positive scalar integer.")
+    return (_czeros(S2.fcszo(2, int(nt))), _czeros(S2.fcszo(1, int(nt))))
+
+def fresnelc_zeros(nt):
+    if nt != int(nt) or nt <= 0:
+        raise ValueError("Argument must be positive scalar integer.")
+    return _czeros(S2.fcszo(1, int(nt)))
+
+def fresnels_zeros(nt):
+    if nt != int(nt) or nt <= 0:
+        raise ValueError("Argument must be positive scalar integer.")
+    return _czeros(S2.fcszo(2, int(nt)))
+
+def _cyz_c(nt, kf: int):
+    if nt != int(nt) or nt <= 0:
+        raise ValueError("Arguments must be scalar positive integer.")
+    t = S2.cyzo(int(nt), kf, 0)
+    return (_czeros(t[0]), _czeros(t[1]))
+def _cyz_r(nt, kf: int):
+    if nt != int(nt) or nt <= 0:
+        raise ValueError("Arguments must be scalar positive integer.")
+    n = int(nt)
+    t = S2.cyzo(n, kf, 1)
+    zr = np.empty(n, dtype=float)
+    vr = np.empty(n, dtype=float)
+    for i in range(n):
+        zr[i] = t[0][i].real
+        vr[i] = t[1][i].real
+    return (zr, vr)
+
+def y0_zeros(nt, complex: Literal[bool] = False):
+    if complex:
+        return _cyz_c(nt, 0)
+    else:
+        return _cyz_r(nt, 0)
+def y1_zeros(nt, complex: Literal[bool] = False):
+    if complex:
+        return _cyz_c(nt, 1)
+    else:
+        return _cyz_r(nt, 1)
+def y1p_zeros(nt, complex: Literal[bool] = False):
+    if complex:
+        return _cyz_c(nt, 2)
+    else:
+        return _cyz_r(nt, 2)
+
+# derivatives of Bessel functions via A&S 9.1.31
+def _asv(v):
+    if _is_arr(v):
+        return np.asarray(v).astype(float)
+    else:
+        return float(v)
+def _bdiff_jv(v, z, n: int, phase: float):
+    p = 1.0
+    s = jv(_asv(v) - n, z)
+    for i in range(1, n + 1):
+        p = phase * (p * (n - i + 1)) / i
+        s = s + p * jv(_asv(v) - n + i * 2, z)
+    return s / (2.0 ** n)
+def _bdiff_yv(v, z, n: int, phase: float):
+    p = 1.0
+    s = yv(_asv(v) - n, z)
+    for i in range(1, n + 1):
+        p = phase * (p * (n - i + 1)) / i
+        s = s + p * yv(_asv(v) - n + i * 2, z)
+    return s / (2.0 ** n)
+def _bdiff_iv(v, z, n: int, phase: float):
+    p = 1.0
+    s = iv(_asv(v) - n, z)
+    for i in range(1, n + 1):
+        p = phase * (p * (n - i + 1)) / i
+        s = s + p * iv(_asv(v) - n + i * 2, z)
+    return s / (2.0 ** n)
+def _bdiff_kv(v, z, n: int, phase: float):
+    p = 1.0
+    s = kv(_asv(v) - n, z)
+    for i in range(1, n + 1):
+        p = phase * (p * (n - i + 1)) / i
+        s = s + p * kv(_asv(v) - n + i * 2, z)
+    return s / (2.0 ** n)
+
+def jvp(v, z, n = 1):
+    m = _nonneg_int(n, 'n')
+    if m == 0:
+        return jv(v, z)
+    return _bdiff_jv(v, z, m, -1.0)
+def yvp(v, z, n = 1):
+    m = _nonneg_int(n, 'n')
+    if m == 0:
+        return yv(v, z)
+    return _bdiff_yv(v, z, m, -1.0)
+def ivp(v, z, n = 1):
+    m = _nonneg_int(n, 'n')
+    if m == 0:
+        return iv(v, z)
+    return _bdiff_iv(v, z, m, 1.0)
+def kvp(v, z, n = 1):
+    m = _nonneg_int(n, 'n')
+    if m == 0:
+        return kv(v, z)
+    sg = -1.0 if m % 2 == 1 else 1.0
+    return sg * _bdiff_kv(v, z, m, 1.0)
+
+def _hk1(v: float, z: float) -> complex:
+    return complex(B.jv(v, z), B.yv(v, z))
+def _hk2(v: float, z: float) -> complex:
+    return complex(B.jv(v, z), -B.yv(v, z))
+def _cmap2(f, x, y):
+    if _is_arr(x) or _is_arr(y):
+        shp = _bshape(x, y)
+        a = np.broadcast_to(np.asarray(x), shp)
+        b = np.broadcast_to(np.asarray(y), shp)
+        out = np.empty(shp, dtype=complex)
+        for idx in np.ndindex(shp):
+            out[idx] = f(float(a[idx]), float(b[idx]))
+        return out
+    else:
+        return f(float(x), float(y))
+def hankel1(v, z): return _cmap2(_hk1, v, z)
+def hankel2(v, z): return _cmap2(_hk2, v, z)
+def _hk1e(v: float, z: float) -> complex:
+    return _hk1(v, z) * cmath.exp(complex(0.0, -z))
+def _hk2e(v: float, z: float) -> complex:
+    return _hk2(v, z) * cmath.exp(complex(0.0, z))
+def hankel1e(v, z): return _cmap2(_hk1e, v, z)
+def hankel2e(v, z): return _cmap2(_hk2e, v, z)
+def h1vp(v, z, n = 1):
+    m = _nonneg_int(n, 'n')
+    if m == 0:
+        return hankel1(v, z)
+    p = 1.0
+    vv = _asv(v)
+    s = hankel1(vv - m, z)
+    for i in range(1, m + 1):
+        p = -1.0 * (p * (m - i + 1)) / i
+        s = s + p * hankel1(vv - m + i * 2, z)
+    return s / (2.0 ** m)
+def h2vp(v, z, n = 1):
+    m = _nonneg_int(n, 'n')
+    if m == 0:
+        return hankel2(v, z)
+    p = 1.0
+    vv = _asv(v)
+    s = hankel2(vv - m, z)
+    for i in range(1, m + 1):
+        p = -1.0 * (p * (m - i + 1)) / i
+        s = s + p * hankel2(vv - m + i * 2, z)
+    return s / (2.0 ** m)
+
+def riccati_jn(n, x):
+    m = _nonneg_int(n, 'n')
+    n1 = 1 if m == 0 else m
+    t = S2.rctj(float(x), n1)
+    return (_arr(t[0], m + 1), _arr(t[1], m + 1))
+def riccati_yn(n, x):
+    m = _nonneg_int(n, 'n')
+    n1 = 1 if m == 0 else m
+    t = S2.rcty(float(x), n1)
+    return (_arr(t[0], m + 1), _arr(t[1], m + 1))
+
+def lmbda(v, x):
+    if v < 0:
+        raise ValueError("argument must be > 0.")
+    n = int(v)
+    v0 = v - n
+    n1 = 1 if n < 1 else n
+    v1 = n1 + v0
+    if v != K.floor(float(v)):
+        t = S2.lamv(float(v1), float(x))
+        return (_arr(t[0], n + 1), _arr(t[1], n + 1))
+    else:
+        t = S2.lamn(int(v1), float(x))
+        return (_arr(t[0], n + 1), _arr(t[1], n + 1))
+
+def lqn(n, z):
+    m = _nonneg_int(n, 'n')
+    n1 = 1 if m < 1 else m
+    t = S2.lqn(float(z), n1)
+    return (_arr(t[0], m + 1), _arr(t[1], m + 1))
+
+def lqmn(m, n, z):
+    if m < 0:
+        raise ValueError("m must be a non-negative integer.")
+    if n < 0:
+        raise ValueError("n must be a non-negative integer.")
+    mi = int(m)
+    ni = int(n)
+    mm = max(1, mi)
+    nn = max(1, ni)
+    t = S2.lqmn(float(z), mm, nn)
+    w = nn + 1
+    q = np.empty((mi + 1, ni + 1), dtype=float)
+    qd = np.empty((mi + 1, ni + 1), dtype=float)
+    for i in range(mi + 1):
+        for j in range(ni + 1):
+            q[i, j] = t[0][i * w + j]
+            qd[i, j] = t[1][i * w + j]
+    return (q, qd)
+
+def bernoulli(n):
+    if n < 0:
+        raise ValueError("n must be a non-negative integer.")
+    m = int(n)
+    n1 = 2 if m < 2 else m
+    return _arr(S2.bernob(n1), m + 1)
+def euler(n):
+    if n < 0:
+        raise ValueError("n must be a non-negative integer.")
+    m = int(n)
+    n1 = 2 if m < 2 else m
+    return _arr(S2.eulerb(n1), m + 1)
+
+def pbdv_seq(v, x):
+    t = PC.pbdv_seq(float(v), float(x))
+    return (np.array(t[0]), np.array(t[1]))
+def pbvv_seq(v, x):
+    t = PC.pbvv_seq(float(v), float(x))
+    return (np.array(t[0]), np.array(t[1]))
+
+def _i1(x: float, i: int) -> float:
+    if i == 0:
+        return S2.it1j0y0(x)[0]
+    return S2.it1j0y0(x)[1]
+def _i2(x: float, i: int) -> float:
+    if i == 0:
+        return S2.it2j0y0(x)[0]
+    return S2.it2j0y0(x)[1]
+def _i3(x: float, i: int) -> float:
+    if i == 0:
+        return S2.it1i0k0(x)[0]
+    return S2.it1i0k0(x)[1]
+def _i4(x: float, i: int) -> float:
+    if i == 0:
+        return S2.it2i0k0(x)[0]
+    return S2.it2i0k0(x)[1]
+def _itj0(x: float) -> float: return _i1(x, 0)
+def _ity0(x: float) -> float: return _i1(x, 1)
+def _it2j0(x: float) -> float: return _i2(x, 0)
+def _it2y0(x: float) -> float: return _i2(x, 1)
+def _iti0(x: float) -> float: return _i3(x, 0)
+def _itk0(x: float) -> float: return _i3(x, 1)
+def _it2i0(x: float) -> float: return _i4(x, 0)
+def _it2k0(x: float) -> float: return _i4(x, 1)
+def itj0y0(x): return (_map1(_itj0, x), _map1(_ity0, x))
+def it2j0y0(x): return (_map1(_it2j0, x), _map1(_it2y0, x))
+def iti0k0(x): return (_map1(_iti0, x), _map1(_itk0, x))
+def it2i0k0(x): return (_map1(_it2i0, x), _map1(_it2k0, x))
+def itstruve0(x): return _map1(S2.itstruve0, x)
+def it2struve0(x): return _map1(S2.it2struve0, x)
+def itmodstruve0(x): return _map1(S2.itmodstruve0, x)
+def _ita(x: float, i: int) -> float:
+    return S2.itairy_signed(x)[i]
+def _ita0(x: float) -> float: return _ita(x, 0)
+def _ita1(x: float) -> float: return _ita(x, 1)
+def _ita2(x: float) -> float: return _ita(x, 2)
+def _ita3(x: float) -> float: return _ita(x, 3)
+def itairy(x): return (_map1(_ita0, x), _map1(_ita1, x), _map1(_ita2, x), _map1(_ita3, x))
+
+def _mfp(x: float, i: int, j: int) -> complex:
+    return S2.modified_fresnel(0, x)[i] if j == 0 else S2.modified_fresnel(1, x)[i]
+def _mfp0(x: float) -> complex: return S2.modified_fresnel(0, x)[0]
+def _mfp1(x: float) -> complex: return S2.modified_fresnel(0, x)[1]
+def _mfm0(x: float) -> complex: return S2.modified_fresnel(1, x)[0]
+def _mfm1(x: float) -> complex: return S2.modified_fresnel(1, x)[1]
+def _cmap1(f, x):
+    if _is_arr(x):
+        a = np.asarray(x)
+        out = np.empty(a.shape, dtype=complex)
+        for idx in np.ndindex(a.shape):
+            out[idx] = f(float(a[idx]))
+        return out
+    else:
+        return f(float(x))
+def modfresnelp(x): return (_cmap1(_mfp0, x), _cmap1(_mfp1, x))
+def modfresnelm(x): return (_cmap1(_mfm0, x), _cmap1(_mfm1, x))
+
+def besselpoly(a, lmb, nu): return _map3(S2.besselpoly, a, lmb, nu)
+def exprel(x): return _map1(_exprel_f, x)
+def _exprel_f(x: float) -> float:
+    if fabs_(x) < 1e-16:
+        return 1.0
+    elif x > 717.0:
+        return float('inf')
+    return K.expm1(x) / x
+def fabs_(x: float) -> float:
+    return -x if x < 0 else x
+def powm1(x, y): return _map2(_powm1_f, x, y)
+def _powm1_f(x: float, y: float) -> float:
+    if x != x or y != y:
+        return float('nan')
+    if y == 0.0 or x == 1.0:
+        return 0.0
+    if x > 0:
+        if fabs_(y * (x - 1.0)) < 0.5 or fabs_(y) < 0.2:
+            l = y * K.log(x)
+            if l < 0.5:
+                return K.expm1(l)
+    elif y != K.floor(y):
+        return float('nan')
+    return x ** y - 1.0
+def sinc(x): return np.sinc(x)
+def assoc_laguerre(x, n, k = 0.0): return eval_genlaguerre(n, k, x)
+def diric(x, n): return _map2(_diric_f, x, n)
+def _rint(v: float) -> float:
+    f = K.floor(v)
+    d = v - f
+    if d > 0.5 or (d == 0.5 and (int(f) % 2 != 0)):
+        return f + 1.0
+    return f
+def _diric_f(x: float, n: float) -> float:
+    if n <= 0 or n != K.floor(n):
+        return float('nan')
+    h = x / 2
+    d = K.sin(h)
+    if fabs_(d) < 1e-7:
+        z = _rint(h / 3.141592653589793)
+        return (-1.0) ** (z * (n - 1))
+    return K.sin(n * h) / (n * d)
+
+def nrdtrimn(p, std, x):
+    return x - std * ndtri(p)
+def nrdtrisd(mn, p, x):
+    return (x - mn) / ndtri(p)
+
+def stirling2(N, K_, *, exact: Literal[bool] = False):
+    if exact:
+        n = int(N)
+        k = int(K_)
+        if n < 0 or k < 0 or k > n:
+            return 0
+        if n == 0 and k == 0:
+            return 1
+        row = [0] * (k + 2)
+        row[0] = 1
+        for i in range(1, n + 1):
+            j = min(i, k)
+            while j >= 1:
+                row[j] = row[j] * j + row[j - 1]
+                j -= 1
+            row[0] = 0
+        return row[k]
+    else:
+        return _map2(_st2_f, N, K_)
+def _st2_f(n: float, k: float) -> float:
+    if n < 0 or k < 0 or k > n:
+        return 0.0
+    ni = int(n)
+    ki = int(k)
+    if ni == 0 and ki == 0:
+        return 1.0
+    row = [0.0] * (ki + 2)
+    row[0] = 1.0
+    for i in range(1, ni + 1):
+        j = min(i, ki)
+        while j >= 1:
+            row[j] = row[j] * j + row[j - 1]
+            j -= 1
+        row[0] = 0.0
+    return row[ki]
+
+def factorialk(n, k, exact: Literal[bool] = False, extend: str = "zero"):
+    kk = int(k)
+    if kk < 1:
+        raise ValueError("For `extend='zero'`, k must be a positive integer, received: " + str(k))
+    if exact:
+        m = int(n)
+        if m < 0:
+            return 0
+        r = 1
+        while m > 1:
+            r *= m
+            m -= kk
+        return r
+    else:
+        return _map1(_fk_gen(kk), n)
+class _fk_gen:
+    k: int
+    def __init__(self, k: int):
+        self.k = k
+    def __call__(self, x: float) -> float:
+        if x < 0:
+            return 0.0
+        m = int(x)
+        r = 1.0
+        while m > 1:
+            r *= m
+            m -= self.k
+        return r
+def factorial2(n, exact: Literal[bool] = False, extend: str = "zero"):
+    return factorialk(n, 2, exact, extend)
+
+# error-handling API (no state: special functions return nan on error)
+class SpecialFunctionWarning(Warning):
+    pass
+class SpecialFunctionError(Exception):
+    pass
+def seterr(**kwargs):
+    return {'singular': 'ignore', 'underflow': 'ignore', 'overflow': 'ignore', 'slow': 'ignore', 'loss': 'ignore', 'no_result': 'ignore', 'domain': 'ignore', 'arg': 'ignore', 'other': 'ignore'}
+def geterr():
+    return {'singular': 'ignore', 'underflow': 'ignore', 'overflow': 'ignore', 'slow': 'ignore', 'loss': 'ignore', 'no_result': 'ignore', 'domain': 'ignore', 'arg': 'ignore', 'other': 'ignore'}
