@@ -7,6 +7,7 @@
 
 import numpy as np
 from ..decomposition._extmath import row_norms
+from .._pairwise_csr import csr_euclidean, csr_manhattan, csr_cosine_distances
 from .._pairwise_k import manhattan_distances as _manhattan_k, additive_chi2_kernel as _chi2_k
 
 def _is_sp(a) -> Literal[bool]:
@@ -63,6 +64,11 @@ def _euclid(X, Y, same: bool, squared: bool, XX, YY):
 
 def euclidean_distances(X, Y = None, *, Y_norm_squared = None, squared: bool = False,
                         X_norm_squared = None):
+    if _is_sp(X) and (isinstance(Y, NoneType) or _is_sp(Y)) and isinstance(X_norm_squared, NoneType) and isinstance(Y_norm_squared, NoneType):
+        # native CSR path (no densification)
+        if isinstance(Y, NoneType):
+            return csr_euclidean(X, X, True, squared)
+        return csr_euclidean(X, Y, False, squared)
     Xa, Ya = check_pairwise_arrays(X, Y)
     same = isinstance(Y, NoneType)
     if isinstance(X_norm_squared, NoneType):
@@ -122,6 +128,10 @@ def nan_euclidean_distances(X, Y = None, *, squared: bool = False, missing_value
     return D
 
 def manhattan_distances(X, Y = None):
+    if _is_sp(X) and (isinstance(Y, NoneType) or _is_sp(Y)):
+        if isinstance(Y, NoneType):
+            return csr_manhattan(X, X)
+        return csr_manhattan(X, Y)
     Xa, Ya = check_pairwise_arrays(X, Y)
     return _manhattan_k(Xa, Ya)
 
@@ -155,6 +165,10 @@ def cosine_similarity(X, Y = None, dense_output: bool = True):
     return Xn @ Yn.T
 
 def cosine_distances(X, Y = None):
+    if _is_sp(X) and (isinstance(Y, NoneType) or _is_sp(Y)):
+        if isinstance(Y, NoneType):
+            return csr_cosine_distances(X, X, True)
+        return csr_cosine_distances(X, Y, False)
     S = cosine_similarity(X, Y)
     S *= -1
     S += 1
