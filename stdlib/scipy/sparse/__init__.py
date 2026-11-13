@@ -77,3 +77,21 @@ def get_index_dtype(arrays = (), maxval = None, check_contents: bool = False):
     if maxval is not None and int(maxval) > 2147483647:
         raise ValueError("get_index_dtype: maxval exceeds int32 range (int64 index dtype is not selectable)")
     return np.int32
+
+from ._matrix_io import save_npz, load_npz
+
+class sparray:
+    """Marker for sparse arrays (csr_array, ...). Typhon sparse containers
+    are generic classes, so use issparse()/the `_is_matrix` flag instead of
+    isinstance checks."""
+    pass
+
+class spmatrix:
+    """Marker for sparse matrices (csr_matrix, ...); see sparray."""
+    pass
+
+def expand_dims(A, axis: int = 0):
+    """Insert a unit axis into a 2-D sparse matrix/array. Sparse containers
+    here are 2-D only, so the result is the dense equivalent with 3 dims."""
+    import numpy as np
+    return np.expand_dims(A.toarray(), axis)
