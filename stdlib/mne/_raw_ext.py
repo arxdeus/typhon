@@ -7,7 +7,7 @@
 import numpy as np
 from ._info import Info, _picks_to_idx
 from ._containers import RawArray, EpochsArray, Evoked, _filter_picks, _update_filter_info
-from .filter import _filter_inplace_3d
+from .filter import _filter_inplace_3d, _notch_inplace
 from .annotations import Annotations
 from .io.fiff import _write_raw_fif
 
@@ -120,22 +120,9 @@ class RawArray:
         """FIR notch filter (single or multiple frequencies) in place."""
         if method != "fir":
             raise NotImplementedError("only method='fir' notch filtering is supported in Typhon mne")
-        fl = List[float]()
-        if isinstance(freqs, float) or isinstance(freqs, int):
-            fl.append(float(freqs))
-        else:
-            for f in freqs:
-                fl.append(float(f))
-        if len(fl) != 1:
-            raise NotImplementedError("Typhon mne: notch_filter supports a single frequency per call (mne designs one combined multi-stop filter)")
         pk = _filter_picks(self.info, picks)
-        tb = trans_bandwidth / 2.0
-        for f in fl:
-            nw = f / 200.0 if isinstance(notch_widths, NoneType) else float(notch_widths)
-            lo = f - nw / 2.0 - tb
-            hi = f + nw / 2.0 + tb
-            _filter_inplace_3d(self._data, self.info.sfreq, hi, lo, pk, filter_length, tb, tb,
-                               method, iir_params, phase, fir_window, fir_design, pad)
+        _notch_inplace(self._data, self.info.sfreq, freqs, notch_widths, float(trans_bandwidth),
+                       pk, filter_length, phase, fir_window, fir_design, pad)
         return self
 
     def __getitem__(self, item):

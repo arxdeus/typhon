@@ -521,21 +521,128 @@ def filter_data(data, sfreq: float, l_freq, h_freq, picks = None, filter_length 
         return x
 
 
+def _bandstop_multi_fir(sfreq: float, lows: List[float], highs: List[float], tb: float,
+                        filter_length, phase: str, fir_window: str, fir_design: str):
+    """mne.filter.create_filter for l_freq=highs > h_freq=lows arrays (band-stop
+    with several stop bands, FIR), as used by notch_filter."""
+    _check_option("phase", phase, _known_phases_fir)
+    _check_option("fir_window", fir_window, _known_fir_windows)
+    _check_option("fir_design", fir_design, _known_fir_designs)
+    for lo in lows:
+        if lo <= 0:
+            raise ValueError(f"highpass frequency {lo} must be greater than zero")
+    for hi in highs:
+        if hi >= sfreq / 2.0:
+            raise ValueError(f"lowpass frequency {hi} must be less than Nyquist ({sfreq / 2.0})")
+    if tb <= 0:
+        raise ValueError(f"l_trans_bandwidth must be positive, got {tb}")
+    fl = 0
+    if isinstance(filter_length, str) and filter_length.lower() == "auto":
+        mult_fact = 2.0 if fir_design == "firwin2" else 1.0
+        secs = _length_factor(fir_window) * mult_fact / float(tb)
+        fl = _to_samples(f"{secs}s", sfreq, phase, fir_design)
+    else:
+        fl = _to_samples(filter_length, sfreq, phase, fir_design)
+    if fir_design == "firwin" or phase == "zero":
+        fl += (fl - 1) % 2
+    if fl <= 0:
+        raise ValueError(f"filter_length must be positive, got {fl}")
+    pairs = List[Tuple[float, float]]()
+    for lo in lows:
+        pairs.append((lo, 1.0))
+    for lo in lows:
+        pairs.append((lo + tb, 0.0))
+    for hi in highs:
+        pairs.append((hi - tb, 0.0))
+    for hi in highs:
+        pairs.append((hi, 1.0))
+    pairs = sorted(pairs, key=lambda p: p[0])
+    freq = [p[0] for p in pairs]
+    gain = [p[1] for p in pairs]
+    if freq[0] != 0:
+        freq = [0.0] + freq
+        gain = [1.0] + gain
+    if freq[-1] != sfreq / 2.0:
+        freq.append(sfreq / 2.0)
+        gain.append(1.0)
+    for k in range(len(gain) - 2):
+        if abs(gain[k + 2] - 2.0 * gain[k + 1] + gain[k]) > 1:
+            raise ValueError("Stop bands are not sufficiently separated.")
+    return _construct_fir_filter(sfreq, freq, gain, fl, phase, fir_window, fir_design)
+
+
+def _notch_bands(freqs, notch_widths, trans_bandwidth: float) -> Tuple[List[float], List[float]]:
+    fl = List[float]()
+    if isinstance(freqs, float) or isinstance(freqs, int):
+        fl.append(float(freqs))
+    else:
+        for f in freqs:
+            fl.append(float(f))
+    nw = List[float]()
+    if isinstance(notch_widths, NoneType):
+        nw = [f / 200.0 for f in fl]
+    elif isinstance(notch_widths, float) or isinstance(notch_widths, int):
+        nw = [float(notch_widths) for _ in fl]
+    else:
+        for w in notch_widths:
+            nw.append(float(w))
+        if len(nw) != len(fl):
+            raise ValueError("notch_widths must be None, scalar, or the same length as freqs")
+    tb_2 = trans_bandwidth / 2.0
+    lows = [fl[i] - nw[i] / 2.0 - tb_2 for i in range(len(fl))]
+    highs = [fl[i] + nw[i] / 2.0 + tb_2 for i in range(len(fl))]
+    return lows, highs
+
+
+def _notch_inplace(data, sfreq: float, freqs, notch_widths, trans_bandwidth: float,
+                   picks: List[int], filter_length, phase: str, fir_window: str,
+                   fir_design: str, pad: str):
+    """FIR notch of a 2-D (or 3-D) array in place (one combined band-stop filter)."""
+    lows, highs = _notch_bands(freqs, notch_widths, trans_bandwidth)
+    h = _bandstop_multi_fir(sfreq, lows, highs, trans_bandwidth / 2.0, filter_length, phase,
+                            fir_window, fir_design)
+    if data.ndim == 3:
+        n_ep = data.shape[0]
+        n_ch = data.shape[1]
+        x2 = data.reshape((n_ep * n_ch, data.shape[2]))
+        allp = List[int]()
+        for e in range(n_ep):
+            for p in picks:
+                allp.append(e * n_ch + p)
+        _overlap_add_filter_2d(x2, h, None, phase, allp, pad)
+    elif data.ndim == 2:
+        _overlap_add_filter_2d(data, h, None, phase, picks, pad)
+    else:
+        compile_error("data must be 2D or 3D")
+
+
 def notch_filter(x, Fs: float, freqs, filter_length = "auto", notch_widths = None,
                  trans_bandwidth: float = 1.0, method: str = "fir", iir_params = None,
                  mt_bandwidth = None, p_value: float = 0.05, picks = None, n_jobs = None,
                  copy: bool = True, phase: str = "zero", fir_window: str = "hamming",
                  fir_design: str = "firwin", pad: str = "reflect_limited", verbose = None):
-    """FIR notch filter with a single notch frequency (mne.filter.notch_filter subset)."""
+    """FIR notch filter (mne.filter.notch_filter, method='fir'/'fft')."""
     if method != "fir" and method != "fft":
         raise NotImplementedError("only method='fir' notch filtering is supported in Typhon mne")
-    f = float(freqs)
-    nw = f / 200.0 if notch_widths is None else float(notch_widths)
-    lows = f - nw / 2.0 - trans_bandwidth / 2.0
-    highs = f + nw / 2.0 + trans_bandwidth / 2.0
-    tb = trans_bandwidth / 2.0
-    return filter_data(x, Fs, highs, lows, picks, filter_length, tb, tb, n_jobs, method,
-                       iir_params, copy, phase, fir_window, fir_design, pad)
+    a = np.asarray(x)
+    if a.dtype is not float:
+        compile_error("data must be float64 (mne requires real floating-point data)")
+    out = a.copy() if copy else a
+    if out.ndim == 1:
+        x2 = out.reshape((1, out.shape[0]))
+        _notch_inplace(x2, float(Fs), freqs, notch_widths, trans_bandwidth, [0], filter_length,
+                       phase, fir_window, fir_design, pad)
+    else:
+        n_rows = out.shape[out.ndim - 2]
+        pk = List[int]()
+        if isinstance(picks, NoneType):
+            pk = list(range(n_rows))
+        else:
+            for p in picks:
+                pk.append(int(p))
+        _notch_inplace(out, float(Fs), freqs, notch_widths, trans_bandwidth, pk, filter_length,
+                       phase, fir_window, fir_design, pad)
+    return out
 
 
 # ---------------------------------------------------------------------------
