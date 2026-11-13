@@ -12,6 +12,7 @@ from ._lsq_ext import _Loss, _scale_for_robust_loss_function, _RMulMV, \
     _RMulRMV, _RegMV, _RegRMV, _JhOp, _lsmr_tr, _lsmr_solve, \
     _solve_trust_region_2d, _qr2
 from scipy.sparse.linalg import LinearOperator
+from ._dfsane import _root_df_sane, _root_nonlin
 
 def _lsmr_bool(tr_options, key: str, default: bool) -> bool:
     if tr_options is None:
@@ -1279,9 +1280,9 @@ def fsolve(func, x0, args = (), fprime = None, full_output: Literal[bool] = Fals
         return res.x
 
 def root(fun, x0, args = (), method: str = 'hybr', jac = None,
-         tol: Optional[float] = None, options = None):
+         tol: Optional[float] = None, callback = None, options = None):
     if not isinstance(args, Tuple):
-        return root(fun, x0, (args,), method, jac, tol, options)
+        return root(fun, x0, (args,), method, jac, tol, callback, options)
     meth = method.lower()
     if meth == 'hybr':
         xtol = _opt_float(options, 'xtol', 1.49012e-08 if tol is None else tol)
@@ -1312,6 +1313,24 @@ def root(fun, x0, args = (), method: str = 'hybr', jac = None,
         return OptimizeResult(x, fvec, _e2(), nfev=nfev + 2, status=info,
                               success=(1 <= info <= 4), message='',
                               qtf=qtf, method='lm')
+    elif meth == 'df-sane':
+        ftol = _opt_float(options, 'ftol', 1e-8 if tol is None else tol)
+        fatol = _opt_float(options, 'fatol', 1e-300)
+        maxfev = _opt_int(options, 'maxfev', 1000)
+        M = _opt_int(options, 'M', 10)
+        s0 = _opt_float(options, 'sigma_0', 1.0)
+        se = _opt_float(options, 'sigma_eps', 1e-10)
+        lsr = 'cruz'
+        if options is not None:
+            if 'line_search' in options:
+                lsr = str(options['line_search'])
+        dsp = _opt_bool(options, 'disp', False)
+        return _root_df_sane(fun, x0, args, ftol, fatol, maxfev, None, callback,
+                             dsp, M, None, se, s0, lsr)
+    elif meth == 'broyden1' or meth == 'broyden2' or meth == 'anderson' or \
+         meth == 'linearmixing' or meth == 'diagbroyden' or \
+         meth == 'excitingmixing' or meth == 'krylov':
+        return _root_nonlin(fun, x0, args, meth, tol, options, callback)
     else:
         raise ValueError(f'Unknown solver {method}')
     return _root_hybr(fun, x0, args, jac)

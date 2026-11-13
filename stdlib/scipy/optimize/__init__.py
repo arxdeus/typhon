@@ -16,6 +16,10 @@ from ._scalar import minimize_scalar, bracket, brent, golden, fminbound
 from ._zeros import RootResults, bisect, brentq, brenth, ridder, newton, \
                     root_scalar
 from ._lsq import least_squares, curve_fit, fsolve, root
+from ._nonlin import NoConvergence, broyden1, broyden2, anderson, linearmixing, \
+                    diagbroyden, excitingmixing, newton_krylov, BroydenFirst, \
+                    KrylovJacobian
+from ._dfsane import fixed_point, line_search
 from ._lsap import linear_sum_assignment
 from ._constraints import LinearConstraint, NonlinearConstraint
 from ._cons import _has_constraints
