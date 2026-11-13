@@ -11,3 +11,4 @@ from ._procrustes import procrustes
 from ._geometric_slerp import geometric_slerp
 from ._qhull import Delaunay, ConvexHull, Voronoi, HalfspaceIntersection, tsearch
 from ._hull import QhullError
+import scipy.spatial.transform as transform
