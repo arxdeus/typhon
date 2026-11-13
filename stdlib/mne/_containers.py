@@ -255,6 +255,14 @@ def _welch_bad_spans(x2, good: List[bool], sf: float, fmin: float, fmax: float, 
     return out.reshape((out.shape[0], out.shape[1], 1)), freqs_all[lo:hi + 1].copy()
 
 
+def _handle_tmin_tmax(times, sfreq: float, tmin: Optional[float], tmax: Optional[float]) -> Tuple[int, int]:
+    """TimeMixin._handle_tmin_tmax (truncating time_as_index, stop exclusive)."""
+    n = times.shape[0]
+    start = 0 if tmin is None else int((tmin.__val__() - float(times[0])) * sfreq)
+    stop = n if tmax is None else int((tmax.__val__() - float(times[0])) * sfreq)
+    return min(max(0, start), n), min(max(0, stop), n)
+
+
 def _opt_float(x) -> Optional[float]:
     if isinstance(x, NoneType):
         return None
@@ -430,8 +438,8 @@ class Evoked:
     def get_data(self, picks = None, units = None, tmin: Optional[float] = None,
                  tmax: Optional[float] = None):
         pk = _picks_to_idx(self.info, picks, "all", ())
-        m = _time_mask(self.times, tmin, tmax, sfreq=self.info.sfreq)
-        out = self.data[np.array(pk)][:, m].copy()
+        a, b = _handle_tmin_tmax(self.times, self.info.sfreq, tmin, tmax)
+        out = self.data[np.array(pk)][:, a:b].copy()
         if not isinstance(units, NoneType):
             out *= _get_ch_factors(self.info, units, pk)[:, None]
         return out
@@ -596,9 +604,8 @@ class EpochsArray:
         pk = _picks_to_idx(self.info, picks, "all", ())
         if tmin is None and tmax is None and isinstance(picks, NoneType) and isinstance(units, NoneType):
             return self._data.copy() if copy else self._data
-        m = _time_mask(self.times, tmin, tmax, sfreq=self.info.sfreq)
-        idx = np.nonzero(m)[0]
-        out = self._data[:, np.array(pk), idx[0]:idx[-1] + 1].copy()
+        a, b = _handle_tmin_tmax(self.times, self.info.sfreq, tmin, tmax)
+        out = self._data[:, np.array(pk), a:b].copy()
         if not isinstance(units, NoneType):
             out *= _get_ch_factors(self.info, units, pk)[None, :, None]
         return out
@@ -651,7 +658,16 @@ class EpochsArray:
         _update_filter_info(self.info, pk, l_freq, h_freq)
         return self
 
-    def average(self, picks = None, method: str = "mean", by_event_type: bool = False):
+    def average(self, picks = None, method: str = "mean", by_event_type: Literal[bool] = False):
+        if by_event_type:
+            evs = List[Evoked]()
+            for k in self.event_id.keys():
+                evs.append(self[k]._average_one(picks, method))
+            return evs
+        else:
+            return self._average_one(picks, method)
+
+    def _average_one(self, picks, method: str):
         pk = _picks_to_idx(self.info, picks, "data_or_ica", "bads")
         sub = self._data[:, np.array(pk), :]
         d = np.zeros((1, 1))
@@ -765,12 +781,11 @@ class RawArray:
                  verbose = None):
         pk = _picks_to_idx(self.info, picks, "all", ())
         n = self._data.shape[1]
-        s = start
-        e = n if stop is None else min(stop, n)
-        if tmin is not None:
-            s = max(s, int(round(tmin.__val__() * self.info.sfreq)))
-        if tmax is not None:
-            e = min(e, int(round(tmax.__val__() * self.info.sfreq)))
+        ts, te = _handle_tmin_tmax(self.times, self.info.sfreq, tmin, tmax)
+        s = ts if start == 0 else start
+        e = te if stop is None else stop.__val__()
+        s = min(max(0, s), n)
+        e = min(max(0, e), n)
         out = self._data[np.array(pk), s:e].copy()
         tt = self.times[s:e].copy()
         if not isinstance(reject_by_annotation, NoneType) and len(self.annotations) > 0:

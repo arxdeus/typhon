@@ -277,7 +277,7 @@ class EpochsArray:
         elif isinstance(item, int):
             i = item if item >= 0 else item + n
             return [i]
-        elif isinstance(item, List[str]) or isinstance(item, Tuple[str, ...]):
+        elif isinstance(item, List[str]):
             return self._keys_to_idx([str(x) for x in item])
         else:
             a = np.atleast_1d(np.asarray(item))
@@ -704,3 +704,23 @@ def combine_evoked(all_evoked, weights) -> Evoked:
             comment += f" {sign if sign != '' else '+'} {weight}{mult}{this}"
     out.comment = comment.replace(" - - ", " + ")
     return out
+
+
+def EvokedArray(data, info: Info, tmin: float = 0.0, comment: str = "", nave: int = 1,
+                kind: str = "average", baseline = None, *, verbose = None) -> Evoked:
+    """Evoked object from numpy array (mne.EvokedArray)."""
+    d = np.asarray(data)
+    if d.ndim != 2:
+        compile_error("Data must be a 2D array of shape (n_channels, n_samples)")
+    x = d.astype(float)
+    if x.shape[0] != info.nchan:
+        raise ValueError(f"Info ({info.nchan}) and data ({x.shape[0]}) must have same number of channels.")
+    if kind != "average" and kind != "standard_error":
+        raise ValueError(f"Invalid value for the 'kind' parameter. Allowed values are 'average' and 'standard_error', but got '{kind}' instead.")
+    first = int(round(tmin * info.sfreq))
+    times = np.arange(first, first + x.shape[1]).astype(float) / info.sfreq
+    e = Evoked(x, info.copy(), times, nave, comment)
+    e.kind = kind
+    if not isinstance(baseline, NoneType):
+        e.apply_baseline(baseline)
+    return e
