@@ -73,3 +73,5 @@ from ._fitting import fit, goodness_of_fit, FitResult, GoodnessOfFitResult
 from ._continuous_distns5 import kstwo, geninvgauss, genhyperbolic, jf_skew_t, landau, \
     vonmises_line, dpareto_lognorm
 from ._discrete_distns2 import nchypergeom_fisher, nchypergeom_wallenius, poisson_binom
+from ._final_misc import DegenerateDataWarning, ConstantInputWarning, NearConstantInputWarning, \
+    FitError, PermutationMethod, MonteCarloMethod, BootstrapMethod, kstat, kstatvar, gstd, bayes_mvs
