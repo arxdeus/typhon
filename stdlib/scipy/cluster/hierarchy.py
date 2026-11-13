@@ -1452,7 +1452,7 @@ class DisjointSet[T]:
 
     def _find(self, x: T) -> T:
         if x not in self._parents:
-            raise KeyError(x)
+            raise KeyError(repr(x))
         while self._parents[x] != x:
             self._parents[x] = self._parents[self._parents[x]]
             x = self._parents[x]

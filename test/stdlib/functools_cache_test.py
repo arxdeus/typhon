@@ -17,7 +17,7 @@ def add(a: int, b: float) -> float:
 print(add(1, 2.5), add(1, 2.5), calls[0])  #: 3.5 3.5 3
 
 def mk():
-    d = {}
+    d = Dict[int, int]()
     def inner(n: int):
         d[n] = n * 2
         return d[n]

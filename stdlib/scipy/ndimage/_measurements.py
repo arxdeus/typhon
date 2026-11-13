@@ -447,19 +447,19 @@ def watershed_ift(input, markers, structure = None, output = None):
     if nd > 7:
         raise RuntimeError('too many dimensions')
     if structure is None:
-        from ._morphology import generate_binary_structure
-        S = np.asarray(generate_binary_structure(nd, 1))
+        from ._morphology import _bstruct
+        ps = _bstruct(nd, 1)[1]
     else:
         S = np.asarray(structure, dtype=bool)
-    if len(S.shape) != nd:
-        raise RuntimeError('structure and input must have equal rank')
-    for d in S.shape:
-        if d != 3:
-            raise RuntimeError('structure dimensions must be equal to 3')
+        if len(S.shape) != nd:
+            raise RuntimeError('structure and input must have equal rank')
+        for d in S.shape:
+            if d != 3:
+                raise RuntimeError('structure dimensions must be equal to 3')
+        ps = _bool_buf(S)
     M = np.ascontiguousarray(np.asarray(markers))
     if M.shape != a.shape:
         raise RuntimeError('input and markers must have equal shape')
-    ps = _bool_buf(S)
     size = a.size
     maxval = 0
     for j in range(size):

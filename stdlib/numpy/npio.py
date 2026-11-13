@@ -18,6 +18,8 @@ _PROT_EXEC: Literal[int] = 4
 _MAP_SHARED: Literal[int] = 1
 _MAP_PRIVATE: Literal[int] = 2
 
+from io import BytesIO
+
 _MAGIC_PREFIX = b'\x93NUMPY'
 _ARRAY_ALIGN: Literal[int] = 64
 
@@ -308,6 +310,8 @@ def _load(f, mmap_mode: Optional[str], ndim: Literal[int], dtype: type):
         bytes_data = f.read()
         binary_data = bytes_data._ptr
         got_bytes = len(bytes_data)
+    elif isinstance(f, BytesIO):
+        raise ValueError("cannot memory-map an in-memory buffer")
     else:
         arr_data = _memmap(f,
                            dtype=u8,
@@ -2671,7 +2675,6 @@ class ndarray:
 
 # ---- .npz (zip container) ----
 import zlib
-from io import BytesIO
 
 def _le(v: int, n: int) -> bytes:
     b = ba = bytearray()
@@ -2755,7 +2758,7 @@ class NpzFile:
             xlen = _rd(data, p + 30, 2)
             clen = _rd(data, p + 32, 2)
             off = _rd(data, p + 42, 4)
-            name = str(data[p + 46:p + 46 + nlen])
+            name = data[p + 46:p + 46 + nlen].decode()
             lnl = _rd(data, off + 26, 2)
             lxl = _rd(data, off + 28, 2)
             start = off + 30 + lnl + lxl

@@ -186,6 +186,24 @@ class _Tri:
         self.coplanar = C
 
 class Delaunay:
+    furthest_site: bool
+    _incremental: bool
+    _points: np.ndarray[float, 2]
+    ndim: int
+    npoints: int
+    min_bound: np.ndarray[float, 1]
+    max_bound: np.ndarray[float, 1]
+    simplices: np.ndarray[int, 2]
+    neighbors: np.ndarray[int, 2]
+    equations: np.ndarray[float, 2]
+    coplanar: np.ndarray[int, 2]
+    good: np.ndarray[int, 1]
+    nsimplex: int
+    paraboloid_scale: float
+    paraboloid_shift: float
+    _transform: np.ndarray[float, 3]
+    _have_transform: bool
+
     def __init__(self, points, furthest_site: bool = False, incremental: bool = False,
                  qhull_options: Optional[str] = None):
         P = np.ascontiguousarray(np.asarray(points, dtype=float))
@@ -194,6 +212,7 @@ class Delaunay:
         self._incremental = incremental
         self._points = P
         self.ndim = P.shape[1]
+        self.npoints = P.shape[0]
         self._build(P)
 
     def _build(self, P):

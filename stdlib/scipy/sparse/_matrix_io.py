@@ -85,7 +85,7 @@ def load_npz(file: str, as_array: Literal[bool] = False):
             raw = loaded.blobs[i]
             # payload follows the header (header length at bytes 8..9)
             hl = int(raw[8]) + (int(raw[9]) << 8)
-            fmt = str(raw[10 + hl:])
+            fmt = raw[10 + hl:].decode()
     data = loaded.get('data', 1, float)
     shp = loaded.get('shape', 1, int)
     shape = (int(shp[0]), int(shp[1]))

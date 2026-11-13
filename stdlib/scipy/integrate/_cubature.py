@@ -420,8 +420,7 @@ def _split_region_at_points(a: np.ndarray[float, 1], b: np.ndarray[float, 1],
                     if eq:
                         continue
                     new_sub.append((left, right))
-                for s in subs:
-                    new_sub.append(s)
+                # scipy's trailing extend(subregions) is a no-op: the generator is already consumed
             else:
                 new_sub.append((ak, bk))
         regions = new_sub

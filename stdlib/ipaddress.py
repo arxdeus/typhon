@@ -174,13 +174,17 @@ class IPv4Network:
 # ip_address/ip_network return a Union when the family is only known at run time.
 def ip_address(address: str) -> Union[IPv4Address, IPv6Address]:
     if ":" in address:
-        return IPv6Address(address)
-    return IPv4Address(address)
+        r6: Union[IPv4Address, IPv6Address] = IPv6Address(address)
+        return r6
+    r4: Union[IPv4Address, IPv6Address] = IPv4Address(address)
+    return r4
 
 def ip_network(address: str, strict: bool = True) -> Union[IPv4Network, IPv6Network]:
     if ":" in address:
-        return IPv6Network(address, strict)
-    return IPv4Network(address, strict)
+        n6: Union[IPv4Network, IPv6Network] = IPv6Network(address, strict)
+        return n6
+    n4: Union[IPv4Network, IPv6Network] = IPv4Network(address, strict)
+    return n4
 
 
 def _hex4(v: int) -> str:

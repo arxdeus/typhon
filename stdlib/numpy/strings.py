@@ -201,7 +201,7 @@ def greater(x1, x2): return _map2(x1, x2, bool, _k_gt)
 def greater_equal(x1, x2): return _map2(x1, x2, bool, _k_ge)
 
 def _k_encode(s: str, enc: str): return s.encode()
-def _k_decode(s: bytes, enc: str): return str(s)
+def _k_decode(s: bytes, enc: str): return s.decode()
 
 def encode(a, encoding: str = 'utf-8', errors: str = 'strict'):
     return _map(a, bytes, _k_encode, encoding)
