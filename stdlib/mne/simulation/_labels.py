@@ -16,21 +16,39 @@ from ..source_space import SourceSpaces, setup_volume_source_space
 
 
 class Label:
-    """Minimal mne.Label: vertices, optional values, hemisphere."""
+    """mne.Label (single hemisphere): vertices, optional pos / values, hemisphere."""
     vertices: np.ndarray[int, 1]
     values: np.ndarray[float, 1]
+    pos: np.ndarray[float, 2]
     hemi: str
     name: str
+    comment: str
+    subject: Optional[str]
+    filename: Optional[str]
+    color: Optional[np.ndarray[float, 1]]
 
     def __init__(self, vertices, values = None, hemi: str = "lh", name: str = "", pos = None,
-                 subject = None):
+                 subject = None, comment: str = "", filename = None, color = None):
         self.vertices = np.asarray(vertices).astype(int)
+        n = self.vertices.shape[0]
         if isinstance(values, NoneType):
-            self.values = np.ones(self.vertices.shape[0])
+            self.values = np.ones(n)
         else:
             self.values = np.asarray(values, dtype=float)
+        if isinstance(pos, NoneType):
+            self.pos = np.zeros((n, 3))
+        else:
+            self.pos = np.asarray(pos, dtype=float)
+        if self.pos.shape[0] != n or self.values.shape[0] != n:
+            raise ValueError("vertices, pos and values must have the same length")
+        if hemi != "lh" and hemi != "rh":
+            raise ValueError(f"hemi must be 'lh' or 'rh', got {hemi}")
         self.hemi = hemi
         self.name = name
+        self.comment = comment
+        self.subject = None if isinstance(subject, NoneType) else str(subject)
+        self.filename = None if isinstance(filename, NoneType) else str(filename)
+        self.color = None if isinstance(color, NoneType) else np.asarray(color, dtype=float)
 
 
 def _nearest(xhs, rr):
