@@ -491,3 +491,14 @@ def _compute_power[T](Cm: np.ndarray[T, 2], W: np.ndarray[T, 2], n_orient: int):
             t += float(M[i, i].real)
         out[s] = t
     return out
+
+
+def _check_reference(info: Info):
+    """mne.minimum_norm.inverse._check_reference: EEG needs an average reference projector."""
+    from .._proj import _has_eeg_average_ref_proj
+    has_eeg = False
+    for i in range(info.nchan):
+        if info.ch_types[i] == "eeg" and info.ch_names[i] not in info.bads:
+            has_eeg = True
+    if has_eeg and not _has_eeg_average_ref_proj(info):
+        raise ValueError("EEG average reference (using a projector) is mandatory for modeling, use the method set_eeg_reference(projection=True)")

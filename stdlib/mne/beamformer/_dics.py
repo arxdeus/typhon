@@ -11,7 +11,7 @@ from ..cov import Covariance, _check_rank, _make_scalings, _Rank, pick_channels_
 from ..forward import Forward, pick_channels_forward
 from ..source_estimate import _STC
 from ..time_frequency.csd import CrossSpectralDensity
-from ._compute import (_prepare_beamformer_input, _compute_beamformer, _compute_power,
+from ._compute import (_check_reference, _prepare_beamformer_input, _compute_beamformer, _compute_power,
                        _check_info_inv, _n_ch_types, _check_channels_spatial_filter, _opt_str,
                        _sum_rank, _rank_matrix, _herm, _like, _check_option, _ad_hoc_unit)
 from ._lcmv import (Beamformer, _make_stc_sc, _make_stc_vec, _stc_kind, _proj_whiten_data,
@@ -180,6 +180,7 @@ def apply_dics_multi(evoked: Evoked, filters: Beamformer, *, verbose = None):
     """apply_dics returning one STC per frequency (scalar data only)."""
     if filters.is_complex:
         raise ValueError("complex filters (real_filter=False) can only be applied to a CSD")
+    _check_reference(evoked.info)
     sel = _check_channels_spatial_filter(evoked.ch_names, filters.ch_names)
     data = evoked.data[np.array(sel, dtype=int)]
     out = List[_STC[np.ndarray[float, 2]]]()
@@ -210,6 +211,7 @@ def apply_dics_epochs(epochs: EpochsArray, filters: Beamformer, return_generator
     """mne.beamformer.apply_dics_epochs -> list of STC."""
     if filters.weights3.shape[0] > 1:
         raise ValueError("This function only works on DICS beamformer weights that have been computed for a single frequency. When calling make_dics(), make sure to use a CSD object with only a single frequency (or frequency-bin) defined.")
+    _check_reference(epochs.info)
     sel = _check_channels_spatial_filter(epochs.ch_names, filters.ch_names)
     data = epochs.get_data(sel)
     out = List[_STC[np.ndarray[float, 2]]]()

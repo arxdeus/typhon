@@ -14,7 +14,7 @@ from ..forward import Forward, pick_channels_forward
 from ..epochs import EvokedArray
 from ..source_estimate import _STC
 from ..time_frequency.csd import CrossSpectralDensity
-from ._compute import (_BfInput, _prepare_beamformer_input, _compute_beamformer, _compute_power,
+from ._compute import (_check_reference, _BfInput, _prepare_beamformer_input, _compute_beamformer, _compute_power,
                        _ad_hoc_unit, _check_info_inv, _n_ch_types, _check_channels_spatial_filter,
                        _opt_str, _sum_rank, _rank_matrix, _herm, _like, _check_option)
 
@@ -315,6 +315,7 @@ def _apply_lcmv_one(M0, f: Beamformer, projs, tmin: float, sfreq: float):
 def apply_lcmv(evoked: Evoked, filters: Beamformer, *, verbose = None):
     """mne.beamformer.apply_lcmv. Returns an _STC (scalar data); use
     apply_lcmv_vector for pick_ori='vector' filters."""
+    _check_reference(evoked.info)
     sel = _check_channels_spatial_filter(evoked.ch_names, filters.ch_names)
     data = evoked.data[np.array(sel, dtype=int)]
     sol, vec = _apply_lcmv_one(data, filters, evoked.info.projs, float(evoked.times[0]), evoked.info.sfreq)
@@ -326,6 +327,7 @@ def apply_lcmv(evoked: Evoked, filters: Beamformer, *, verbose = None):
 
 def apply_lcmv_vector(evoked: Evoked, filters: Beamformer, *, verbose = None):
     """apply_lcmv for pick_ori='vector' filters (VolVectorSourceEstimate)."""
+    _check_reference(evoked.info)
     sel = _check_channels_spatial_filter(evoked.ch_names, filters.ch_names)
     data = evoked.data[np.array(sel, dtype=int)]
     sol, vec = _apply_lcmv_one(data, filters, evoked.info.projs, float(evoked.times[0]), evoked.info.sfreq)
@@ -336,6 +338,7 @@ def apply_lcmv_vector(evoked: Evoked, filters: Beamformer, *, verbose = None):
 def apply_lcmv_epochs(epochs: EpochsArray, filters: Beamformer, *, return_generator: bool = False,
                       verbose = None):
     """mne.beamformer.apply_lcmv_epochs -> list of STC (returned as a list)."""
+    _check_reference(epochs.info)
     sel = _check_channels_spatial_filter(epochs.ch_names, filters.ch_names)
     data = epochs.get_data(sel)
     out = List[_STC[np.ndarray[float, 2]]]()
@@ -349,6 +352,7 @@ def apply_lcmv_epochs(epochs: EpochsArray, filters: Beamformer, *, return_genera
 
 def apply_lcmv_raw(raw: RawArray, filters: Beamformer, start = None, stop = None, *, verbose = None):
     """mne.beamformer.apply_lcmv_raw."""
+    _check_reference(raw.info)
     sel = _check_channels_spatial_filter(raw.ch_names, filters.ch_names)
     n = raw._data.shape[1]
     a = 0 if isinstance(start, NoneType) else int(start)

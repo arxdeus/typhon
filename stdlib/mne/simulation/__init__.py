@@ -185,3 +185,6 @@ def simulate_raw(info: Info, stc = None, trans = None, src = None, bem = None, h
             out[i, amin] = 1.0
             break
     return RawArray(out, info, first_samp=first_samp)
+
+
+from ._labels import Label, simulate_stc, SourceSimulator, add_eog, add_ecg
