@@ -9,6 +9,7 @@
 
 import numpy as np
 from scipy.sparse import coo_array, csr_array, coo_matrix
+from scipy.sparse._base import _compressed
 from scipy.sparse.csgraph import dijkstra
 from .simulation._labels import Label
 from .source_space import SourceSpaces
@@ -368,7 +369,7 @@ def grow_labels(subject: str, seeds, extents, hemis, subjects_dir = None, n_jobs
             nm.append(x if x.endswith(hm[i]) else x + "-" + hm[i])
     used = sorted(list(Set[str](hm)))
     vert, tris = _surfaces_for(used, subject, subjects_dir, surface, surfaces)
-    dist = Dict[str, csr_array[float]]()
+    dist = Dict[str, _compressed[float, 0, 0]]()
     for h in used:
         dist[h] = mesh_dist(tris[h], vert[h])
     labels = List[Label]()

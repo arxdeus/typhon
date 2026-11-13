@@ -7,6 +7,7 @@
 # combine_evoked.
 
 import numpy as np
+from ._metadata import make_metadata
 from ._info import Info, _picks_to_idx, _time_mask
 from ._containers import (EpochsArray, Evoked, RawArray, _check_baseline, _rescale_3d,
                           _detrend_picks, _opt_float)

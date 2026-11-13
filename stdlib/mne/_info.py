@@ -220,6 +220,36 @@ class Projection:
         return f"<Projection | {self.desc}, active : {self.active}, n_channels : {len(self.col_names)}>"
 
 
+class ChInfo:
+    """Per-channel entry of info["chs"] (subset)."""
+    ch_name: str
+    kind: str
+    loc: List[float]
+    cal: float
+    range: float
+
+    def __init__(self, ch_name: str, kind: str, loc: List[float], cal: float, range: float):
+        self.ch_name = ch_name
+        self.kind = kind
+        self.loc = loc
+        self.cal = cal
+        self.range = range
+
+    def __getitem__(self, key: Literal[str]):
+        if key == "loc":
+            return self.loc
+        elif key == "ch_name":
+            return self.ch_name
+        elif key == "kind":
+            return self.kind
+        elif key == "cal":
+            return self.cal
+        elif key == "range":
+            return self.range
+        else:
+            compile_error("unsupported channel key")
+
+
 class Info:
     """Measurement info (subset of mne.Info)."""
     ch_names: List[str]
@@ -309,6 +339,9 @@ class Info:
             return self.projs
         elif key == "meas_date":
             return self.meas_date
+        elif key == "chs":
+            return [ChInfo(self.ch_names[i], self.ch_types[i], list(self.locs[i]),
+                           self.cals[i], self.ranges[i]) for i in range(len(self.ch_names))]
         else:
             compile_error("unsupported Info key")
 

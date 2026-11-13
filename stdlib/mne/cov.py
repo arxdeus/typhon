@@ -267,7 +267,9 @@ class Covariance:
     method: Optional[str]
     loglik: Optional[float]
 
-    def __init__(self, data, names, bads, projs, nfree: int, eig = None, eigvec = None,
+    def __init__(self, data, names, bads: List[str], projs: List[Projection], nfree: int,
+                 eig: Optional[np.ndarray[float, 1]] = None,
+                 eigvec: Optional[np.ndarray[float, 2]] = None,
                  method: Optional[str] = None, loglik: Optional[float] = None, *, verbose = None):
         a = np.asarray(data, dtype=float)
         if a.ndim == 1:
@@ -280,8 +282,8 @@ class Covariance:
         self.bads = [str(b) for b in bads]
         self.projs = [p.copy() for p in projs]
         self.nfree = nfree
-        self.eig = None if isinstance(eig, NoneType) else np.asarray(eig, dtype=float)
-        self.eigvec = None if isinstance(eigvec, NoneType) else np.asarray(eigvec, dtype=float)
+        self.eig = eig
+        self.eigvec = eigvec
         self.method = method
         self.loglik = loglik
 

@@ -67,7 +67,7 @@ def _read_txt(fname: str) -> Annotations:
             continue
         rows.append(_split_csv_line(lines[i]))
     if len(rows) == 0:
-        return Annotations([], [], [], orig)
+        return Annotations(List[float](), List[float](), List[str](), orig)
     ncol = len(rows[0])
     if len(columns) == 0:
         if ncol != 3 and ncol != 4:

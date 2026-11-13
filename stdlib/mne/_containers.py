@@ -485,6 +485,34 @@ class Evoked:
         self.times = np.arange(final_len).astype(float) / float(sfreq) + t0
         return self
 
+    def set_eeg_reference(self, ref_channels = "average", projection: bool = False, ch_type = "eeg",
+                          joint: bool = False, verbose = None):
+        """Evoked re-referencing (average / channel list / projection)."""
+        from ._proj import make_eeg_average_ref_proj, _has_eeg_average_ref_proj, _add_projs
+        if projection:
+            if not (isinstance(ref_channels, str) and ref_channels == "average"):
+                raise ValueError("Setting projection=True is only supported for ref_channels=\"average\"")
+            if not _has_eeg_average_ref_proj(self.info):
+                _add_projs(self.info, [make_eeg_average_ref_proj(self.info, ch_type, False)], False)
+            return self
+        eeg = [i for i in range(self.info.nchan)
+               if self.info.ch_types[i] == "eeg" and self.info.ch_names[i] not in self.info.bads]
+        refs = List[int]()
+        if isinstance(ref_channels, str):
+            if ref_channels == "average":
+                refs = eeg
+            else:
+                refs = [self.info.ch_names.index(ref_channels)]
+        else:
+            for c in ref_channels:
+                refs.append(self.info.ch_names.index(str(c)))
+        if len(refs) == 0:
+            return self
+        ref = self.data[np.array(refs, dtype=int), :].mean(axis=0)
+        for i in eeg:
+            self.data[i, :] -= ref
+        return self
+
     def __repr__(self) -> str:
         return f"<Evoked | '{self.comment}' (average, N={self.nave}), {self.times[0]:.5f} – {self.times[-1]:.5f} s, {self.data.shape[0]} ch>"
 

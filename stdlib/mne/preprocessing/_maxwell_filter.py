@@ -362,10 +362,11 @@ def maxwell_filter(raw, origin = "auto", int_order: int = 8, ext_order: int = 3,
     sf = raw.info.sfreq
     n_all = raw._data.shape[1]
     st_dur = 0
-    if has_st:
-        st_dur = int(round(float(st_duration) * sf))
+    st_dur = min(max(int(round(10.0 * sf)), 1), n_all)
+    if isinstance(st_duration, NoneType):
+        pass
     else:
-        st_dur = min(max(int(round(10.0 * sf)), 1), n_all)
+        st_dur = int(round(float(st_duration) * sf))
     out = raw.copy()
     onsets, ends = _segments(raw, skip_by_annotation)
     max_samps = 0
