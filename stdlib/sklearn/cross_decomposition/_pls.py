@@ -3,6 +3,7 @@
 # PLSRegression / PLSCanonical / CCA (NIPALS power method or SVD) and PLSSVD.
 # predict() returns 2-D for 2-D y and 1-D for 1-D y (static dispatch via D).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 
@@ -224,6 +225,9 @@ def _retype(est, T: type):
     return n
 
 class PLSRegression[D: Literal[int] = 1](_PLS[D]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     x_scores_: np.ndarray[float, 2]
     y_scores_: np.ndarray[float, 2]
 
@@ -243,6 +247,9 @@ class PLSRegression[D: Literal[int] = 1](_PLS[D]):
         return self
 
 class PLSCanonical[D: Literal[int] = 1](_PLS[D]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     def __init__(self, n_components: int = 2, *, scale: bool = True, algorithm: str = "nipals",
                  max_iter: int = 500, tol: float = 1e-6, copy: bool = True):
         self._init_pls(n_components, scale, "canonical", "A", algorithm, max_iter, tol)
@@ -254,6 +261,9 @@ class PLSCanonical[D: Literal[int] = 1](_PLS[D]):
         return self._fit(X, ya)
 
 class CCA[D: Literal[int] = 1](_PLS[D]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     def __init__(self, n_components: int = 2, *, scale: bool = True, max_iter: int = 500,
                  tol: float = 1e-6, copy: bool = True):
         self._init_pls(n_components, scale, "canonical", "B", "nipals", max_iter, tol)
@@ -265,6 +275,9 @@ class CCA[D: Literal[int] = 1](_PLS[D]):
         return self._fit(X, ya)
 
 class PLSSVD:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_components: int
     scale: bool
     x_weights_: np.ndarray[float, 2]

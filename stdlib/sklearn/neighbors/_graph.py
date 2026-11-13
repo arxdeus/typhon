@@ -4,6 +4,7 @@
 # KNeighborsTransformer, RadiusNeighborsTransformer) and
 # sort_graph_by_row_values from _base.py; graphs are scipy.sparse CSR.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from scipy.sparse import csr_matrix
 from ._unsupervised import NearestNeighbors
@@ -77,6 +78,9 @@ def sort_graph_by_row_values(graph, copy: bool = False, warn_when_not_sorted: bo
     return g
 
 class KNeighborsTransformer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     mode: str
     n_neighbors: int
     algorithm: str
@@ -129,6 +133,9 @@ class KNeighborsTransformer:
         return [f"kneighborstransformer{i}" for i in range(self.n_samples_fit_)]
 
 class RadiusNeighborsTransformer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     mode: str
     radius: float
     algorithm: str

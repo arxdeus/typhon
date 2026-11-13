@@ -3,6 +3,7 @@
 # Estimators are duck-typed at compile time: importances come from `coef_`
 # or `feature_importances_`; scoring is the estimator's own score().
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ..base import clone
 from ._univariate import _SelectorMixin
@@ -82,6 +83,9 @@ def _is_l1(est) -> bool:
     return False
 
 class SelectFromModel[E, TH](_SelectorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     estimator_: E
     threshold: TH
@@ -129,6 +133,9 @@ class SelectFromModel[E, TH](_SelectorMixin):
         return mask
 
 class RFE[E](_SelectorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     estimator_: E
     n_features_to_select: Optional[float]
@@ -208,6 +215,9 @@ class RFE[E](_SelectorMixin):
         return float(self.estimator_.score(self.transform(X), y))
 
 class RFECV[E, CV](_SelectorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     estimator_: E
     step: float
@@ -280,6 +290,9 @@ class RFECV[E, CV](_SelectorMixin):
         return float(self.estimator_.score(self.transform(X), y))
 
 class SequentialFeatureSelector[E, CV](_SelectorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     n_features_to_select: float
     nfs_auto: bool

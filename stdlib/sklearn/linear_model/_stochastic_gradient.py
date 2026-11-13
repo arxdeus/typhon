@@ -6,6 +6,7 @@
 # DEVIATIONS: class_weight is None, 'balanced' or a dict; partial_fit's
 # `classes` must be given on the first call (as in sklearn).
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from numpy.random import RandomState
@@ -383,6 +384,9 @@ class _SGDClassifierMixin(_LinearClassifierMixin):
             raise NotImplementedError(f"predict_(log_)proba only supported when loss='log_loss' or loss='modified_huber' ({self.loss!r} given)")
 
 class SGDClassifier[CW = NoneType](_SGDClassifierMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     loss: str
     penalty: Optional[str]
     alpha: float
@@ -481,6 +485,9 @@ class SGDClassifier[CW = NoneType](_SGDClassifierMixin):
         return np.log(self._proba(X))
 
 class Perceptron[CW = NoneType](_SGDClassifierMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     loss: str
     penalty: Optional[str]
     alpha: float
@@ -570,6 +577,9 @@ class Perceptron[CW = NoneType](_SGDClassifierMixin):
                                       sample_weight, None, None, self._lossf())
 
 class PassiveAggressiveClassifier[CW = NoneType](_SGDClassifierMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     loss: str
     penalty: Optional[str]
     alpha: float
@@ -766,6 +776,9 @@ class _SGDRegressorMixin:
         return _r2(y, self.predict(X), _check_sw(sample_weight, n), sample_weight is not None)
 
 class SGDRegressor(_SGDRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     loss: str
     penalty: Optional[str]
     alpha: float
@@ -845,6 +858,9 @@ class SGDRegressor(_SGDRegressorMixin):
                                       None, None, _loss_fn(self.loss, self.epsilon, True))
 
 class PassiveAggressiveRegressor(_SGDRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     loss: str
     penalty: Optional[str]
     alpha: float
@@ -930,6 +946,9 @@ class PassiveAggressiveRegressor(_SGDRegressorMixin):
                                       SGDLoss(EPS_INSENSITIVE, self.epsilon))
 
 class SGDOneClassSVM:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     nu: float
     fit_intercept: bool
     max_iter: int

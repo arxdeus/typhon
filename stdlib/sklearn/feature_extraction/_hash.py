@@ -4,6 +4,7 @@
 # input_type 'dict' (Dict[str, float|str]), 'pair' or 'string'). Returns a
 # scipy.sparse CSR array with duplicates summed.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ..utils._indexing import _murmur_bytes
 
@@ -36,6 +37,9 @@ def _hash_rows(rows: List[List[Tuple[str, float]]], n_features: int, alternate_s
     return sp.csr_array(D)
 
 class FeatureHasher:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_features: int
     input_type: str
     alternate_sign: bool

@@ -5,6 +5,7 @@
 # Chains: chain_method='predict'; cv=None or an int (KFold for regressors,
 # StratifiedKFold for classifiers, as check_cv).
 
+from .base import estimator_repr as _estimator_repr
 import numpy as np
 from numpy.random.legacy import check_random_state
 from .base import clone
@@ -32,6 +33,9 @@ class _MultiOutput[E]:
             self.estimators_.append(e)
 
 class MultiOutputRegressor[E](_MultiOutput[E]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     _estimator_type: ClassVar[str] = "regressor"
 
     def __init__(self, estimator: E, *, n_jobs: Optional[int] = None):
@@ -61,6 +65,9 @@ class MultiOutputRegressor[E](_MultiOutput[E]):
         return MultiOutputRegressor[E](clone(self.estimator), n_jobs=self.n_jobs)
 
 class MultiOutputClassifier[E](_MultiOutput[E]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     _estimator_type: ClassVar[str] = "classifier"
 
     def __init__(self, estimator: E, *, n_jobs: Optional[int] = None):
@@ -271,6 +278,9 @@ class _BaseChain[E]:
         return out
 
 class RegressorChain[E](_BaseChain[E]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     _estimator_type: ClassVar[str] = "regressor"
 
     def __init__(self, estimator: E, *, order = None, cv = None, random_state: Optional[int] = None,
@@ -289,6 +299,9 @@ class RegressorChain[E](_BaseChain[E]):
         return float(r2_score(y, self.predict(X)))
 
 class ClassifierChain[E](_BaseChain[E]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     _estimator_type: ClassVar[str] = "classifier"
 
     def __init__(self, estimator: E, *, order = None, cv = None, chain_method = "predict",

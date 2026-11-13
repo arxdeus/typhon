@@ -1,5 +1,6 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import math
 from ._dist import _metric_code, _pairwise, _as2d
@@ -70,6 +71,9 @@ def kernel_norm(h: float, d: int, kernel: str, return_log: bool = False) -> floa
     return r if return_log else math.exp(r)
 
 class KernelDensity:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """Exact (atol = rtol = 0 semantics) kernel density estimate.
     bandwidth: float, 'scott' or 'silverman'."""
     _bw_kind: str

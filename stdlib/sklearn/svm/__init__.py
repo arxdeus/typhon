@@ -6,6 +6,7 @@
 # DEVIATION: decision_function of a binary SVC/NuSVC is (n, 1) (static
 # return type); ravel it for sklearn's 1-D shape.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from ..base import _accuracy
@@ -384,6 +385,9 @@ class _BaseSVC(_BaseLibSVM):
         return _accuracy(y, self.predict(X))
 
 class SVC(_BaseSVC):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     class_weight: Optional[Dict[int, float]]
     _balanced: bool
 
@@ -410,6 +414,9 @@ class SVC(_BaseSVC):
             return self._fit_svc(X, y, sample_weight, self.class_weight)
 
 class NuSVC(_BaseSVC):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     class_weight: Optional[Dict[int, float]]
     _balanced: bool
 
@@ -465,6 +472,9 @@ class NuSVR(_BaseSVR):
                         shrinking, False, cache_size, max_iter, None)
 
 class OneClassSVM(_BaseLibSVM):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     offset_: np.ndarray[float, 1]
 
     def __init__(self, *, kernel: str = "rbf", degree: int = 3, gamma = "scale",
@@ -537,6 +547,9 @@ def _fit_liblinear(X, yf: List[float], C: float, fit_intercept: bool, intercept_
         return raw, np.zeros(raw.shape[0]), n_iter
 
 class LinearSVC:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     penalty: str
     loss: str
     dual: str
@@ -632,6 +645,9 @@ class LinearSVC:
         return _accuracy(y, self.predict(X))
 
 class LinearSVR:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     epsilon: float
     tol: float
     C: float

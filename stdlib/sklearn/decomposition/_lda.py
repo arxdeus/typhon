@@ -4,6 +4,7 @@
 # Bayes, dense float64 input, n_jobs ignored) with the Cython kernels of
 # _online_lda_fast.pyx (Bernardo's AS 103 psi approximation).
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from numpy.random import RandomState
@@ -99,6 +100,9 @@ def _loglikelihood(prior: float, distr: np.ndarray[float, 2], dirichlet_distr: n
     return score
 
 class LatentDirichletAllocation:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_components: int
     doc_topic_prior: Optional[float]
     topic_word_prior: Optional[float]

@@ -7,6 +7,7 @@
 # Output is always dense (sparse_output is accepted but ignored); dropped or
 # absent indices are encoded as -1 instead of None.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._enc_base import _check_X, _enc_fit, _enc_transform, _is_nan, _infrequent_categories
 
@@ -26,6 +27,9 @@ def _cats_param(categories, T: type):
     return out
 
 class OneHotEncoder[T = float]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     categories: List[np.ndarray[T, 1]]
     _auto: bool
     drop: Optional[str]

@@ -4,6 +4,7 @@
 # cluster_optics_dbscan and cluster_optics_xi (steep-area cluster
 # extraction with predecessor correction).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._kmeans import _as2d
 
@@ -267,6 +268,9 @@ def cluster_optics_xi(*, reachability, predecessor, ordering, min_samples = 5,
     return _extract_xi_labels(ordering, clusters), clusters
 
 class OPTICS:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     min_samples_i: int
     min_samples_f: float
     max_eps: float

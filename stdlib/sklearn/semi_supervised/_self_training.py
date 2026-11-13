@@ -3,10 +3,14 @@
 # SelfTrainingClassifier over a statically typed base estimator E with
 # predict_proba. Integer labels, -1 marks unlabeled samples.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ..base import clone, _accuracy
 
 class SelfTrainingClassifier[E]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     threshold: float
     criterion: str

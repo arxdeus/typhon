@@ -64,6 +64,21 @@ def _param_repr(v) -> str:
         if v is None:
             return "None"
         return _param_repr(v.__val__())
+    elif isinstance(v, List):
+        out = List[str]()
+        for x in v:
+            if isinstance(x, int) or isinstance(x, float) or isinstance(x, str) or isinstance(x, bool):
+                out.append(_param_repr(x))
+            else:
+                return "[...]"
+        return "[" + ", ".join(out) + "]"
+    elif isinstance(v, Tuple):
+        if static.len(v) == 2 and isinstance(v[0], str):
+            return "(" + _param_repr(v[0]) + ", " + _param_repr(v[1]) + ")"
+        out = List[str]()
+        for x in v:
+            out.append(_param_repr(x))
+        return "[" + ", ".join(out) + "]"
     elif hasattr(v, "get_params") and hasattr(v, "fit"):
         return estimator_repr(v)
     else:
@@ -78,13 +93,35 @@ def get_params(estimator, deep: bool = True) -> Dict[str, str]:
             d[k] = _param_repr(v)
     return d
 
-def estimator_repr(estimator) -> str:
-    """ClassName(param=value, ...) over the public parameters."""
+def _default_instance(estimator):
+    """Estimator built with all-default constructor arguments, or None-like
+    marker via the second return value."""
+    return (type(estimator)(), True)
+
+def estimator_repr(estimator, defaults: Literal[bool] = True) -> str:
+    """ClassName(param=value, ...) listing only the parameters that differ
+    from the constructor defaults (like sklearn's print_changed_only)."""
     parts = List[str]()
+    ok = defaults
+    dflt = _default_instance(estimator)[0] if defaults else estimator
+    names = List[str]()
+    reps = List[str]()
     for k, v in static.vars(estimator):
         if _is_param(k):
-            parts.append(k + "=" + _param_repr(v))
-    return estimator.__class__.__name__ + "(" + ", ".join(parts) + ")"
+            names.append(k)
+            reps.append(_param_repr(v))
+    dreps = List[str]()
+    for k, v in static.vars(dflt):
+        if _is_param(k):
+            dreps.append(_param_repr(v))
+    for i in range(len(names)):
+        if (not ok and reps[i] != "None" and reps[i] != "False") or (ok and reps[i] != dreps[i]):
+            parts.append(names[i] + "=" + reps[i])
+    nm = estimator.__class__.__name__.lstrip("_")
+    br = nm.find("[")
+    if br >= 0:
+        nm = nm[:br]
+    return nm + "(" + ", ".join(parts) + ")"
 
 class BaseEstimator:
     """Mixin base: inherit to get get_params()/set_params()/__repr__ and
@@ -109,6 +146,9 @@ def _r2(y_true, y_pred) -> float:
     return float(r2_score(y_true, y_pred))
 
 class ClassifierMixin:
+    def __repr__(self) -> str:
+        return estimator_repr(self)
+
     _estimator_type: ClassVar[str] = "classifier"
 
     def score(self, X, y, sample_weight = None):
@@ -119,6 +159,9 @@ class ClassifierMixin:
             return accuracy_score(y, self.predict(X), sample_weight=sample_weight)
 
 class RegressorMixin:
+    def __repr__(self) -> str:
+        return estimator_repr(self)
+
     _estimator_type: ClassVar[str] = "regressor"
 
     def score(self, X, y, sample_weight = None):
@@ -126,10 +169,16 @@ class RegressorMixin:
         return float(r2_score(y, self.predict(X), sample_weight=sample_weight))
 
 class TransformerMixin:
+    def __repr__(self) -> str:
+        return estimator_repr(self)
+
     def fit_transform(self, X, y = None):
         return self.fit(X, y).transform(X)
 
 class ClusterMixin:
+    def __repr__(self) -> str:
+        return estimator_repr(self)
+
     _estimator_type: ClassVar[str] = "clusterer"
 
     def fit_predict(self, X, y = None):
@@ -140,6 +189,9 @@ class BiclusterMixin:
     pass
 
 class OutlierMixin:
+    def __repr__(self) -> str:
+        return estimator_repr(self)
+
     _estimator_type: ClassVar[str] = "outlier_detector"
 
     def fit_predict(self, X, y = None):

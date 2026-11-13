@@ -5,6 +5,7 @@
 # streams (per-tree seeds, bootstrap draws, splitter seeds) are those of
 # sklearn, so fitted trees, predictions and importances are identical.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from ..tree._classes import (DecisionTreeClassifier, DecisionTreeRegressor, ExtraTreeClassifier,
@@ -28,6 +29,9 @@ def _balanced_class_weight(yenc: List[float], nc: int, indices: List[int]) -> Li
     return [cw[int(yenc[i])] for i in range(n)]
 
 class _BaseForest[T]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_estimators: int
     bootstrap: bool
     oob_score: bool

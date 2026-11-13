@@ -4,6 +4,7 @@
 # get_bin_seeds and AffinityPropagation. Neighbor searches are exact
 # brute-force euclidean scans.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from numpy.random.legacy import RandomState, check_random_state
 from ._kmeans import _as2d
@@ -63,6 +64,9 @@ def get_bin_seeds(X, bin_size: float, min_bin_freq: int = 1):
     return out
 
 class MeanShift:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     bandwidth: Optional[float]
     seeds: Optional[np.ndarray[float, 2]]
     bin_seeding: bool
@@ -295,6 +299,9 @@ def _affinity_propagation(S0: np.ndarray[float, 2], preference: np.ndarray[float
         return np.empty(0, dtype=int), np.full(n, -1, dtype=int), it + 1
 
 class AffinityPropagation:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     damping: float
     max_iter: int
     convergence_iter: int

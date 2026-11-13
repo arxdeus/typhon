@@ -7,6 +7,7 @@
 # DEVIATION: orthogonal_mp(..., return_path=True) returns a 2-d
 # (n_features, n_steps) path for one target / 3-d for several (sklearn squeezes).
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from ._base import (_retype, _ndim_of, _as2d_y, _preprocess_data, _set_intercept,
@@ -267,6 +268,9 @@ def orthogonal_mp_gram(Gram, Xy, *, n_nonzero_coefs: Optional[int] = None,
             return np.ascontiguousarray(coef.T)
 
 class OrthogonalMatchingPursuit[D: Literal[int] = 1, PC = str](_LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_nonzero_coefs: Optional[int]
     tol: Optional[float]
     fit_intercept: bool
@@ -331,6 +335,9 @@ class OrthogonalMatchingPursuit[D: Literal[int] = 1, PC = str](_LinearRegressorM
         return self
 
 class OrthogonalMatchingPursuitCV[CV = NoneType](_LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     copy: bool
     fit_intercept: bool
     max_iter: Optional[int]

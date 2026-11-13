@@ -3,6 +3,7 @@
 # DummyClassifier (single output, integer labels) and DummyRegressor
 # (1-D or 2-D targets).
 
+from .base import estimator_repr as _estimator_repr
 import numpy as np
 
 def _sw_or_ones(sample_weight, n: int) -> np.ndarray[float, 1]:
@@ -13,6 +14,9 @@ def _sw_or_ones(sample_weight, n: int) -> np.ndarray[float, 1]:
 from numpy.random.legacy import RandomState, check_random_state
 
 class DummyClassifier:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     strategy: str
     random_state: Optional[int]
     constant: Optional[int]
@@ -149,6 +153,9 @@ def _wpct_col(a: np.ndarray[float, 1], w: np.ndarray[float, 1], q: float) -> flo
     return a[idx[pi]]
 
 class DummyRegressor[D: Literal[int] = 1]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     strategy: str
     constant: Optional[List[float]]
     quantile: Optional[float]

@@ -6,6 +6,7 @@
 # start vector is still drawn so the RandomState stream matches sklearn) and
 # label assignment by kmeans, discretize or cluster_qr.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 from numpy.random.legacy import RandomState, check_random_state
@@ -149,6 +150,9 @@ def cluster_qr(vectors):
     return W.argmax(axis=1)
 
 class SpectralClustering:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_clusters: int
     eigen_solver: Optional[str]
     n_components: Optional[int]

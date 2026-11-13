@@ -7,6 +7,7 @@
 # cv: None/int (StratifiedKFold for classifiers, KFold for regressors), a
 # splitter object (KFold / StratifiedKFold), or "prefit".
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ..base import clone
 from ..model_selection import KFold, StratifiedKFold
@@ -212,6 +213,9 @@ class _BaseStacking[S, F, CV]:
         return self.estimators_
 
 class StackingClassifier[S, F, CV](_BaseStacking[S, F, CV]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     classes_: np.ndarray[int, 1]
 
     def __init__(self, estimators: S, final_estimator: F = LogisticRegression(), *,
@@ -269,6 +273,9 @@ class StackingClassifier[S, F, CV](_BaseStacking[S, F, CV]):
         return _accuracy(y, self.predict(X))
 
 class StackingRegressor[S, F, CV](_BaseStacking[S, F, CV]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     def __init__(self, estimators: S, final_estimator: F = RidgeCV(), *, cv: CV = None,
                  n_jobs: Optional[int] = None, passthrough: bool = False, verbose: int = 0):
         self.estimators = estimators

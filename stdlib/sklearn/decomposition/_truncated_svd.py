@@ -1,10 +1,14 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 from ._extmath import check_random_state, randomized_svd, svd_flip_v
 
 class TruncatedSVD:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """algorithm 'arpack' (computed with a dense LAPACK SVD: same subspace,
     signs fixed by svd_flip) or 'randomized' (sklearn's random stream)."""
     n_components: int

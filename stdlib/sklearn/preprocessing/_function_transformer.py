@@ -1,7 +1,11 @@
+from ..base import estimator_repr as _estimator_repr
 # Copyright (C) 2026 the Typhon authors
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
 class FunctionTransformer[F, G]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """func / inverse_func are Typhon callables (functions or lambdas)."""
     func: F
     inverse_func: G

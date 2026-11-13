@@ -7,6 +7,7 @@
 # (1, n_features) for binary problems (sklearn returns 1-d there).
 # RidgeCV: scoring must be None (GCV MSE, or the estimator's score for cv!=None).
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 import scipy.linalg as sl
@@ -266,6 +267,9 @@ def ridge_regression(X, y, alpha, *, sample_weight = None, solver: str = "auto",
             return coef
 
 class Ridge[D: Literal[int] = 1](_LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alpha: np.ndarray[float, 1]
     fit_intercept: bool
     copy_X: bool
@@ -345,6 +349,9 @@ def _label_binarize_pm1(y):
         return classes, yi, Y
 
 class RidgeClassifier[CW](_LinearClassifierMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alpha: np.ndarray[float, 1]
     fit_intercept: bool
     copy_X: bool
@@ -522,6 +529,9 @@ def _ridge_gcv(X, Y: np.ndarray[float, 2], alphas: np.ndarray[float, 1], sample_
     return coefT, inter, best_alpha, best_score, cvr
 
 class RidgeCV[D: Literal[int] = 1, CV = NoneType](_LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alphas: np.ndarray[float, 1]
     fit_intercept: bool
     cv: CV
@@ -645,6 +655,9 @@ def _ridge_cv_search(X, y, alphas: np.ndarray[float, 1], cv, fit_intercept: bool
     return float(alphas[best]), best_score
 
 class RidgeClassifierCV[CW, CV = NoneType](_LinearClassifierMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alphas: np.ndarray[float, 1]
     fit_intercept: bool
     cv: CV

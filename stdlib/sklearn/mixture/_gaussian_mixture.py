@@ -1,11 +1,15 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._base import (_init_resp, _estimate_gaussian_parameters, _compute_precision_cholesky,
                     _precision_cholesky_from_precisions, _to_canonical, _estimate_log_gaussian_prob,
                     _precisions_from_chol, _from_canonical, _logsumexp_rows, _fit_loop)
 
 class _GaussianMixture[CT: Literal[str]]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self, False)
+
     """GaussianMixture with the covariance_type CT fixed at compile time (so
     covariances_ / precisions_ have sklearn's per-type shapes)."""
     n_components: int

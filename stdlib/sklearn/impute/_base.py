@@ -1,6 +1,7 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 # Numeric (float) imputers. missing_values is a float (default nan).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ..base import clone
 
@@ -11,6 +12,9 @@ def _get_mask(X, missing_values: float):
         return X == missing_values
 
 class MissingIndicator:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     missing_values: float
     features: str
     error_on_new: bool
@@ -72,6 +76,9 @@ def _most_frequent(col) -> float:
     return best
 
 class SimpleImputer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     missing_values: float
     strategy: str
     fill_value: Optional[float]
@@ -181,6 +188,9 @@ def _nan_euclidean(X, Y, missing_values: float):
     return D
 
 class KNNImputer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     missing_values: float
     n_neighbors: int
     weights: str

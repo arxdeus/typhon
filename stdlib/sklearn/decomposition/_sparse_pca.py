@@ -2,6 +2,7 @@
 
 # sklearn.decomposition.SparsePCA / MiniBatchSparsePCA
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._extmath import check_random_state, svd_flip_u
 from ._dict_learning import (DictionaryLearning, MiniBatchDictionaryLearning, _opt2,
@@ -44,6 +45,9 @@ class _SparsePCABase:
         return self.fit(X).transform(X)
 
 class SparsePCA(_SparsePCABase):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     U_init: np.ndarray[float, 2]
     has_U: bool
     V_init: np.ndarray[float, 2]
@@ -100,6 +104,9 @@ class SparsePCA(_SparsePCABase):
         return self
 
 class MiniBatchSparsePCA(_SparsePCABase):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     batch_size: int
     shuffle: bool
     max_no_improvement: Optional[int]

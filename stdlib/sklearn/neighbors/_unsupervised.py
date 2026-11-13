@@ -6,6 +6,7 @@
 # brute-force backend (identical results to scikit-learn's trees).
 # Classification targets are integer labels.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._dist import _metric_code, _pairwise, _kneighbors, _as2d, _kneighbors_heap
 from ._binary_tree import _BinaryTree, _make_tree, _tree_kind_for
@@ -37,6 +38,9 @@ class _NeighborsBase:
     pass
 
 class NearestNeighbors:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_neighbors: int
     radius: float
     algorithm: str

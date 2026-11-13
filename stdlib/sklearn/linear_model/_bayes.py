@@ -1,10 +1,14 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 import scipy.linalg as sl
 
 class BayesianRidge:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """Bayesian ridge regression (evidence maximisation, SVD based)."""
     max_iter: int
     tol: float
@@ -146,6 +150,9 @@ class BayesianRidge:
         return 1.0 - float(np.sum(r * r)) / float(np.sum(t * t))
 
 class ARDRegression:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """ARDRegression (sklearn/linear_model/_bayes.py), dense float64."""
     max_iter: int
     tol: float

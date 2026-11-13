@@ -3,11 +3,15 @@
 # Kernel feature-map approximations: RBFSampler, SkewedChi2Sampler,
 # AdditiveChi2Sampler, Nystroem, PolynomialCountSketch (dense input).
 
+from .base import estimator_repr as _estimator_repr
 import numpy as np
 from numpy.random.legacy import RandomState, check_random_state
 from ._pairwise_k import kernel_matrix
 
 class RBFSampler:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     gamma: str
     gamma_value: float
     _gamma: float
@@ -56,6 +60,9 @@ class RBFSampler:
         return self.fit(X).transform(X)
 
 class SkewedChi2Sampler:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     skewedness: float
     n_components: int
     random_state: Optional[int]
@@ -95,6 +102,9 @@ class SkewedChi2Sampler:
         return self.fit(X).transform(X)
 
 class AdditiveChi2Sampler:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     sample_steps: int
     sample_interval: Optional[float]
 
@@ -146,6 +156,9 @@ class AdditiveChi2Sampler:
         return self.fit(X).transform(X)
 
 class Nystroem:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     kernel: str
     gamma: Optional[float]
     coef0: Optional[float]
@@ -202,6 +215,9 @@ class Nystroem:
         return self.fit(X).transform(X)
 
 class PolynomialCountSketch:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     gamma: float
     degree: int
     coef0: float

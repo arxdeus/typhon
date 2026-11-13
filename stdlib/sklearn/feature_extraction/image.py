@@ -4,6 +4,7 @@
 # img_to_graph / grid_to_graph (dense adjacency, returned as a scipy.sparse
 # COO array or a dense ndarray with dense=True).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from numpy.random.legacy import check_random_state
 
@@ -86,6 +87,9 @@ def reconstruct_from_patches_2d(patches, image_size):
     return img
 
 class PatchExtractor:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     patch_size: Optional[Tuple[int, int]]
     max_patches: Optional[float]
     random_state: Optional[int]

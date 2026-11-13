@@ -3,6 +3,7 @@
 # Naive Bayes: GaussianNB, MultinomialNB, ComplementNB, BernoulliNB,
 # CategoricalNB. Class labels are integers.
 
+from .base import estimator_repr as _estimator_repr
 import numpy as np
 
 def _logsumexp_rows(a: np.ndarray[float, 2]) -> np.ndarray[float, 1]:
@@ -76,6 +77,9 @@ class _NBPredict:
         return _acc(y, self.predict(X))
 
 class GaussianNB(_NBPredict):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     priors: Optional[List[float]]
     var_smoothing: float
     classes_: np.ndarray[int, 1]

@@ -5,6 +5,7 @@
 # SparseCoder.  Encoders reuse the LARS / coordinate-descent / OMP solvers of
 # sklearn.linear_model (float64 only; n_jobs and callbacks are ignored).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 from numpy.random import RandomState
@@ -280,6 +281,9 @@ class _BaseSparseCoding:
         return C @ dictionary
 
 class SparseCoder(_BaseSparseCoding):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     dictionary: np.ndarray[float, 2]
     n_components_: int
     n_features_in_: int
@@ -313,6 +317,9 @@ class SparseCoder(_BaseSparseCoding):
         return self._inverse_transform(X, self.dictionary)
 
 class DictionaryLearning(_BaseSparseCoding):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_components: Optional[int]
     alpha: float
     max_iter: int
@@ -384,6 +391,9 @@ class DictionaryLearning(_BaseSparseCoding):
         return self._inverse_transform(X, self.components_)
 
 class MiniBatchDictionaryLearning(_BaseSparseCoding):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_components: Optional[int]
     alpha: float
     max_iter: int

@@ -4,6 +4,7 @@
 # the sparse matrix is generated with the same RNG stream and densified),
 # johnson_lindenstrauss_min_dim.
 
+from .base import estimator_repr as _estimator_repr
 import numpy as np
 from numpy.random.legacy import RandomState, check_random_state
 
@@ -113,6 +114,9 @@ class _BaseRP:
         return np.asarray(X, dtype=float) @ sl.pinv(self.components_, check_finite=False).T
 
 class GaussianRandomProjection(_BaseRP):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     def __init__(self, n_components = "auto", *, eps: float = 0.1,
                  compute_inverse_components: bool = False, random_state: Optional[int] = None):
         self._init_base(n_components, eps, compute_inverse_components, random_state)
@@ -125,6 +129,9 @@ class GaussianRandomProjection(_BaseRP):
         return self
 
 class SparseRandomProjection(_BaseRP):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     density: float
     _density_auto: bool
     density_: float

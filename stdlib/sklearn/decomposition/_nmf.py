@@ -1,5 +1,6 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._extmath import check_random_state, randomized_svd, squared_norm
 
@@ -225,6 +226,9 @@ def _mu_h(X, W, H, beta_loss: float, l1_reg_H: float, l2_reg_H: float, gamma: fl
     H *= numerator
 
 class NMF:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """solver 'cd' (frobenius) / 'mu' (any beta_loss), init None/'random'/
     'nndsvd'/'nndsvda'/'nndsvdar', alpha_W/alpha_H/l1_ratio regularization."""
     n_components: Optional[int]

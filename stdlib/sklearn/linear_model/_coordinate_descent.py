@@ -6,6 +6,7 @@
 # floats; MultiTask*CV and *CV accept cv=int (KFold, as sklearn's check_cv for
 # regressors) or a splitter object; n_jobs/verbose are ignored.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from ._base import (_retype, _ndim_of, _as2d_y, _check_sw, _preprocess_data,
@@ -276,6 +277,9 @@ class _EnetMixin:
         return self
 
 class ElasticNet[D: Literal[int] = 1, PC = bool](_EnetMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alpha: float
     l1_ratio: float
     fit_intercept: bool
@@ -327,6 +331,9 @@ class ElasticNet[D: Literal[int] = 1, PC = bool](_EnetMixin, _LinearRegressorMix
         return self._fit_enet(X, ya, sample_weight, self.l1_ratio)
 
 class Lasso[D: Literal[int] = 1, PC = bool](_EnetMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alpha: float
     fit_intercept: bool
     precompute: PC
@@ -423,6 +430,9 @@ class _MultiTaskMixin:
         return self
 
 class MultiTaskElasticNet(_MultiTaskMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alpha: float
     l1_ratio: float
     fit_intercept: bool
@@ -463,6 +473,9 @@ class MultiTaskElasticNet(_MultiTaskMixin, _LinearRegressorMixin):
         return self._fit_mt(X, y, sample_weight, self.l1_ratio)
 
 class MultiTaskLasso(_MultiTaskMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alpha: float
     fit_intercept: bool
     copy_X: bool
@@ -656,6 +669,9 @@ class _CVMixin:
         return Y, sw, has_sw, best_alpha, best_l1
 
 class LassoCV[CV = NoneType, AL = int, PC = str](_CVMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     eps: float
     alphas: AL
     fit_intercept: bool
@@ -725,6 +741,9 @@ class LassoCV[CV = NoneType, AL = int, PC = str](_CVMixin, _LinearRegressorMixin
         return self
 
 class ElasticNetCV[CV = NoneType, AL = int, PC = str, LR = float](_CVMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     l1_ratio: LR
     eps: float
     alphas: AL
@@ -800,6 +819,9 @@ class ElasticNetCV[CV = NoneType, AL = int, PC = str, LR = float](_CVMixin, _Lin
         return self
 
 class MultiTaskElasticNetCV[CV = NoneType, AL = int, LR = float](_CVMixin, _MultiTaskMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     l1_ratio: LR
     eps: float
     alphas: AL
@@ -864,6 +886,9 @@ class MultiTaskElasticNetCV[CV = NoneType, AL = int, LR = float](_CVMixin, _Mult
         return self
 
 class MultiTaskLassoCV[CV = NoneType, AL = int](_CVMixin, _MultiTaskMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     eps: float
     alphas: AL
     fit_intercept: bool

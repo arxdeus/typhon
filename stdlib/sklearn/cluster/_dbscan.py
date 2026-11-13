@@ -3,6 +3,7 @@
 # DBSCAN with exact brute-force radius neighborhoods (neighbors listed in
 # index order) and the _dbscan_inner depth-first cluster expansion.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._kmeans import _as2d
 
@@ -34,6 +35,9 @@ def _pair_dist(X: np.ndarray[float, 2], i: int, j: int, metric: str, p: float) -
         raise ValueError(f"DBSCAN: unsupported metric {metric}")
 
 class DBSCAN:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     eps: float
     min_samples: int
     metric: str

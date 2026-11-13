@@ -1,9 +1,13 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 
 class PCA:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """svd_solver 'auto' / 'full' / 'covariance_eigh' (the paths sklearn's
     'auto' picks for dense data with <= 500 rows or tall data); integer or
     None n_components; whiten."""
@@ -222,6 +226,9 @@ def _g(fun: str, x, alpha: float):
         raise ValueError(f"unknown fun {fun}")
 
 class FastICA:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """algorithm 'parallel' / 'deflation', fun logcosh/exp/cube, whiten
     'unit-variance' / 'arbitrary-variance' / False, whiten_solver svd/eigh.
     w_init drawn from numpy's legacy RandomState(random_state).normal, so an

@@ -5,6 +5,7 @@
 # drawn from the legacy RandomState. Kernel Km is a static type (default
 # C(1.0) * RBF(1.0)); 1-D or 2-D targets.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 import scipy.linalg as sl
@@ -56,6 +57,9 @@ def _optimize(obj, theta0, bounds):
     return res.x.copy(), float(res.fun)
 
 class GaussianProcessRegressor[K, D: Literal[int] = 1]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     kernel: K
     alpha: float
     optimizer: str

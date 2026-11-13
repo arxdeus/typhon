@@ -5,9 +5,13 @@
 # Typhon: `sparse` is a static parameter, so DictVectorizer(...) is a factory
 # returning _DictVectorizer[sparse].
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 
 class _DictVectorizer[SP: Literal[bool]]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     separator: str
     sort: bool
     feature_names_: List[str]

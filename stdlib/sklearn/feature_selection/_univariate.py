@@ -1,6 +1,7 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 # Univariate score functions and filter selectors.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from scipy.special import fdtrc, chdtrc, digamma
 
@@ -497,6 +498,9 @@ class GenericUnivariateSelect[F](_BaseFilter[F]):
             return pv < self.param / pv.shape[0]
 
 class VarianceThreshold(_SelectorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     threshold: float
     variances_: np.ndarray[float, 1]
 

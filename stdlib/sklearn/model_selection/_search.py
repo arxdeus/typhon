@@ -7,6 +7,7 @@
 # r["mean_test_score"] (float arrays), r["params"] (list of dicts) and
 # r["param_<name>"] (list of values).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import time
 from ..base import clone
@@ -88,6 +89,9 @@ def _rank_min(means: np.ndarray[float, 1]) -> np.ndarray[int, 1]:
     return r
 
 class _BaseSearch[E, P, S, CV, R]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     _space: P
     scoring: S

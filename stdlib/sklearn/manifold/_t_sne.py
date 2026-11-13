@@ -2,6 +2,7 @@
 # t-SNE: exact gradient and Barnes-Hut (quad/oct tree) gradient, float32
 # parameters as in sklearn so a fixed random_state reproduces its output.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ..decomposition._extmath import euclidean_distances_sq
 
@@ -403,6 +404,9 @@ def _gradient_descent(method: str, p, P, Pdata, Pind, Pptr, dof: float, n: int, 
     return error, i
 
 class TSNE:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """method 'exact' / 'barnes_hut' (n_components <= 3), init 'pca' /
     'random' / array, learning_rate 'auto' or float, metric 'euclidean' or
     'precomputed' (distance matrix)."""

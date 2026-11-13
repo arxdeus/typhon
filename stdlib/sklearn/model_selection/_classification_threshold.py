@@ -6,6 +6,7 @@
 # ("balanced_accuracy", "accuracy", "f1", "precision", "recall", "jaccard")
 # or a callable metric(y_true, y_pred) where greater is better.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ..base import clone
 
@@ -64,6 +65,9 @@ def _check_binary(y) -> np.ndarray[int, 1]:
     return ya
 
 class FixedThresholdClassifier[E]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     _estimator_type: ClassVar[str] = "classifier"
     estimator: E
     threshold: float
@@ -117,6 +121,9 @@ class FixedThresholdClassifier[E]:
         return float(accuracy_score(y, self.predict(X)))
 
 class TunedThresholdClassifierCV[E, SC = str]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     _estimator_type: ClassVar[str] = "classifier"
     estimator: E
     scoring: SC

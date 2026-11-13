@@ -1,11 +1,15 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._dist import _metric_code, _pairwise, _as2d
 from ._unsupervised import _class_index
 from ._supervised import _acc
 
 class NearestCentroid:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """metric 'euclidean' (class means) or 'manhattan' (class medians);
     priors 'uniform' (default), 'empirical' or an explicit list."""
     metric: str

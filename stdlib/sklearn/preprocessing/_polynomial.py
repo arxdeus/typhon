@@ -3,6 +3,7 @@
 
 # PolynomialFeatures (dense output).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 
 def _combos(n: int, deg: int, interaction_only: bool) -> List[List[int]]:
@@ -38,6 +39,9 @@ def _combos(n: int, deg: int, interaction_only: bool) -> List[List[int]]:
                 cur[j] = v
 
 class PolynomialFeatures:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     degree: int
     min_degree: int
     interaction_only: bool

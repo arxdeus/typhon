@@ -5,6 +5,7 @@
 # scipy L-BFGS-B on HalfBinomialLoss, as sklearn), calibration_curve.
 # Integer class labels. The default estimator (None) is LinearSVC(random_state=0).
 
+from .base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from .base import clone, _accuracy
@@ -99,6 +100,9 @@ def _sigmoid_calibration(predictions, y, sample_weight = None, max_abs_predictio
     return float(res.x[0]) / scale, float(res.x[1])
 
 class _SigmoidCalibration:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     a_: float
     b_: float
 
@@ -198,6 +202,9 @@ class _CalibratedClassifier[E]:
         return proba
 
 class CalibratedClassifierCV[E]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     method: str
     cv: int

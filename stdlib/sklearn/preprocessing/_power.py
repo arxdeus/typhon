@@ -5,6 +5,7 @@
 # Box-Cox by optimize.brent(brack=(-2, 2)) on -boxcox_llf, Yeo-Johnson by
 # optimize.fminbound on -yeojohnson_llf with scipy's overflow-safe bounds.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import math
 from ._data import _as2df, _is_constant_feature, StandardScaler
@@ -133,6 +134,9 @@ def _nonnan(col):
     return col[~np.isnan(col)]
 
 class PowerTransformer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     method: str
     standardize: bool
     copy: bool

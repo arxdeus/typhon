@@ -4,6 +4,7 @@
 # 3.2, 5.1 of Rasmussen & Williams) with L-BFGS-B hyperparameter search;
 # multiclass one_vs_rest (default) or one_vs_one over binary models.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 import scipy.linalg as sl
@@ -20,6 +21,9 @@ def _expit(x: float) -> float:
     return float(expit(x))
 
 class _Binary[K]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     kernel_: K
     X_train_: np.ndarray[float, 2]
     y_train_: np.ndarray[float, 1]
@@ -138,6 +142,9 @@ class _Binary[K]:
         return (fs > 0).astype(int)
 
 class GaussianProcessClassifier[K]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     kernel: K
     optimizer: str
     n_restarts_optimizer: int

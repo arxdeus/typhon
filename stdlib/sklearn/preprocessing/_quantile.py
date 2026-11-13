@@ -3,6 +3,7 @@
 
 # QuantileTransformer / quantile_transform and KBinsDiscretizer.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._data import _as2df
 
@@ -19,6 +20,9 @@ def _subsample_rows(n: int, size: int, random_state: Optional[int]):
     return idx[:size].copy()
 
 class QuantileTransformer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_quantiles: int
     output_distribution: str
     ignore_implicit_zeros: bool
@@ -128,6 +132,9 @@ def quantile_transform(X, *, axis: int = 0, n_quantiles: int = 1000, output_dist
     return np.ascontiguousarray(qt.fit_transform(np.ascontiguousarray(Xa.T)).T)
 
 class KBinsDiscretizer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """encode 'onehot' returns a dense array (sklearn: sparse CSR)."""
     n_bins: List[int]
     _n_bins_scalar: int

@@ -1,10 +1,14 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 from ._extmath import svd_flip_v, squared_norm, fast_logdet
 
 class IncrementalPCA:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_components: Optional[int]
     whiten: bool
     batch_size: Optional[int]
@@ -158,6 +162,9 @@ def _ortho_rotation(components, method: str, tol: float = 1e-6, max_iter: int = 
     return (components @ R).T
 
 class FactorAnalysis:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """svd_method 'lapack'; rotation None/'varimax'/'quartimax'."""
     n_components: Optional[int]
     tol: float

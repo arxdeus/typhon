@@ -5,6 +5,7 @@
 # DEVIATIONS: Lars/LassoLars keep 1-d targets only through the D=1 path
 # (multi-target via D=2 as elsewhere); `jitter` uses RandomState.uniform.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 import scipy.linalg as sl
@@ -545,6 +546,9 @@ class _LarsMixin:
                 return ya + noise[:, None]
 
 class Lars[D: Literal[int] = 1, PC = str](_LarsMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     fit_intercept: bool
     verbose: int
     precompute: PC
@@ -595,6 +599,9 @@ class Lars[D: Literal[int] = 1, PC = str](_LarsMixin, _LinearRegressorMixin):
                               False, Xy)
 
 class LassoLars[D: Literal[int] = 1, PC = str](_LarsMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alpha: float
     fit_intercept: bool
     verbose: int
@@ -759,6 +766,9 @@ def _is_array(x) -> bool:
     return True
 
 class LarsCV[CV = NoneType, PC = str](_LarsMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     fit_intercept: bool
     verbose: int
     max_iter: int
@@ -808,6 +818,9 @@ class LarsCV[CV = NoneType, PC = str](_LarsMixin, _LinearRegressorMixin):
         return self._fit_lars(X, _as2d_y(y), self.max_iter, a, True, "lar", False)
 
 class LassoLarsCV[CV = NoneType, PC = str](_LarsMixin, _LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     fit_intercept: bool
     verbose: int
     max_iter: int
@@ -859,6 +872,9 @@ class LassoLarsCV[CV = NoneType, PC = str](_LarsMixin, _LinearRegressorMixin):
         return self._fit_lars(X, _as2d_y(y), self.max_iter, a, True, "lasso", self.positive)
 
 class LassoLarsIC[PC = str](_LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     criterion: str
     fit_intercept: bool
     verbose: int

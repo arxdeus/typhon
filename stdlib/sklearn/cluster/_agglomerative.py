@@ -5,6 +5,7 @@
 # for ward/complete/average, then stable sort + union-find relabel) and the
 # Prim MST + single_linkage_label path for single linkage.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from heapq import heappush, heappushpop
 from ._kmeans import _as2d
@@ -220,6 +221,9 @@ def _tree(X: np.ndarray[float, 2], linkage: str, metric: str) -> np.ndarray[floa
     return _nn_chain(D, n, linkage)
 
 class AgglomerativeClustering:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_clusters: Optional[int]
     metric: str
     linkage: str
@@ -339,6 +343,9 @@ class AgglomerativeClustering:
         return self.fit(X).labels_
 
 class FeatureAgglomeration:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     _agg: AgglomerativeClustering
     labels_: np.ndarray[int, 1]
     n_clusters_: int

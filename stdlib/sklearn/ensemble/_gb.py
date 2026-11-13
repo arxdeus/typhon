@@ -8,6 +8,7 @@
 # training data like sklearn); n_iter_no_change early stopping and warm_start
 # follow sklearn (train_test_split needs an integer random_state).
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from numpy.random import RandomState
@@ -690,6 +691,9 @@ class _BaseGB[T, I]:
         return out
 
 class GradientBoostingClassifier[I](_BaseGB[DecisionTreeRegressor, I]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     @property
     def _estimator_type(self) -> str:
         return "classifier"
@@ -783,6 +787,9 @@ class GradientBoostingClassifier[I](_BaseGB[DecisionTreeRegressor, I]):
         return _accuracy(y, self.predict(X))
 
 class GradientBoostingRegressor[I](_BaseGB[DecisionTreeRegressor, I]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     @property
     def _estimator_type(self) -> str:
         return "regressor"

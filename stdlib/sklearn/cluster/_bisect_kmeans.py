@@ -3,12 +3,16 @@
 # BisectingKMeans: the bisecting tree is stored in flat lists (node arrays)
 # and leaves are visited depth-first, left before right, like the reference.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from numpy.random.legacy import RandomState, check_random_state
 from ._kmeans import (_as2d, _row_norms_sq, _sample_weight, _kmeans_plusplus, _kmeans_single_lloyd,
                       _euclid_sq, _inertia, _assign, _tolerance, _sqdist_rows)
 
 class BisectingKMeans:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_clusters: int
     init: str
     n_init: int

@@ -1,5 +1,6 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from .base import estimator_repr as _estimator_repr
 import numpy as np
 from .base import clone
 
@@ -95,6 +96,9 @@ class _NamedSteps[S]:
         return static.len(self.steps)
 
 class Pipeline[S]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self, False)
+
     """Pipeline over a STATIC tuple of (name, estimator) pairs.
 
     Typhon resolves each step's type at compile time, so `steps` is a tuple
@@ -250,6 +254,9 @@ def _w(w, name: str) -> float:
         return 1.0
 
 class FeatureUnion[T, W = NoneType]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self, False)
+
     """Concatenates transformer outputs column-wise (dense float output).
     transformer_list: static tuple of (name, transformer|'drop'|'passthrough')."""
     transformer_list: T

@@ -4,6 +4,7 @@
 # SplineTransformer (dense output; sample_weight only for knots='uniform'
 # zero-weight masking and unweighted quantiles).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from scipy.interpolate import BSpline
 
@@ -13,6 +14,9 @@ def _spl_eval(t, k: int, nb: int, x, nu: int, extrapolate: bool):
     return spl(np.asarray(x, dtype=float), nu)
 
 class SplineTransformer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_knots: int
     degree: int
     knots: str

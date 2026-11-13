@@ -4,6 +4,7 @@
 # scipy.optimize.isotonic_regression (Busing 2022, as scipy 1.18 pava_pybind)
 # which sklearn calls on scipy >= 1.12; prediction is interp1d 'linear'.
 
+from .base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 
@@ -103,6 +104,9 @@ def check_increasing(x, y) -> bool:
     return rho >= 0
 
 class IsotonicRegression:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     y_min: Optional[float]
     y_max: Optional[float]
     increasing: str

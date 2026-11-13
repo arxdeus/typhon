@@ -2,6 +2,7 @@
 
 # sklearn.neighbors.NeighborhoodComponentsAnalysis (L-BFGS-B from scipy.optimize)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import math
 from ._dist import _as2d
@@ -93,6 +94,9 @@ class _NCAObjective:
         self.n_iter += 1
 
 class NeighborhoodComponentsAnalysis:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_components: Optional[int]
     init: str
     init_matrix: np.ndarray[float, 2]

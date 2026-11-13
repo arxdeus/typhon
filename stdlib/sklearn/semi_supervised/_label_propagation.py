@@ -4,10 +4,14 @@
 # graphs; scipy.sparse.csgraph.laplacian(normed=True) dense path). Integer
 # labels, -1 marks unlabeled samples.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from .._pairwise_k import kernel_matrix
 
 class _BaseLabelPropagation:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     kernel: str
     gamma: float
     n_neighbors: int

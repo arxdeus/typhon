@@ -5,6 +5,7 @@
 # decision stump / depth-3 regression tree; any estimator with
 # fit(X, y, sample_weight) and a `random_state` field works.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from ..base import clone
@@ -16,6 +17,9 @@ def _set_rs(est, seed: int):
         est.random_state = seed
 
 class AdaBoostClassifier[E]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     n_estimators: int
     learning_rate: float
@@ -221,6 +225,9 @@ class AdaBoostClassifier[E]:
         return out / norm
 
 class AdaBoostRegressor[E]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     n_estimators: int
     learning_rate: float

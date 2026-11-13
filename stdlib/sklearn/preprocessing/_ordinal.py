@@ -1,11 +1,15 @@
 # Copyright (C) 2026 the Typhon authors
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._enc_base import _check_X, _enc_fit, _enc_transform, _is_nan, _infrequent_categories
 from ._encoders import _min_freq, _cats_param
 
 class OrdinalEncoder[T = float]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """handle_unknown 'error' / 'use_encoded_value'; output dtype float.
     inverse_transform maps unknown_value rows to the first category
     (sklearn: None) and the infrequent bucket to its first infrequent

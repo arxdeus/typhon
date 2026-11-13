@@ -1,10 +1,14 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 from ._extmath import pairwise_kernel, svd_flip_u_only
 
 class KernelPCA:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """kernels linear/poly/rbf/sigmoid/cosine/precomputed, dense eigen
     solver, optional fit_inverse_transform (kernel ridge pre-image)."""
     n_components: Optional[int]

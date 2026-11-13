@@ -2,6 +2,7 @@
 
 # sklearn.decomposition.MiniBatchNMF and non_negative_factorization.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from ._extmath import check_random_state
@@ -61,6 +62,9 @@ def _mu_h_batch(X: np.ndarray[float, 2], W: np.ndarray[float, 2], H: np.ndarray[
             H[i, j] = Hn[i, j]
 
 class MiniBatchNMF:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_components: Optional[int]
     init: str
     batch_size: int

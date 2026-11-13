@@ -9,6 +9,7 @@
 # called with a target of a different ndim re-types the estimator
 # (`_retype`) and returns the D=ndim(y) specialization.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 
@@ -271,6 +272,9 @@ def nnls(A, b, maxiter: Optional[int] = None):
     return out, rnorm
 
 class LinearRegression[D: Literal[int] = 1](_LinearRegressorMixin):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     fit_intercept: bool
     copy_X: bool
     tol: float

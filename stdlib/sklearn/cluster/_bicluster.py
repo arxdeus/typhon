@@ -2,6 +2,7 @@
 
 # SpectralCoclustering and SpectralBiclustering (svd_method 'randomized').
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from numpy.random.legacy import check_random_state
 from ._kmeans import KMeans
@@ -86,6 +87,9 @@ def _svd_uv(array: np.ndarray[float, 2], n_components: int, n_discard: int,
     return u, v
 
 class SpectralCoclustering:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_clusters: int
     svd_method: str
     n_svd_vecs: int
@@ -143,6 +147,9 @@ class SpectralCoclustering:
         return self
 
 class SpectralBiclustering:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_row_clusters: int
     n_col_clusters: int
     method: str

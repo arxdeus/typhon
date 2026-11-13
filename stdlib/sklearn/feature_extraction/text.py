@@ -6,6 +6,7 @@
 # max_df/min_df (int or float), max_features, vocabulary, binary.
 # transform() returns scipy.sparse CSR arrays (built from dense rows).
 
+from ..base import estimator_repr as _estimator_repr
 import re
 import numpy as np
 
@@ -305,6 +306,9 @@ class _CountBase:
         return [[names[j] for j in range(A.shape[1]) if A[i, j] != 0] for i in range(A.shape[0])]
 
 class CountVectorizer(_CountBase):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     def fit(self, raw_documents, y = None):
         self._fit_dense(raw_documents)
         return self
@@ -335,6 +339,9 @@ def _normalize_rows(X: np.ndarray[float, 2], norm: str):
                 X[i, j] /= s
 
 class TfidfTransformer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     norm: str
     use_idf: bool
     smooth_idf: bool
@@ -392,6 +399,9 @@ class TfidfTransformer:
         return self.fit(X).transform(X)
 
 class TfidfVectorizer(_CountBase):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     _tfidf: TfidfTransformer
 
     def __init__(self, *, input: str = "content", encoding: str = "utf-8",
@@ -427,6 +437,9 @@ class TfidfVectorizer(_CountBase):
         return sp.csr_array(self._tfidf._transform_dense(self._transform_dense(raw_documents)))
 
 class HashingVectorizer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     _an: _Analyzer
     n_features: int
     binary: bool

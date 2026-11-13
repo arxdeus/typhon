@@ -4,6 +4,7 @@
 # TargetEncoder with internal cross fitting. Targets are numeric (labels are
 # converted to float); classes_ is a float array.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._enc_base import _check_X, _enc_fit, _enc_transform
 from ._encoders import _cats_param
@@ -55,6 +56,9 @@ def _fit_encoding(X_int, y, ncat: List[int], smooth_auto: bool, smooth: float, y
     return out
 
 class TargetEncoder[T = float]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """cv: int (KFold / StratifiedKFold with shuffle=True) or a splitter.
     sklearn draws the default shuffle seed from global numpy state; here
     random_state=None means seed 0."""

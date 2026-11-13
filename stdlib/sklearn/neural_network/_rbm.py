@@ -3,6 +3,7 @@
 # BernoulliRBM trained with persistent contrastive divergence (dense input),
 # same RandomState stream as sklearn.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from numpy.random.legacy import RandomState, check_random_state
 
@@ -11,6 +12,9 @@ def _expit(A):
     return expit(A)
 
 class BernoulliRBM:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_components: int
     learning_rate: float
     batch_size: int

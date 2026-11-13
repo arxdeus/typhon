@@ -6,6 +6,7 @@
 # (name, transformer|'drop'|'passthrough', columns). Output is a dense float
 # array (sklearn's sparse_threshold stacking is not used).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ..base import clone
 from ..pipeline import _ft1, _hstack2, _NamedSteps
@@ -47,6 +48,9 @@ def _clone_tr(tl):
             return ((tl[0][0], clone(e), tl[0][2]),) + _clone_tr(tl[1:])
 
 class ColumnTransformer[T, R = str]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self, False)
+
     transformers: T
     remainder: R
     sparse_threshold: float

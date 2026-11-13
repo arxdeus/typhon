@@ -1,5 +1,6 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ..base import clone
 from ._base import SimpleImputer, MissingIndicator, _get_mask
@@ -12,6 +13,9 @@ def _default_estimator(estimator):
         return estimator
 
 class _IterativeImputer[E]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """Round-robin regression imputation. `estimator` is any regressor with
     fit/predict (default BayesianRidge). sample_posterior is not ported."""
     estimator: E

@@ -2,10 +2,14 @@
 
 # sklearn.neighbors.LocalOutlierFactor
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._unsupervised import NearestNeighbors
 
 class LocalOutlierFactor:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_neighbors: int
     algorithm: str
     leaf_size: int

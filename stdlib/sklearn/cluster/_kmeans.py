@@ -4,6 +4,7 @@
 # iterations), k-means++ seeding and kmeans_plusplus. Random streams follow
 # numpy's legacy RandomState exactly as scikit-learn consumes them.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from numpy.random.legacy import RandomState, check_random_state
 
@@ -238,6 +239,9 @@ def _tolerance(X: np.ndarray[float, 2], tol: float) -> float:
     return float(np.mean(np.var(X, axis=0))) * tol
 
 class KMeans:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """init: 'k-means++', 'random' or an (n_clusters, n_features) array."""
     n_clusters: int
     init: str

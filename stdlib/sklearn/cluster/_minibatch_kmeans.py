@@ -5,6 +5,7 @@
 # replacement, per-center learning-rate updates, low-count reassignment and
 # EWA-inertia early stopping. The RandomState stream follows sklearn's.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from numpy.random.legacy import RandomState, check_random_state
 from ._kmeans import (_as2d, _row_norms_sq, _sample_weight, _kmeans_plusplus, _assign,
@@ -71,6 +72,9 @@ def _mini_batch_step(X: np.ndarray[float, 2], sw: np.ndarray[float, 1], centers:
     return inertia
 
 class MiniBatchKMeans:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_clusters: int
     init: str
     init_array: np.ndarray[float, 2]

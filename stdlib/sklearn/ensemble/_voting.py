@@ -4,6 +4,7 @@
 # `estimators` is a static tuple of (name, estimator) pairs (heterogeneous
 # estimator types are resolved at compile time, like Pipeline steps).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ..base import clone
 from ..tree._classes import _encode_classes, _r2
@@ -41,6 +42,9 @@ def _weights(weights, m: int) -> List[float]:
     return w
 
 class VotingClassifier[S]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimators: S
     voting: str
     weights: Optional[List[float]]
@@ -150,6 +154,9 @@ class VotingClassifier[S]:
         return _accuracy(y, self.predict(X))
 
 class VotingRegressor[S]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimators: S
     weights: Optional[List[float]]
     estimators_: S

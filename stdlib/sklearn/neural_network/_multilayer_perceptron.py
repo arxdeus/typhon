@@ -6,6 +6,7 @@
 # legacy RandomState stream as sklearn (Glorot-uniform init, per-epoch
 # shuffles, validation split). Dense input; integer class labels.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from numpy.random.legacy import RandomState, check_random_state
@@ -492,6 +493,9 @@ class _BaseMLP:
             self.intercepts_ = self._best_ints
 
 class MLPClassifier(_BaseMLP):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     classes_: np.ndarray[int, 1]
     _estimator_type: ClassVar[str] = "classifier"
 
@@ -573,6 +577,9 @@ class MLPClassifier(_BaseMLP):
         return _accuracy(y, self.predict(X))
 
 class MLPRegressor[D: Literal[int] = 1](_BaseMLP):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     _estimator_type: ClassVar[str] = "regressor"
 
     def __init__(self, loss: str = "squared_error", hidden_layer_sizes = (100,), activation: str = "relu", *, solver: str = "adam",

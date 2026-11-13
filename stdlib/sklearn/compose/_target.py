@@ -1,10 +1,14 @@
 # Copyright (C) 2026 the Typhon authors
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ..base import clone
 
 class TransformedTargetRegressor[R, T = NoneType, F = NoneType, G = NoneType]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """regressor fit on transformer(y) or func(y); predictions are mapped
     back with inverse_transform / inverse_func. y must be 1-d."""
     regressor: R

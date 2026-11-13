@@ -7,6 +7,7 @@
 # categorical_features="from_dtype" means "none"). Supported scoring for early
 # stopping: "loss", None (accuracy / r2), "accuracy", "r2".
 
+from ...base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from numpy.random import Generator, PCG64
@@ -96,6 +97,9 @@ def _sub(v: List[float], idx) -> List[float]:
     return [v[int(idx[t])] for t in range(len(idx))]
 
 class _Preproc:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """ColumnTransformer([("encoder", OrdinalEncoder, cat), ("numerical", ..., ~cat)]):
     categorical columns first (ordinal-encoded, unknown -> NaN), then numeric."""
     active: bool
@@ -630,6 +634,9 @@ class _BaseHGB:
                 break
 
 class HistGradientBoostingRegressor(_BaseHGB):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     @property
     def _estimator_type(self) -> str:
         return "regressor"
@@ -701,6 +708,9 @@ class HistGradientBoostingRegressor(_BaseHGB):
         return _r2(y, self.predict(X))
 
 class HistGradientBoostingClassifier(_BaseHGB):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     @property
     def _estimator_type(self) -> str:
         return "classifier"

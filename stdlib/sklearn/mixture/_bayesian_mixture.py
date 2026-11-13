@@ -1,5 +1,6 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from scipy.special import gammaln, digamma, betaln
 from ._base import (_init_resp, _estimate_gaussian_parameters, _compute_precision_cholesky,
@@ -18,6 +19,9 @@ def _log_wishart_norm(dof, log_det_chol, d: int):
     return out
 
 class _BayesianGaussianMixture[CT: Literal[str]]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self, False)
+
     n_components: int
     tol: float
     reg_covar: float

@@ -5,6 +5,7 @@
 # label arrays (binary / multiclass targets). The label type T is a class
 # parameter (int by default; LabelEncoder[str]() for strings).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 
 def _unique_sorted(y: np.ndarray[T, 1], T: type):
@@ -34,6 +35,9 @@ def _encode_check(classes, y, T: type):
     return out
 
 class LabelEncoder[T = int]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     classes_: np.ndarray[T, 1]
 
     def __init__(self):
@@ -101,6 +105,9 @@ def label_binarize(y, *, classes, neg_label: int = 0, pos_label: int = 1, sparse
     return _lb_entry(np.asarray(y).ravel(), classes, neg_label, pos_label)
 
 class LabelBinarizer[T = int]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     neg_label: int
     pos_label: int
     sparse_output: bool
@@ -158,6 +165,9 @@ class LabelBinarizer[T = int]:
             return out
 
 class MultiLabelBinarizer[T = int]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """y: iterable of iterables of labels; dense int indicator output."""
     classes: Optional[List[T]]
     sparse_output: bool

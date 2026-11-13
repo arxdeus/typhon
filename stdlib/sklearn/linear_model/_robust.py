@@ -5,6 +5,7 @@
 # RANSAC: estimator defaults to LinearRegression; is_data_valid /
 # is_model_valid callables optional; loss 'absolute_error' / 'squared_error'.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from numpy.random import RandomState
@@ -46,6 +47,9 @@ def _dynamic_max_trials(n_inliers: int, n_samples: int, min_samples: int, probab
     return abs(float(math.ceil(math.log(nom) / math.log(denom))))
 
 class RANSACRegressor[E = LinearRegression, DV = NoneType, MV = NoneType]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     min_samples: Optional[float]
     residual_threshold: Optional[float]
@@ -277,6 +281,9 @@ def _combinations(n: int, k: int) -> List[List[int]]:
     return res
 
 class TheilSenRegressor:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     fit_intercept: bool
     max_subpopulation: float
     n_subsamples: Optional[int]

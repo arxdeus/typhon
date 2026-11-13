@@ -1,5 +1,6 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 
@@ -71,6 +72,9 @@ def oas(X, *, assume_centered: bool = False):
     return out, sh
 
 class EmpiricalCovariance:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     store_precision: bool
     assume_centered: bool
     covariance_: np.ndarray[float, 2]
@@ -116,6 +120,9 @@ class EmpiricalCovariance:
         return float(-0.5 * (np.sum(test_cov * P) - logdet + p * np.log(2 * np.pi)))
 
 class ShrunkCovariance(EmpiricalCovariance):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     shrinkage: float
 
     def __init__(self, *, store_precision: bool = True, assume_centered: bool = False,
@@ -131,6 +138,9 @@ class ShrunkCovariance(EmpiricalCovariance):
         return self
 
 class LedoitWolf(EmpiricalCovariance):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     block_size: int
     shrinkage_: float
 
@@ -149,6 +159,9 @@ class LedoitWolf(EmpiricalCovariance):
         return self
 
 class OAS(EmpiricalCovariance):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     shrinkage_: float
 
     def __init__(self, *, store_precision: bool = True, assume_centered: bool = False):

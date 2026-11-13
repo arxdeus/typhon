@@ -1,11 +1,15 @@
 # Copyright (C) 2026 the Typhon authors
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._data import (_as2df, _handle_zeros_in_scale, _check_nfeat, StandardScaler,
                     MinMaxScaler)
 
 class MaxAbsScaler:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     copy: bool
     clip: bool
     max_abs_: np.ndarray[float, 1]
@@ -57,6 +61,9 @@ class MaxAbsScaler:
         return self.fit(X, y).transform(X)
 
 class RobustScaler:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     with_centering: bool
     with_scaling: bool
     quantile_range: Tuple[float, float]
@@ -150,6 +157,9 @@ def normalize(X, norm: str = "l2", *, axis: int = 1, copy: bool = True,
         return out
 
 class Normalizer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     norm: str
     copy: bool
     n_features_in_: int
@@ -174,6 +184,9 @@ def binarize(X, *, threshold: float = 0.0, copy: bool = True):
     return np.where(Xa > threshold, 1.0, 0.0)
 
 class Binarizer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     threshold: float
     copy: bool
     n_features_in_: int
@@ -194,6 +207,9 @@ class Binarizer:
         return self.fit(X).transform(X)
 
 class KernelCenterer:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     K_fit_rows_: np.ndarray[float, 1]
     K_fit_all_: float
 

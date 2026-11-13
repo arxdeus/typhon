@@ -5,6 +5,7 @@
 # the matching functions. NaNs are ignored in fit and kept in transform.
 
 import numpy as np
+from ..base import estimator_repr as _estimator_repr
 
 _EPS = 2.220446049250313e-16
 
@@ -82,6 +83,9 @@ def _incremental_mean_and_var(X, last_mean, last_var, last_n, sample_weight = No
     return upd_mean, upd_uv / upd_n, upd_n
 
 class StandardScaler:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     copy: bool
     with_mean: bool
     with_std: bool
@@ -162,10 +166,10 @@ class StandardScaler:
     def fit_transform(self, X, y = None, sample_weight = None):
         return self.fit(X, y, sample_weight).transform(X)
 
-    def __repr__(self) -> str:
-        return "StandardScaler()"
-
 class MinMaxScaler:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     feature_range: Tuple[float, float]
     copy: bool
     clip: bool

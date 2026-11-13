@@ -4,6 +4,7 @@
 # mode (enet_coordinate_descent_gram from linear_model._cd_fast).
 # GraphicalLassoCV: cv=None or an int (unshuffled KFold, as check_cv).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 from . import EmpiricalCovariance, empirical_covariance, log_likelihood
@@ -139,6 +140,9 @@ def graphical_lasso_path(X, alphas, cov_init = None, X_test = None, mode: str = 
     return covs, precs, scores
 
 class GraphicalLasso(EmpiricalCovariance):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alpha: float
     mode: str
     covariance: str
@@ -182,6 +186,9 @@ class GraphicalLasso(EmpiricalCovariance):
         return self
 
 class GraphicalLassoCV(EmpiricalCovariance):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_alphas: int
     alphas_list: List[float]
     n_refinements: int

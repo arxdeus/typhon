@@ -3,6 +3,7 @@
 # MinCovDet (FastMCD, Rousseeuw & Van Driessen) and EllipticEnvelope, with
 # the same RandomState stream as sklearn.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 from numpy.random.legacy import RandomState, check_random_state
@@ -181,6 +182,9 @@ def _consistency_factor(n_features: int, alpha: float) -> float:
     return alpha / float(chi2.cdf(q_alpha, n_features + 2))
 
 class MinCovDet(EmpiricalCovariance):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     support_fraction: Optional[float]
     random_state: Optional[int]
     raw_location_: np.ndarray[float, 1]
@@ -252,6 +256,9 @@ class MinCovDet(EmpiricalCovariance):
         return loc, cov, self.support_
 
 class EllipticEnvelope(MinCovDet):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     contamination: float
     offset_: float
 

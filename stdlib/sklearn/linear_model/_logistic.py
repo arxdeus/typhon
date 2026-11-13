@@ -10,6 +10,7 @@
 # LogisticRegressionCV: Cs int or list, cv int or splitter, scoring None
 # (accuracy), refit True/False, use_legacy_attributes=False layout.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from ._base import _check_sw, _expit
@@ -256,6 +257,9 @@ def _softmax_rows(s: np.ndarray[float, 2]) -> np.ndarray[float, 2]:
     return E / np.sum(E, axis=1, keepdims=True)
 
 class LogisticRegression[CW = NoneType](BaseEstimator):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     penalty: str
     C: float
     l1_ratio: Optional[float]
@@ -435,6 +439,9 @@ class LogisticRegression[CW = NoneType](BaseEstimator):
         return self
 
 class LogisticRegressionCV[CW = NoneType, CV = NoneType](BaseEstimator):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """Legacy attribute layout (use_legacy_attributes default in 1.9.1):
     C_, l1_ratio_ arrays (n_classes or 1,), scores_/coefs_paths_ dicts keyed by
     class (positive class only when binary), n_iter_ (1, n_folds, n_Cs[, n_l1])."""

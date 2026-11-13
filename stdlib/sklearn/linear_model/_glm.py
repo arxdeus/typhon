@@ -4,6 +4,7 @@
 # _glm/glm.py; solvers 'lbfgs' and 'newton-cholesky'), HuberRegressor
 # (_huber.py) and QuantileRegressor (_quantile.py, scipy linprog 'highs*').
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from ._base import _check_sw, _r2
@@ -16,6 +17,9 @@ def _xlogy(x: float, y: float) -> float:
     return x * math.log(y)
 
 class _GeneralizedLinearRegressor:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alpha: float
     fit_intercept: bool
     solver: str
@@ -291,6 +295,9 @@ class _HuberFG:
         return self._g.copy()
 
 class HuberRegressor:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     epsilon: float
     max_iter: int
     alpha: float
@@ -367,6 +374,9 @@ class HuberRegressor:
         return _r2(np.asarray(y, dtype=float), self.predict(X), sw, sample_weight is not None)
 
 class QuantileRegressor:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     quantile: float
     alpha: float
     fit_intercept: bool

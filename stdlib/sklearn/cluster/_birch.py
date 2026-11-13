@@ -5,6 +5,7 @@
 # with AgglomerativeClustering(n_clusters) (or none), predict / transform /
 # partial_fit.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._kmeans import _as2d
 from ._agglomerative import AgglomerativeClustering
@@ -193,6 +194,9 @@ def _split_node(node: _CFNode, threshold: float, bf: int):
     return s1, s2
 
 class Birch:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     threshold: float
     branching_factor: int
     n_clusters: Optional[int]

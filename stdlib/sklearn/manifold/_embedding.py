@@ -2,6 +2,7 @@
 # MDS (SMACOF metric / non-metric), ClassicalMDS, Isomap,
 # LocallyLinearEmbedding, SpectralEmbedding and trustworthiness.
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 from ._utils import (_knn, _use_brute, _euclidean_distances, _components, _dijkstra_all,
@@ -65,6 +66,9 @@ def _smacof_single(D, metric: bool, n_components: int, init, has_init: bool, max
     return X, stress, it + 1
 
 class ClassicalMDS:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_components: int
     metric: str
     embedding_: np.ndarray[float, 2]
@@ -102,6 +106,9 @@ class ClassicalMDS:
         return self
 
 class MDS:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """SMACOF metric / non-metric MDS (sequential n_init). init 'random' or
     'classical_mds'; metric 'euclidean' or 'precomputed'."""
     n_components: int
@@ -187,6 +194,9 @@ class MDS:
 # ------------------------------------------------------------------ Isomap
 
 class Isomap:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """kNN graph + Dijkstra geodesics + KernelPCA(precomputed, dense)."""
     n_neighbors: int
     n_components: int
@@ -336,6 +346,9 @@ def _null_space_dense(M, k: int, k_skip: int):
     return np.ascontiguousarray(V[:, idx]), float(np.sum(w))
 
 class LocallyLinearEmbedding:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """methods standard / modified / ltsa / hessian with the dense eigen
     solver (eigen_solver 'auto' / 'arpack' are computed densely too)."""
     n_neighbors: int
@@ -514,6 +527,9 @@ class LocallyLinearEmbedding:
 # ------------------------------------------------------------------ Spectral
 
 class SpectralEmbedding:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """affinity 'nearest_neighbors' / 'rbf' / 'precomputed'; normalised
     Laplacian eigenmaps solved densely (sklearn's arpack shift-invert gives
     the same eigenvectors; signs fixed by _deterministic_vector_sign_flip)."""

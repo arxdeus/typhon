@@ -4,6 +4,7 @@
 # _binning.pyx). Binned data is stored column-major as List[int]:
 # Xb[f * n + i]. The last bin (n_bins - 1) is reserved for missing values.
 
+from ...base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 
@@ -98,6 +99,9 @@ def _find_binning_thresholds(col: List[float], max_bins: int, sw: List[float],
     return th
 
 class _BinMapper:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_bins: int
     subsample: int
     random_state: int

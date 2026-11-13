@@ -3,11 +3,15 @@
 # KernelRidge: dual coefficients by a Cholesky solve of (K + alpha I) as
 # linear_model._ridge._solve_cholesky_kernel.
 
+from .base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 from ._pairwise_k import kernel_matrix
 
 class KernelRidge[D: Literal[int] = 1]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     alpha: List[float]
     kernel: str
     gamma: Optional[float]

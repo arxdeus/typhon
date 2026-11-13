@@ -5,6 +5,7 @@
 # `sample_weight` in fit get bootstrap counts as weights (like sklearn for
 # trees); `bootstrap_features` and fractional max_features select columns.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from ..base import clone
@@ -163,6 +164,9 @@ class _BaseBagging[E]:
         return len(self.estimators_)
 
 class BaggingClassifier[E](_BaseBagging[E]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     classes_: np.ndarray[int, 1]
     n_classes_: int
     oob_decision_function_: np.ndarray[float, 2]
@@ -278,6 +282,9 @@ class BaggingClassifier[E](_BaseBagging[E]):
         return _accuracy(y, self.predict(X))
 
 class BaggingRegressor[E](_BaseBagging[E]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     oob_prediction_: np.ndarray[float, 1]
 
     def __init__(self, estimator: E = DecisionTreeRegressor(), n_estimators: int = 10, *,
@@ -351,6 +358,9 @@ def _average_path_length(n: float) -> float:
     return 2.0 * (math.log(n - 1.0) + _EULER) - 2.0 * (n - 1.0) / n
 
 class IsolationForest(_BaseBagging[ExtraTreeRegressor]):
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     contamination: float
     _contamination_auto: bool
     _ms_auto: bool

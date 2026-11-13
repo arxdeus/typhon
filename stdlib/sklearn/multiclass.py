@@ -5,6 +5,7 @@
 # targets for OvR). Binary sub-problems with a single class use a constant
 # predictor as sklearn's _ConstantPredictor.
 
+from .base import estimator_repr as _estimator_repr
 import numpy as np
 from numpy.random.legacy import check_random_state
 from .base import clone, is_regressor, _accuracy
@@ -58,6 +59,9 @@ def _fit_binary(estimator: E, X, y: np.ndarray[int, 1], E: type) -> _Binary[E]:
     return _Binary[E](e, False, 0)
 
 class OneVsRestClassifier[E]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     n_jobs: Optional[int]
     classes_: np.ndarray[int, 1]
@@ -155,6 +159,9 @@ class OneVsRestClassifier[E]:
         return OneVsRestClassifier[E](clone(self.estimator), n_jobs=self.n_jobs)
 
 class OneVsOneClassifier[E]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     n_jobs: Optional[int]
     classes_: np.ndarray[int, 1]
@@ -235,6 +242,9 @@ class OneVsOneClassifier[E]:
         return OneVsOneClassifier[E](clone(self.estimator), n_jobs=self.n_jobs)
 
 class OutputCodeClassifier[E]:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     estimator: E
     code_size: float
     random_state: Optional[int]

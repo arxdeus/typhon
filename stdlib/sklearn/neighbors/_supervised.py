@@ -1,5 +1,6 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._dist import _as2d
 from ._unsupervised import NearestNeighbors, _nn, _class_index, _get_weights, _check_algorithm
@@ -31,6 +32,9 @@ def _acc(y_true, y_pred) -> float:
     return float(c) / float(a.shape[0]) if a.shape[0] > 0 else 0.0
 
 class KNeighborsClassifier:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_neighbors: int
     weights: str
     algorithm: str
@@ -115,6 +119,9 @@ class KNeighborsClassifier:
         return _acc(y, self.predict(X))
 
 class KNeighborsRegressor:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     n_neighbors: int
     weights: str
     algorithm: str
@@ -191,6 +198,9 @@ def _radius_weights(d: np.ndarray[float, 1], weights: str) -> np.ndarray[float, 
     return w
 
 class RadiusNeighborsClassifier:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """outlier_label: None (raise on a query without neighbors), an int
     label, or 'most_frequent' (via outlier_label_most_frequent=True)."""
     radius: float
@@ -284,6 +294,9 @@ class RadiusNeighborsClassifier:
         return _acc(y, self.predict(X))
 
 class RadiusNeighborsRegressor:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     radius: float
     weights: str
     algorithm: str

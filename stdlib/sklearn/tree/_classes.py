@@ -5,6 +5,7 @@
 # Inputs are converted to float32 exactly like sklearn (validate_data dtype=np.float32),
 # so thresholds, impurities and predictions match sklearn bit for bit.
 
+from ..base import estimator_repr as _estimator_repr
 import math
 import numpy as np
 from ._criterion import Criterion, GINI, ENTROPY, MSE, MAE, POISSON
@@ -118,6 +119,9 @@ def _copy_tree_params(dst, src):
     dst.monotonic_cst = src.monotonic_cst
 
 class BaseDecisionTree:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     criterion: str
     splitter: str
     max_depth: Optional[int]

@@ -1,5 +1,6 @@
 # Ported from scikit-learn 1.9.1 (BSD-3-Clause)
 
+from .base import estimator_repr as _estimator_repr
 import numpy as np
 import scipy.linalg as sl
 from .base import _accuracy
@@ -60,6 +61,9 @@ def _cov(X, shrinkage: str, shrink_value: float):
         return _empirical_cov(X)
 
 class LinearDiscriminantAnalysis:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """solver 'svd' (default), 'lsqr', 'eigen'; shrinkage None / 'auto' /
     float for lsqr and eigen; priors from class frequencies unless given."""
     solver: str
@@ -273,6 +277,9 @@ class LinearDiscriminantAnalysis:
         return _accuracy(y, self.predict(X))
 
 class QuadraticDiscriminantAnalysis:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     """solver 'svd' (reg_param) or 'eigen' (shrinkage None / 'auto' / float)."""
     solver: str
     _shrink_kind: str

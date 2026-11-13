@@ -7,6 +7,7 @@
 # cluster_selection_epsilon and max_cluster_size, labels/probabilities,
 # centroids/medoids and dbscan_clustering(cut).
 
+from ..base import estimator_repr as _estimator_repr
 import numpy as np
 from ._kmeans import _as2d
 from ._optics import _pdist_row
@@ -434,6 +435,9 @@ def _get_clusters(T: _Condensed, stab: Dict[int, float], method: str, allow_sing
     return labels, probs
 
 class HDBSCAN:
+    def __repr__(self) -> str:
+        return _estimator_repr(self)
+
     min_cluster_size: int
     min_samples: Optional[int]
     cluster_selection_epsilon: float
