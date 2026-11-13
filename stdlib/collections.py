@@ -34,6 +34,11 @@ class deque:
         for i in it:
             self.append(i)
 
+    def __init__(self, /, it: Generator[T], maxlen: int):
+        self.__init__(maxlen)
+        for i in it:
+            self.append(i)
+
     def __init__(self, /, other: deque[T]):
         self._arr = Ptr[T](other._cap)
         self._cap = other._cap
@@ -132,6 +137,8 @@ class deque:
         return self.__copy__()
 
     def __repr__(self, /) -> str:
+        if self._maxlen >= 0:
+            return f"deque({List[T](iter(self))!r}, maxlen={self._maxlen})"
         return f"deque({List[T](iter(self))!r})"
 
     def _idx_check(self, idx: int, msg: str):
@@ -155,6 +162,97 @@ class deque:
             idx -= self._cap - self._head
             assert 0 <= idx < self._tail
             return self._arr[idx]
+
+    def __setitem__(self, idx: int, x: T, /):
+        if idx < 0:
+            idx += len(self)
+        self._idx_check(idx, "deque index out of range")
+        self._arr[(self._head + idx) & (self._cap - 1)] = x
+
+    def __delitem__(self, idx: int, /):
+        if idx < 0:
+            idx += len(self)
+        self._idx_check(idx, "deque index out of range")
+        items = List[T](iter(self))
+        del items[idx]
+        self.clear()
+        for v in items:
+            self.append(v)
+
+    def __reversed__(self, /) -> Generator[T]:
+        n = len(self)
+        for k in range(n - 1, -1, -1):
+            yield self[k]
+
+    def extend(self, it: Generator[T], /):
+        for v in it:
+            self.append(v)
+
+    def extendleft(self, it: Generator[T], /):
+        for v in it:
+            self.appendleft(v)
+
+    def rotate(self, n: int = 1, /):
+        ln = len(self)
+        if ln <= 1:
+            return
+        n = n % ln
+        if n == 0:
+            return
+        items = List[T](iter(self))
+        self.clear()
+        for k in range(ln):
+            self.append(items[(k - n) % ln])
+
+    def reverse(self, /):
+        items = List[T](iter(self))
+        self.clear()
+        for k in range(len(items) - 1, -1, -1):
+            self.append(items[k])
+
+    def count(self, x: T, /) -> int:
+        c = 0
+        for v in self:
+            if v == x:
+                c += 1
+        return c
+
+    def index(self, x: T, start: int = 0, stop: int = 9223372036854775807, /) -> int:
+        k = 0
+        n = len(self)
+        if start < 0:
+            start = max(0, start + n)
+        if stop < 0:
+            stop += n
+        for v in self:
+            if k >= start and k < stop and v == x:
+                return k
+            k += 1
+        raise ValueError(f"{x!r} is not in deque")
+
+    def insert(self, i: int, x: T, /):
+        n = len(self)
+        if self._maxlen >= 0 and n >= self._maxlen:
+            raise IndexError("deque already at its maximum size")
+        if i < 0:
+            i = max(0, i + n)
+        if i > n:
+            i = n
+        items = List[T](iter(self))
+        items.insert(i, x)
+        self.clear()
+        for v in items:
+            self.append(v)
+
+    def remove(self, x: T, /):
+        k = self.index(x)
+        del self[k]
+
+    def __add__(self, other: deque[T], /) -> deque[T]:
+        r = deque[T](self)
+        for v in other:
+            r.append(v)
+        return r
 
 @tuple
 class _CounterItem:
