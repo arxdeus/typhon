@@ -248,3 +248,46 @@ def unpack_floats(fmt: str, buffer: bytes) -> List[float]:
         else:
             raise error("non-float item in format")
     return out
+
+def pack_into(fmt: str, buffer: bytearray, offset: int, *args):
+    data = pack(fmt, *args)
+    if offset < 0 or offset + len(data) > len(buffer):
+        raise error("pack_into requires a buffer of at least " + str(offset + len(data)) + " bytes")
+    for i in range(len(data)):
+        buffer[offset + i] = data[i]
+
+def iter_unpack(fmt: str, buffer: bytes) -> List[List[Union[int, float, bytes, bool]]]:
+    sz = calcsize(fmt)
+    if sz == 0:
+        raise error("cannot iteratively unpack with a struct of length 0")
+    if len(buffer) % sz != 0:
+        raise error("iterative unpacking requires a buffer of a multiple of " + str(sz) + " bytes")
+    out: List[List[Union[int, float, bytes, bool]]] = []
+    off = 0
+    while off < len(buffer):
+        out.append(unpack(fmt, buffer[off:off + sz]))
+        off += sz
+    return out
+
+class Struct:
+    format: str
+    size: int
+
+    def __init__(self, format: str):
+        self.format = format
+        self.size = calcsize(format)
+
+    def pack(self, *args) -> bytes:
+        return pack(self.format, *args)
+
+    def pack_into(self, buffer: bytearray, offset: int, *args):
+        pack_into(self.format, buffer, offset, *args)
+
+    def unpack(self, buffer: bytes) -> List[Union[int, float, bytes, bool]]:
+        return unpack(self.format, buffer)
+
+    def unpack_from(self, buffer: bytes, offset: int = 0) -> List[Union[int, float, bytes, bool]]:
+        return unpack_from(self.format, buffer, offset)
+
+    def iter_unpack(self, buffer: bytes) -> List[List[Union[int, float, bytes, bool]]]:
+        return iter_unpack(self.format, buffer)
