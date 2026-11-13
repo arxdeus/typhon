@@ -148,3 +148,22 @@ def bayes_mvs(data, alpha: float = 0.90):
     s = BayesMvs(float(_gengamma.mean(val, -2.0, scale=gs)), _gengamma.ppf(lo, val, -2.0, scale=gs),
                  _gengamma.ppf(hi, val, -2.0, scale=gs))
     return (m, v, s)
+
+def mvsdist(data):
+    x = _f64(data).ravel()
+    n = x.shape[0]
+    if n < 2:
+        raise ValueError("Need at least 2 data-points.")
+    xbar = float(np.mean(x))
+    C = float(np.var(x))
+    from ._continuous_distns3 import gengamma as _gengamma
+    if n > 1000:
+        return (_norm_dist(loc=xbar, scale=K.sqrt(C / n)),
+                _norm_dist(loc=C, scale=K.sqrt(2.0 / n) * C),
+                _norm_dist(loc=K.sqrt(C), scale=K.sqrt(C / (2. * n))))
+    nm1 = n - 1
+    fac = n * C / 2.
+    val = nm1 / 2.
+    return (_t_dist(nm1, loc=xbar, scale=K.sqrt(C / nm1)),
+            _invgamma(val, scale=fac),
+            _gengamma(val, -2.0, scale=K.sqrt(fac)))

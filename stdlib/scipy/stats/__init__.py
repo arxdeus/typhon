@@ -74,4 +74,6 @@ from ._continuous_distns5 import kstwo, geninvgauss, genhyperbolic, jf_skew_t, l
     vonmises_line, dpareto_lognorm
 from ._discrete_distns2 import nchypergeom_fisher, nchypergeom_wallenius, poisson_binom
 from ._final_misc import DegenerateDataWarning, ConstantInputWarning, NearConstantInputWarning, \
-    FitError, PermutationMethod, MonteCarloMethod, BootstrapMethod, kstat, kstatvar, gstd, bayes_mvs
+    FitError, PermutationMethod, MonteCarloMethod, BootstrapMethod, kstat, kstatvar, gstd, bayes_mvs, mvsdist
+from ._survival import CensoredData, ecdf, ECDFResult, EmpiricalDistributionFunction, logrank, \
+    LogRankResult, spearmanrho, bws_test, ppcc_max, wasserstein_distance_nd
