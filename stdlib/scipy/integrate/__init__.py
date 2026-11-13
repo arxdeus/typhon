@@ -8,3 +8,4 @@ from _quadrature import trapezoid, simpson, cumulative_trapezoid, cumulative_sim
 from _ivp import solve_ivp, OdeSolution, OdeResult
 from _odepack import odeint, ODEintWarning
 from _ode import ode
+from _bvp import solve_bvp, BVPResult

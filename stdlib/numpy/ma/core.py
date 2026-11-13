@@ -432,6 +432,14 @@ def _op(op: Literal[str], da, db):
         return da & db
     elif op == "or":
         return da | db
+    elif op == "xor":
+        return da ^ db
+    elif op == "lshift":
+        return np.left_shift(da, db)
+    elif op == "rshift":
+        return np.right_shift(da, db)
+    elif op == "fmod":
+        return np.fmod(da, db)
     elif op == "maximum":
         return np.maximum(da, db)
     elif op == "minimum":
@@ -449,7 +457,7 @@ def _binop(a, b, op: Literal[str]):
     res = np.asarray(_op(op, da, db))
     m = np.logical_or(ma, mb)
     nm = na and nb
-    if op == "div" or op == "floordiv" or op == "mod":
+    if op == "div" or op == "floordiv" or op == "mod" or op == "fmod":
         # _DomainSafeDivide: |a| * tiny >= |b|  plus invalid results
         tiny = np.finfo(float).tiny
         dom = np.abs(np.asarray(da).astype(float)) * tiny >= np.abs(np.asarray(db).astype(float))
@@ -478,6 +486,10 @@ def _unop(a, f, dom: Literal[str]):
             bad = df <= 0.0
         elif dom == "arc":
             bad = np.abs(df) > 1.0
+        elif dom == "inv1":
+            bad = df < 1.0
+        elif dom == "inv2":
+            bad = np.abs(df) >= 1.0
         elif dom == "tan":
             bad = np.abs(np.cos(df)) < 1e-35
         else:
