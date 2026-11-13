@@ -75,7 +75,8 @@ pub const STDLIB: &[&str] = &[
     "stdlib/functools_more_test.py", "stdlib/zlib_deflate_test.py", "stdlib/decimal_test.py",
     "stdlib/ipaddress_test.py", "stdlib/calendar_test.py",
     "stdlib/array_test.py", "stdlib/collections_more_test.py", "stdlib/statistics_more_test.py",
-    "stdlib/zlib_identical_test.py",
+    "stdlib/zlib_identical_test.py", "stdlib/datetime_strftime_test.py", "stdlib/string_template_test.py",
+    "stdlib/ipaddress_v6_test.py",
 ];
 
 pub const CNUMERICS: &[&str] = &[
@@ -123,7 +124,7 @@ pub const NUMPY: &[&str] = &[
     "numpy/test_polynomial.py", "numpy/test_testing.py", "numpy/test_ma.py",
     "numpy/test_empty_errstate.py", "numpy/test_strings.py", "numpy/test_lib_more.py",
     "numpy/test_generator.py", "numpy/test_ndarray_methods.py", "numpy/test_ma2.py",
-    "numpy/test_empty_fancy.py",
+    "numpy/test_empty_fancy.py", "numpy/test_savez.py",
 ];
 
 pub const SCIPY: &[&str] = &[
