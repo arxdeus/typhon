@@ -254,9 +254,20 @@ def Epochs(raw, events = None, event_id = None, tmin: float = -0.2, tmax: float 
     out.flat = fl
     out._raw_sfreq = sfreq
     out._kind = "Epochs"
+    out.reject_tmin = rtmin
+    out.reject_tmax = rtmax
     if len(good) == 0:
         print("RuntimeWarning: All epochs were dropped!")
     return out
+
+
+def _get_rs(r):
+    if isinstance(r, NoneType):
+        return np.random.RandomState()
+    elif isinstance(r, int):
+        return np.random.RandomState(r)
+    else:
+        return r
 
 
 def _match_event_names(event_id: Dict[str, int], keys: List[str]) -> List[str]:
@@ -354,9 +365,21 @@ class EpochsArray:
         self.flat = fl
         if rej is None and fl is None:
             return self
+        nt = self.times.shape[0]
+        rt0 = 0
+        rt1 = nt
+        if self.reject_tmin is not None:
+            for j in range(nt):
+                if self.times[j] >= self.reject_tmin.__val__():
+                    rt0 = j
+                    break
+        if self.reject_tmax is not None:
+            for j in range(nt):
+                if self.times[j] <= self.reject_tmax.__val__():
+                    rt1 = j
         keep = List[int]()
         for i in range(self._data.shape[0]):
-            bads = _is_good(self._data[i], self.info, rej, fl, 0, self.times.shape[0])
+            bads = _is_good(self._data[i], self.info, rej, fl, rt0, rt1)
             if len(bads) > 0:
                 for b in bads:
                     self.drop_log[self.selection[i]].append(b)
@@ -413,6 +436,12 @@ class EpochsArray:
                 keep = _minimize_time_diff(nums[small], nums[k])
             elif method == "truncate":
                 keep = [j < len(nums[small]) for j in range(len(nums[k]))]
+            elif method == "random":
+                keep = [False for _ in range(len(nums[k]))]
+                rs = _get_rs(random_state)
+                pick = rs.choice(np.arange(len(nums[k])), size=len(nums[small]), replace=False)
+                for q in range(pick.shape[0]):
+                    keep[int(pick[q])] = True
             else:
                 raise ValueError(f"Invalid value for the 'method' parameter. Allowed values are 'mintime', 'truncate', and 'random', but got '{method}' instead.")
             for j in range(len(keep)):

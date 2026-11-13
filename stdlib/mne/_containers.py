@@ -504,6 +504,8 @@ class EpochsArray:
     flat: Optional[Dict[str, float]]
     _raw_sfreq: float
     _kind: str
+    reject_tmin: Optional[float]
+    reject_tmax: Optional[float]
 
     def __init__(self, data, info: Info, events = None, tmin: float = 0.0, event_id = None,
                  reject = None, flat = None, reject_tmin = None, reject_tmax = None,
@@ -559,6 +561,8 @@ class EpochsArray:
         self.flat = None
         self._raw_sfreq = sfreq
         self._kind = "EpochsArray"
+        self.reject_tmin = reject_tmin
+        self.reject_tmax = reject_tmax
         if not isinstance(baseline, NoneType):
             bmin: Optional[float] = baseline[0]
             bmax: Optional[float] = baseline[1]
