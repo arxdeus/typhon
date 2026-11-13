@@ -1821,7 +1821,7 @@ def poisson_means_test(k1: int, n1: float, k2: int, n2: float, *, diff: float = 
             x1 = x1_lb + i
             l1 = x1 / n1
             vv = l1 / n1 + l2 / n2
-            t = (l1 - l2 - diff) / K.sqrt(vv)
+            t = (l1 - l2 - diff).cdiv(K.sqrt(vv))
             ind = False
             if alternative == 'two-sided':
                 ind = abs(t) >= abs(t_k1k2)

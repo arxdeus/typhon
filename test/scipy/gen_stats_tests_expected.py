@@ -148,4 +148,82 @@ def tests1():
     r = st.combine_pvalues(ps, method='stouffer', weights=np.array([1., 2, 3, 4, 5])); out += [r.statistic, r.pvalue]
     emit('cp', out)
 
-{'desc': desc, 'tests1': tests1}[sys.argv[1]]()
+def tests2():
+    import warnings
+    warnings.simplefilter('ignore')
+    big = np.cos(np.arange(40.) * 1.3) * 2 + np.arange(40.) * 0.1
+    emit('big', big)
+    out = []
+    for d in [x, big, x[:3], x[:5], x[:9]]:
+        r = st.shapiro(d); out += [r.statistic, r.pvalue]
+    emit('sh', out)
+    out = []
+    for dist in ['norm', 'expon', 'logistic', 'gumbel_r', 'gumbel_l']:
+        r = st.anderson(x, dist); out += [r.statistic] + list(r.critical_values)
+    r = st.anderson(big, 'norm', method='interpolate'); out += [r.statistic, r.pvalue]
+    emit('ad', out)
+    r = st.anderson_ksamp([x, y, big[:15]], variant='midrank'); r2 = st.anderson_ksamp([x, y], variant='right')
+    emit('adk', [r.statistic, r.pvalue, r2.statistic, r2.pvalue])
+    out = []
+    for alt in ['two-sided', 'less', 'greater']:
+        r = st.ansari(x, y[:9], alternative=alt); out += [r.statistic, r.pvalue]
+        r = st.mood(x, big[:15], alternative=alt); out += [r.statistic, r.pvalue]
+    r = st.ansari(np.round(x), np.round(y)); out += [r.statistic, r.pvalue]
+    r = st.ansari(x, big[:13]); out += [r.statistic, r.pvalue]
+    r = st.ansari(big, big[::-1] * 1.5 + 0.1); out += [r.statistic, r.pvalue]
+    r = st.mood(np.round(x), np.round(y)); out += [r.statistic, r.pvalue]
+    emit('am', out)
+    out = []
+    for c in ['median', 'mean', 'trimmed']:
+        r = st.levene(x, y, big[:10], center=c); out += [r.statistic, r.pvalue]
+        r = st.fligner(x, y, big[:10], center=c); out += [r.statistic, r.pvalue]
+    r = st.bartlett(x, y, big[:10]); out += [r.statistic, r.pvalue]
+    emit('lbf', out)
+    r = st.median_test(x, y, big[:10]); emit('mt', [r.statistic, r.pvalue, r.median] + list(r.table.ravel()))
+    r = st.median_test(x, y, ties='above', correction=False, lambda_='log-likelihood'); emit('mt2', [r.statistic, r.pvalue])
+    out = []
+    for k, n, p in [(7, 20, 0.5), (3, 15, 0.1), (12, 30, 0.6), (0, 10, 0.2), (19, 21, 0.3)]:
+        for alt in ['two-sided', 'less', 'greater']:
+            r = st.binomtest(k, n, p, alternative=alt); out += [r.statistic, r.pvalue]
+    r = st.binomtest(7, 20, 0.4)
+    for m in ['exact', 'wilson', 'wilsoncc']:
+        ci = r.proportion_ci(0.9, method=m); out += [ci.low, ci.high]
+    emit('bt', out)
+    out = []
+    for tb in [[[8, 2], [1, 5]], [[3, 7], [9, 2]], [[10, 12], [11, 9]], [[0, 5], [4, 3]]]:
+        for alt in ['two-sided', 'less', 'greater']:
+            r = st.fisher_exact(tb, alternative=alt); out += [r.statistic, r.pvalue]
+    emit('fe', out)
+    out = []
+    for alt in ['two-sided', 'less', 'greater']:
+        r = st.ks_1samp(x, st.norm.cdf, args=(3.5, 1.3), alternative=alt); out += [r.statistic, r.pvalue, r.statistic_location, r.statistic_sign]
+        r = st.ks_2samp(x, y[:9], alternative=alt); out += [r.statistic, r.pvalue, r.statistic_location, r.statistic_sign]
+        r = st.ks_2samp(x, big, alternative=alt); out += [r.statistic, r.pvalue]
+    r = st.kstest(big / 5, 'norm'); out += [r.statistic, r.pvalue]
+    r = st.kstest(big / 5, 'norm', method='asymp'); out += [r.statistic, r.pvalue]
+    r = st.kstest(big / 5, 'norm', method='approx'); out += [r.statistic, r.pvalue]
+    r = st.ks_2samp(x, y); out += [r.statistic, r.pvalue]
+    r = st.ks_2samp(x, y, method='asymp'); out += [r.statistic, r.pvalue]
+    big2 = np.sin(np.arange(200.) * 0.7) + np.arange(200.) * 0.01
+    r = st.kstest(big2, 'norm'); out += [r.statistic, r.pvalue]
+    r = st.kstest(big2 * 0.1, 'norm'); out += [r.statistic, r.pvalue]
+    emit('ks', out)
+    out = []
+    r = st.cramervonmises(big / 5, 'norm'); out += [r.statistic, r.pvalue]
+    r = st.cramervonmises(x, st.norm.cdf, args=(3.5, 1.3)); out += [r.statistic, r.pvalue]
+    r = st.cramervonmises_2samp(x, y[:9]); out += [r.statistic, r.pvalue]
+    r = st.cramervonmises_2samp(x, big); out += [r.statistic, r.pvalue]
+    emit('cvm', out)
+    out = []
+    for args in [(10, 3.0, 4, 2.0), (6, 2.0, 15, 3.5), (0, 1.0, 3, 1.0)]:
+        for alt in ['two-sided', 'less', 'greater']:
+            r = st.poisson_means_test(*args, alternative=alt); out += [r.statistic, r.pvalue]
+    r = st.poisson_means_test(10, 3.0, 4, 2.0, diff=0.5); out += [r.statistic, r.pvalue]
+    emit('pm', out)
+    r = st.epps_singleton_2samp(x, big[:15]); r2 = st.epps_singleton_2samp(big, np.abs(big[::-1]) ** 1.1 + 1, t=(0.3, 0.6, 0.9))
+    emit('es', [r.statistic, r.pvalue, r2.statistic, r2.pvalue])
+    tb = np.array([[10, 12, 5], [11, 9, 14]])
+    r = st.chi2_contingency(tb, lambda_='log-likelihood'); r2 = st.chi2_contingency(np.array([[[3, 4], [5, 2]], [[6, 1], [2, 7]]]))
+    emit('c2c', [r.statistic, r.pvalue, r2.statistic, r2.pvalue, float(r2.dof)])
+
+{'desc': desc, 'tests1': tests1, 'tests2': tests2}[sys.argv[1]]()
