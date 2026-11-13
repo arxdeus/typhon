@@ -105,8 +105,36 @@ class MultiOutputClassifier[E](_MultiOutput[E]):
     def _sk_clone(self):
         return MultiOutputClassifier[E](clone(self.estimator), n_jobs=self.n_jobs)
 
+def _resp(e, Xc, method: str) -> np.ndarray[float, 1]:
+    """Response of a fitted binary estimator as one column (positive class)."""
+    if method == "predict_proba":
+        if hasattr(e, "predict_proba"):
+            pp = np.asarray(e.predict_proba(Xc), dtype=float)
+            return np.ascontiguousarray(pp[:, pp.shape[1] - 1])
+        raise AttributeError("estimator has no predict_proba")
+    elif method == "predict_log_proba":
+        if hasattr(e, "predict_proba"):
+            pp = np.log(np.asarray(e.predict_proba(Xc), dtype=float))
+            return np.ascontiguousarray(pp[:, pp.shape[1] - 1])
+        raise AttributeError("estimator has no predict_log_proba")
+    elif method == "decision_function":
+        if hasattr(e, "decision_function"):
+            return np.asarray(e.decision_function(Xc), dtype=float).ravel()
+        raise AttributeError("estimator has no decision_function")
+    return np.asarray(e.predict(Xc), dtype=float).ravel()
+
+def _has_method(e, method: str) -> bool:
+    if method == "predict_proba" or method == "predict_log_proba":
+        return hasattr(e, "predict_proba")
+    elif method == "decision_function":
+        return hasattr(e, "decision_function")
+    return True
+
 class _BaseChain[E]:
     estimator: E
+    chain_method: str
+    chain_method_: str
+    _cm_list: List[str]
     _order_kind: str
     _order_list: List[int]
     cv: int
@@ -128,8 +156,18 @@ class _BaseChain[E]:
         self.random_state = random_state
         self.order_ = np.empty(0, dtype=int)
         self.estimators_ = []
+        self.chain_method = "predict"
+        self.chain_method_ = "predict"
+        self._cm_list = []
 
-    def _fit_chain(self, X, Y, classifier: bool):
+    def _set_chain_method(self, chain_method):
+        if isinstance(chain_method, str):
+            self.chain_method = chain_method
+        else:
+            self.chain_method = str(chain_method[0])
+            self._cm_list = [str(v) for v in chain_method]
+
+    def _fit_chain(self, X, Y, classifier: Literal[bool]):
         Xa = np.asarray(X, dtype=float)
         Ya = np.asarray(Y, dtype=float)
         n, p = Xa.shape
@@ -152,6 +190,18 @@ class _BaseChain[E]:
                 for c in range(m):
                     Xaug[i, p + c] = Ya[i, self.order_[c]]
         self.estimators_ = []
+        cm = "predict"
+        if classifier:
+            cm = self.chain_method
+            if len(self._cm_list) > 0:
+                found = False
+                for cand in self._cm_list:
+                    if not found and _has_method(self.estimator, cand):
+                        cm = cand
+                        found = True
+            if not _has_method(self.estimator, cm):
+                raise AttributeError(f"{self.estimator.__class__.__name__} has none of the following attributes: {cm}")
+        self.chain_method_ = cm
         for c in range(m):
             y = _col(Ya, int(self.order_[c]))
             e = clone(self.estimator)
@@ -162,11 +212,11 @@ class _BaseChain[E]:
                 e.fit(Xc, y)
             self.estimators_.append(e)
             if self.cv > 0 and c < m - 1:
-                cvp = self._cv_predict(Xc, y, classifier)
+                cvp = self._cv_predict(Xc, y, classifier, cm)
                 for i in range(n):
                     Xaug[i, p + c] = cvp[i]
 
-    def _cv_predict(self, Xc, y, classifier: bool) -> np.ndarray[float, 1]:
+    def _cv_predict(self, Xc, y, classifier: Literal[bool], cm: str) -> np.ndarray[float, 1]:
         from .model_selection import KFold, StratifiedKFold
         n = Xc.shape[0]
         out = np.empty(n)
@@ -183,7 +233,7 @@ class _BaseChain[E]:
                 e.fit(Xc[tr], y[tr].astype(int))
             else:
                 e.fit(Xc[tr], y[tr])
-            pr = np.asarray(e.predict(Xc[te]), dtype=float).ravel()
+            pr = _resp(e, Xc[te], cm)
             for t in range(te.shape[0]):
                 out[te[t]] = pr[t]
         return out
@@ -201,22 +251,19 @@ class _BaseChain[E]:
         for c in range(m):
             e = self.estimators_[c]
             Xc = np.ascontiguousarray(Xaug[:, :p + c])
-            fp = np.asarray(e.predict(Xc), dtype=float).ravel()
+            fp = _resp(e, Xc, self.chain_method_)
             for i in range(n):
                 Xaug[i, p + c] = fp[i]
             if output == 0:
-                for i in range(n):
-                    outc[i, c] = fp[i]
+                op = np.asarray(e.predict(Xc), dtype=float).ravel()
             elif output == 1:
-                if hasattr(e, "predict_proba"):
-                    pp = e.predict_proba(Xc)
-                    for i in range(n):
-                        outc[i, c] = pp[i, 1]
+                op = _resp(e, Xc, "predict_proba")
+            elif output == 3:
+                op = _resp(e, Xc, "predict_log_proba")
             else:
-                if hasattr(e, "decision_function"):
-                    dd = np.asarray(e.decision_function(Xc), dtype=float).ravel()
-                    for i in range(n):
-                        outc[i, c] = dd[i]
+                op = _resp(e, Xc, "decision_function")
+            for i in range(n):
+                outc[i, c] = op[i]
         out = np.empty((n, m))
         for c in range(m):
             for i in range(n):
@@ -244,11 +291,10 @@ class RegressorChain[E](_BaseChain[E]):
 class ClassifierChain[E](_BaseChain[E]):
     _estimator_type: ClassVar[str] = "classifier"
 
-    def __init__(self, estimator: E, *, order = None, cv = None, chain_method: str = "predict",
+    def __init__(self, estimator: E, *, order = None, cv = None, chain_method = "predict",
                  random_state: Optional[int] = None, verbose: bool = False):
-        if chain_method != "predict":
-            raise NotImplementedError("ClassifierChain: only chain_method='predict' is supported")
         self._init_chain(estimator, order, cv, random_state)
+        self._set_chain_method(chain_method)
 
     def fit(self, X, Y):
         self._fit_chain(X, Y, True)
@@ -265,7 +311,7 @@ class ClassifierChain[E](_BaseChain[E]):
         return self._chain(X, 1)
 
     def predict_log_proba(self, X):
-        return np.log(self.predict_proba(X))
+        return self._chain(X, 3)
 
     def decision_function(self, X):
         return self._chain(X, 2)
