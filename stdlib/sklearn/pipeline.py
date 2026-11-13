@@ -42,6 +42,12 @@ def _fit_transform_head(steps, X, y):
     else:
         return _fit_transform_head(steps[1:], _ft1(steps[0][1], X, y), y)
 
+def _drop_last(steps):
+    if static.len(steps) <= 1:
+        return ()
+    else:
+        return (steps[0],) + _drop_last(steps[1:])
+
 def _transform_head(steps, X):
     if static.len(steps) <= 1:
         return X
@@ -174,6 +180,10 @@ class Pipeline[S]:
     def __getitem__(self, i: Literal[int]):
         return self.steps[i][1]
 
+    def head(self):
+        """Equivalent of pipeline[:-1] (slices are not static in Typhon)."""
+        return Pipeline(_drop_last(self.steps), memory=self.memory, verbose=self.verbose)
+
     def fit(self, X, y = None):
         Xt = _fit_transform_head(self.steps, X, y)
         if not _is_pass(self.steps[-1][1]):
@@ -244,9 +254,37 @@ def _hstack2(a, b):
     else:
         return np.hstack((A, B))
 
+def _union_list_ft(tl, X, y, w):
+    import numpy as np
+    out = np.empty((np.asarray(X).shape[0], 0))
+    for item in tl:
+        nm, est = item
+        if isinstance(est, str):
+            if est == "drop":
+                continue
+            out = _hstack2(out, np.asarray(X, dtype=float) * _w(w, nm))
+        else:
+            out = _hstack2(out, np.asarray(_ft1(est, X, y), dtype=float) * _w(w, nm))
+    return out
+
+def _union_list_t(tl, X, w):
+    import numpy as np
+    out = np.empty((np.asarray(X).shape[0], 0))
+    for item in tl:
+        nm, est = item
+        if isinstance(est, str):
+            if est == "drop":
+                continue
+            out = _hstack2(out, np.asarray(X, dtype=float) * _w(w, nm))
+        else:
+            out = _hstack2(out, np.asarray(est.transform(X), dtype=float) * _w(w, nm))
+    return out
+
 def _union_ft(tl, X, y, w):
     import numpy as np
-    if static.len(tl) == 0:
+    if isinstance(tl, List):
+        return _union_list_ft(tl, X, y, w)
+    elif static.len(tl) == 0:
         return np.empty((np.asarray(X).shape[0], 0))
     else:
         est = tl[0][1]
@@ -260,7 +298,9 @@ def _union_ft(tl, X, y, w):
 
 def _union_t(tl, X, w):
     import numpy as np
-    if static.len(tl) == 0:
+    if isinstance(tl, List):
+        return _union_list_t(tl, X, w)
+    elif static.len(tl) == 0:
         return np.empty((np.asarray(X).shape[0], 0))
     else:
         est = tl[0][1]
