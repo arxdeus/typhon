@@ -64,3 +64,5 @@ from ._stats_extra import sigmaclip, obrientransform, gzscore, directional_stats
     expectile, lmoment, chatterjeexi, quantile_test, SigmaclipResult, DirectionalStats, \
     QuantileTestResult
 from . import mstats
+from ._studentized_range import studentized_range
+from ._multicomp import tukey_hsd, dunnett, TukeyHSDResult, DunnettResult
