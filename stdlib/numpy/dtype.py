@@ -473,3 +473,12 @@ class iinfo:
 
     def __str__(self):
         return f'Machine parameters for {self._type_name()}\n---------------------------------------------------------------\nmin = {dtype(self.min)}\nmax = {dtype(self.max)}\n---------------------------------------------------------------\n'
+
+# builtin scalar types re-exported under numpy names
+str_ = str
+bytes_ = bytes
+half = float16
+long = int
+ulong = UInt[64]
+True_ = True
+False_ = False
