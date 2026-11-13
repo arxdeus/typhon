@@ -154,3 +154,107 @@ def load_diabetes(*, return_X_y: Literal[bool] = False, as_frame: bool = False, 
         return data, target
     else:
         return _RegDataset(data, target, ["age", "sex", "bmi", "bp", "s1", "s2", "s3", "s4", "s5", "s6"])
+
+class _Linnerud:
+    data: np.ndarray[float, 2]
+    target: np.ndarray[float, 2]
+    feature_names: List[str]
+    target_names: List[str]
+
+    def __init__(self, data: np.ndarray[float, 2], target: np.ndarray[float, 2],
+                 feature_names: List[str], target_names: List[str]):
+        self.data = data
+        self.target = target
+        self.feature_names = feature_names
+        self.target_names = target_names
+
+def _read_header_matrix(path: str):
+    with open(path) as f:
+        header = f.readline().split()
+    return _read_matrix_skip(path, 1), header
+
+def _read_matrix_skip(path: str, skip: int) -> np.ndarray[float, 2]:
+    rows = List[List[float]]()
+    i = 0
+    with open(path) as f:
+        for line in f:
+            if i < skip:
+                i += 1
+                continue
+            s = line.strip()
+            if s == "":
+                continue
+            r = List[float]()
+            for t in s.split():
+                r.append(float(t))
+            rows.append(r)
+    n = len(rows)
+    m = len(rows[0]) if n > 0 else 0
+    out = np.empty((n, m))
+    for a in range(n):
+        for j in range(m):
+            out[a, j] = rows[a][j]
+    return out
+
+def load_linnerud(*, return_X_y: Literal[bool] = False, as_frame: bool = False):
+    """Exercise (data) vs physiological (target) measurements; 20 x 3 each."""
+    d, dn = _read_header_matrix(_data_dir() + "linnerud_exercise.csv")
+    t, tn = _read_header_matrix(_data_dir() + "linnerud_physiological.csv")
+    if return_X_y:
+        return d, t
+    else:
+        return _Linnerud(d, t, dn, tn)
+
+class _Files:
+    data: List[str]
+    filenames: List[str]
+    target: np.ndarray[int, 1]
+    target_names: List[str]
+
+    def __init__(self, data: List[str], filenames: List[str], target: np.ndarray[int, 1],
+                 target_names: List[str]):
+        self.data = data
+        self.filenames = filenames
+        self.target = target
+        self.target_names = target_names
+
+def load_files(container_path: str, *, description: Optional[str] = None,
+               categories: Optional[List[str]] = None, load_content: bool = True,
+               shuffle: bool = True, encoding: Optional[str] = None,
+               decode_error: str = "strict", random_state: int = 0, allowed_extensions = None):
+    """Load text files with categories as subfolder names (sorted). shuffle
+    uses RandomState(random_state) like sklearn."""
+    import os
+    folders = List[str]()
+    for name in sorted(os.listdir(container_path)):
+        if os.path.isdir(os.path.join(container_path, name)):
+            folders.append(name)
+    if categories is not None:
+        keep = List[str]()
+        for c in folders:
+            if c in categories:
+                keep.append(c)
+        folders = keep
+    target_l = List[int]()
+    files = List[str]()
+    for label in range(len(folders)):
+        folder = os.path.join(container_path, folders[label])
+        for d in sorted(os.listdir(folder)):
+            files.append(os.path.join(folder, d))
+            target_l.append(label)
+    target = np.array(target_l, dtype=int)
+    order = np.arange(len(files))
+    if shuffle:
+        from . import _shuf
+        order = _shuf(len(files), random_state)
+    fs = List[str]()
+    tg = np.empty(len(files), dtype=int)
+    data = List[str]()
+    for k in range(len(files)):
+        j = int(order[k])
+        fs.append(files[j])
+        tg[k] = target[j]
+        if load_content:
+            with open(files[j]) as fh:
+                data.append(fh.read())
+    return _Files(data, fs, tg, folders)

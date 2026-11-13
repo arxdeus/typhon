@@ -8,4 +8,10 @@ from ._samples_generator import (make_classification, make_multilabel_classifica
                                  make_sparse_spd_matrix, make_swiss_roll, make_s_curve,
                                  make_gaussian_quantiles, make_biclusters, make_checkerboard)
 from ._base import (load_iris, load_wine, load_breast_cancer, load_digits, load_diabetes,
-                    load_csv_data)
+                    load_csv_data, load_linnerud)
+from ._svmlight_format_io import load_svmlight_file, load_svmlight_files, dump_svmlight_file
+from ._base import load_files
+
+def _shuf(n: int, seed: int):
+    from ..utils import _LegacyRS
+    return _LegacyRS(seed).permutation(n)

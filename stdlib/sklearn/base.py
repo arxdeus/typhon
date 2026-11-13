@@ -241,3 +241,6 @@ def is_clusterer(estimator) -> bool:
 
 def is_outlier_detector(estimator) -> bool:
     return _estimator_type_of(estimator) == "outlier_detector"
+
+from ._config import get_config, set_config, config_context
+from .utils.validation import check_is_fitted

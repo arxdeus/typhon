@@ -140,3 +140,6 @@ from .class_weight import compute_class_weight, compute_sample_weight
 from .extmath import safe_sqr, safe_sparse_dot, row_norms, squared_norm, stable_cumsum
 from ._indexing import (_safe_indexing, resample, shuffle, gen_batches, gen_even_slices,
                         murmurhash3_32, get_chunk_n_rows, _approximate_mode)
+from .validation import validate_data
+from ._tags import Tags, InputTags, TargetTags, TransformerTags, ClassifierTags, RegressorTags, get_tags
+from ._misc import FLOAT_DTYPES, is_scalar_nan, safe_mask, check_memory, Memory, all_estimators

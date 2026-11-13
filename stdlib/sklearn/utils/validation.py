@@ -306,3 +306,43 @@ def indexable(*iterables):
     res = tuple(_make_indexable(x) for x in iterables)
     check_consistent_length(*res)
     return res
+
+def validate_data(_estimator, /, X = "no_validation", y = "no_validation", reset: bool = True,
+                  validate_separately: bool = False, skip_check_array: bool = False,
+                  dtype: type = float, ensure_all_finite = True, ensure_2d: bool = True,
+                  ensure_min_samples: int = 1, ensure_min_features: int = 1,
+                  multi_output: Literal[bool] = False, y_numeric: Literal[bool] = False):
+    """Validate input (sklearn.utils.validation.validate_data). Sets
+    n_features_in_ on the estimator when reset=True, otherwise checks it.
+    Returns X, or (X, y) when y is given; "no_validation" strings mean
+    'not provided'."""
+    if isinstance(X, str) and isinstance(y, str):
+        raise ValueError("Validation should be done on X, y or both.")
+    elif isinstance(X, str):
+        ya = _check_y(y, multi_output=multi_output, y_numeric=y_numeric)
+        return ya
+    elif isinstance(y, str) or isinstance(y, NoneType):
+        Xa = check_array(X, dtype=dtype, ensure_all_finite=ensure_all_finite, ensure_2d=ensure_2d,
+                         ensure_min_samples=ensure_min_samples,
+                         ensure_min_features=ensure_min_features, estimator=_estimator, input_name="X")
+        _validate_n_features(_estimator, Xa, reset)
+        return Xa
+    else:
+        Xa, ya = check_X_y(X, y, dtype=dtype, ensure_all_finite=ensure_all_finite,
+                           ensure_2d=ensure_2d, multi_output=multi_output,
+                           ensure_min_samples=ensure_min_samples,
+                           ensure_min_features=ensure_min_features, y_numeric=y_numeric,
+                           estimator=_estimator)
+        _validate_n_features(_estimator, Xa, reset)
+        return Xa, ya
+
+def _validate_n_features(est, X, reset: bool):
+    if X.ndim < 2:
+        return
+    nf = X.shape[1]
+    if reset:
+        if hasattr(est, "n_features_in_"):
+            est.n_features_in_ = nf
+    elif hasattr(est, "n_features_in_"):
+        if est.n_features_in_ != nf:
+            raise ValueError(f"X has {nf} features, but {_cls_name(est)} is expecting {est.n_features_in_} features as input.")

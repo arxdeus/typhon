@@ -5,3 +5,5 @@
 # See docs/libraries/sklearn.md for coverage and deviations.
 
 __version__: Literal[str] = "1.9.1"
+
+from ._config import get_config, set_config, config_context
