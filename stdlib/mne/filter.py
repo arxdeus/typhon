@@ -468,7 +468,7 @@ def _filter_inplace_3d(data, sfreq: float, l_freq, h_freq, picks: List[int], fil
             compile_error("data must be 2D or 3D")
         return
     filt = create_filter(data, sfreq, l_freq, h_freq, filter_length, l_trans_bandwidth,
-                         h_trans_bandwidth, method, iir_params, phase, fir_window, fir_design)
+                         h_trans_bandwidth, method, None, phase, fir_window, fir_design)
     if data.ndim == 3:
         n_ep = data.shape[0]
         n_ch = data.shape[1]
