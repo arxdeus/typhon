@@ -4,7 +4,7 @@
 import math
 import numpy as np
 
-FLOAT_DTYPES = (float64, float32, float16)
+FLOAT_DTYPES = (np.float64, np.float32, np.float16)
 
 def is_scalar_nan(x) -> bool:
     """True for a float NaN (not for integers/None/strings)."""
