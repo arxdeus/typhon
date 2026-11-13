@@ -491,13 +491,16 @@ struct CaptureTracker<'c, 'a> {
     rd: RDManager,
     order: OrderCache,
     dsets: Vec<DerivedSet>,
+    /// Memoized `extract_vars`: callee capture infos are fixed for the whole run (finished
+    /// results or in-progress placeholders), so the result per value is stable.
+    ev_cache: FxHashMap<ValueId, Rc<(Vec<VarId>, bool)>>,
 }
 
 impl<'c, 'a> CaptureTracker<'c, 'a> {
     fn base(cc: &'c CaptureContext<'a>, m: &Module, func: FuncId) -> Option<Self> {
         let cfg = cc.cfg(m, func)?;
         let rd = cc.rd(m, func)?;
-        Some(Self { cc, order: OrderCache::new(cfg.clone()), cfg, rd: RDManager::new(rd), dsets: Vec::new() })
+        Some(Self { cc, order: OrderCache::new(cfg.clone()), cfg, rd: RDManager::new(rd), dsets: Vec::new(), ev_cache: FxHashMap::default() })
     }
 
     fn for_func(cc: &'c CaptureContext<'a>, m: &Module, func: FuncId) -> Option<Self> {
@@ -540,6 +543,15 @@ impl<'c, 'a> CaptureTracker<'c, 'a> {
         }
         ct.dsets.push(ds);
         Some(ct)
+    }
+
+    fn extract(&mut self, m: &Module, v: ValueId) -> Rc<(Vec<VarId>, bool)> {
+        if let Some(r) = self.ev_cache.get(&v) {
+            return r.clone();
+        }
+        let r = Rc::new(extract_vars(self.cc, m, v));
+        self.ev_cache.insert(v, r.clone());
+        r
     }
 
     fn size(&self) -> usize {
@@ -607,21 +619,23 @@ impl<'c, 'a> CaptureTracker<'c, 'a> {
 
     /// `link(Value *from, Value *to, Value *cause)`.
     fn link_vals(&mut self, m: &Module, from: ValueId, to: ValueId, cause: ValueId) {
-        let (from_vars, from_esc) = extract_vars(self.cc, m, from);
-        let (to_vars, to_esc) = extract_vars(self.cc, m, to);
-        self.forward_link(m, from, cause.into(), &to_vars, to_esc, true);
+        let fr = self.extract(m, from);
+        let tr = self.extract(m, to);
+        let ((from_vars, from_esc), (to_vars, to_esc)) = (&*fr, &*tr);
+        self.forward_link(m, from, cause.into(), to_vars, *to_esc, true);
         for i in self.dsets_of_val(m, Some(to)) {
-            self.backward_link_func(m, i, cause.into(), &to_vars, &from_vars, from_esc);
+            self.backward_link_func(m, i, cause.into(), to_vars, from_vars, *from_esc);
         }
     }
 
     /// `link(Value *from, Var *to, Value *cause)`.
     fn link_var(&mut self, m: &Module, from: ValueId, to: VarId, cause: ValueId) {
-        let (from_vars, from_esc) = extract_vars(self.cc, m, from);
+        let fr = self.extract(m, from);
+        let (from_vars, from_esc) = &*fr;
         let to_vars = [to];
         self.forward_link(m, from, cause.into(), &to_vars, false, false);
         for i in self.dsets_of_var(m, to, cause.into()) {
-            self.backward_link_func(m, i, cause.into(), &to_vars, &from_vars, from_esc);
+            self.backward_link_func(m, i, cause.into(), &to_vars, from_vars, *from_esc);
         }
     }
 
