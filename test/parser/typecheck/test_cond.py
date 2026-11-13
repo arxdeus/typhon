@@ -452,3 +452,16 @@ class C(B):
     def run2(self): return B.run(self)
     def run3(self): return super().run()
 print C().run2(), C().run3(), B().run()  #: C C B
+
+#%% isinstance_optional_none,barebones
+from typing import Optional
+def g(x: Optional[int]) -> int:
+    if isinstance(x, NoneType):
+        return -1
+    y = x * 2
+    return y
+def h(x: Optional[int]):
+    print isinstance(x, NoneType), x is None
+print g(None), g(4)  #: -1 8
+h(None)  #: True True
+h(2)  #: False False

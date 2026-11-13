@@ -7,7 +7,7 @@ use typhon_common::{ErrorKind, Result};
 
 use super::super::TypecheckVisitor;
 use super::mm;
-use crate::ast::{AssignMemberStmt, ExprTag, InstantiateExpr, StmtExpr};
+use crate::ast::{AssignMemberStmt, ExprTag, InstantiateExpr, NoneExpr, StmtExpr};
 use crate::ids::ExprId;
 use crate::types::{LiteralKind, Unification};
 
@@ -101,12 +101,32 @@ impl<'a> TypecheckVisitor<'a> {
             return self.transform(Some(bin));
         }
 
+        let te_is_id = self.cache.ast[typ_expr].kind.as_id().is_some_and(|i| i.value == "type[NoneType]");
+        // ...and written as plain `NoneType` (not e.g. `Optional[NoneType]`).
+        let te_is_id = te_is_id
+            && self.cache.ast[typ_expr].orig_expr.is_none_or(|o| self.cache.ast[o].kind.tag() == ExprTag::Id);
         let typ_expr = self.transform_type(Some(typ_expr), false)?.unwrap();
         self.sp_set_arg(e, 1, typ_expr);
         let target_type = self.extract_type_expr(typ_expr);
 
-        // Check type match
+        // Python semantics on an Optional value: `isinstance(x, NoneType)` is `x is None`.
+        // (Only the NoneType target: matching the payload type stays static so that
+        // `isinstance(x, T)`-based static dispatch keeps working.)
         let tcls = types.get_class(target_type).expect("not a class");
+        {
+            let a0 = self.sp_arg(e, 0);
+            if te_is_id
+                && types.is(typ, &st.optional)
+                && types.is(tcls, &st.none_type)
+                && !Self::is_type_expr(self.cache, a0)
+            {
+                let n = self.n_expr(NoneExpr);
+                let b = self.sp_bin(a0, "is", n);
+                return self.transform(Some(b));
+            }
+        }
+
+        // Check type match
         if types.class_name(tcls) == types.class_name(typ) {
             let mut us = Unification::new();
             let s = types.unify(typ, target_type, Some(&mut us), self)?;
