@@ -239,6 +239,8 @@ pub const SCIPY: &[&str] = &[
     "mne/test_io_egi_bci_besa.py", "mne/test_io_cnt.py", "mne/test_io_nedf.py",
     "mne/test_io_fmt3a.py", "mne/test_io_fmt3b.py", "mne/test_io_fmt3c.py",
     "bci/test_logpower_lda.py",
+    "bci/test_nb_csp_lda.py", "bci/test_nb_ctx_epochs.py", "bci/test_nb_fbcsp.py",
+    "bci/test_nb_iir_psd_misc.py", "bci/test_nb_logpower_lda.py", "bci/test_nb_riemann.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
