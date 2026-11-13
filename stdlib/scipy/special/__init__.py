@@ -1456,3 +1456,106 @@ def ellip_normal(h2, k2, n, p):
             out[idx] = _en_call(float(a0[idx]), float(a1[idx]), float(a2[idx]), float(a3[idx]))
         return out
     return _en_call(float(h2), float(k2), float(n), float(p))
+
+# noncentral inverses wrt df / nc (_ncinv)
+from . import _ncinv as NI
+def chndtridf(x, p, nc): return _map3(NI.chndtridf, x, p, nc)
+def chndtrinc(x, df, p): return _map3(NI.chndtrinc, x, df, p)
+def nctdtridf(p, nc, t): return _map3(NI.nctdtridf, p, nc, t)
+def nctdtrinc(df, p, t): return _map3(NI.nctdtrinc, df, p, t)
+def ncfdtridfd(dfn, p, nc, f): return _map4(NI.ncfdtridfd, dfn, p, nc, f)
+def ncfdtridfn(p, dfd, nc, f): return _map4(NI.ncfdtridfn, p, dfd, nc, f)
+def ncfdtrinc(dfn, dfd, p, f): return _map4(NI.ncfdtrinc, dfn, dfd, p, f)
+
+# scaled Airy functions (real argument)
+def _eai(x: float) -> float: return B.airye(x)[0]
+def _eaip(x: float) -> float: return B.airye(x)[1]
+def _ebi(x: float) -> float: return B.airye(x)[2]
+def _ebip(x: float) -> float: return B.airye(x)[3]
+def airye(z):
+    """Exponentially scaled Airy functions (real argument)."""
+    return (_map1(_eai, z), _map1(_eaip, z), _map1(_ebi, z), _map1(_ebip, z))
+
+# zeros of Jn and Jn' sorted (_jdzo)
+from . import _jdzo as JD
+def jnjnp_zeros(nt):
+    if K.floor(float(nt)) != float(nt) or nt > 1200:
+        raise ValueError("Number must be integer <= 1200.")
+    r = JD.jdzo(int(nt))
+    return (np.array(r[0]), np.array(r[1]), np.array(r[2]), np.array(r[3]))
+
+# parabolic cylinder Dn(z), complex z (_cpbdn)
+from . import _cpbdn as CPB
+def pbdn_seq(n, z):
+    if K.floor(float(n)) != float(n):
+        raise ValueError("n must be an integer.")
+    n1 = 1 if abs(int(n)) <= 1 else int(n)
+    t = CPB.cpbdn(n1, complex(z))
+    return (np.array(t[0][:n1 + 1]), np.array(t[1][:n1 + 1]))
+
+# spheroidal wave functions (_spheroidal)
+from . import _spheroidal as SW
+def pro_cv(m, n, c): return _map3(_pro_cv1, m, n, c)
+def obl_cv(m, n, c): return _map3(_obl_cv1, m, n, c)
+def _pro_cv1(m: float, n: float, c: float) -> float: return SW.segv_k(m, n, c, 1)
+def _obl_cv1(m: float, n: float, c: float) -> float: return SW.segv_k(m, n, c, -1)
+def _cv_seq_check(m, n, c):
+    if K.floor(float(n)) != float(n) or K.floor(float(m)) != float(m):
+        raise ValueError("Modes must be integers.")
+    if n - m > 199:
+        raise ValueError("Difference between n and m is too large.")
+def pro_cv_seq(m, n, c):
+    _cv_seq_check(m, n, c)
+    return np.array(SW.cv_seq(int(m), int(n), float(c), 1))
+def obl_cv_seq(m, n, c):
+    _cv_seq_check(m, n, c)
+    return np.array(SW.cv_seq(int(m), int(n), float(c), -1))
+
+def _a_pro(m: float, n: float, c: float, x: float, i: int) -> float: return SW.ang1(m, n, c, 0.0, x, 1, True)[i]
+def _a_obl(m: float, n: float, c: float, x: float, i: int) -> float: return SW.ang1(m, n, c, 0.0, x, -1, True)[i]
+def _a_prov(m: float, n: float, c: float, cv: float, x: float, i: int) -> float: return SW.ang1(m, n, c, cv, x, 1, False)[i]
+def _a_oblv(m: float, n: float, c: float, cv: float, x: float, i: int) -> float: return SW.ang1(m, n, c, cv, x, -1, False)[i]
+def _r_nocv(m: float, n: float, c: float, x: float, kd: int, kf: int, i: int) -> float: return SW.rad(m, n, c, 0.0, x, kd, kf, True)[i]
+def _r_cv(m: float, n: float, c: float, cv: float, x: float, kd: int, kf: int, i: int) -> float: return SW.rad(m, n, c, cv, x, kd, kf, False)[i]
+
+def _pair4(f, m, n, c, x):
+    return (_map4(lambda a, b, d, e: f(a, b, d, e, 0), m, n, c, x), _map4(lambda a, b, d, e: f(a, b, d, e, 1), m, n, c, x))
+def pro_ang1(m, n, c, x): return _pair4(_a_pro, m, n, c, x)
+def obl_ang1(m, n, c, x): return _pair4(_a_obl, m, n, c, x)
+def pro_rad1(m, n, c, x): return _pair4(lambda a, b, d, e, i: _r_nocv(a, b, d, e, 1, 1, i), m, n, c, x)
+def pro_rad2(m, n, c, x): return _pair4(lambda a, b, d, e, i: _r_nocv(a, b, d, e, 1, 2, i), m, n, c, x)
+def obl_rad1(m, n, c, x): return _pair4(lambda a, b, d, e, i: _r_nocv(a, b, d, e, -1, 1, i), m, n, c, x)
+def obl_rad2(m, n, c, x): return _pair4(lambda a, b, d, e, i: _r_nocv(a, b, d, e, -1, 2, i), m, n, c, x)
+
+def _map5(f, a, b, c, d, e):
+    if _is_arr(a) or _is_arr(b) or _is_arr(c) or _is_arr(d) or _is_arr(e):
+        shp = _bshape(a, b, c, d, e)
+        A = np.broadcast_to(np.asarray(a), shp)
+        Bb = np.broadcast_to(np.asarray(b), shp)
+        Cc = np.broadcast_to(np.asarray(c), shp)
+        D = np.broadcast_to(np.asarray(d), shp)
+        E = np.broadcast_to(np.asarray(e), shp)
+        out = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            out[idx] = f(float(A[idx]), float(Bb[idx]), float(Cc[idx]), float(D[idx]), float(E[idx]))
+        return out
+    else:
+        return f(float(a), float(b), float(c), float(d), float(e))
+def _pair5(f, m, n, c, cv, x):
+    return (_map5(lambda a, b, d, e, g: f(a, b, d, e, g, 0), m, n, c, cv, x), _map5(lambda a, b, d, e, g: f(a, b, d, e, g, 1), m, n, c, cv, x))
+def pro_ang1_cv(m, n, c, cv, x): return _pair5(_a_prov, m, n, c, cv, x)
+def obl_ang1_cv(m, n, c, cv, x): return _pair5(_a_oblv, m, n, c, cv, x)
+def pro_rad1_cv(m, n, c, cv, x): return _pair5(lambda a, b, d, e, g, i: _r_cv(a, b, d, e, g, 1, 1, i), m, n, c, cv, x)
+def pro_rad2_cv(m, n, c, cv, x): return _pair5(lambda a, b, d, e, g, i: _r_cv(a, b, d, e, g, 1, 2, i), m, n, c, cv, x)
+def obl_rad1_cv(m, n, c, cv, x): return _pair5(lambda a, b, d, e, g, i: _r_cv(a, b, d, e, g, -1, 1, i), m, n, c, cv, x)
+def obl_rad2_cv(m, n, c, cv, x): return _pair5(lambda a, b, d, e, g, i: _r_cv(a, b, d, e, g, -1, 2, i), m, n, c, cv, x)
+
+class errstate:
+    """No-op context manager (special functions never raise)."""
+    kwargs: Dict[str, str]
+    def __init__(self, **kwargs):
+        self.kwargs = {}
+    def __enter__(self):
+        pass
+    def __exit__(self, a, b, c):
+        pass

@@ -1446,3 +1446,31 @@ def jve(v: float, x: float) -> float:
 def yve(v: float, x: float) -> float:
     return yv(v, x)
 
+
+def airye(x: float):
+    """Exponentially scaled Airy functions for real x (eAi, eAip, eBi, eBip).
+    Real x < 0 gives nan for the Ai pair (complex scale factor), as scipy."""
+    if x != x:
+        return (x, x, x, x)
+    if x < 0:
+        r = airy(x)
+        return (NAN, NAN, r[2], r[3])
+    if x <= 8.3203353:
+        r = airy(x)
+        zt = 2.0 * x * sqrt(x) / 3.0
+        g = exp(zt)
+        return (r[0] * g, r[1] * g, r[2] / g, r[3] / g)
+    t = sqrt(x)
+    zeta = 2.0 * x * t / 3.0
+    t = sqrt(t)
+    z = 1.0 / zeta
+    f = _polevl(z, BC._airy_AN) / _polevl(z, BC._airy_AD)
+    eai = SQRT1OPI * f / (2.0 * t)
+    f = _polevl(z, BC._airy_APN) / _polevl(z, BC._airy_APD)
+    eaip = f * (-0.5 * SQRT1OPI * t)
+    f = z * _polevl(z, BC._airy_BN16) / _p1evl(z, BC._airy_BD16)
+    ebi = SQRT1OPI * (1.0 + f) / t
+    f = z * _polevl(z, BC._airy_BPPN) / _p1evl(z, BC._airy_BPPD)
+    ebip = SQRT1OPI * t * (1.0 + f)
+    return (eai, eaip, ebi, ebip)
+
