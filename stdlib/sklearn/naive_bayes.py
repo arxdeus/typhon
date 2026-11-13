@@ -453,6 +453,7 @@ class CategoricalNB(_BaseDiscreteNB):
     fit_prior: bool
     class_prior: Optional[List[float]]
     min_categories: Optional[List[int]]
+    _min_cat_scalar: int
     classes_: np.ndarray[int, 1]
     class_count_: np.ndarray[float, 1]
     category_count_: List[np.ndarray[float, 2]]
@@ -464,12 +465,19 @@ class CategoricalNB(_BaseDiscreteNB):
 
     def __init__(self, *, alpha: float = 1.0, force_alpha: bool = True,
                  fit_prior: bool = True, class_prior: Optional[List[float]] = None,
-                 min_categories: Optional[List[int]] = None):
+                 min_categories = None):
         self.alpha = alpha
         self.force_alpha = force_alpha
         self.fit_prior = fit_prior
         self.class_prior = class_prior
-        self.min_categories = min_categories
+        self.min_categories = None
+        self._min_cat_scalar = -1
+        if isinstance(min_categories, int):
+            self._min_cat_scalar = min_categories
+        elif isinstance(min_categories, NoneType):
+            pass
+        else:
+            self.min_categories = [int(v) for v in min_categories]
         self.classes_ = np.empty(0, dtype=int)
         self.class_count_ = np.empty(0)
         self.category_count_ = List[np.ndarray[float, 2]]()
@@ -495,6 +503,8 @@ class CategoricalNB(_BaseDiscreteNB):
         ncat = np.empty(p, dtype=int)
         for i in range(p):
             ncat[i] = int(np.max(X[:, i])) + 1
+            if self._min_cat_scalar >= 0:
+                ncat[i] = max(ncat[i], self._min_cat_scalar)
             if self.min_categories is not None:
                 mc = self.min_categories.__val__()
                 if len(mc) != p:
