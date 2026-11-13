@@ -56,3 +56,23 @@ def reduce(function, iterable):
     if first:
         raise TypeError("reduce() of empty iterable with no initial value")
     return acc
+
+def lru_cache(maxsize: Optional[int] = 128, typed: bool = False):
+    # Unbounded memoization keyed on the positional-argument tuple. The cache dict's
+    # key/value types are inferred from its use inside the wrapper closure.
+    def decorating_function(user_function):
+        return _cache_wrapper(user_function)
+    return decorating_function
+
+def _cache_wrapper(user_function):
+    d = {}
+    def wrapper(*args):
+        if args in d:
+            return d[args]
+        r = user_function(*args)
+        d[args] = r
+        return r
+    return wrapper
+
+def cache(user_function):
+    return _cache_wrapper(user_function)
