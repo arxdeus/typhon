@@ -160,6 +160,9 @@ pub const SCIPY: &[&str] = &[
     "sklearn/test_preprocessing_more.py", "sklearn/test_model_selection_more.py",
     "sklearn/test_search_validation.py", "sklearn/test_learning_curves.py",
     "sklearn/test_pipeline_compose.py", "sklearn/test_compose.py",
+    "sklearn/test_linear_sgd.py", "sklearn/test_linear_basic.py", "sklearn/test_linear_cd.py",
+    "sklearn/test_linear_lars.py", "sklearn/test_logistic.py", "sklearn/test_logistic_cv.py",
+    "sklearn/test_linear_robust_glm.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
