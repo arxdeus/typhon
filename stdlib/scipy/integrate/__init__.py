@@ -9,3 +9,4 @@ from _ivp import solve_ivp, OdeSolution, OdeResult
 from _odepack import odeint, ODEintWarning
 from _ode import ode
 from _bvp import solve_bvp, BVPResult
+from _odesolver import OdeSolver, DenseOutput, RK23, RK45, DOP853, Radau, BDF, LSODA
