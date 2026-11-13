@@ -4,7 +4,7 @@
 # memory as float64 ndarrays).
 
 import numpy as np
-from ._info import Info, _picks_to_idx, _time_mask
+from ._info import Info, _picks_to_idx, _time_mask, _get_ch_factors
 from .filter import _filter_inplace_3d, _check_option, _resample_fft_rows, _check_resamp_noop
 from .time_frequency.psd import _psd_welch_2d
 from .time_frequency.multitaper import _psd_mt_2d
@@ -191,6 +191,70 @@ def _spectra_rows(x2, sf: float, m: str, fmin: float, fmax: float, nf: int, n_ov
     return ps.reshape((ps.shape[0], ps.shape[1], 1)), freqs
 
 
+def _welch_bad_spans(x2, good: List[bool], sf: float, fmin: float, fmax: float, nf: int,
+                     n_overlap: int, n_per_seg: Optional[int], avg: Optional[str], window,
+                     remove_dc: bool):
+    """mne _psd_welch with NaNs aligned across channels (bad annotations): each
+    good span is analysed separately (nperseg shrinks for short spans, as in
+    scipy.signal.spectrogram) and per-span averages are combined with
+    np.average weighted by the number of used samples."""
+    from scipy.signal import spectrogram as _spg
+    n = len(good)
+    nps = nf if n_per_seg is None else min(n_per_seg.__val__(), nf)
+    nps = min(nps, n)
+    step = max(nps - n_overlap, 1)
+    freqs_all = np.arange(nf // 2 + 1, dtype=float) * (sf / nf)
+    lo = -1
+    hi = -1
+    for i in range(freqs_all.shape[0]):
+        if freqs_all[i] >= fmin and freqs_all[i] <= fmax:
+            if lo < 0:
+                lo = i
+            hi = i
+    if lo < 0:
+        raise ValueError(f"No frequencies found between fmin={fmin} and fmax={fmax}")
+    if avg is None:
+        raise NotImplementedError("average=None with bad annotations is not supported in Typhon mne")
+    spans = List[Tuple[int, int]]()
+    j = 0
+    while j < n:
+        if good[j]:
+            k = j
+            while k < n and good[k]:
+                k += 1
+            spans.append((j, k))
+            j = k
+        else:
+            j += 1
+    nfr = hi - lo + 1
+    acc = np.zeros((x2.shape[0], nfr))
+    wsum = 0.0
+    for sp in spans:
+        seg = x2[:, sp[0]:sp[1]].copy()
+        w = sp[1] - sp[0]
+        wt = float(w if w < nps else w - ((w - n_overlap) % step))
+        p = min(nps, w)
+        nov = n_overlap
+        S = np.zeros((1, 1, 1))
+        if remove_dc:
+            _, _, S = _spg(seg, detrend="constant", noverlap=nov, nperseg=p, nfft=nf, fs=sf,
+                           window=window, mode="psd")
+        else:
+            _, _, S = _spg(seg, detrend=False, noverlap=nov, nperseg=p, nfft=nf, fs=sf,
+                           window=window, mode="psd")
+        S = S[:, lo:hi + 1, :]
+        if avg.__val__() == "mean":
+            m = np.nanmean(S, axis=-1)
+        else:
+            from .time_frequency.psd import _median_biases
+            b = _median_biases(S.shape[2])
+            m = np.nanmedian(S, axis=-1) / b[S.shape[2]]
+        acc += wt * m
+        wsum += wt
+    out = acc / wsum
+    return out.reshape((out.shape[0], out.shape[1], 1)), freqs_all[lo:hi + 1].copy()
+
+
 def _opt_float(x) -> Optional[float]:
     if isinstance(x, NoneType):
         return None
@@ -367,7 +431,10 @@ class Evoked:
                  tmax: Optional[float] = None):
         pk = _picks_to_idx(self.info, picks, "all", ())
         m = _time_mask(self.times, tmin, tmax, sfreq=self.info.sfreq)
-        return self.data[np.array(pk)][:, m].copy()
+        out = self.data[np.array(pk)][:, m].copy()
+        if not isinstance(units, NoneType):
+            out *= _get_ch_factors(self.info, units, pk)[:, None]
+        return out
 
     def copy(self):
         e = Evoked(self.data.copy(), self.info.copy(), self.times.copy(), self.nave, self.comment)
@@ -527,11 +594,14 @@ class EpochsArray:
         if not isinstance(item, NoneType):
             compile_error("get_data(item=...) is not supported in Typhon mne")
         pk = _picks_to_idx(self.info, picks, "all", ())
-        if tmin is None and tmax is None and isinstance(picks, NoneType):
+        if tmin is None and tmax is None and isinstance(picks, NoneType) and isinstance(units, NoneType):
             return self._data.copy() if copy else self._data
         m = _time_mask(self.times, tmin, tmax, sfreq=self.info.sfreq)
         idx = np.nonzero(m)[0]
-        return self._data[:, np.array(pk), idx[0]:idx[-1] + 1].copy()
+        out = self._data[:, np.array(pk), idx[0]:idx[-1] + 1].copy()
+        if not isinstance(units, NoneType):
+            out *= _get_ch_factors(self.info, units, pk)[None, :, None]
+        return out
 
     def copy(self):
         n = EpochsArray(self._data, self.info, self.events, 0.0, self.event_id)
@@ -716,6 +786,8 @@ class RawArray:
                 keep = np.array([j for j in range(e - s) if used[j]], dtype=int)
                 out = out[:, keep].copy()
                 tt = tt[keep].copy()
+        if not isinstance(units, NoneType):
+            out *= _get_ch_factors(self.info, units, pk)[:, None]
         if return_times:
             return out, tt
         else:
@@ -940,6 +1012,19 @@ class RawArray:
                 raise ValueError("average must be 'mean', 'median', None or False")
         if m != "welch":
             avg = "mean"
+        good = List[bool]()
+        has_bad = False
+        if reject_by_annotation and len(self.annotations) > 0:
+            good = self._bad_annot_mask(int(idx[0]), int(idx[-1]) + 1)
+            for g in good:
+                if not g:
+                    has_bad = True
+        if has_bad:
+            if m == "multitaper":
+                raise NotImplementedError('Cannot use method="multitaper" when reject_by_annotation=True. Please use method="welch" instead.')
+            ps, freqs = _welch_bad_spans(sub, good, sf, float(fmin), float(fmax), nf, n_overlap,
+                                         n_per_seg, avg, window, remove_dc)
+            return Spectrum(ps, freqs, self.info._pick(pk), m, avg is None)
         ps, freqs = _spectra_rows(sub, sf, m, float(fmin), float(fmax), nf, n_overlap, n_per_seg,
                                   avg, window, remove_dc, bandwidth, adaptive, low_bias,
                                   normalization, max_iter)

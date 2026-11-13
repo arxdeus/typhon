@@ -242,7 +242,10 @@ class Info:
 
     def __setitem__(self, key: Literal[str], value):
         if key == "bads":
-            self.bads = value
+            b = List[str]()
+            for v in value:
+                b.append(str(v))
+            self.bads = b
         elif key == "highpass":
             self.highpass = float(value)
         elif key == "lowpass":
@@ -387,6 +390,100 @@ def create_info(ch_names, sfreq: float, ch_types = "misc", verbose = None) -> In
             raise ValueError(f"Channel names must be unique, found duplicate {n}")
         seen.add(n)
     return Info(names, float(sfreq), types)
+
+
+_SI_UNITS = {"mag": "T", "grad": "T/m", "eeg": "V", "eog": "V", "ecg": "V", "emg": "V",
+             "misc": "AU", "seeg": "V", "dbs": "V", "dipole": "Am", "gof": "GOF", "bio": "V",
+             "ecog": "V", "hbo": "M", "hbr": "M", "ref_meg": "T", "fnirs_cw_amplitude": "V",
+             "fnirs_fd_ac_amplitude": "V", "fnirs_fd_phase": "rad", "fnirs_od": "AU",
+             "csd": "V/m²", "whitened": "Z", "gsr": "S", "temperature": "C",
+             "eyegaze": "rad", "pupil": "m"}
+
+
+def _unit_prefix(c: str) -> float:
+    if c == "k":
+        return 1e-3
+    if c == "h":
+        return 1e-2
+    if c == "d":
+        return 1e1
+    if c == "c":
+        return 1e2
+    if c == "m":
+        return 1e3
+    if c == "µ" or c == "u":
+        return 1e6
+    if c == "n":
+        return 1e9
+    if c == "p":
+        return 1e12
+    if c == "f":
+        return 1e15
+    return -1.0
+
+
+def _get_scaling(ch_type: str, target_unit: str) -> float:
+    """mne.io.base._get_scaling."""
+    if ch_type not in _SI_UNITS:
+        raise KeyError(f"{ch_type} is not a channel type that can be scaled from units.")
+    si = _SI_UNITS[ch_type].split("/")
+    ul = target_unit.split("/")
+    if len(ul) != len(si):
+        raise ValueError(f"{target_unit} is not a valid unit for {ch_type}, use a sub-multiple of {_SI_UNITS[ch_type]} instead.")
+    for i in range(len(ul)):
+        u = ul[i]
+        ok = u == si[i]
+        if not ok and u.endswith(si[i]):
+            pre = u[:len(u) - len(si[i])]
+            ok = _unit_prefix(pre) > 0
+        if not ok:
+            raise ValueError(f"{target_unit} is not a valid unit for {ch_type}, use a sub-multiple of {_SI_UNITS[ch_type]} instead.")
+    scaling = 1.0
+    for i in range(len(ul)):
+        u = ul[i]
+        sq = u.endswith("²")
+        factor = 1.0
+        if u == "m" or u == "m²":
+            factor = 1.0
+        else:
+            pre = u[:len(u) - len(si[i])]
+            if len(pre) > 0:
+                factor = _unit_prefix(pre)
+        if factor != 1.0:
+            if sq:
+                factor *= factor
+            if i == 0:
+                scaling *= factor
+            elif i == 1:
+                scaling /= factor
+    return scaling
+
+
+def _get_ch_factors(info: Info, units, picks: List[int]) -> np.ndarray[float, 1]:
+    """mne.io.base._get_ch_factors (units: None | str | dict)."""
+    f = np.ones(len(picks))
+    if isinstance(units, NoneType):
+        return f
+    types = [info.ch_types[i] for i in picks]
+    d = Dict[str, str]()
+    if isinstance(units, str):
+        uts = List[str]()
+        for t in types:
+            if t in _SI_UNITS and t not in uts:
+                uts.append(t)
+        if len(uts) > 1:
+            raise ValueError(f'"units" cannot be str if there is more than one channel type with a unit {uts}.')
+        d[uts[0]] = units
+    else:
+        for k, v in units.items():
+            d[k] = v
+    for ct, cu in d.items():
+        s = _get_scaling(ct, cu)
+        if s != 1.0:
+            for k in range(len(types)):
+                if types[k] == ct:
+                    f[k] *= s
+    return f
 
 
 def _type_matches(t: str, kind: str) -> bool:
