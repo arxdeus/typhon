@@ -67,3 +67,32 @@ It is the same mechanism as inference. This lane did not run training (needs the
 * Memory from `CreateTensorWithDataAsOrtValue` wraps the caller buffer without copying. Release the tensor before returning from the exported function. Never keep a pointer to GC memory inside ORT beyond a call: ORT allocates its own buffers, and the GC does not scan them.
 * Output tensors created by `Run` (when you pass null outputs) belong to you: copy the data out (`GetTensorMutableData`) and `ReleaseValue`. Strings handed to ORT (`"x".c_str()`) need to stay alive during the call only.
 * Release order: values, session, memory info, env.
+
+## Retraining model.onnx on device
+
+Model: `log_power_lda_model/artifacts/model.onnx` (IR 8, opset 17). Input `eeg_uV` (N,6,500) float64, outputs `label`, `probabilities`, `scores`, `features` (N,12). The Scan IIR filters and log power are fixed initializers. Only `lda_coefficients_transposed` (12,3) and `lda_intercept` (3) are the learnable head. Code: `/Users/mind/.jcode/scratch/onnx-ffi/lda_lib.py` (Typhon lib), `tl.py` (ctypes test), `lda/train.py` (training), data in `lda/`.
+
+### A) Closed-form retrain (works, exact)
+
+`lda_lib.py` exports `lda_load`, `lda_features`, `lda_proba`, `lda_retrain`, `lda_free`.
+1. Run the session with output `features` on the calibration trials (90 synthetic trials, 3 classes).
+2. Refit `sklearn.discriminant_analysis.LinearDiscriminantAnalysis()` (the Typhon stdlib port, solver svd) on `(features, y)` inside the Typhon lib.
+3. Create a new session whose `SessionOptions` has `AddInitializer` (OrtApi slot 150) for `lda_coefficients_transposed` = `coef_.T` and `lda_intercept` = `intercept_`. No file is rewritten. The initializer tensors are copied by `CreateSession`, so the buffers can be released after it returns (they are kept alive here for simplicity). The override replaces the same-named initializer, with the same shape and dtype (float64).
+4. Swap the session in the handle table, release the old one.
+
+Result (host, ctypes): features equal python ORT exactly (0.0), probabilities after retrain equal `sklearn` LDA fit on the same features to 1.0e-14 (limit 1e-10). Accuracy on the calibration set 0.30 to 0.656 (the original head was trained on other data). Sessions are never mutated, a retrain is a new session (model load cost, ms).
+
+Persisting an updated `model.onnx`: no protobuf writer exists in Typhon. Either keep only the two LDA arrays (24 bytes per float64 pair: 36+3 doubles) in your own file and call `AddInitializer` at every start, or write the updated file with Python `onnx` (replace the two initializers, `onnx.save`). Verified: the file rewritten that way gives probabilities equal to sklearn to 1.0e-14. On device, the first option is the practical one.
+
+### B) ORT on-device training (gradient fine-tuning, not exact LDA)
+
+Package availability, checked against the ORT install page and Maven Central: training packages exist for Android (`com.microsoft.onnxruntime:onnxruntime-training-android`, AAR with C headers and `libonnxruntime.so` in `jni/`) and iOS (CocoaPods `onnxruntime-training-c` and `-objc`). The page does not state a version, and the latest `onnxruntime-training-android` on Maven Central is 1.19.2 (Sep 2024), while the inference packages are at 1.31.1. So the training build lags the inference builds. Its API (`GetTrainingApi`) must match its own ORT version, so use its own headers.
+
+Host check: `pip install onnxruntime-training` has no macOS wheel (Linux x86_64 only, 1.19.2). The macOS arm64 build is `onnxruntime-training-cpu` 1.19.2 from `https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT/pypi/simple/` (needs `torch`, `onnx<1.17`, `numpy<2`). With it, `lda/train.py` worked:
+* Only the two LDA tensors are trainable: `generate_artifacts(model, requires_grad=[the 2], frozen_params=[all other initializers], loss=CrossEntropyLoss, optimizer=AdamW)`.
+* Required model edits: ORT's training kernels do not support float64 gradient accumulators and the loss op mixes types, so the head is made float32 (features cast to float32 before MatMul, scores output as float32) and the model's outputs are reduced to `scores`. This applies to the training copy only. The Scan filters stay float64 and frozen.
+* `Module` + `Optimizer`: 5 epochs of `train_step` + `optimizer.step` ran, loss 1.216, 1.164, 1.172, 1.186, 1.184 (default AdamW lr 1e-3, no tuning).
+
+What it gives: softmax regression (cross entropy gradient descent) on top of the fixed features. It does not reproduce LDA (different objective, no closed form, depends on lr/epochs). From Typhon the calls are the same table technique: `GetTrainingApi(version)` then `CreateCheckpointState`/`LoadCheckpoint`, `CreateTrainingSession`, `TrainStep`, `OptimizerStep`, `LazyResetGrad`, `ExportModelForInferencing`. Not exercised from Typhon here (no macOS training C library was available to link, only the Python wheel).
+
+Recommendation: for LDA the closed-form path (A) is exact, tiny, and works with the standard inference package. Use B only if a gradient-trained head is wanted.
