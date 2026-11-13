@@ -79,6 +79,13 @@ def _csv_quote(s: str, sep: str) -> str:
         return '"' + s.replace('"', '""') + '"'
     return s
 
+def _csv_q(s: str, sep: str, quoting: int) -> str:
+    if quoting == 1:
+        return '"' + s.replace('"', '""') + '"'
+    if quoting == 3:
+        return s
+    return _csv_quote(s, sep)
+
 # ---------------------------------------------------------------------------
 # Series
 
@@ -410,7 +417,35 @@ class Series:
                 out.append(v)
         return out
 
-    def value_counts(self, normalize: bool = False, sort: bool = True, ascending: bool = False, dropna: bool = True) -> Series:
+    def value_counts(self, normalize: bool = False, sort: bool = True, ascending: bool = False, dropna: bool = True, bins: Optional[int] = None) -> Series:
+        if bins is not None:
+            # pandas: cut into equal-width bins, count per interval (all intervals kept)
+            bl = _nbins_to_bins(self, bins, True)
+            nbn = len(bl) - 1
+            codes_s = _cut_core(self, bl, True, None, 3, False, "drop", True)
+            mids = List[float]()
+            for k in range(nbn):
+                mids.append((bl[k] + bl[k + 1]) / 2.0)
+            labs_s = _cut_core(Series(mids), bl, True, None, 3, False, "drop", False)
+            cnts = [0 for _ in range(nbn)]
+            for i in range(len(codes_s)):
+                cv = codes_s._col.getf(i)
+                if cv == cv:
+                    cnts[int(cv)] += 1
+            tot_n = 0
+            for c in cnts:
+                tot_n += c
+            ordp = list(range(nbn))
+            if sort:
+                if ascending:
+                    ordp.sort(key=lambda p: cnts[p])
+                else:
+                    ordp.sort(key=lambda p: -cnts[p])
+            lab_keys = [labs_s._col.get(p) for p in ordp]
+            idx_b = Index._wrap(Column.from_scalars(lab_keys), self.name)
+            if normalize:
+                return Series._new(Column.floats([float(cnts[p]) / float(tot_n) for p in ordp]), idx_b, "proportion")
+            return Series._new(Column.ints([cnts[p] for p in ordp]), idx_b, "count")
         order = List[Scalar]()
         counts = Dict[Scalar, int]()
         for k in range(len(self)):
@@ -2171,10 +2206,10 @@ class DataFrame:
             r.index = Index.range(len(r))
         return r
 
-    def value_counts(self) -> Series:
+    def value_counts(self, normalize: bool = False, sort: bool = True, ascending: bool = False, dropna: bool = True) -> Series:
         if len(self._cols) != 1:
             raise NotImplementedError("DataFrame.value_counts is only supported for one column")
-        s = self._series(0).value_counts()
+        s = self._series(0).value_counts(normalize, sort, ascending, dropna)
         s.index.name = _label_name(self.columns[0])
         return s
 
@@ -2349,8 +2384,8 @@ class DataFrame:
             alpha: Optional[float] = None, min_periods: int = 0, adjust: bool = True, ignore_na: bool = False):
         return Ewm(self, get_center_of_mass(com, span, halflife, alpha), adjust, ignore_na, min_periods)
 
-    def merge(self, right: DataFrame, how: str = "inner", on = None, left_on = None, right_on = None, suffixes: Tuple[str, str] = ("_x", "_y")):
-        return merge(self, right, how=how, on=on, left_on=left_on, right_on=right_on, suffixes=suffixes)
+    def merge(self, right: DataFrame, how: str = "inner", on = None, left_on = None, right_on = None, suffixes: Tuple[str, str] = ("_x", "_y"), indicator: bool = False):
+        return merge(self, right, how=how, on=on, left_on=left_on, right_on=right_on, suffixes=suffixes, indicator=indicator)
 
     def equals(self, other: DataFrame) -> bool:
         if self.shape != other.shape or not self.columns.equals(other.columns) or not self.index.equals(other.index):
@@ -2430,7 +2465,9 @@ class DataFrame:
     def to_csv(self, path_or_buf: Optional[str] = None, sep: str = ",", na_rep: str = "",
                float_format: Optional[str] = None, columns: Optional[List[str]] = None,
                header: bool = True, index: bool = True, index_label: Optional[str] = None,
-               lineterminator: str = "\n", decimal: str = ".") -> str:
+               lineterminator: str = "\n", decimal: str = ".", mode: str = "w",
+               quoting: int = 0, header_names: Optional[List[str]] = None) -> str:
+        # quoting: 0 = QUOTE_MINIMAL, 1 = QUOTE_ALL, 3 = QUOTE_NONE; mode "a" appends
         df = self
         if columns is not None:
             df = self[columns.__val__()]
@@ -2439,9 +2476,10 @@ class DataFrame:
             hdr = List[str]()
             if index:
                 il = index_label if index_label is not None else (df.index.name if df.index.name is not None else "")
-                hdr.append(_csv_quote(il, sep))
+                hdr.append(_csv_q(il, sep, quoting))
             for j in range(len(df.columns)):
-                hdr.append(_csv_quote(str(df.columns[j]), sep))
+                hn = str(df.columns[j]) if header_names is None else header_names.__val__()[j]
+                hdr.append(_csv_q(hn, sep, quoting))
             lines.append(sep.join(hdr))
         n = len(df)
         ready = [csv_ready(c, na_rep) for c in df._cols]
@@ -2449,13 +2487,13 @@ class DataFrame:
         for i in range(n):
             row = List[str](len(df._cols) + 1)
             if index:
-                row.append(_csv_quote(iready.fmt_csv(i, float_format, na_rep, decimal), sep))
+                row.append(_csv_q(iready.fmt_csv(i, float_format, na_rep, decimal), sep, quoting))
             for c in ready:
-                row.append(_csv_quote(c.fmt_csv(i, float_format, na_rep, decimal), sep))
+                row.append(_csv_q(c.fmt_csv(i, float_format, na_rep, decimal), sep, quoting))
             lines.append(sep.join(row))
         out = lineterminator.join(lines) + lineterminator
         if path_or_buf is not None:
-            with open(path_or_buf.__val__(), "w") as f:
+            with open(path_or_buf.__val__(), "a" if mode == "a" else "w") as f:
                 f.write(out)
         return out
 
@@ -3245,6 +3283,25 @@ class Rolling:
     def count(self):
         return self._apply(lambda v, s, e: [float(sum(1 for j in range(s[i], e[i]) if v[j] == v[j])) for i in range(len(s))])
 
+    def skew(self):
+        mp = self.min_periods
+        return self._apply(lambda v, s, e: _roll_moment(v, s, e, mp, 3))
+
+    def kurt(self):
+        mp = self.min_periods
+        return self._apply(lambda v, s, e: _roll_moment(v, s, e, mp, 4))
+
+    def sem(self, ddof: int = 1):
+        mp = self.min_periods
+        from math import sqrt
+        return self._apply(lambda v, s, e: _roll_sem(v, s, e, mp, ddof))
+
+    def first(self):
+        return self._apply(lambda v, s, e: _roll_edge(v, s, e, self.min_periods, True))
+
+    def last(self):
+        return self._apply(lambda v, s, e: _roll_edge(v, s, e, self.min_periods, False))
+
     def quantile(self, quantile: float, interpolation: str = "linear"):
         mp = self.min_periods
         return self._apply(lambda v, s, e: roll_quantile(v, s, e, mp, quantile, interpolation))
@@ -3279,6 +3336,46 @@ class Rolling:
                 out.append(float(func(Series(w))) if cnt >= mp else NAN)
             return out
         return self._apply(f)
+
+def _roll_moment(v: List[float], s: List[int], e: List[int], mp: int, order: int) -> List[float]:
+    out = List[float](len(s))
+    for i in range(len(s)):
+        w = List[float]()
+        for j in range(s[i], e[i]):
+            if v[j] == v[j]:
+                w.append(v[j])
+        if len(w) < mp:
+            out.append(NAN)
+        elif order == 3:
+            out.append(nanskew_list(w))
+        else:
+            out.append(nankurt_list(w))
+    return out
+
+def _roll_sem(v: List[float], s: List[int], e: List[int], mp: int, ddof: int) -> List[float]:
+    from math import sqrt
+    vr = roll_var(v, s, e, mp, ddof)
+    out = List[float](len(s))
+    for i in range(len(s)):
+        cnt = 0
+        for j in range(s[i], e[i]):
+            if v[j] == v[j]:
+                cnt += 1
+        out.append(sqrt(vr[i] / float(cnt)) if vr[i] == vr[i] and cnt > 0 else NAN)
+    return out
+
+def _roll_edge(v: List[float], s: List[int], e: List[int], mp: int, first: bool) -> List[float]:
+    out = List[float](len(s))
+    for i in range(len(s)):
+        cnt = 0
+        for j in range(s[i], e[i]):
+            if v[j] == v[j]:
+                cnt += 1
+        if cnt < mp or e[i] <= s[i]:
+            out.append(NAN)
+        else:
+            out.append(v[s[i]] if first else v[e[i] - 1])
+    return out
 
 def _prep_binary(x: List[float], y: List[float]):
     # pandas prep_binary: NaN in either input masks both
@@ -3654,9 +3751,51 @@ def factorize(values: Series, sort: bool = False):
 # ---------------------------------------------------------------------------
 # module-level functions
 
-def concat(objs, axis: int = 0, ignore_index: bool = False):
+def _concat_keys_cols(res: DataFrame, objs: List[DataFrame], keys: List[str]) -> DataFrame:
+    # axis=1 with keys: MultiIndex columns (key, column)
+    k0 = List[Scalar]()
+    k1 = List[Scalar]()
+    for t in range(len(objs)):
+        for j in range(len(objs[t].columns)):
+            k0.append(Scalar.of(keys[t]))
+            k1.append(objs[t].columns[j])
+    mi = Index._multi([Column.from_scalars(k0), Column.from_scalars(k1)], [None, None])
+    return DataFrame._new([c.copy() for c in res._cols], mi, res.index.copy())
+
+def _concat_keys_rows(res, objs, keys: List[str]):
+    # axis=0 with keys: MultiIndex rows (key, original label)
+    k0 = List[Scalar]()
+    k1 = List[Scalar]()
+    for t in range(len(objs)):
+        ix = objs[t].index
+        for i in range(len(ix)):
+            k0.append(Scalar.of(keys[t]))
+            k1.append(ix[i])
+    mi = Index._multi([Column.from_scalars(k0), Column.from_scalars(k1)], [None, None])
+    if isinstance(res, Series):
+        return Series._new(res._col.copy(), mi, res.name)
+    return DataFrame._new([c.copy() for c in res._cols], res.columns.copy(), mi)
+
+def concat(objs, axis: int = 0, ignore_index: bool = False, keys: Optional[List[str]] = None):
     if len(objs) == 0:
         raise ValueError("No objects to concatenate")
+    if keys is not None:
+        kk = keys.__val__()
+        if len(kk) != len(objs):
+            raise ValueError("The length of the keys must match the number of objects")
+        if isinstance(objs[0], Series):
+            if axis == 1:
+                s_cols = List[Column]()
+                s_labels = List[Scalar]()
+                for t in range(len(objs)):
+                    s_cols.append(objs[t]._col.copy())
+                    s_labels.append(Scalar.of(kk[t]))
+                return DataFrame._new(s_cols, Index._wrap(Column.from_scalars(s_labels)), objs[0].index.copy())
+            return _concat_keys_rows(_concat_series0(objs, False), objs, kk)
+        res0 = _concat_frames(objs, axis, False)
+        if axis == 1:
+            return _concat_keys_cols(res0, objs, kk)
+        return _concat_keys_rows(res0, objs, kk)
     if isinstance(objs[0], Series):
         if axis == 1:
             raise ValueError("pandas: concat(list of Series, axis=1) returns a DataFrame; use concat_series_axis1")
@@ -3722,7 +3861,7 @@ def _concat_frames(objs: List[DataFrame], axis: int, ignore_index: bool) -> Data
     return DataFrame._new(cols, Index._wrap(Column.from_scalars(labels)), idx)
 
 
-def merge(left: DataFrame, right: DataFrame, how: str = "inner", on = None, left_on = None, right_on = None, suffixes: Tuple[str, str] = ("_x", "_y")):
+def merge(left: DataFrame, right: DataFrame, how: str = "inner", on = None, left_on = None, right_on = None, suffixes: Tuple[str, str] = ("_x", "_y"), indicator: bool = False):
     lk = ""
     rk = ""
     if on is not None:
@@ -3815,6 +3954,17 @@ def merge(left: DataFrame, right: DataFrame, how: str = "inner", on = None, left
             continue
         cols.append(right._cols[j].take(rpos))
         labels.append(name + suffixes[1] if name in lnames and name != lk else name)
+    if indicator:
+        ind = List[str]()
+        for t in range(len(lpos)):
+            if lpos[t] >= 0 and rpos[t] >= 0:
+                ind.append("both")
+            elif lpos[t] >= 0:
+                ind.append("left_only")
+            else:
+                ind.append("right_only")
+        cols.append(Column.from_scalars([Scalar.of(v) for v in ind]).astype(K_STR))
+        labels.append("_merge")
     return DataFrame._new(cols, Index.strs(labels), Index.range(len(keys)))
 
 def isna(obj):
