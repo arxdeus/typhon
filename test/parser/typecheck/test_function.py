@@ -1279,3 +1279,15 @@ def w(x: int):
         return None
     return 2
 print f(1.0), f(-1.0), k(1), k(-9), k(-1), w(1), w(0)  #: 1.0 None 1.0 None 2.5 None 2
+
+#%% return_annotation_forward_ref,barebones
+class A:
+    def f(self) -> FwdB:
+        return FwdB(3)
+def g() -> FwdB:
+    return FwdB(4)
+class FwdB:
+    x: int
+    def __init__(self, x: int):
+        self.x = x
+print A().f().x, g().x  #: 3 4
