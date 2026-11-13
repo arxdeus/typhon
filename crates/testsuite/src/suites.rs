@@ -235,6 +235,8 @@ pub const SCIPY: &[&str] = &[
     "scipy/test_stats_final_methods.py", "scipy/test_stats_final_mgc.py", "scipy/test_stats_final_mv.py",
     "scipy/test_stats_final_newdist.py", "scipy/test_stats_final_qmc.py", "scipy/test_stats_final_quantile.py",
     "scipy/test_stats_final_sobol.py", "scipy/test_stats_final_surv.py",
+    "mne/test_maxwell.py", "mne/test_preproc_final.py", "mne/test_toplevel_io.py", "mne/test_toplevel_algo.py",
+    "mne/test_io_egi_bci_besa.py", "mne/test_io_cnt.py", "mne/test_io_nedf.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
