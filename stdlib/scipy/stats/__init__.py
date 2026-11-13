@@ -76,7 +76,7 @@ from ._discrete_distns2 import nchypergeom_fisher, nchypergeom_wallenius, poisso
 from ._final_misc import DegenerateDataWarning, ConstantInputWarning, NearConstantInputWarning, \
     FitError, PermutationMethod, MonteCarloMethod, BootstrapMethod, kstat, kstatvar, gstd, bayes_mvs, mvsdist
 from ._survival import CensoredData, ecdf, ECDFResult, EmpiricalDistributionFunction, logrank, \
-    LogRankResult, spearmanrho, bws_test, ppcc_max, wasserstein_distance_nd
+    LogRankResult, spearmanrho, bws_test, ppcc_max, wasserstein_distance_nd, fit_censored
 from ._quantile import quantile, estimated_cdf
 from ._multivariate2 import random_table, matrix_t, normal_inverse_gamma, unitary_group
 from ._levy_stable import levy_stable

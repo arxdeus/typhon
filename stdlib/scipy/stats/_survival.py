@@ -478,3 +478,47 @@ def wasserstein_distance_nd(u_values, v_values, u_weights = None, v_weights = No
     beq = np.concatenate((pu, pv))
     res = linprog(cost, A_eq=Aeq, b_eq=beq, bounds=(0, None))
     return res.fun
+
+# ---------------------------------------------------- censored MLE fit
+
+class _CensNnlf[D]:
+    dist: D
+    data: CensoredData
+    nshape: int
+    def __init__(self, dist: D, data: CensoredData, nshape: int):
+        self.dist = dist
+        self.data = data
+        self.nshape = nshape
+    def __call__(self, th: np.ndarray[float, 1]) -> float:
+        ns = self.nshape
+        loc = th[ns]
+        scale = th[ns + 1]
+        if not (scale > 0):
+            return INF
+        sh = [th[i] for i in range(ns)]
+        d = self.data
+        tot = 0.0
+        if d._uncensored.shape[0] > 0:
+            tot -= float(np.sum(self.dist.logpdf(d._uncensored, *sh, loc=loc, scale=scale)))
+        if d._left.shape[0] > 0:
+            tot -= float(np.sum(self.dist.logcdf(d._left, *sh, loc=loc, scale=scale)))
+        if d._right.shape[0] > 0:
+            tot -= float(np.sum(self.dist.logsf(d._right, *sh, loc=loc, scale=scale)))
+        for i in range(d._interval.shape[0]):
+            lo = float(d._interval[i, 0])
+            hi = float(d._interval[i, 1])
+            p = float(self.dist.cdf(hi, *sh, loc=loc, scale=scale)) - float(self.dist.cdf(lo, *sh, loc=loc, scale=scale))
+            tot -= K.log(p) if p > 0 else -INF
+        if tot != tot:
+            return INF
+        return tot
+
+def fit_censored(dist, data: CensoredData, x0):
+    """Maximum likelihood fit of ``dist`` (shape params..., loc, scale) to
+    censored data by Nelder-Mead from the starting vector ``x0``; the
+    counterpart of ``dist.fit(CensoredData)``."""
+    from scipy.optimize import minimize
+    start = np.asarray(x0).astype(float).ravel()
+    ns = start.shape[0] - 2
+    res = minimize(_CensNnlf(dist, data, ns), start, method='Nelder-Mead')
+    return res.x
