@@ -380,7 +380,8 @@ class _TrimMean:
         uppercut = nobs - lowercut
         if lowercut > uppercut:
             raise ValueError("Proportion too big.")
-        y = np.sort(x)
+        # scipy averages the np.partition output (summation order matters)
+        y = np.partition(x, (lowercut, uppercut - 1))
         return float(np.mean(y[lowercut:uppercut]))
 
 def trim_mean(a, proportiontocut: float, axis = 0):

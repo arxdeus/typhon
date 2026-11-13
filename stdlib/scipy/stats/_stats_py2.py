@@ -10,7 +10,7 @@ from C import rint(float) -> float
 from ._common import _f64, _slices, _reduce, _mean, _moment, _var, _rank_avg, \
                      _tie_term, _pvalue_t, _pvalue_norm
 from ._stats import _Result2, SignificanceResult, _map_slices, _map_slices2, \
-                    _ksample, _skew1, _kurt1, _pearson1, PearsonRResult, pearsonr
+                    _ksample, _skew1, _kurt1, _pearson1, PearsonRResult, pearsonr, _lambda_value
 
 NAN = K.NAN
 INF = K.INF
@@ -145,27 +145,6 @@ def jarque_bera(x, *, axis = None):
     return SignificanceResult(r[0], r[1])
 
 # ------------------------------------------------------------------ power divergence
-
-def _lambda_value(lambda_) -> float:
-    if lambda_ is None:
-        return 1.0
-    elif isinstance(lambda_, str):
-        if lambda_ == "pearson":
-            return 1.0
-        elif lambda_ == "log-likelihood":
-            return 0.0
-        elif lambda_ == "freeman-tukey":
-            return -0.5
-        elif lambda_ == "mod-log-likelihood":
-            return -1.0
-        elif lambda_ == "neyman":
-            return -2.0
-        elif lambda_ == "cressie-read":
-            return 2 / 3
-        else:
-            raise ValueError(f"invalid string for lambda_: {lambda_!r}. Valid strings are 'pearson', 'log-likelihood', 'freeman-tukey', 'mod-log-likelihood', 'neyman', 'cressie-read'")
-    else:
-        return float(lambda_)
 
 class _PowerDiv:
     lam: float

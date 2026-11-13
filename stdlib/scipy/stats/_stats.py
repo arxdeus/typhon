@@ -945,35 +945,82 @@ def wilcoxon(x, y = None, zero_method: str = 'wilcox', correction: bool = False,
     res = _map_slices(d, axis, lambda v: _wilcoxon1(v, zero_method, correction, alternative, method))
     return WilcoxonResult(res[0], res[1])
 
-def chi2_contingency(observed, correction: bool = True, lambda_ = None):
-    """Pearson chi-square test of independence for a 2-D table."""
-    obs = _f64(observed)
-    if obs.ndim != 2:
-        compile_error("chi2_contingency: only 2-D tables are supported")
-    R, C = obs.shape
+def _lambda_value(lambda_) -> float:
+    if lambda_ is None:
+        return 1.0
+    elif isinstance(lambda_, str):
+        if lambda_ == "pearson":
+            return 1.0
+        elif lambda_ == "log-likelihood":
+            return 0.0
+        elif lambda_ == "freeman-tukey":
+            return -0.5
+        elif lambda_ == "mod-log-likelihood":
+            return -1.0
+        elif lambda_ == "neyman":
+            return -2.0
+        elif lambda_ == "cressie-read":
+            return 2 / 3
+        else:
+            raise ValueError(f"invalid string for lambda_: {lambda_!r}.")
+    else:
+        return float(lambda_)
+
+def _expected_freq(obs):
+    d = obs.ndim
     total = float(np.sum(obs))
-    rs = np.sum(obs, axis=1)
-    cs = np.sum(obs, axis=0)
-    expected = np.empty((R, C), dtype=float)
-    for i in range(R):
-        for j in range(C):
-            expected[i, j] = rs[i] * cs[j] / total
-    dof = R * C - R - C + 1
+    expected = np.ones(obs.shape, dtype=float)
+    for k in range(d):
+        axes = [j for j in range(d) if j != k]
+        marg = obs
+        for j in axes[::-1]:
+            marg = np.sum(marg, axis=j, keepdims=True)
+        expected = expected * marg
+    return expected / total ** (d - 1)
+
+def chi2_contingency(observed, correction: bool = True, lambda_ = None):
+    """Chi-square test of independence for an N-D contingency table
+    (``lambda_`` selects the Cressie-Read power divergence statistic)."""
+    obs = _f64(observed)
+    for v in obs.flat:
+        if v < 0:
+            raise ValueError("All values in `observed` must be nonnegative.")
+    expected = _expected_freq(obs)
+    for v in expected.flat:
+        if v == 0:
+            raise ValueError("The internally computed table of expected frequencies has a zero element.")
+    ssum = 0
+    for v in expected.shape:
+        ssum += v
+    dof = expected.size - ssum + expected.ndim - 1
     if dof == 0:
         return Chi2ContingencyResult(0.0, 1.0, 0, expected)
     o = obs
     if dof == 1 and correction:
         o = obs.copy()
-        for i in range(R):
-            for j in range(C):
-                diff = expected[i, j] - obs[i, j]
-                direction = 1.0 if diff > 0 else (-1.0 if diff < 0 else 0.0)
-                magnitude = min(0.5, abs(diff))
-                o[i, j] = obs[i, j] + magnitude * direction
-    chi2 = 0.0
-    for i in range(R):
-        for j in range(C):
-            dd = o[i, j] - expected[i, j]
-            chi2 += dd * dd / expected[i, j]
+        for idx in np.ndindex(obs.shape):
+            diff = expected[idx] - obs[idx]
+            direction = 1.0 if diff > 0 else (-1.0 if diff < 0 else 0.0)
+            magnitude = min(0.5, abs(diff))
+            o[idx] = obs[idx] + magnitude * direction
+    lam = _lambda_value(lambda_)
+    fo = o.ravel()
+    fe = expected.ravel()
+    n = fo.shape[0]
+    terms = np.empty(n, dtype=float)
+    for i in range(n):
+        a = fo[i]
+        e = fe[i]
+        if lam == 1:
+            terms[i] = (a - e) ** 2 / e
+        elif lam == 0:
+            terms[i] = 2.0 * K.xlogy(a, a / e)
+        elif lam == -1:
+            terms[i] = 2.0 * K.xlogy(e, e / a)
+        else:
+            t = a * ((a / e) ** lam - 1)
+            t /= 0.5 * lam * (lam + 1)
+            terms[i] = t
+    chi2 = float(np.sum(terms))
     p = K.chdtrc(float(dof), chi2)
     return Chi2ContingencyResult(chi2, p, dof, expected)
