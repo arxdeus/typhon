@@ -27,6 +27,7 @@ from scipy.optimize import brentq
 from scipy.optimize._minimize import _minimize_neldermead, _no_bounds
 from numpy.random.legacy import RandomState, _rand
 from ._common import _is_arr, _anyarr
+from C import fabs(float) -> float
 
 NAN = K.NAN
 INF = K.INF
@@ -50,6 +51,8 @@ def _k_check(Kr: type, sh) -> bool:
 def _k_a(Kr: type, sh) -> float:
     if hasattr(Kr, 'a'):
         return float(Kr.a(sh))
+    elif hasattr(Kr, 'is_discrete'):
+        return 0.0
     else:
         return -INF
 
@@ -90,6 +93,8 @@ def _k_pdf(Kr: type, z: float, sh) -> float:
         return float(Kr.pdf(z, sh))
     elif hasattr(Kr, 'logpdf'):
         return K.exp(float(Kr.logpdf(z, sh)))
+    elif hasattr(Kr, 'is_discrete'):
+        return _k_cdf(Kr, z, sh) - _k_cdf(Kr, z - 1, sh)
     else:
         # _derivative(self._cdf, x, dx=1e-5, order=5)
         dx = 1e-5
@@ -105,6 +110,15 @@ def _k_logpdf(Kr: type, z: float, sh) -> float:
 def _k_cdf(Kr: type, z: float, sh) -> float:
     if hasattr(Kr, 'cdf'):
         return float(Kr.cdf(z, sh))
+    elif hasattr(Kr, 'is_discrete'):
+        # rv_discrete._cdf_single: sum pmf over arange(int(a), floor(z)+1)
+        k = K.floor(z)
+        tot = 0.0
+        m = float(int(_k_a(Kr, sh)))
+        while m <= k:
+            tot += _k_pdf(Kr, m, sh)
+            m += 1.0
+        return tot
     else:
         return quad(_PdfF[Kr, type(sh)](sh), _k_a(Kr, sh), z)[0]
 
@@ -117,6 +131,8 @@ def _k_sf(Kr: type, z: float, sh) -> float:
 def _k_logcdf(Kr: type, z: float, sh) -> float:
     if hasattr(Kr, 'logcdf'):
         return float(Kr.logcdf(z, sh))
+    elif hasattr(Kr, 'is_discrete'):
+        return K.log(_k_cdf(Kr, z, sh))
     else:
         median = _k_ppf(Kr, 0.5, sh)
         if z < median:
@@ -126,6 +142,8 @@ def _k_logcdf(Kr: type, z: float, sh) -> float:
 def _k_logsf(Kr: type, z: float, sh) -> float:
     if hasattr(Kr, 'logsf'):
         return float(Kr.logsf(z, sh))
+    elif hasattr(Kr, 'is_discrete'):
+        return K.log(_k_sf(Kr, z, sh))
     else:
         median = _k_ppf(Kr, 0.5, sh)
         if z > median:
@@ -159,6 +177,8 @@ def _ppf_single(Kr: type, q: float, sh) -> float:
 def _k_ppf(Kr: type, q: float, sh) -> float:
     if hasattr(Kr, 'ppf'):
         return float(Kr.ppf(q, sh))
+    elif hasattr(Kr, 'is_discrete'):
+        return _drv2_ppfsingle(Kr, q, sh)
     else:
         return _ppf_single(Kr, q, sh)
 
@@ -196,6 +216,9 @@ class _Mom1[Kr, S]:
 def _k_munp(Kr: type, n: float, sh) -> float:
     if hasattr(Kr, 'munp'):
         return float(Kr.munp(n, sh))
+    elif hasattr(Kr, 'is_discrete'):
+        return _dexpect(_DMom[Kr, type(sh)](sh, n), _k_a(Kr, sh), _k_b(Kr, sh),
+                        _k_ppf(Kr, 0.5, sh))
     elif hasattr(Kr, 'momtype0'):
         return quad(_Mom0[Kr, type(sh)](sh, n), _k_a(Kr, sh), _k_b(Kr, sh))[0]
     else:
@@ -211,6 +234,9 @@ class _EntrF[Kr, S]:
 def _k_entropy(Kr: type, sh) -> float:
     if hasattr(Kr, 'entropy'):
         return float(Kr.entropy(sh))
+    elif hasattr(Kr, 'is_discrete'):
+        return _dexpect(_DEntr[Kr, type(sh)](sh), _k_a(Kr, sh), _k_b(Kr, sh),
+                        _k_ppf(Kr, 0.5, sh))
     else:
         a = _k_a(Kr, sh)
         b = _k_b(Kr, sh)
@@ -875,3 +901,403 @@ class rv_continuous[Kr]:
 def _generic_munp(Kr: type, n: float, sh) -> float:
     # rv_continuous.generic_moment (momtype=1: integrate ppf**n over (0, 1))
     return quad(_Mom1[Kr, type(sh)](sh, n), 0.0, 1.0)[0]
+
+# ================================================================ discrete
+#
+# A discrete kernel declares ``is_discrete() -> Literal[bool]`` and uses the
+# same protocol with ``pdf``/``logpdf`` meaning pmf/logpmf. Defaults follow
+# rv_discrete: a = 0, pmf = cdf(k) - cdf(k-1), cdf = sum of pmf, ppf by
+# bisection (_drv2_ppfsingle), moments/entropy by the chunked _expect sum.
+
+def _npsum(v: List[float]) -> float:
+    # numpy pairwise summation (identical rounding for n <= 128)
+    n = len(v)
+    if n < 8:
+        res = 0.0
+        for x in v:
+            res += x
+        return res
+    r0, r1, r2, r3 = v[0], v[1], v[2], v[3]
+    r4, r5, r6, r7 = v[4], v[5], v[6], v[7]
+    i = 8
+    while i < n - (n % 8):
+        r0 += v[i]
+        r1 += v[i + 1]
+        r2 += v[i + 2]
+        r3 += v[i + 3]
+        r4 += v[i + 4]
+        r5 += v[i + 5]
+        r6 += v[i + 6]
+        r7 += v[i + 7]
+        i += 8
+    res = ((r0 + r1) + (r2 + r3)) + ((r4 + r5) + (r6 + r7))
+    while i < n:
+        res += v[i]
+        i += 1
+    return res
+
+class _DMom[Kr, S]:
+    sh: S
+    m: float
+    def __init__(self, sh: S, m: float):
+        self.sh = sh
+        self.m = m
+    def __call__(self, x: float) -> float:
+        return K.pow(x, self.m) * _k_pdf(Kr, x, self.sh)
+
+class _DEntr[Kr, S]:
+    sh: S
+    def __init__(self, sh: S):
+        self.sh = sh
+    def __call__(self, x: float) -> float:
+        return K.entr(_k_pdf(Kr, x, self.sh))
+
+def _chunk_sum(fun, x: float, n: int, inc: float) -> float:
+    v = List[float](n)
+    for i in range(n):
+        v.append(float(fun(x + i * inc)))
+    return _npsum(v)
+
+def _dexpect(fun, lb: float, ub: float, x0: float, maxcount: int = 1000,
+             tolerance: float = 1e-10, chunksize: int = 32) -> float:
+    # scipy.stats._distn_infrastructure._expect (inc = 1)
+    if (ub - lb) <= chunksize:
+        return _chunk_sum(fun, lb, int(K.ceil(ub + 1 - lb)), 1.0)
+    if x0 < lb:
+        x0 = lb
+    if x0 > ub:
+        x0 = ub
+    count = 0
+    tot = 0.0
+    x = x0
+    x1 = ub + 1
+    conv = False
+    while (x - x1) < 0:
+        delta = min(float(chunksize), fabs(x - x1))
+        n = int(K.ceil(delta))
+        d = _chunk_sum(fun, x, n, 1.0)
+        x += delta
+        count += n
+        tot += d
+        if fabs(d) < tolerance * n:
+            break
+        if count > maxcount:
+            return tot
+    x = x0 - 1
+    x1 = lb - 1
+    while (x - x1) * -1 < 0:
+        delta = min(float(chunksize), fabs(x - x1))
+        n = int(K.ceil(delta))
+        d = _chunk_sum(fun, x, n, -1.0)
+        x -= delta
+        count += n
+        tot += d
+        if fabs(d) < tolerance * n:
+            break
+        if count > maxcount:
+            break
+    return tot
+
+def _drv2_ppfsingle(Kr: type, q: float, sh) -> float:
+    _a = _k_a(Kr, sh)
+    _b = _k_b(Kr, sh)
+    b = _b
+    a = _a
+    step = 10.0
+    qb = 1.0
+    qa = 0.0
+    if K.isinf(b):
+        b = float(max(100 * q, 10.0))
+        while True:
+            if b >= _b:
+                qb = 1.0
+                break
+            qb = _k_cdf(Kr, b, sh)
+            if qb < q:
+                b += step
+                step *= 2
+            else:
+                break
+    step = 10.0
+    if K.isinf(a):
+        a = float(min(-100 * q, -10.0))
+        while True:
+            if a <= _a:
+                qb = 0.0
+                break
+            qa = _k_cdf(Kr, a, sh)
+            if qa > q:
+                a -= step
+                step *= 2
+            else:
+                break
+    else:
+        qa = _k_cdf(Kr, a, sh)
+    for i in range(2046):
+        if qa == q:
+            return a
+        if qb == q:
+            return b
+        if b <= a + 1:
+            return a if qa > q else b
+        c = float(int((a + b) / 2.0))
+        qc = _k_cdf(Kr, c, sh)
+        if qc < q:
+            if a != c:
+                a = c
+            else:
+                raise RuntimeError('updating stopped, endless loop')
+            qa = qc
+        elif qc > q:
+            if b != c:
+                b = c
+            else:
+                raise RuntimeError('updating stopped, endless loop')
+            qb = qc
+        else:
+            return c
+    return NAN
+
+def _clip01(v: float) -> float:
+    return v if v != v else min(max(v, 0.0), 1.0)
+
+def _deval(Kr: type, op: Literal[str], x: float, loc: float, sh) -> float:
+    if not _k_check(Kr, sh):
+        return NAN
+    a = _k_a(Kr, sh)
+    b = _k_b(Kr, sh)
+    if op == 'ppf' or op == 'isf':
+        q = x
+        if not (loc == loc) or not (q >= 0 and q <= 1):
+            return NAN
+        if op == 'ppf':
+            if q == 0:
+                return a - 1 + loc
+            if q == 1:
+                return b + loc
+            return _k_ppf(Kr, q, sh) + loc
+        else:
+            if q == 1:
+                return a - 1 + loc
+            if q == 0:
+                return b + loc
+            if hasattr(Kr, 'isf'):
+                return float(Kr.isf(q, sh)) + loc
+            return _k_ppf(Kr, 1.0 - q, sh) + loc
+    if x != x:
+        return NAN
+    k = x - loc
+    if op == 'pmf' or op == 'logpmf':
+        ok = k >= a and k <= b and K.floor(k) == k
+        if op == 'pmf':
+            return _clip01(_k_pdf(Kr, k, sh)) if ok else 0.0
+        return _k_logpdf(Kr, k, sh) if ok else -INF
+    elif op == 'cdf':
+        if k >= b:
+            return 1.0
+        if not (k >= a) or K.isinf(k):
+            return 0.0
+        return _clip01(_k_cdf(Kr, k, sh))
+    elif op == 'sf':
+        if k < a:
+            return 1.0
+        if not (k < b) or K.isinf(k):
+            return 0.0
+        return _clip01(_k_sf(Kr, k, sh))
+    elif op == 'logcdf':
+        if k >= b:
+            return 0.0
+        if not (k >= a):
+            return -INF
+        return _k_logcdf(Kr, k, sh)
+    elif op == 'logsf':
+        if k < a:
+            return 0.0
+        if not (k < b):
+            return -INF
+        return _k_logsf(Kr, k, sh)
+    else:
+        compile_error("unknown discrete distribution method")
+
+def _dbcast(Kr: type, op: Literal[str], x, loc, sh):
+    if _anyarr(x, loc, *sh):
+        arrs = (np.asarray(x), np.asarray(loc)) + tuple(np.asarray(s) for s in sh)
+        shp = np.broadcast_shapes(*tuple(a.shape for a in arrs))
+        bs = tuple(np.broadcast_to(a, shp) for a in arrs)
+        out = np.empty(shp, dtype=float)
+        for idx in np.ndindex(shp):
+            vals = tuple(float(b[idx]) for b in bs)
+            out[idx] = _deval(Kr, op, vals[0], vals[1], vals[2:])
+        return out
+    else:
+        return _deval(Kr, op, float(x), float(loc), tuple(float(s) for s in sh))
+
+def _dsplit(Kr: type, args, loc):
+    NS: Literal[int] = Kr.nshape()
+    if static.len(args) < NS:
+        compile_error("missing shape parameter(s) for distribution")
+    sh = args[:NS]
+    extra = args[NS:]
+    if static.len(extra) > 1:
+        compile_error("too many positional arguments")
+    if static.len(extra) == 1:
+        l = extra[0]
+    else:
+        l = loc
+    return sh, l
+
+def _dentropy1(Kr: type, l: float, s: float, sh) -> float:
+    if not (l == l) or not _k_check(Kr, sh):
+        return NAN
+    return _k_entropy(Kr, sh)
+
+def _drvs(Kr: type, sh, loc, size, random_state):
+    vals = _rvs(Kr, sh, loc, 1.0, size, random_state)
+    if isinstance(vals, np.ndarray):
+        return vals.astype(int)
+    else:
+        return int(vals)
+
+class _DExpF[Kr, S, F]:
+    sh: S
+    func: F
+    loc: float
+    def __init__(self, sh: S, func: F, loc: float):
+        self.sh = sh
+        self.func = func
+        self.loc = loc
+    def __call__(self, x: float) -> float:
+        p = _k_pdf(Kr, x, self.sh)
+        if self.func is None:
+            return (x + self.loc) * p
+        else:
+            return float(self.func(x + self.loc)) * p
+
+def _dexpect_api(Kr: type, func, sh, loc: float, lb, ub, conditional: bool) -> float:
+    a = _k_a(Kr, sh)
+    b = _k_b(Kr, sh)
+    lbv = a if lb is None else float(lb) - loc
+    ubv = b if ub is None else float(ub) - loc
+    invfac = 1.0
+    if conditional:
+        invfac = _deval(Kr, 'sf', lbv - 1, 0.0, sh) - _deval(Kr, 'sf', ubv, 0.0, sh)
+    f = _DExpF[Kr, type(sh), type(func)](sh, func, loc)
+    return _dexpect(f, lbv, ubv, _k_ppf(Kr, 0.5, sh)) / invfac
+
+class rv_discrete_frozen[Kr, S, L]:
+    sh: S
+    loc: L
+
+    def __init__(self, sh: S, loc: L):
+        self.sh = sh
+        self.loc = loc
+
+    @property
+    def args(self):
+        return self.sh
+
+    def pmf(self, k): return _dbcast(Kr, 'pmf', k, self.loc, self.sh)
+    def logpmf(self, k): return _dbcast(Kr, 'logpmf', k, self.loc, self.sh)
+    def cdf(self, k): return _dbcast(Kr, 'cdf', k, self.loc, self.sh)
+    def logcdf(self, k): return _dbcast(Kr, 'logcdf', k, self.loc, self.sh)
+    def sf(self, k): return _dbcast(Kr, 'sf', k, self.loc, self.sh)
+    def logsf(self, k): return _dbcast(Kr, 'logsf', k, self.loc, self.sh)
+    def ppf(self, q): return _dbcast(Kr, 'ppf', q, self.loc, self.sh)
+    def isf(self, q): return _dbcast(Kr, 'isf', q, self.loc, self.sh)
+    def stats(self, moments: Literal[str] = 'mv'):
+        return _stats_eval(Kr, moments, self.loc, 1.0, self.sh)
+    def mean(self): return _stats_eval(Kr, 'm', self.loc, 1.0, self.sh)
+    def var(self): return _stats_eval(Kr, 'v', self.loc, 1.0, self.sh)
+    def std(self): return np.sqrt(_stats_eval(Kr, 'v', self.loc, 1.0, self.sh))
+    def median(self): return self.ppf(0.5)
+    def moment(self, order: int):
+        return _moment1(Kr, order, float(self.loc), 1.0, tuple(float(v) for v in self.sh))
+    def entropy(self): return _vec_ls(_dentropy1, Kr, self.loc, 1.0, self.sh)
+    def interval(self, confidence):
+        c = confidence
+        return (self.ppf((1.0 - c) / 2.0), self.ppf((1.0 + c) / 2.0))
+    def support(self):
+        shv = tuple(float(v) for v in self.sh)
+        l = float(self.loc)
+        return (_k_a(Kr, shv) + l, _k_b(Kr, shv) + l)
+    def rvs(self, size = None, random_state = None):
+        return _drvs(Kr, self.sh, self.loc, size, random_state)
+    def expect(self, func = None, lb = None, ub = None, conditional: bool = False):
+        return _dexpect_api(Kr, func, tuple(float(v) for v in self.sh), float(self.loc),
+                            lb, ub, conditional)
+
+class rv_discrete[Kr]:
+    name: str
+
+    def __init__(self, name: str):
+        self.name = name
+
+    @property
+    def numargs(self) -> int:
+        return Kr.nshape()
+
+    def __call__(self, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return rv_discrete_frozen[Kr, type(sh), type(l)](sh, l)
+    def freeze(self, *args, loc = 0.0):
+        return self(*args, loc=loc)
+
+    def pmf(self, k, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _dbcast(Kr, 'pmf', k, l, sh)
+    def logpmf(self, k, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _dbcast(Kr, 'logpmf', k, l, sh)
+    def cdf(self, k, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _dbcast(Kr, 'cdf', k, l, sh)
+    def logcdf(self, k, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _dbcast(Kr, 'logcdf', k, l, sh)
+    def sf(self, k, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _dbcast(Kr, 'sf', k, l, sh)
+    def logsf(self, k, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _dbcast(Kr, 'logsf', k, l, sh)
+    def ppf(self, q, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _dbcast(Kr, 'ppf', q, l, sh)
+    def isf(self, q, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _dbcast(Kr, 'isf', q, l, sh)
+    def stats(self, *args, loc = 0.0, moments: Literal[str] = 'mv'):
+        sh, l = _dsplit(Kr, args, loc)
+        return _stats_eval(Kr, moments, l, 1.0, sh)
+    def mean(self, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _stats_eval(Kr, 'm', l, 1.0, sh)
+    def var(self, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _stats_eval(Kr, 'v', l, 1.0, sh)
+    def std(self, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return np.sqrt(_stats_eval(Kr, 'v', l, 1.0, sh))
+    def moment(self, order: int, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _moment1(Kr, order, float(l), 1.0, tuple(float(v) for v in sh))
+    def entropy(self, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        return _vec_ls(_dentropy1, Kr, l, 1.0, sh)
+    def median(self, *args, loc = 0.0):
+        return self.ppf(0.5, *args, loc=loc)
+    def interval(self, confidence, *args, loc = 0.0):
+        c = confidence
+        return (self.ppf((1.0 - c) / 2.0, *args, loc=loc),
+                self.ppf((1.0 + c) / 2.0, *args, loc=loc))
+    def support(self, *args, loc = 0.0):
+        sh, l = _dsplit(Kr, args, loc)
+        shv = tuple(float(v) for v in sh)
+        return (_k_a(Kr, shv) + float(l), _k_b(Kr, shv) + float(l))
+    def rvs(self, *args, loc = 0.0, size = None, random_state = None):
+        sh, l = _dsplit(Kr, args, loc)
+        return _drvs(Kr, sh, l, size, random_state)
+    def expect(self, func = None, args = (), loc = 0.0, lb = None, ub = None,
+               conditional: bool = False):
+        return _dexpect_api(Kr, func, tuple(float(v) for v in args), float(loc),
+                            lb, ub, conditional)

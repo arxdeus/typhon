@@ -48,3 +48,26 @@ def check(name: str, d, args, xs: List[float], qs: List[float],
     # scalar path and the unfrozen API
     ok &= close(name, 'cdf-scalar', [d.cdf(xs[2], *args, loc=0.5, scale=1.5)], [cdf[2]], rtol)
     return ok
+
+def dcheck(name: str, d, args, ks: List[float], qs: List[float],
+           pmf: List[float], logpmf: List[float], cdf: List[float], sf: List[float],
+           logcdf: List[float], logsf: List[float], ppf: List[float], isf: List[float],
+           mvsk: List[float], ent: float, rvs: List[float], rvg: List[float], rtol: float) -> bool:
+    fr = d(*args, loc=1.0)
+    k = np.array(ks)
+    q = np.array(qs)
+    ok = close(name, 'pmf', fr.pmf(k), pmf, rtol)
+    ok &= close(name, 'logpmf', fr.logpmf(k), logpmf, rtol)
+    ok &= close(name, 'cdf', fr.cdf(k), cdf, rtol)
+    ok &= close(name, 'sf', fr.sf(k), sf, rtol)
+    ok &= close(name, 'logcdf', fr.logcdf(k), logcdf, rtol)
+    ok &= close(name, 'logsf', fr.logsf(k), logsf, rtol)
+    ok &= close(name, 'ppf', fr.ppf(q), ppf, 0.0)
+    ok &= close(name, 'isf', fr.isf(q), isf, 0.0)
+    m, v, s, kk = fr.stats(moments='mvsk')
+    ok &= close(name, 'mvsk', [m, v, s, kk], mvsk, max(rtol, 1e-9))
+    ok &= close(name, 'entropy', [fr.entropy()], [ent], max(rtol, 1e-9))
+    ok &= close(name, 'rvs', fr.rvs(size=6, random_state=np.random.RandomState(1234)), rvs, 0.0)
+    ok &= close(name, 'rvs-gen', fr.rvs(size=6, random_state=np.random.default_rng(42)), rvg, 0.0)
+    ok &= close(name, 'pmf-unfrozen', [d.pmf(ks[2], *args, loc=1.0)], [pmf[2]], rtol)
+    return ok

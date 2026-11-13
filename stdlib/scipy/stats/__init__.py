@@ -15,6 +15,10 @@ from ._continuous_distns import norm, t, f, chi2, uniform, expon, gamma, beta, \
     genlogistic, gompertz, hypsecant, loglaplace, powerlaw, burr, fisk, burr12, \
     dweibull, exponweib, levy, levy_l, moyal, arcsine, anglit, bradford, rdist, \
     semicircular, gibrat, mielke, kappa3
+from ._distn_infrastructure import rv_discrete, rv_discrete_frozen
+from ._discrete_distns import binom, bernoulli, betabinom, nbinom, betanbinom, \
+    geom, hypergeom, nhypergeom, logser, poisson, planck, boltzmann, randint, \
+    zipf, zipfian, dlaplace, skellam, yulesimon
 
 # --- tests / descriptive (lane scipy-stats-tests) ---
 from ._descriptive import gmean, hmean, pmean, mode, tmean, tvar, tstd, tsem, \
@@ -28,3 +32,7 @@ from ._stats_py2 import skewtest, kurtosistest, normaltest, jarque_bera, \
     power_divergence, chisquare, ttest_ind_from_stats, pointbiserialr, \
     ranksums, brunnermunzel, friedmanchisquare, alexandergovern, kendalltau, \
     theilslopes, siegelslopes, combine_pvalues
+from ._morestats import shapiro, anderson, anderson_ksamp, ansari, mood, \
+    levene, bartlett, fligner, median_test, binomtest, fisher_exact, \
+    ks_1samp, ks_2samp, kstest, cramervonmises, cramervonmises_2samp, \
+    poisson_means_test, epps_singleton_2samp
