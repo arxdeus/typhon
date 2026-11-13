@@ -14,3 +14,6 @@ from ._annotate import annotate_amplitude, annotate_break
 from ._lof import find_bad_channels_lof
 from ._misc import fix_stim_artifact, annotate_nan, equalize_bads, compute_bridged_electrodes
 from ._ssp import compute_proj_ecg, compute_proj_eog
+
+# beamformer lane
+from ._eog_regression import EOGRegression

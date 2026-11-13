@@ -138,3 +138,7 @@ def channel_indices_by_type(info: Info, picks = None) -> Dict[str, List[int]]:
             out[t] = List[int]()
         out[t].append(i)
     return out
+
+# beamformer / simulation lane
+import beamformer
+import simulation
