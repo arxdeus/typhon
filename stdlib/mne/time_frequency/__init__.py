@@ -9,3 +9,4 @@ from ._tfr_containers import (AverageTFR, AverageTFRArray, EpochsTFR, EpochsTFRA
                               tfr_morlet, tfr_multitaper, tfr_stockwell, compute_tfr)
 from .csd import (CrossSpectralDensity, csd_array_fourier, csd_array_multitaper,
                   csd_array_morlet, csd_fourier, csd_multitaper, csd_morlet)
+from ._more import (BaseTFR, RawTFR, RawTFRArray, EpochsTFRComplex, SpectrumArray, EpochsSpectrumArray, combine_tfr, combine_spectrum, pick_channels_csd, csd_tfr, fit_iir_model_raw)
