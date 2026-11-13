@@ -490,3 +490,142 @@ def prod(iterable, /, *, start = 1):
         return prod_tuple(iterable, start)
     else:
         return prod_generator(iterable, start)
+
+def cbrt(x: float, /) -> float:
+    return _check1(x, _C.cbrt(x))
+
+def exp2(x: float, /) -> float:
+    return _check1(x, pow(2.0, x), True)
+
+def isqrt(n: int, /) -> int:
+    if n < 0:
+        raise ValueError("isqrt() argument must be nonnegative")
+    if n == 0:
+        return 0
+    # Newton iteration on integers (exact)
+    x = 1 << ((n.bit_length() + 1) >> 1)
+    while True:
+        y = (x + n // x) >> 1
+        if y >= x:
+            return x
+        x = y
+
+def comb(n: int, k: int, /) -> int:
+    if n < 0:
+        raise ValueError("n must be a non-negative integer")
+    if k < 0:
+        raise ValueError("k must be a non-negative integer")
+    if k > n:
+        return 0
+    if k > n - k:
+        k = n - k
+    r = 1
+    i = 1
+    while i <= k:
+        r = r * (n - k + i) // i
+        i += 1
+    return r
+
+def perm(n: int, k: int = -1, /) -> int:
+    if k == -1:
+        return factorial(n)
+    if n < 0:
+        raise ValueError("n must be a non-negative integer")
+    if k < 0:
+        raise ValueError("k must be a non-negative integer")
+    if k > n:
+        return 0
+    r = 1
+    i = 0
+    while i < k:
+        r *= n - i
+        i += 1
+    return r
+
+def nextafter(x: float, y: float, /) -> float:
+    return _C.nextafter(x, y)
+
+def ulp(x: float, /) -> float:
+    if isnan(x):
+        return x
+    x = fabs(x)
+    if isinf(x):
+        return x
+    x2 = nextafter(x, inf)
+    if isinf(x2):
+        x2 = nextafter(x, -inf)
+        return x - x2
+    return x2 - x
+
+def dist(p, q, /) -> float:
+    if len(p) != len(q):
+        raise ValueError("both points must have the same number of dimensions")
+    mx = 0.0
+    anyinf = False
+    anynan = False
+    i = 0
+    while i < len(p):
+        d = fabs(float(p[i]) - float(q[i]))
+        if isinf(d):
+            anyinf = True
+        elif isnan(d):
+            anynan = True
+        elif d > mx:
+            mx = d
+        i += 1
+    if anyinf:
+        return inf
+    if anynan:
+        return nan
+    if mx == 0.0:
+        return 0.0
+    acc = List[float](len(p))
+    i = 0
+    while i < len(p):
+        d = (float(p[i]) - float(q[i])) / mx
+        acc.append(d * d)
+        i += 1
+    return mx * sqrt(fsum(acc))
+
+def sumprod(p, q, /):
+    if len(p) != len(q):
+        raise ValueError("Inputs are not the same length")
+    if isinstance(p, List[int]):
+        if isinstance(q, List[int]):
+            t = 0
+            j = 0
+            while j < len(p):
+                t += p[j] * q[j]
+                j += 1
+            return t
+    return _sumprod_float(p, q)
+
+def _sumprod_float(p, q) -> float:
+    s = 0.0
+    i = 0
+    comp = 0.0
+    # Neumaier compensated summation of exact products (via fma-like split)
+    while i < len(p):
+        a = float(p[i])
+        b = float(q[i])
+        h = a * b
+        # Dekker two-product
+        c = 134217729.0 * a
+        ah = c - (c - a)
+        al = a - ah
+        c = 134217729.0 * b
+        bh = c - (c - b)
+        bl = b - bh
+        lo = ((ah * bh - h) + ah * bl + al * bh) + al * bl
+        t = s + h
+        if fabs(s) >= fabs(h):
+            comp += (s - t) + h
+        else:
+            comp += (h - t) + s
+        comp += lo
+        s = t
+        i += 1
+    return s + comp
+
+def fma(x: float, y: float, z: float, /) -> float:
+    return _check1(x, _C.fma(x, y, z), True)

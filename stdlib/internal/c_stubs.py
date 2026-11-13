@@ -243,6 +243,11 @@ def nextafter(a: float, b: float) -> float:
 
 @pure
 @C
+def fma(a: float, b: float, c: float) -> float:
+    pass
+
+@pure
+@C
 def acos(a: float) -> float:
     pass
 
