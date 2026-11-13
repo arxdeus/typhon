@@ -112,7 +112,7 @@ def intersect1d(ar1, ar2, assume_unique: bool = False):
     y = _ma1(ar2)
     r = np.intersect1d(x.compressed(), y.compressed())
     if bool(x._mask.any()) and bool(y._mask.any()):
-        return MaskedArray(np.append(r, np.zeros(1, r.dtype)), np.append(np.zeros(r.size, bool), True),
+        return MaskedArray(np.append(r, np.zeros(1, r.dtype)), np.append(np.zeros(r.size, bool), np.ones(1, bool)),
                            False, default_fill_value(r.dtype), False)
     return _from(r)
 
@@ -129,7 +129,7 @@ def union1d(ar1, ar2):
     y = _ma1(ar2)
     r = np.union1d(x.compressed(), y.compressed())
     if bool(x._mask.any()) or bool(y._mask.any()):
-        return MaskedArray(np.append(r, np.zeros(1, r.dtype)), np.append(np.zeros(r.size, bool), True),
+        return MaskedArray(np.append(r, np.zeros(1, r.dtype)), np.append(np.zeros(r.size, bool), np.ones(1, bool)),
                            False, default_fill_value(r.dtype), False)
     return _from(r)
 
