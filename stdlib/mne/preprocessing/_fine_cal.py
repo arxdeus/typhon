@@ -408,6 +408,14 @@ def _clean_names(names: List[str]) -> List[str]:
     return cleaned
 
 
+def _seg_data(full: np.ndarray[float, 2], picks: List[int], a: int, b: int) -> np.ndarray[float, 2]:
+    bb = min(b, full.shape[1])
+    d = np.zeros((len(picks), bb - a))
+    for k in range(len(picks)):
+        d[k, :] = full[picks[k], a:bb]
+    return d
+
+
 def compute_fine_calibration(raw, n_imbalance: int = 3, t_window: float = 10.0, ext_order: int = 2,
                              origin = (0.0, 0.0, 0.0), cross_talk = None, calibration = None, *,
                              angle_limit: float = 5.0, err_limit: float = 5.0, verbose = None):
@@ -467,18 +475,11 @@ def compute_fine_calibration(raw, n_imbalance: int = 3, t_window: float = 10.0, 
     for q in range(len(tidx) - 1):
         segs.append((tidx[q], tidx[q + 1]))
 
-    def seg_data(a: int, b: int) -> np.ndarray[float, 2]:
-        bb = min(b, n_samp)
-        d = np.zeros((n_meg, bb - a))
-        for k in range(n_meg):
-            d[k, :] = full[picks[k], a:bb]
-        return d
-
     if len(mag) > 0:
         cal_list = List[np.ndarray[float, 1]]()
         z_list = List[np.ndarray[float, 2]]()
         for sg in segs:
-            data = seg_data(sg[0], sg[1])
+            data = _seg_data(full, picks, sg[0], sg[1])
             z, cal, good = _adjust_mag_normals(info, data, locs, org, ext_order, angle_limit, err_limit)
             if good:
                 z_list.append(z)
@@ -501,7 +502,7 @@ def compute_fine_calibration(raw, n_imbalance: int = 3, t_window: float = 10.0, 
     if len(grad) > 0:
         acc = np.zeros((n_meg, n_imbalance))
         for sg in segs:
-            data = seg_data(sg[0], sg[1])
+            data = _seg_data(full, picks, sg[0], sg[1])
             acc += _estimate_imbalance(info, data, locs, cals, n_imbalance, org, ext_order)
         imb = acc / float(len(segs))
     imb_cals = List[List[float]]()
