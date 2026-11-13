@@ -24,3 +24,6 @@ from _signal_extra import remez, firls, minimum_phase, lfiltic, deconvolve, wien
     order_filter, hilbert2, correlation_lags, choose_conv_method, vectorstrength, sawtooth, \
     square, gausspulse, chirp, sweep_poly, unit_impulse, czt_points, czt, zoom_fft, CZT, ZoomFFT, \
     lombscargle
+from _residue import unique_roots, residue, residuez, invres, invresz
+from _splines import gauss_spline, cspline1d, qspline1d, cspline1d_eval, qspline1d_eval, \
+    cspline2d, qspline2d, spline_filter, sepfir2d, symiirorder1, symiirorder2
