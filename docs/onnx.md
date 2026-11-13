@@ -74,6 +74,13 @@ For the device use `-target ios-arm64` with the `ios-arm64` slice.
 
 Emulator and simulator run on the host CPU, so phone numbers will be slower. The iOS 64 row figure is higher than Android, probably because the simulator build uses the thread pool and CPU time counts all threads.
 
+**Real library** (`test/bci/lib/ort/`, user preprocessing.py compiled + ORT predict, 60 random trials 6x500): features vs Python `preprocess` max abs 7.1e-15 (max rel 3e-16) on both platforms, labels 0 of 60 mismatches vs Python onnxruntime. The iOS build needs `ORT_API_VERSION = 30` in `ort_api.py` (pod is 1.30.0). Same build flags as above. Android lib 6.7 MB, iOS dylib 38.8 MB.
+
+| platform | create | 1 trial (preprocess + ORT) | 60 trials |
+|---|---|---|---|
+| Android arm64 emulator | 88 ms | 519 us | 21.0 ms |
+| iOS simulator arm64 | 97 ms | 637 us | 18.3 ms |
+
 **Size.** The stock `libonnxruntime.so` is 34 MB (arm64) because it contains every operator kernel. A model that only needs MatMul, Add, ArgMax, Gather and similar can use an ORT **minimal build** (`--minimal_build` with `--include_ops_by_config required_operators.config` and `--disable_ml_ops`, `--disable_exceptions` optional), which needs the model converted to ORT format (`python -m onnxruntime.tools.convert_onnx_models_to_ort`, which also produces the operator config). Such builds are much smaller (size not measured here), but they load `.ort` files only and must be built from source for each ABI (not done here). The iOS static archive shrinks the same way, and the linker already strips unused objects when the archive is linked into an app.
 
 ## Training
