@@ -30,3 +30,4 @@ from .eyelink import read_raw_eyelink
 from .nirx import read_raw_nirx
 from .eeglab import read_epochs_eeglab
 from .fieldtrip import read_raw_fieldtrip, read_epochs_fieldtrip, read_evoked_fieldtrip
+from .curry import read_raw_curry

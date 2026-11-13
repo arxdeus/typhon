@@ -269,6 +269,9 @@ def read_raw(fname, *, preload = False, verbose = None, **kwargs):
     if low.endswith(".mat"):
         from .fieldtrip import read_raw_fieldtrip
         return read_raw_fieldtrip(f, None)
+    if low.endswith(".dap") or low.endswith(".rs3") or low.endswith(".cdt") or low.endswith(".cdt.dpa") or low.endswith(".cef"):
+        from .curry import read_raw_curry
+        return read_raw_curry(f, preload = preload)
     if low.endswith(".eeg"):
         from .nihon import read_raw_nihon
         return read_raw_nihon(f, preload = preload)
