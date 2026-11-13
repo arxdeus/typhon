@@ -728,7 +728,82 @@ def _apdq_sort(
         leftmost = False
 
 def aquicksort(start: Ptr[T], tosort: Ptr[int], n: int, T: type):
-    _apdq_sort(start, tosort, 0, n, _floor_log2(n), True)
+    # numpy npysort aquicksort_: median-of-3 introsort, insertion sort for partitions
+    # <= SMALL_QUICKSORT, heapsort when depth runs out. Tie order matches numpy.
+    v = start
+    if n <= 1:
+        return
+    stack = Ptr[int](2 * PYA_QS_STACK)
+    depth = Ptr[int](PYA_QS_STACK)
+    sp = 0
+    dp = 0
+    pl = 0
+    pr = n - 1
+    nn = n
+    cdepth = 0
+    while nn > 1:
+        nn >>= 1
+        cdepth += 1
+    cdepth *= 2
+    while True:
+        if cdepth < 0:
+            aheapsort(v, tosort + pl, pr - pl + 1)
+        else:
+            while pr - pl > SMALL_QUICKSORT:
+                pm = pl + ((pr - pl) >> 1)
+                if _less(v[tosort[pm]], v[tosort[pl]]):
+                    tosort[pm], tosort[pl] = tosort[pl], tosort[pm]
+                if _less(v[tosort[pr]], v[tosort[pm]]):
+                    tosort[pr], tosort[pm] = tosort[pm], tosort[pr]
+                if _less(v[tosort[pm]], v[tosort[pl]]):
+                    tosort[pm], tosort[pl] = tosort[pl], tosort[pm]
+                vp = v[tosort[pm]]
+                pi = pl
+                pj = pr - 1
+                tosort[pm], tosort[pj] = tosort[pj], tosort[pm]
+                while True:
+                    pi += 1
+                    while _less(v[tosort[pi]], vp):
+                        pi += 1
+                    pj -= 1
+                    while _less(vp, v[tosort[pj]]):
+                        pj -= 1
+                    if pi >= pj:
+                        break
+                    tosort[pi], tosort[pj] = tosort[pj], tosort[pi]
+                pk = pr - 1
+                tosort[pi], tosort[pk] = tosort[pk], tosort[pi]
+                if pi - pl < pr - pi:
+                    stack[sp] = pi + 1
+                    stack[sp + 1] = pr
+                    pr = pi - 1
+                else:
+                    stack[sp] = pl
+                    stack[sp + 1] = pi - 1
+                    pl = pi + 1
+                sp += 2
+                cdepth -= 1
+                depth[dp] = cdepth
+                dp += 1
+            pi = pl + 1
+            while pi <= pr:
+                vi = tosort[pi]
+                vp = v[vi]
+                pj = pi
+                while pj > pl and _less(vp, v[tosort[pj - 1]]):
+                    tosort[pj] = tosort[pj - 1]
+                    pj -= 1
+                tosort[pj] = vi
+                pi += 1
+        if sp == 0:
+            break
+        sp -= 2
+        pl = stack[sp]
+        pr = stack[sp + 1]
+        dp -= 1
+        cdepth = depth[dp]
+    util.free(stack)
+    util.free(depth)
 
 #########
 # Radix #

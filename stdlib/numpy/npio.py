@@ -2731,3 +2731,82 @@ def savez(file, *args, **kwds):
 
 def savez_compressed(file, *args, **kwds):
     _savez(file, True, args, kwds)
+
+class NpzFile:
+    names: List[str]
+    blobs: List[bytes]
+
+    def __init__(self, data: bytes):
+        self.names = List[str]()
+        self.blobs = List[bytes]()
+        n = len(data)
+        # locate end of central directory
+        e = n - 22
+        while e >= 0 and data[e:e + 4] != b'PK\x05\x06':
+            e -= 1
+        if e < 0:
+            raise ValueError("File is not a zip file")
+        cnt = _rd(data, e + 10, 2)
+        p = _rd(data, e + 16, 4)
+        for _ in range(cnt):
+            method = _rd(data, p + 10, 2)
+            csize = _rd(data, p + 20, 4)
+            nlen = _rd(data, p + 28, 2)
+            xlen = _rd(data, p + 30, 2)
+            clen = _rd(data, p + 32, 2)
+            off = _rd(data, p + 42, 4)
+            name = str(data[p + 46:p + 46 + nlen])
+            lnl = _rd(data, off + 26, 2)
+            lxl = _rd(data, off + 28, 2)
+            start = off + 30 + lnl + lxl
+            raw = data[start:start + csize]
+            if method == 8:
+                raw = zlib.decompress(raw, -15)
+            if name.endswith('.npy'):
+                name = name[:-4]
+            self.names.append(name)
+            self.blobs.append(raw)
+            p += 46 + nlen + xlen + clen
+
+    @property
+    def files(self) -> List[str]:
+        return self.names
+
+    def __contains__(self, k: str) -> bool:
+        return k in self.names
+
+    def __len__(self) -> int:
+        return len(self.names)
+
+    def get(self, key: str, ndim: Literal[int] = 1, dtype: type = float):
+        for i in range(len(self.names)):
+            if self.names[i] == key:
+                return _load(BytesIO(self.blobs[i]), None, ndim, dtype)
+        raise KeyError(key + " is not a file in the archive")
+
+    def close(self):
+        pass
+
+def _rd(d: bytes, o: int, n: int) -> int:
+    v = 0
+    for i in range(n):
+        v |= int(d[o + i]) << (8 * i)
+    return v
+
+def load_npz(file: str) -> NpzFile:
+    with open(file, 'rb') as f:
+        return NpzFile(f.read())
+
+def fromregex(file, regexp: str, dtype: type = float):
+    if isinstance(file, str):
+        with open(file, 'r') as f:
+            text = f.read()
+    else:
+        text = file.read()
+    rows = List[List[dtype]]()
+    for m in re.finditer(regexp, text):
+        row = List[dtype]()
+        for g in m.groups():
+            row.append(dtype(g))
+        rows.append(row)
+    return array(rows)

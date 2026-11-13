@@ -87,7 +87,13 @@ def vectorize(pyfunc):
     nin: Literal[int] = static.len(static.function.args(pyfunc))
     return frompyfunc(pyfunc, nin=nin, nout=nout, identity=None)
 
-def piecewise(x, condlist: List, funclist: List, *args, **kw):
+def _piecewise_apply(f, e, dtype: type, args, kw):
+    if hasattr(f, "__call__"):
+        return util.cast(f(e, *args, **kw), dtype)
+    else:
+        return util.cast(f, dtype)
+
+def piecewise(x, condlist, funclist, *args, **kw):
     x = asarray(x)
     ans = empty(x.shape, x.dtype)
 
@@ -106,21 +112,29 @@ def piecewise(x, condlist: List, funclist: List, *args, **kw):
 
     for idx in util.multirange(x.shape):
         e = x._ptr(idx)[0]
-        i = 0
+        # numpy assigns in condlist order, so the last true condition wins;
+        # the default function (n+1-th) applies only where no condition holds.
+        i = -1
+        k = 0
         for cond in condlist:
             if asarray(cond)._ptr(idx)[0]:
-                break
-            i += 1
+                i = k
+            k += 1
 
-        if i == n_condlist and n_condlist + 1 == n_funclist:
-            f = funclist[-1]
-        else:
-            f = funclist[i]
+        if i == -1:
+            if n_condlist + 1 == n_funclist:
+                i = n_funclist - 1
+            else:
+                ans._ptr(idx)[0] = util.cast(0, x.dtype)
+                continue
 
-        if hasattr(f, "__call__"):
-            e = util.cast(f(e, *args, **kw), x.dtype)
+        if isinstance(funclist, Tuple):
+            # heterogeneous funclist (scalars mixed with callables)
+            for j in static.range(static.len(funclist)):
+                if j == i:
+                    e = _piecewise_apply(funclist[j], e, x.dtype, args, kw)
         else:
-            e = util.cast(f, x.dtype)
+            e = _piecewise_apply(funclist[i], e, x.dtype, args, kw)
 
         ans._ptr(idx)[0] = e
 

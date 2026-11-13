@@ -199,3 +199,39 @@ def less(x1, x2): return _map2(x1, x2, bool, _k_lt)
 def less_equal(x1, x2): return _map2(x1, x2, bool, _k_le)
 def greater(x1, x2): return _map2(x1, x2, bool, _k_gt)
 def greater_equal(x1, x2): return _map2(x1, x2, bool, _k_ge)
+
+def _k_encode(s: str, enc: str): return s.encode()
+def _k_decode(s: bytes, enc: str): return str(s)
+
+def encode(a, encoding: str = 'utf-8', errors: str = 'strict'):
+    return _map(a, bytes, _k_encode, encoding)
+
+def decode(a, encoding: str = 'utf-8', errors: str = 'strict'):
+    x = np.asarray(a)
+    flat = x.ravel()
+    out = np.empty(flat.shape, dtype=str)
+    for i in range(flat.size):
+        out[i] = _k_decode(flat[i], encoding)
+    return out.reshape(x.shape)
+
+def _k_translate(s: str, table: Dict[int, str], deletechars: str):
+    r = List[str]()
+    for ch in s:
+        if ch in deletechars:
+            continue
+        o = ord(ch)
+        r.append(table[o] if o in table else ch)
+    return ''.join(r)
+
+def translate(a, table: Dict[int, str], deletechars: str = ''):
+    return _map(a, str, _k_translate, table, deletechars)
+
+def _k_mod(s: str, v): return s % v
+
+def mod(a, values):
+    x = _sarr(a)
+    flat = x.ravel()
+    out = np.empty(flat.shape, dtype=str)
+    for i in range(flat.size):
+        out[i] = _k_mod(flat[i], values)
+    return out.reshape(x.shape)
