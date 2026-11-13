@@ -242,6 +242,18 @@ def read_raw(fname, *, preload = False, verbose = None, **kwargs):
         return read_raw_brainvision(f, preload = preload)
     if low.endswith(".set"):
         return read_raw_eeglab(f, preload = preload)
+    if low.endswith(".cnt"):
+        from .cnt import read_raw_cnt
+        return read_raw_cnt(f, preload = preload)
+    if low.endswith(".raw") or low.endswith(".mff"):
+        from .egi import read_raw_egi
+        return read_raw_egi(f, preload = preload)
+    if low.endswith(".dat"):
+        from .bci2k import read_raw_bci2k
+        return read_raw_bci2k(f, preload = preload)
+    if low.endswith(".nedf"):
+        from .nedf import read_raw_nedf
+        return read_raw_nedf(f, preload = preload)
     dot = f.rfind(".")
     ext = f[dot:] if dot >= 0 else ""
-    raise ValueError(f"Unsupported file type ({ext}). Supported (Typhon mne): .fif, .edf, .bdf, .gdf, .vhdr, .set")
+    raise ValueError(f"Unsupported file type ({ext}). Supported (Typhon mne): .fif, .edf, .bdf, .gdf, .vhdr, .set, .cnt, .raw, .mff, .dat, .nedf")
