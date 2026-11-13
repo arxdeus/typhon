@@ -60,3 +60,12 @@ evs = np.array([[100, 0, 1], [2500, 0, 1], [2600, 0, 2]])
 br3 = mne.preprocessing.annotate_break(r3, events=evs, min_break_duration=10.0, t_start_after_previous=2.0, t_stop_before_next=2.0)
 check("br3_on", br3.onset, 1e-9, 1e-12)
 check("br3_du", br3.duration, 1e-9, 1e-12)
+
+# find_bad_channels_lof
+d4 = mk(12, 500, 0.3) * 1e-5
+d4[3] *= 8.0
+d4[7] += 5e-5 * np.sin(0.2 * np.arange(500))
+r4 = mne.io.RawArray(d4, mne.create_info(['c%d' % i for i in range(12)], 100., 'eeg'))
+lb, ls = mne.preprocessing.find_bad_channels_lof(r4, n_neighbors=5, return_scores=True)
+checks("lof_bads", lb)
+check("lof_scores", ls, 1e-6, 1e-12)

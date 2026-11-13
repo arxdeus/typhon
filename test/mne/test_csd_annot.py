@@ -17,12 +17,14 @@ FEXP = [
     ('br2_du', [20.0, 14.0]),
     ('br3_on', [3.0, 28.0]),
     ('br3_du', [20.0, 31.990000000000002]),
+    ('lof_scores', [-1.000980603145587, -0.9999627286522699, -0.9999735653509709, -4.5313811386264735, -0.9999159895258881, -0.9999114439808198, -0.9999087549687389, -3.3323562747438435, -1.0006131171258181, -1.0001040947611286, -1.0001040947611286, -1.0001040947611286]),
 ]
 SEXP = [
     ('csd_type', ['csd']),
     ('aa_desc', ['BAD_flat']),
     ('aa_bads', ['a']),
     ('aa2_bads', ['a', 'b']),
+    ('lof_bads', ['c3', 'c7']),
 ]
 
 
@@ -69,6 +71,10 @@ def checks(name: str, got):
     if g != want:
         print("TEST FAILED:", name, g, want)
 
+
+
+def V(x):
+    return x.__val__()
 
 
 def mk(nch: int, n: int, k: float):
@@ -129,3 +135,12 @@ evs = np.array([[100, 0, 1], [2500, 0, 1], [2600, 0, 2]])
 br3 = mne.preprocessing.annotate_break(r3, events=evs, min_break_duration=10.0, t_start_after_previous=2.0, t_stop_before_next=2.0)
 check("br3_on", br3.onset, 1e-9, 1e-12)
 check("br3_du", br3.duration, 1e-9, 1e-12)
+
+# find_bad_channels_lof
+d4 = mk(12, 500, 0.3) * 1e-5
+d4[3] *= 8.0
+d4[7] += 5e-5 * np.sin(0.2 * np.arange(500))
+r4 = mne.io.RawArray(d4, mne.create_info(['c%d' % i for i in range(12)], 100., 'eeg'))
+lb, ls = mne.preprocessing.find_bad_channels_lof(r4, n_neighbors=5, return_scores=True)
+checks("lof_bads", lb)
+check("lof_scores", ls, 1e-6, 1e-12)

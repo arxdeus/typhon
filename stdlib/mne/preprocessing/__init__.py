@@ -11,3 +11,4 @@ from ._epochs_ext import create_ecg_epochs, create_eog_epochs, ctps, kuiper
 from .xdawn import Xdawn
 from ._csd import compute_current_source_density
 from ._annotate import annotate_amplitude, annotate_break
+from ._lof import find_bad_channels_lof
