@@ -100,12 +100,12 @@ impl CaptureAnalysis {
         let mut results: FxHashMap<Id, Vec<CaptureInfo>> = FxHashMap::default();
         let main = m.main_func();
         if m.func(main).map(|f| f.is_bodied()).unwrap_or(false) {
-            results.insert(m.var_uid(main), cc.get(m, main));
+            results.insert(m.var_uid(main), (*cc.get(m, main)).clone());
         }
         for v in m.vars() {
             if m.is_func(v) {
                 let ans = cc.get(m, v);
-                results.entry(m.var_uid(v)).or_insert(ans);
+                results.entry(m.var_uid(v)).or_insert_with(|| (*ans).clone());
             }
         }
         CaptureResult { rd_result: rd.clone(), dom_result: dom.clone(), results }
@@ -341,16 +341,19 @@ fn make_no_capture_info(m: &Module, f: FuncId, derives: bool) -> Vec<CaptureInfo
 /// `CaptureContext`.
 struct CaptureContext<'a> {
     reaching: &'a RDResult,
-    results: RefCell<FxHashMap<Id, Vec<CaptureInfo>>>,
+    results: RefCell<FxHashMap<Id, Rc<Vec<CaptureInfo>>>>,
+    /// Memoized answers for non-bodied functions (external/LLVM/internal): they depend only
+    /// on the function's attributes and signature, which are fixed during the analysis.
+    fixed: RefCell<FxHashMap<Id, Rc<Vec<CaptureInfo>>>>,
     known_results: Option<&'a FxHashMap<Id, Vec<CaptureInfo>>>,
 }
 
 impl<'a> CaptureContext<'a> {
     fn new(reaching: &'a RDResult, known_results: Option<&'a FxHashMap<Id, Vec<CaptureInfo>>>) -> Self {
-        Self { reaching, results: RefCell::default(), known_results }
+        Self { reaching, results: RefCell::default(), fixed: RefCell::default(), known_results }
     }
 
-    fn set(&self, m: &Module, f: FuncId, r: Vec<CaptureInfo>) {
+    fn set(&self, m: &Module, f: FuncId, r: Rc<Vec<CaptureInfo>>) {
         self.results.borrow_mut().insert(m.var_uid(f), r);
     }
 
@@ -361,15 +364,30 @@ impl<'a> CaptureContext<'a> {
         self.reaching.results.get(&m.var_uid(f)).cloned()
     }
 
-    fn get(&self, m: &Module, func: FuncId) -> Vec<CaptureInfo> {
+    fn get(&self, m: &Module, func: FuncId) -> Rc<Vec<CaptureInfo>> {
         let func = m.actual_var(func);
         let uid = m.var_uid(func);
+        if let Some(r) = self.fixed.borrow().get(&uid) {
+            return r.clone();
+        }
         if let Some(k) = self.known_results.and_then(|k| k.get(&uid)) {
-            return k.clone();
+            let r = Rc::new(k.clone());
+            self.fixed.borrow_mut().insert(uid, r.clone());
+            return r;
         }
         let Some(fd) = m.func(func) else {
-            return Vec::new();
+            return Rc::new(Vec::new());
         };
+        if fd.is_external() || fd.is_llvm() || fd.is_internal() {
+            let r = Rc::new(self.get_fixed(m, func));
+            self.fixed.borrow_mut().insert(uid, r.clone());
+            return r;
+        }
+        self.get_bodied(m, func, uid)
+    }
+
+    fn get_fixed(&self, m: &Module, func: FuncId) -> Vec<CaptureInfo> {
+        let fd = m.func(func).unwrap();
         if fd.is_external() || fd.is_llvm() {
             let derives = has_attribute(m, func, &DERIVES_ATTR);
             if has_attribute(m, func, &SELF_CAPTURES_ATTR) {
@@ -394,15 +412,19 @@ impl<'a> CaptureContext<'a> {
         if fd.is_internal() {
             return make_no_capture_info(m, func, m.intrinsic_derives_from_arguments(func));
         }
-        // bodied
+        unreachable!("get_fixed on a bodied function")
+    }
+
+    fn get_bodied(&self, m: &Module, func: FuncId, uid: Id) -> Rc<Vec<CaptureInfo>> {
         if let Some(r) = self.results.borrow().get(&uid) {
             return r.clone();
         }
-        self.set(m, func, make_all_capture_info(m, func));
+        let all = Rc::new(make_all_capture_info(m, func));
+        self.set(m, func, all.clone());
         let Some(mut ct) = CaptureTracker::for_func(self, m, func) else {
             // Note: the reference asserts that every bodied function has a CFG; functions that
             // are not listed in the module get conservative (unknown) results instead.
-            return make_all_capture_info(m, func);
+            return all;
         };
         ct.run_to_completion(m, func);
         let mut answer = Vec::new();
@@ -415,6 +437,7 @@ impl<'a> CaptureContext<'a> {
                 answer.push(CaptureInfo::nothing());
             }
         }
+        let answer = Rc::new(answer);
         self.set(m, func, answer.clone());
         answer
     }
@@ -666,7 +689,7 @@ impl<'c, 'a> CaptureTracker<'c, 'a> {
             ValueKind::CallInstr(c) => {
                 let args = c.args.clone();
                 let func = get_func(m, c.callee);
-                let cap_info: Vec<CaptureInfo> = match func {
+                let cap_info: Rc<Vec<CaptureInfo>> = match func {
                     Some(f) => self.cc.get(m, f),
                     None => {
                         let arg_captures: Vec<u32> = args
@@ -676,7 +699,7 @@ impl<'c, 'a> CaptureTracker<'c, 'a> {
                             .map(|(i, _)| i as u32)
                             .collect();
                         let return_captures = should_track_value(m, v);
-                        args.iter()
+                        Rc::new(args.iter()
                             .map(|a| {
                                 if should_track_value(m, *a) {
                                     CaptureInfo {
@@ -689,7 +712,7 @@ impl<'c, 'a> CaptureTracker<'c, 'a> {
                                     CaptureInfo::nothing()
                                 }
                             })
-                            .collect()
+                            .collect())
                     }
                 };
                 for (i, &arg) in args.iter().enumerate() {
