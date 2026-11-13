@@ -131,7 +131,8 @@ def test_epochs_misc():
     assert ep2.get_data().shape == (4, 3, 21)
     assert ep.get_data().shape == (4, 3, 50)
     assert ep.get_data(picks="eeg").shape == (4, 2, 50)
-    assert ep.get_data(tmin=0.0, tmax=0.1).shape == (4, 3, 11)
+    # mne 1.13.2: _handle_tmin_tmax uses an exclusive stop index
+    assert ep.get_data(tmin=0.0, tmax=0.1).shape == (4, 3, 10)
     assert ep.average().data.shape == (2, 50)
     assert mne.__version__ == "1.13.2"
 
