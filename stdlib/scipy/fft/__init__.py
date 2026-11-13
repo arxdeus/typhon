@@ -103,3 +103,49 @@ def prev_fast_len(target: int, real: bool = False) -> int:
     while not _is_smooth(n, real):
         n -= 1
     return n
+
+from ._realtransforms import dct, idct, dst, idst, dctn, idctn, dstn, idstn
+from ._fftlog import fht, ifht, fhtoffset
+
+def _swap_norm(norm: Optional[str]) -> str:
+    if norm is None or norm == 'backward':
+        return 'forward'
+    if norm == 'forward':
+        return 'backward'
+    if norm == 'ortho':
+        return 'ortho'
+    raise ValueError(f'Invalid norm value {norm}; should be "backward", "ortho" or "forward"')
+
+def hfftn(x, s = None, axes = None, norm: Optional[str] = None,
+          overwrite_x: bool = False, workers: Optional[int] = None, plan = None):
+    a = np.asarray(x)
+    return _f.irfftn(np.conj(a), s, axes, _swap_norm(norm))
+
+def ihfftn(x, s = None, axes = None, norm: Optional[str] = None,
+           overwrite_x: bool = False, workers: Optional[int] = None, plan = None):
+    return np.conj(_f.rfftn(x, s, axes, _swap_norm(norm)))
+
+def hfft2(x, s = None, axes = (-2, -1), norm: Optional[str] = None,
+          overwrite_x: bool = False, workers: Optional[int] = None, plan = None):
+    return hfftn(x, s, axes, norm)
+
+def ihfft2(x, s = None, axes = (-2, -1), norm: Optional[str] = None,
+           overwrite_x: bool = False, workers: Optional[int] = None, plan = None):
+    return ihfftn(x, s, axes, norm)
+
+_WORKERS = [1]
+
+def get_workers() -> int:
+    return _WORKERS[0]
+
+class set_workers:
+    # context manager; worker count is recorded but transforms run single-threaded
+    workers: int
+    old: int
+    def __init__(self, workers: int):
+        self.workers = workers
+        self.old = _WORKERS[0]
+    def __enter__(self):
+        _WORKERS[0] = self.workers
+    def __exit__(self):
+        _WORKERS[0] = self.old
