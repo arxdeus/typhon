@@ -18,3 +18,8 @@ from ._ssp import compute_proj_ecg, compute_proj_eog
 # beamformer lane
 from ._eog_regression import EOGRegression
 from ._otp import oversampled_temporal_projection
+
+# maxwell / ICA extras lane
+from ._maxwell_filter import (maxwell_filter, compute_maxwell_basis, find_bad_channels_maxwell,
+                              maxwell_filter_prepare_emptyroom)
+from ._ica_ext import ica_find_ecg_events, ica_find_eog_events, corrmap, get_score_funcs
