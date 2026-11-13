@@ -144,8 +144,26 @@ impl<'a> TranslateVisitor<'a> {
 
     /// Translate every function AST in the cache (only pending realizations emit code).
     fn translate_all_functions(&mut self) -> Result<()> {
-        let asts: Vec<StmtId> = self.cache.functions.values().filter_map(|f| f.ast).collect();
-        for a in asts {
+        // Only functions with pending realizations generate anything; skip the rest
+        // (on-demand realization during IR passes calls this once per new function).
+        // Pending status is checked at visit time since translating one function can queue
+        // realizations of later ones.
+        let n = self.cache.functions.len();
+        for i in 0..n {
+            if self.cache.pending_realizations.is_empty() {
+                break;
+            }
+            let Some(a) = self.cache.functions.get_index(i).and_then(|(_, f)| f.ast) else {
+                continue;
+            };
+            if let Some(fs) = self.cache.ast[a].kind.as_function() {
+                let name = fs.name.clone();
+                let is_pending =
+                    self.cache.pending_realizations.range((name.clone(), String::new())..).next().is_some_and(|(n, _)| *n == name);
+                if !is_pending {
+                    continue;
+                }
+            }
             self.transform_stmt(a)?;
         }
         Ok(())

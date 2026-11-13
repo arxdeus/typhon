@@ -524,8 +524,9 @@ impl Cache {
     pub fn translate_function(&mut self, key: &str) -> Result<()> {
         let Some(ast) = self.functions.get(key).and_then(|f| f.ast) else { return Ok(()) };
         let Some(h) = self.hooks.translate.clone() else { return Ok(()) };
-        let c = self.ast.clone_stmt(ast, false);
-        h(self, c)
+        // Translation only reads the function statement (it emits the pending
+        // realizations by name), so the reference's defensive clone is skipped.
+        h(self, ast)
     }
 
     /// `makeTuple(types)`.

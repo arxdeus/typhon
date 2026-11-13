@@ -139,3 +139,7 @@ opt-level = 2
 [profile.release]
 lto = "thin"
 codegen-units = 16
+
+[profile.profiling]
+inherits = "release"
+debug = "line-tables-only"
