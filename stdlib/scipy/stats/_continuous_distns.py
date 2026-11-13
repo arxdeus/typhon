@@ -753,6 +753,49 @@ class _GumbelRK:
     def stats(sh): return (_EULER, _PI * _PI / 6.0, 12 * K.sqrt(6.0) / _PI ** 3 * _ZETA3, 12.0 / 5)
     @staticmethod
     def entropy(sh) -> float: return _EULER + 1.
+    @staticmethod
+    def fitc(data: np.ndarray[float, 1], fx: List[float]) -> List[float]:
+        return _gumbel_r_fit(data, fx[0], fx[1])
+
+class _GumbelScaleEq:
+    data: np.ndarray[float, 1]
+    floc: float
+    def __init__(self, data: np.ndarray[float, 1], floc: float):
+        self.data = data
+        self.floc = floc
+    def __call__(self, scale: float) -> float:
+        d = self.data
+        n = d.size
+        if self.floc == self.floc:
+            loc = self.floc
+            v = List[float](n)
+            for i in range(n):
+                v.append((loc - d[i]) * K.exp((loc - d[i]) / scale) + d[i])
+            return float(np.sum(np.array(v))) - n * (loc + scale)
+        lw = -d / scale
+        w = np.exp(lw - lw.max())
+        wavg = float(np.average(d, weights=w))
+        return float(d.mean()) - wavg - scale
+
+def _gumbel_loc_from_scale(d: np.ndarray[float, 1], scale: float) -> float:
+    a = -d / scale
+    m = float(a.max())
+    s = float(np.sum(np.exp(a - m)))
+    return -scale * ((K.log(s) + m) - K.log(float(d.size)))
+
+def _gumbel_r_fit(data: np.ndarray[float, 1], floc: float, fscale: float) -> List[float]:
+    from scipy.optimize import brentq
+    if fscale == fscale:
+        return [_gumbel_loc_from_scale(data, fscale), fscale]
+    f = _GumbelScaleEq(data, floc)
+    lb = 0.5
+    rb = 2.0
+    while not ((f(lb) > 0) != (f(rb) > 0)) and (lb > 0 or rb < INF):
+        lb /= 2
+        rb *= 2
+    scale = brentq(f, lb, rb, xtol=1e-14, rtol=1e-14)
+    loc = floc if floc == floc else _gumbel_loc_from_scale(data, scale)
+    return [loc, scale]
 
 @tuple
 class _GumbelLK:
@@ -776,6 +819,10 @@ class _GumbelLK:
     def stats(sh): return (-_EULER, _PI * _PI / 6.0, -12 * K.sqrt(6.0) / _PI ** 3 * _ZETA3, 12.0 / 5)
     @staticmethod
     def entropy(sh) -> float: return _EULER + 1.
+    @staticmethod
+    def fitc(data: np.ndarray[float, 1], fx: List[float]) -> List[float]:
+        r = _gumbel_r_fit(-data, -fx[0], fx[1])
+        return [-r[0], r[1]]
 
 # ------------------------------------------------------- pareto / lomax
 
