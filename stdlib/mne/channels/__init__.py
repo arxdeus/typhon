@@ -474,3 +474,4 @@ def _calc_h(cosang: np.ndarray[float, 2], stiffness: float = 4, n_legendre_terms
 
 from ._more import read_custom_montage, make_1020_channel_selections, combine_channels
 from ._layout import Layout, read_layout, make_eeg_layout, make_grid_layout, generate_2d_layout, find_layout
+from ._dig import (Transform, read_dig_dat, read_dig_hpts, read_dig_localite, read_dig_polhemus_isotrak, read_polhemus_fastscan, read_dig_captrak, read_dig_egi, compute_native_head_t, transform_to_head, get_builtin_montages, get_builtin_ch_adjacencies, rename_channels, unify_bad_channels)
