@@ -478,3 +478,15 @@ class IPv6Network:
     def __eq__(self, o: IPv6Network) -> bool:
         return self.network_address == o.network_address and self.prefixlen == o.prefixlen
 
+
+
+def ip_address_v6(address: str) -> IPv6Address:
+    return IPv6Address(address)
+
+
+def ip_network_v6(address: str, strict: bool = True) -> IPv6Network:
+    return IPv6Network(address, strict)
+
+
+def is_ipv6(address: str) -> bool:
+    return ":" in address

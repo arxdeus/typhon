@@ -1316,3 +1316,65 @@ class timedelta:
 
     def __add__(self, other: datetime, /) -> datetime:
         return other + self
+
+@tuple
+class timezone:
+    utc: ClassVar[timezone]
+    _offset_us: int
+    _name: str
+
+    def __new__(offset: timedelta, name: str = "") -> timezone:
+        us = offset.days * 86400000000 + offset.seconds * 1000000 + offset.microseconds
+        if us <= -86400000000 or us >= 86400000000:
+            raise ValueError("offset must be a timedelta strictly between -timedelta(hours=24) and timedelta(hours=24)")
+        return superf(us, name)
+
+    def utcoffset(self, dt=None) -> timedelta:
+        return timedelta(microseconds=self._offset_us)
+
+    def tzname(self, dt=None) -> str:
+        if self._name != "":
+            return self._name
+        us = self._offset_us
+        if us == 0:
+            return "UTC"
+        sign = "-" if us < 0 else "+"
+        us = -us if us < 0 else us
+        total = us // 1000000
+        h = total // 3600
+        m = (total % 3600) // 60
+        s = total % 60
+        r = f"UTC{sign}{str(h).zfill(2)}:{str(m).zfill(2)}"
+        if s != 0 or us % 1000000 != 0:
+            r += f":{str(s).zfill(2)}"
+            if us % 1000000 != 0:
+                r += f".{str(us % 1000000).zfill(6)}"
+        return r
+
+    def __str__(self) -> str:
+        return self.tzname()
+
+    def __repr__(self) -> str:
+        if self._offset_us == 0 and self._name == "":
+            return "datetime.timezone.utc"
+        o = repr(timedelta(microseconds=self._offset_us))
+        if self._name == "":
+            return f"datetime.timezone({o})"
+        return f"datetime.timezone({o}, {self._name!r})"
+
+    def __eq__(self, o: timezone) -> bool:
+        return self._offset_us == o._offset_us
+
+    def _format_offset(self, colon: bool = False) -> str:
+        us = self._offset_us
+        sign = "-" if us < 0 else "+"
+        us = -us if us < 0 else us
+        total = us // 1000000
+        h = total // 3600
+        m = (total % 3600) // 60
+        return sign + str(h).zfill(2) + (":" if colon else "") + str(m).zfill(2)
+
+    def fromutc_naive(self, dt: datetime) -> datetime:
+        return dt + timedelta(microseconds=self._offset_us)
+
+timezone.utc = timezone(timedelta(0))

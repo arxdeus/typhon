@@ -860,3 +860,23 @@ class Decimal:
 
     def log10(self) -> Decimal:
         return _dec_log10(self)
+
+@extend
+class Decimal:
+    def __pow__(self, y: Decimal) -> Decimal:
+        # integral exponent: exact repeated multiplication path
+        if y._special == 0:
+            yi = y.to_integral_value("ROUND_DOWN")
+            if yi == y and _ndigits(yi._coef) + (yi._exp if yi._exp > 0 else 0) <= 15:
+                return self.__pow__(int(yi))
+        if self._special != 0 or y._special != 0:
+            raise InvalidOperation("[<class 'decimal.InvalidOperation'>]")
+        if self._sign == 1 and not self.is_zero():
+            raise InvalidOperation("[<class 'decimal.InvalidOperation'>]")
+        if self.is_zero():
+            return Decimal(0, Int[512](0), 0)
+        saved = _CTX.prec
+        _CTX.prec = saved + 12
+        r = (y * _dec_ln(self)).exp()
+        _CTX.prec = saved
+        return r._fix()
