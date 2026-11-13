@@ -29,3 +29,4 @@ from ._pca_obs import apply_pca_obs
 from ._fmri import GradientRemover, remove_fmri_gradient_artifact
 from ._realign import realign_raw
 from ._css import cortical_signal_suppression
+from ._ica_io import read_ica
