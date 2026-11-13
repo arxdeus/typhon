@@ -486,7 +486,20 @@ def _pearson1(x, y, alternative: str):
         raise ValueError("`alternative` must be 'less', 'greater', or 'two-sided'.")
     return (r, p)
 
+def _pearson_stat(u, v):
+    return _pearson1(_f64(u), _f64(v), 'two-sided')[0]
+
 def pearsonr(x, y, *, alternative: str = 'two-sided', method = None, axis = 0):
+    from ._final_misc import PermutationMethod
+    if isinstance(method, PermutationMethod):
+        from ._resampling import permutation_test
+        xa = _f64(x).ravel()
+        ya = _f64(y).ravel()
+        r0 = _pearson1(xa, ya, alternative)
+        pt = permutation_test((xa, ya), _pearson_stat, permutation_type='pairings',
+                              vectorized=False, n_resamples=method.n_resamples,
+                              alternative=alternative, rng=method.rng)
+        return PearsonRResult(r0[0], pt.pvalue)
     if axis is None:
         r = _pearson1(_f64(x).ravel(), _f64(y).ravel(), alternative)
         return PearsonRResult(r[0], r[1])
