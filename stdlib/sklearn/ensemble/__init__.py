@@ -3,7 +3,7 @@
 # sklearn.ensemble (dense input, single output).
 
 from ._forest import (RandomForestClassifier, RandomForestRegressor, ExtraTreesClassifier,
-                      ExtraTreesRegressor)
+                      ExtraTreesRegressor, RandomTreesEmbedding)
 from ._gb import GradientBoostingClassifier, GradientBoostingRegressor
 from ._weight_boosting import AdaBoostClassifier, AdaBoostRegressor
 from ._bagging import BaggingClassifier, BaggingRegressor, IsolationForest

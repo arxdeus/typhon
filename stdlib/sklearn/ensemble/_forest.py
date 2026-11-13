@@ -13,6 +13,7 @@ from ..tree._classes import (DecisionTreeClassifier, DecisionTreeRegressor, Extr
                              _to_f32_colmajor, _missing_mask, _encode_classes, _check_rs, _r2)
 from ._base import (MAX_INT, _get_n_samples_bootstrap, _parse_max_samples,
                     _generate_sample_indices, _generate_unsampled_indices, _bincount, _mean_rows)
+from ..preprocessing._encoders import OneHotEncoder
 
 def _balanced_class_weight(yenc: List[float], nc: int, indices: List[int]) -> List[float]:
     """compute_sample_weight('balanced', y, indices=indices) for encoded y."""
@@ -436,3 +437,64 @@ class ExtraTreesRegressor(_ForestRegressor[ExtraTreeRegressor]):
 
     def _new_tree(self) -> ExtraTreeRegressor:
         return ExtraTreeRegressor()
+
+class RandomTreesEmbedding(_ForestRegressor[ExtraTreeRegressor]):
+    """An ensemble of totally random trees: transforms data into a one-hot
+    encoding of the leaf index in each tree. Deviation: transform always
+    returns a dense ndarray (use scipy.sparse.csr_matrix(...) or
+    transform_sparse() for the sparse form); sparse_output is stored only."""
+    sparse_output: bool
+    one_hot_encoder_: OneHotEncoder[int]
+    _n_features_out: int
+
+    @property
+    def _estimator_type(self) -> str:
+        return "transformer"
+
+    def __init__(self, n_estimators: int = 100, *, max_depth: Optional[int] = 5,
+                 min_samples_split = 2, min_samples_leaf = 1,
+                 min_weight_fraction_leaf: float = 0.0, max_leaf_nodes: Optional[int] = None,
+                 min_impurity_decrease: float = 0.0, sparse_output: bool = True,
+                 n_jobs: Optional[int] = None, random_state: Optional[int] = None,
+                 verbose: int = 0, warm_start: bool = False):
+        _BaseForest[ExtraTreeRegressor].__init__(self, False, n_estimators, "squared_error", max_depth,
+                          min_samples_split, min_samples_leaf, min_weight_fraction_leaf, 1,
+                          max_leaf_nodes, min_impurity_decrease, False, False, n_jobs,
+                          random_state, verbose, warm_start, None, 0.0, None, None, "random")
+        self.sparse_output = sparse_output
+        self.one_hot_encoder_ = OneHotEncoder[int](sparse_output=False)
+        self._n_features_out = 0
+
+    def _new_tree(self) -> ExtraTreeRegressor:
+        return ExtraTreeRegressor()
+
+    def fit(self, X, y = None, sample_weight = None):
+        self.fit_transform(X, y, sample_weight)
+        return self
+
+    def fit_transform(self, X, y = None, sample_weight = None):
+        Xa = np.asarray(X, dtype=float)
+        n = Xa.shape[0]
+        rnd = _check_rs(self.random_state)
+        yy = rnd.uniform(0.0, 1.0, n)
+        _ForestRegressor[ExtraTreeRegressor].fit(self, Xa, yy, sample_weight)
+        enc = OneHotEncoder[int](sparse_output=False)
+        out = enc.fit_transform(self.apply(Xa))
+        self.one_hot_encoder_ = enc
+        self._n_features_out = out.shape[1]
+        return out
+
+    def transform(self, X):
+        return self.one_hot_encoder_.transform(self.apply(X))
+
+    def transform_sparse(self, X):
+        from scipy.sparse import csr_matrix
+        return csr_matrix(self.transform(X))
+
+    def get_feature_names_out(self, input_features = None) -> List[str]:
+        out = List[str]()
+        for tree in range(self.n_estimators):
+            cats = self.one_hot_encoder_.categories_[tree]
+            for i in range(cats.shape[0]):
+                out.append(f"randomtreesembedding_{tree}_{int(cats[i])}")
+        return out
