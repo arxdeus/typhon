@@ -126,6 +126,18 @@ impl<'a> TypecheckVisitor<'a> {
             }
         }
 
+        // A type value (e.g. `Union[int, float]` passed as an argument) is never a Union
+        // instance: `Union._get_tag` on it would read an empty TypeWrap record.
+        {
+            let a0 = self.sp_arg(e, 0);
+            if types.is(tcls, &st.union)
+                && (Self::is_type_expr(self.cache, a0) || types.is(typ, &st.type_wrap))
+            {
+                let b = self.sp_bool(false);
+                return self.transform(Some(b));
+            }
+        }
+
         // Check type match
         if types.class_name(tcls) == types.class_name(typ) {
             let mut us = Unification::new();

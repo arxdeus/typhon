@@ -496,3 +496,13 @@ class V:
     def __eq__(self, o: V) -> List[bool]:
         return [True]
 print(V(1) is V(1), V(1) is V(2), V(1) is not V(2)) #: True False True
+
+#%% isinstance_type_value_union
+def utag(v):
+    if isinstance(v, Union):
+        for tag, T in static.vars_types(v, with_index=True):
+            if Union._get_tag(v) == tag:
+                return tag
+    return -1
+ux: Union[int, bool, float] = 2.5
+print(utag(Union[int, bool, float]), utag(ux), isinstance(Union[int, float], Union)) #: -1 2 False
