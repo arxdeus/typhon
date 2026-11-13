@@ -538,7 +538,7 @@ def fit_dipole(evoked: Evoked, cov: Covariance, bem: ConductorModel, trans = Non
     fixed_position = not isinstance(pos, NoneType)
     pos_a = np.zeros(3)
     ori_a: Optional[np.ndarray[float, 1]] = None
-    if fixed_position:
+    if not isinstance(pos, NoneType):
         pos_a = np.array(pos, dtype=float)
         if pos_a.shape[0] != 3:
             raise ValueError(f"pos must be None or a 3-element array-like, got {pos_a}")
@@ -686,9 +686,6 @@ def make_forward_dipole(dipole: Dipole, bem: ConductorModel, info: Info, trans =
             data[row + k, tp] = amplitude[sel[k]]
         row += len(sel)
     vert = fwd.src.spaces[0].vertno
-    if tstep > 0:
-        return fwd, _STC[np.ndarray[float, 2]](data, [vert], float(tps[0]), tstep, None, "volume")
-    stcs = List[_STC[np.ndarray[float, 2]]]()
-    for tp in range(tps.shape[0]):
-        stcs.append(_STC[np.ndarray[float, 2]](data[:, tp:tp + 1].copy(), [vert], float(tps[tp]), 0.001, None, "volume"))
-    return fwd, stcs
+    if tstep <= 0:
+        raise NotImplementedError("make_forward_dipole: unevenly spaced dipole times (a list of STCs) are not supported")
+    return fwd, _STC[np.ndarray[float, 2]](data, [vert], float(tps[0]), tstep, None, "volume")

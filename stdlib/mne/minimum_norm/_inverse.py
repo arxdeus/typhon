@@ -70,6 +70,7 @@ def _prepare_forward(forward: Forward, info: Info, noise_cov: Covariance, fixed,
     else:
         orient_prior = compute_orient_prior(fwd, lo)
     nc = prepare_noise_cov(noise_cov, info, names, rank)
+    nc.diag = False  # mne stores the prepared covariance as a full matrix
     W, _ = compute_whitener(nc, info, names, rank, None, False, pca)
     gain = np.dot(W, fwd.sol)
     source_std = np.ones(gain.shape[1])

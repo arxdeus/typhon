@@ -388,9 +388,11 @@ def prepare_inverse_operator(orig: InverseOperator, nave: float, lambda2: float,
     nc = inv.noise_cov
     nc._C = nc._C * scale
     if nc.diag:
+        # operator covariances are stored as full matrices: eig is scaled once
         nc.eig = np.diag(nc._C).copy()
         nc.eigvec = np.eye(nc._C.shape[0])
-    nc.eig = nc.eig.__val__() * scale
+    else:
+        nc.eig = nc.eig.__val__() * scale
     inv.source_cov = inv.source_cov * scale
     if inv.eigen_leads_weighted:
         inv.eigen_leads = inv.eigen_leads * np.sqrt(scale)

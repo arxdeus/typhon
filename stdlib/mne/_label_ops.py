@@ -161,9 +161,8 @@ def extract_label_time_course(stcs, labels, src: SourceSpaces, mode: str = "auto
 def labels_to_stc(labels, values, tmin: float = 0.0, tstep: float = 1.0, subject = None, src = None,
                   verbose = None):
     """mne.labels_to_stc: surface case (src=None). Vertices in several labels get the mean."""
-    v = np.asarray(values, dtype=float)
-    if v.ndim == 1:
-        v = v.reshape((v.shape[0], 1))
+    v0 = np.asarray(values, dtype=float)
+    v = v0.reshape((v0.shape[0], v0.size // v0.shape[0]))
     if v.shape[0] != len(labels):
         raise ValueError(f"values.shape[0] ({v.shape[0]}) must match the number of labels ({len(labels)})")
     verts = List[np.ndarray[int, 1]]()

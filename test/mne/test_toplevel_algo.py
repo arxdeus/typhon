@@ -261,6 +261,9 @@ def test_forward_utils():
 test_forward_utils()
 
 
+D = "test/mne/data/"
+
+
 @test
 def test_dipole():
     d = mne.read_dipole(D + "tl.dip")
