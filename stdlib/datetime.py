@@ -326,15 +326,17 @@ def _parse_hh_mm_ss_ff(tstr: str) -> Tuple[int, int, int, int]:
             _isoformat_error(tstr)
 
     len_remains = len(p)
-    if not (len_remains == 6 or len_remains == 3):
+    if len_remains < 1:
         _isoformat_error(tstr)
-
-    p, microsecond = _parse_digits(p, len_remains)
+    take = 6 if len_remains > 6 else len_remains
+    p2, microsecond = _parse_digits(p, take)
     if microsecond < 0:
         _isoformat_error(tstr)
-
-    if len_remains == 3:
-        microsecond *= 1000
+    for ch in p[take:]:
+        if not ("0" <= ch <= "9"):
+            _isoformat_error(tstr)
+    for _ in range(6 - take):
+        microsecond *= 10
 
     return hour, minute, second, microsecond
 
@@ -387,6 +389,179 @@ def _format_ctime(
     )
     wday = _weekday(year, month, day)
     return f"{DAY_NAMES[wday]} {MONTH_NAMES[month - 1]} {str(day).rjust(2)} {str(hours).zfill(2)}:{str(minutes).zfill(2)}:{str(seconds).zfill(2)} {str(year).zfill(4)}"
+
+_DAY_FULL = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+_MONTH_FULL = ("January", "February", "March", "April", "May", "June", "July",
+               "August", "September", "October", "November", "December")
+
+
+def _strftime(fmt: str, year: int, month: int, day: int, hour: int, minute: int,
+              second: int, us: int) -> str:
+    wday = _weekday(year, month, day)
+    yday = _days_before_month(year, month) + day
+    out = ""
+    n = len(fmt)
+    i = 0
+    while i < n:
+        c = fmt[i]
+        i += 1
+        if c != "%" or i >= n:
+            out += c
+            continue
+        d = fmt[i]
+        i += 1
+        if d == "Y": out += str(year).zfill(4)
+        elif d == "C": out += str(year // 100).zfill(2)
+        elif d == "y": out += str(year % 100).zfill(2)
+        elif d == "m": out += str(month).zfill(2)
+        elif d == "d": out += str(day).zfill(2)
+        elif d == "e": out += str(day).rjust(2)
+        elif d == "H": out += str(hour).zfill(2)
+        elif d == "I": out += str(((hour + 11) % 12) + 1).zfill(2)
+        elif d == "M": out += str(minute).zfill(2)
+        elif d == "S": out += str(second).zfill(2)
+        elif d == "f": out += str(us).zfill(6)
+        elif d == "p": out += "AM" if hour < 12 else "PM"
+        elif d == "a": out += _DAY_FULL[wday][:3]
+        elif d == "A": out += _DAY_FULL[wday]
+        elif d == "b" or d == "h": out += _MONTH_FULL[month - 1][:3]
+        elif d == "B": out += _MONTH_FULL[month - 1]
+        elif d == "j": out += str(yday).zfill(3)
+        elif d == "w": out += str((wday + 1) % 7)
+        elif d == "u": out += str(wday + 1)
+        elif d == "U": out += str((yday + 6 - (wday + 1) % 7) // 7).zfill(2)
+        elif d == "W": out += str((yday + 6 - wday) // 7).zfill(2)
+        elif d == "z" or d == "Z": out += ""
+        elif d == "%": out += "%"
+        elif d == "n": out += "\n"
+        elif d == "t": out += "\t"
+        elif d == "D": out += _strftime("%m/%d/%y", year, month, day, hour, minute, second, us)
+        elif d == "F": out += _strftime("%Y-%m-%d", year, month, day, hour, minute, second, us)
+        elif d == "T": out += _strftime("%H:%M:%S", year, month, day, hour, minute, second, us)
+        elif d == "R": out += _strftime("%H:%M", year, month, day, hour, minute, second, us)
+        elif d == "r": out += _strftime("%I:%M:%S %p", year, month, day, hour, minute, second, us)
+        elif d == "c": out += _strftime("%a %b %e %H:%M:%S %Y", year, month, day, hour, minute, second, us)
+        elif d == "x": out += _strftime("%m/%d/%y", year, month, day, hour, minute, second, us)
+        elif d == "X": out += _strftime("%H:%M:%S", year, month, day, hour, minute, second, us)
+        elif d == "G" or d == "V" or d == "g":
+            iso = date(year, month, day).isocalendar()
+            if d == "G": out += str(iso.year).zfill(4)
+            elif d == "g": out += str(iso.year % 100).zfill(2)
+            else: out += str(iso.week).zfill(2)
+        else:
+            out += "%" + d
+    return out
+
+
+def _scan_int(s: str, pos: int, maxlen: int, minlen: int = 1) -> Tuple[int, int]:
+    j = pos
+    while j < len(s) and j - pos < maxlen and "0" <= s[j] <= "9":
+        j += 1
+    if j - pos < minlen:
+        raise ValueError(f"time data '{s}' does not match format")
+    return int(s[pos:j]), j
+
+
+def _scan_name(s: str, pos: int, full, abbr: bool) -> Tuple[int, int]:
+    for k in range(len(full)):
+        name = full[k]
+        for cand in (name, name[:3]):
+            m = len(cand)
+            if s[pos:pos + m].lower() == cand.lower():
+                # prefer the longest candidate (full name first)
+                return k, pos + m
+    raise ValueError(f"time data '{s}' does not match format")
+
+
+def _strptime(s: str, fmt: str) -> Tuple[int, int, int, int, int, int, int]:
+    year = 1900
+    month = 1
+    day = 1
+    hour = 0
+    minute = 0
+    second = 0
+    us = 0
+    pm = -1
+    yday = -1
+    pos = 0
+    i = 0
+    n = len(fmt)
+    bad = False
+    while i < n:
+        c = fmt[i]
+        i += 1
+        if c == "%" and i < n:
+            d = fmt[i]
+            i += 1
+            if d == "Y": year, pos = _scan_int(s, pos, 4, 4)
+            elif d == "y":
+                year, pos = _scan_int(s, pos, 2, 2)
+                year += 2000 if year < 69 else 1900
+            elif d == "m": month, pos = _scan_int(s, pos, 2)
+            elif d == "d" or d == "e":
+                while pos < len(s) and s[pos] == " " and d == "e":
+                    pos += 1
+                day, pos = _scan_int(s, pos, 2)
+            elif d == "H": hour, pos = _scan_int(s, pos, 2)
+            elif d == "I": hour, pos = _scan_int(s, pos, 2)
+            elif d == "M": minute, pos = _scan_int(s, pos, 2)
+            elif d == "S": second, pos = _scan_int(s, pos, 2)
+            elif d == "j": yday, pos = _scan_int(s, pos, 3)
+            elif d == "f":
+                j = pos
+                while j < len(s) and j - pos < 6 and "0" <= s[j] <= "9":
+                    j += 1
+                if j == pos:
+                    raise ValueError(f"time data '{s}' does not match format")
+                us = int(s[pos:j].ljust(6, "0"))
+                pos = j
+            elif d == "p":
+                t = s[pos:pos + 2].upper()
+                if t == "AM": pm = 0
+                elif t == "PM": pm = 1
+                else: raise ValueError(f"time data '{s}' does not match format")
+                pos += 2
+            elif d == "b" or d == "B":
+                k, pos = _scan_name(s, pos, _MONTH_FULL, d == "b")
+                month = k + 1
+            elif d == "a" or d == "A":
+                k, pos = _scan_name(s, pos, _DAY_FULL, d == "a")
+            elif d == "%":
+                if pos < len(s) and s[pos] == "%": pos += 1
+                else: bad = True
+            elif d == "T":
+                hour, pos = _scan_int(s, pos, 2)
+                pos += 1
+                minute, pos = _scan_int(s, pos, 2)
+                pos += 1
+                second, pos = _scan_int(s, pos, 2)
+            elif d == "F":
+                year, pos = _scan_int(s, pos, 4, 4)
+                pos += 1
+                month, pos = _scan_int(s, pos, 2)
+                pos += 1
+                day, pos = _scan_int(s, pos, 2)
+            else:
+                raise ValueError(f"'{d}' is a bad directive in format '{fmt}'")
+        elif c == " ":
+            while pos < len(s) and s[pos] == " ":
+                pos += 1
+        else:
+            if pos < len(s) and s[pos] == c: pos += 1
+            else: bad = True
+        if bad:
+            raise ValueError(f"time data '{s}' does not match format '{fmt}'")
+    if pos < len(s):
+        raise ValueError(f"unconverted data remains when parsing with format '{fmt}': '{s[pos:]}'")
+    if pm >= 0:
+        if hour < 1 or hour > 12:
+            raise ValueError("hour must be in 1..12")
+        hour = hour % 12 + (12 if pm == 1 else 0)
+    if yday >= 1:
+        o = _days_before_year(year) + yday
+        y2, month, day = _ord_to_ymd(o)
+    return year, month, day, hour, minute, second, us
+
 
 def _utc_to_seconds(
     year: int, month: int, day: int, hour: int, minute: int, second: int
@@ -761,7 +936,11 @@ class date:
     def ctime(self, /) -> str:
         return _format_ctime(self.year, self.month, self.day, 0, 0, 0)
 
-    # strftime() / __format__() not supported
+    def strftime(self, fmt: str, /) -> str:
+        return _strftime(fmt, self.year, self.month, self.day, 0, 0, 0, 0)
+
+    def __format__(self, spec: str, /) -> str:
+        return self.strftime(spec) if spec else self.isoformat()
 
 
 date.min = date(MINYEAR, 1, 1)
@@ -1109,6 +1288,17 @@ class datetime:
         date_part = str(self.date())
         time_part = self.time().isoformat(timespec=timespec)
         return f"{date_part}{sep}{time_part}"
+
+    def strftime(self, fmt: str, /) -> str:
+        return _strftime(fmt, self.year, self.month, self.day, self.hour,
+                         self.minute, self.second, self.microsecond)
+
+    def __format__(self, spec: str, /) -> str:
+        return self.strftime(spec) if spec else self.isoformat()
+
+    def strptime(date_string: str, fmt: str, /) -> datetime:
+        y, mo, d, h, mi, s, us = _strptime(date_string, fmt)
+        return datetime(y, mo, d, h, mi, s, us)
 
     def ctime(self, /) -> str:
         date = self.date()

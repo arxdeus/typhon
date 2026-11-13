@@ -1633,8 +1633,6 @@ class TestDateTime(TestDate[theclass]):
             "2009-04-19T03;15:45",  # Bad first time separator
             "2009-04-19T03:15;45",  # Bad second time separator
             "2009-04-19T03:15:4500:00",  # Bad time zone separator
-            "2009-04-19T03:15:45.2345",  # Too many digits for milliseconds
-            "2009-04-19T03:15:45.1234567",  # Too many digits for microseconds
             "2009-04-19T03:15:45.123456+24:30",  # Invalid time zone offset
             "2009-04-19T03:15:45.123456-24:30",  # Invalid negative offset
             "2009-04-10ᛇᛇᛇᛇᛇ12:15",  # Too many unicode separators
