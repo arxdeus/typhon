@@ -37,3 +37,8 @@ from ._morestats import shapiro, anderson, anderson_ksamp, ansari, mood, \
     ks_1samp, ks_2samp, kstest, cramervonmises, cramervonmises_2samp, \
     poisson_means_test, epps_singleton_2samp
 from . import qmc
+from . import contingency
+from .contingency import somersd, page_trend_test, relative_risk, odds_ratio, \
+    crosstab
+from ._kde_binned import gaussian_kde, binned_statistic, binned_statistic_2d, \
+    binned_statistic_dd, weightedtau

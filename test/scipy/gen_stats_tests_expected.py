@@ -246,4 +246,56 @@ def qmc_():
     emit('vdc', van_der_corput(7, 3, start_index=2))
     emit('ints', qmc.Sobol(2, rng=4).integers(10, n=4))
 
-{'qmc': qmc_, 'desc': desc, 'tests1': tests1, 'tests2': tests2}[sys.argv[1]]()
+def misc():
+    import warnings
+    warnings.simplefilter('ignore')
+    from scipy.stats import contingency as ct
+    big = np.cos(np.arange(40.) * 1.3) * 2 + np.arange(40.) * 0.1
+    emit('big', big)
+    tb = np.array([[10, 12, 5], [11, 9, 14]])
+    emit('ef', ct.expected_freq(tb))
+    m = ct.margins(tb); emit('mg0', m[0]); emit('mg1', m[1])
+    emit('assoc', [ct.association(tb), ct.association(tb, method='tschuprow'), ct.association(tb, method='pearson')])
+    a = np.array([1, 2, 2, 3, 1, 3, 3, 2]); b = np.array([0, 0, 1, 1, 1, 0, 1, 1])
+    r = ct.crosstab(a, b); emit('ctab', r.count)
+    rr = ct.relative_risk(12, 30, 5, 28); ci = rr.confidence_interval(0.9)
+    emit('rr', [rr.relative_risk, ci.low, ci.high])
+    out = []
+    for t2 in [[[8, 2], [1, 5]], [[10, 12], [11, 9]], [[3, 7], [9, 2]]]:
+        o = ct.odds_ratio(t2); c1 = o.confidence_interval(0.95); c2 = o.confidence_interval(0.9, alternative='less')
+        o2 = ct.odds_ratio(t2, kind='sample'); c3 = o2.confidence_interval()
+        out += [o.statistic, c1.low, c1.high, c2.high, o2.statistic, c3.low, c3.high]
+    emit('orr', out)
+    out = []
+    r = st.somersd(np.round(x), np.round(y)); out += [r.statistic, r.pvalue]
+    r = st.somersd(np.array([[10, 3, 2], [4, 8, 5], [1, 2, 9]])); out += [r.statistic, r.pvalue]
+    r = st.somersd(np.round(x), np.round(y), alternative='greater'); out += [r.statistic, r.pvalue]
+    emit('sd', out)
+    D = np.array([[1., 2, 3, 4], [2, 1, 4, 3], [1, 3, 2, 4], [2, 3, 1, 4], [1, 2, 4, 3]])
+    out = []
+    r = st.page_trend_test(D); out += [r.statistic, r.pvalue]
+    r = st.page_trend_test(D, method='asymptotic'); out += [r.statistic, r.pvalue]
+    r = st.page_trend_test(big[:30].reshape(6, 5)); out += [r.statistic, r.pvalue]
+    r = st.page_trend_test(big[:30].reshape(3, 10)); out += [r.statistic, r.pvalue]
+    emit('pt', out)
+    k = st.gaussian_kde(x); pts = np.array([1.0, 2.5, 3.7, 5.0, 7.0])
+    emit('kde', list(k(pts)) + list(k.logpdf(pts)) + [k.factor, k.integrate_box_1d(2.0, 4.0), k.integrate_gaussian(np.array([3.0]), np.array([[0.5]]))])
+    k2 = st.gaussian_kde(x, bw_method='silverman', weights=y); emit('kde2', list(k2(pts)) + [k2.factor, k2.neff])
+    k3 = st.gaussian_kde(np.vstack([x, y]), bw_method=0.4); emit('kde3', k3(np.array([[2., 3., 4.], [3., 3.5, 2.]])))
+    out = []
+    for s_ in ['mean', 'std', 'median', 'count', 'sum', 'min', 'max']:
+        r = st.binned_statistic(x, y, statistic=s_, bins=4); out += list(r.statistic)
+    r = st.binned_statistic(x, y, bins=[1.0, 3.0, 4.5, 7.0]); out += list(r.statistic) + list(r.binnumber)
+    r = st.binned_statistic(x, y, bins=3, range=(2.0, 6.0)); out += list(r.statistic) + list(r.bin_edges) + list(r.binnumber)
+    emit('bs', out)
+    r = st.binned_statistic_2d(x, y, big[:12], statistic='mean', bins=3); emit('bs2', list(r.statistic.ravel()) + list(r.x_edge) + list(r.y_edge) + list(r.binnumber))
+    r = st.binned_statistic_dd(np.vstack([x, y]).T, big[:12], statistic='sum', bins=2); emit('bsd', list(r.statistic.ravel()) + list(r.binnumber))
+    out = []
+    r = st.weightedtau(x, y); out += [r.statistic]
+    r = st.weightedtau(np.round(x), np.round(y)); out += [r.statistic]
+    r = st.weightedtau(x, y, additive=False); out += [r.statistic]
+    r = st.weightedtau(x, y, rank=False); out += [r.statistic]
+    r = st.weightedtau(big, big[::-1] ** 2); out += [r.statistic]
+    emit('wt', out)
+
+{'misc': misc, 'qmc': qmc_, 'desc': desc, 'tests1': tests1, 'tests2': tests2}[sys.argv[1]]()
