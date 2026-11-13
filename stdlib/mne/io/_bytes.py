@@ -35,6 +35,8 @@ def _uint_le(b: bytes, off: int, n: int) -> int:
 
 
 def _sint(u: int, n: int) -> int:
+    if n >= 8:
+        return u  # already two's complement in a 64-bit int (1 << 64 is UB)
     if u >= (1 << (8 * n - 1)):
         return u - (1 << (8 * n))
     return u
