@@ -23,6 +23,8 @@ from ._continuous_distns3 import halflogistic, genhalflogistic, halfgennorm, \
     invweibull, exponpow, powernorm, powerlognorm, laplace_asymmetric, trapezoid, \
     truncweibull_min, truncpareto, gengamma, genexpon, kappa4, crystalball, argus, \
     tukeylambda, kstwobign, rel_breitwigner
+from ._continuous_distns4 import skewcauchy, irwinhall, gausshyper, ksone, \
+    norminvgauss
 from ._distn_infrastructure import rv_discrete, rv_discrete_frozen, rv_histogram
 from ._discrete_distns import binom, bernoulli, betabinom, nbinom, betanbinom, \
     geom, hypergeom, nhypergeom, logser, poisson, planck, boltzmann, randint, \

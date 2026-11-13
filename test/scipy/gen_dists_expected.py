@@ -65,6 +65,11 @@ GROUPS = {
         ('crystalball', (2.0, 3.0), 1e-10), ('argus', (1.0,), 1e-9),
         ('tukeylambda', (3.1,), 1e-9), ('kstwobign', (), 1e-9), ('rel_breitwigner', (36.5,), 1e-8),
     ],
+    'c4': [
+        ('skewcauchy', (0.4,), 1e-12), ('irwinhall', (3,), 1e-11),
+        ('gausshyper', (13.8, 3.1, 2.5, 5.2), 2e-8), ('ksone', (10,), 1e-9),
+        ('norminvgauss', (2.0, 0.5), 1e-8),
+    ],
 }
 
 DGROUPS = {
