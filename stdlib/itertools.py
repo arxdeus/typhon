@@ -678,3 +678,27 @@ def permutations(pool, r = None) -> Generator:
 @overload
 def permutations(pool, r: Literal[int]) -> Generator:
     return _permutations_static(pool, r)
+
+def pairwise(iterable: Generator[T], T: type) -> Generator[Tuple[T, T]]:
+    first = True
+    prev = T()
+    for x in iterable:
+        if first:
+            first = False
+        else:
+            yield (prev, x)
+        prev = x
+
+def batched(iterable: Generator[T], n: int, T: type, strict: bool = False) -> Generator[List[T]]:
+    if n < 1:
+        raise ValueError("n must be at least one")
+    batch = List[T]()
+    for x in iterable:
+        batch.append(x)
+        if len(batch) == n:
+            yield batch
+            batch = List[T]()
+    if len(batch) > 0:
+        if strict:
+            raise ValueError("batched(): incomplete batch")
+        yield batch
