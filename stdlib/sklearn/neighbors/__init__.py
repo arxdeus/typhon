@@ -9,3 +9,4 @@ from ._supervised import (KNeighborsClassifier, KNeighborsRegressor,
                           RadiusNeighborsClassifier, RadiusNeighborsRegressor)
 from ._nearest_centroid import NearestCentroid
 from ._kde import KernelDensity, kernel_norm
+from ._binary_tree import BallTree, KDTree
