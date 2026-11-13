@@ -14,3 +14,11 @@ def test_calendar():
     assert calendar.timegm((2001, 9, 9, 1, 46, 40)) == 1000000000
 
 test_calendar()
+
+
+@test
+def test_text_calendar():
+    import calendar
+    assert calendar.TextCalendar(6).formatmonth(2024, 2, 3, 2) == '       February 2024\n\nSun Mon Tue Wed Thu Fri Sat\n\n                  1   2   3\n\n  4   5   6   7   8   9  10\n\n 11  12  13  14  15  16  17\n\n 18  19  20  21  22  23  24\n\n 25  26  27  28  29\n\n'
+    assert calendar.weekheader(3) == "Mon Tue Wed Thu Fri Sat Sun"
+    assert calendar.calendar(2024).startswith("                                  2024\n\n      January")

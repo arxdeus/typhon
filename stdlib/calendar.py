@@ -73,17 +73,129 @@ def timegm(t: Tuple[int, int, int, int, int, int]) -> int:
     days = _days_from_civil(t[0], t[1], t[2])
     return days * 86400 + t[3] * 3600 + t[4] * 60 + t[5]
 
-def month(theyear: int, themonth: int, w: int = 0, l: int = 0) -> str:
-    w = max(2, w)
-    l = max(1, l)
-    s = (month_name[themonth] + " " + str(theyear)).center(7 * (w + 1) - 1).rstrip() + "\n" * l
-    names = List[str]()
-    for i in range(7):
-        names.append(day_abbr[(i + _firstweekday) % 7][:w].center(w))
-    s += " ".join(names).rstrip() + "\n" * l
-    for week in monthcalendar(theyear, themonth):
+class TextCalendar:
+    firstweekday: int
+
+    def __init__(self, firstweekday: int = 0):
+        self.firstweekday = firstweekday
+
+    def monthdayscalendar(self, year: int, month: int) -> List[List[int]]:
+        r = monthrange(year, month)
+        first = (r[0] - self.firstweekday) % 7
+        out = List[List[int]]()
+        row = [0] * first
+        for d in range(1, r[1] + 1):
+            row.append(d)
+            if len(row) == 7:
+                out.append(row)
+                row = []
+        if len(row) > 0:
+            while len(row) < 7:
+                row.append(0)
+            out.append(row)
+        return out
+
+    def formatday(self, day: int, weekday: int, width: int) -> str:
+        if day == 0:
+            return " " * width
+        return str(day).rjust(width)
+
+    def formatweek(self, theweek: List[int], width: int) -> str:
         cells = List[str]()
-        for d in week:
-            cells.append(("" if d == 0 else str(d)).rjust(w).center(w) if False else ("" if d == 0 else str(d)).center(w))
-        s += " ".join(cells).rstrip() + "\n" * l
-    return s
+        for i in range(len(theweek)):
+            cells.append(self.formatday(theweek[i], i, width))
+        return " ".join(cells)
+
+    def formatweekday(self, day: int, width: int) -> str:
+        name = day_name[day] if width >= 9 else day_abbr[day]
+        return name[:width].center(width)
+
+    def formatweekheader(self, width: int) -> str:
+        names = List[str]()
+        for i in range(7):
+            names.append(self.formatweekday((i + self.firstweekday) % 7, width))
+        return " ".join(names)
+
+    def formatmonthname(self, theyear: int, themonth: int, width: int,
+                        withyear: bool = True) -> str:
+        s = month_name[themonth]
+        if withyear:
+            s = s + " " + str(theyear)
+        return s.center(width)
+
+    def formatmonth(self, theyear: int, themonth: int, w: int = 0, l: int = 0) -> str:
+        w = max(2, w)
+        l = max(1, l)
+        s = self.formatmonthname(theyear, themonth, 7 * (w + 1) - 1).rstrip()
+        s += "\n" * l
+        s += self.formatweekheader(w).rstrip()
+        s += "\n" * l
+        for week in self.monthdayscalendar(theyear, themonth):
+            s += self.formatweek(week, w).rstrip()
+            s += "\n" * l
+        return s
+
+    def prmonth(self, theyear: int, themonth: int, w: int = 0, l: int = 0):
+        print(self.formatmonth(theyear, themonth, w, l), end="")
+
+    def formatyear(self, theyear: int, w: int = 2, l: int = 1, c: int = 6, m: int = 3) -> str:
+        w = max(2, w)
+        l = max(1, l)
+        c = max(2, c)
+        colwidth = (w + 1) * 7 - 1
+        v = List[str]()
+        v.append(str(theyear).center(colwidth * m + c * (m - 1)).rstrip())
+        v.append("\n" * l)
+        header = self.formatweekheader(w)
+        for row_start in range(0, 12, m):
+            months = List[int]()
+            for k in range(row_start + 1, min(row_start + m, 12) + 1):
+                months.append(k)
+            v.append("\n" * l)
+            names = List[str]()
+            for k in months:
+                names.append(self.formatmonthname(theyear, k, colwidth, False))
+            v.append((" " * c).join(names).rstrip())
+            v.append("\n" * l)
+            heads = List[str]()
+            for k in months:
+                heads.append(header)
+            v.append((" " * c).join(heads).rstrip())
+            v.append("\n" * l)
+            cals = List[List[List[int]]]()
+            height = 0
+            for k in months:
+                cal = self.monthdayscalendar(theyear, k)
+                cals.append(cal)
+                height = max(height, len(cal))
+            for j in range(height):
+                weeks = List[str]()
+                for cal in cals:
+                    if j >= len(cal):
+                        weeks.append(" " * colwidth)
+                    else:
+                        weeks.append(self.formatweek(cal[j], w))
+                v.append((" " * c).join(weeks).rstrip())
+                v.append("\n" * l)
+        return "".join(v)
+
+    def pryear(self, theyear: int, w: int = 0, l: int = 0, c: int = 6, m: int = 3):
+        print(self.formatyear(theyear, w, l, c, m), end="")
+
+def month(theyear: int, themonth: int, w: int = 0, l: int = 0) -> str:
+    return TextCalendar(_firstweekday).formatmonth(theyear, themonth, w, l)
+
+def prmonth(theyear: int, themonth: int, w: int = 0, l: int = 0):
+    print(month(theyear, themonth, w, l), end="")
+
+def calendar(theyear: int, w: int = 0, l: int = 0, c: int = 6, m: int = 3) -> str:
+    return TextCalendar(_firstweekday).formatyear(theyear, w, l, c, m)
+
+def prcal(theyear: int, w: int = 0, l: int = 0, c: int = 6, m: int = 3):
+    print(calendar(theyear, w, l, c, m), end="")
+
+def weekheader(n: int) -> str:
+    return TextCalendar(_firstweekday).formatweekheader(n)
+
+def monthdayscalendar(year: int, month: int) -> List[List[int]]:
+    return monthcalendar(year, month)
