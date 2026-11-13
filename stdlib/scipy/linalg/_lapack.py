@@ -244,3 +244,250 @@ def dgeqp3_(m: cobj, n: cobj, a: cobj, lda: cobj, jpvt: cobj, tau: cobj, work: c
 @_C.linkname("zgeqp3" + _suffix_lapack)
 def zgeqp3_(m: cobj, n: cobj, a: cobj, lda: cobj, jpvt: cobj, tau: cobj, work: cobj, lwork: cobj, rwork: cobj, info: cobj) -> None:
     pass
+
+# --- added by scipy-linalg-signal lane ---
+@C
+@_C.linkname("dgebal" + _suffix_lapack)
+def dgebal_(job_: cobj, n_: cobj, a_: cobj, lda_: cobj, ilo_: cobj, ihi_: cobj, scl_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zgebal" + _suffix_lapack)
+def zgebal_(job_: cobj, n_: cobj, a_: cobj, lda_: cobj, ilo_: cobj, ihi_: cobj, scl_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dgehrd" + _suffix_lapack)
+def dgehrd_(n_: cobj, ilo_: cobj, ihi_: cobj, a_: cobj, lda_: cobj, tau_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zgehrd" + _suffix_lapack)
+def zgehrd_(n_: cobj, ilo_: cobj, ihi_: cobj, a_: cobj, lda_: cobj, tau_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dorghr" + _suffix_lapack)
+def dorghr_(n_: cobj, ilo_: cobj, ihi_: cobj, a_: cobj, lda_: cobj, tau_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zunghr" + _suffix_lapack)
+def zunghr_(n_: cobj, ilo_: cobj, ihi_: cobj, a_: cobj, lda_: cobj, tau_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dtrsyl" + _suffix_lapack)
+def dtrsyl_(trana_: cobj, tranb_: cobj, isgn_: cobj, m_: cobj, n_: cobj, a_: cobj, lda_: cobj, b_: cobj, ldb_: cobj, c_: cobj, ldc_: cobj, scale_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("ztrsyl" + _suffix_lapack)
+def ztrsyl_(trana_: cobj, tranb_: cobj, isgn_: cobj, m_: cobj, n_: cobj, a_: cobj, lda_: cobj, b_: cobj, ldb_: cobj, c_: cobj, ldc_: cobj, scale_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dtrsen" + _suffix_lapack)
+def dtrsen_(job_: cobj, compq_: cobj, select_: cobj, n_: cobj, t_: cobj, ldt_: cobj, q_: cobj, ldq_: cobj, wr_: cobj, wi_: cobj, m_: cobj, s_: cobj, sep_: cobj, work_: cobj, lwork_: cobj, iwork_: cobj, liwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("ztrsen" + _suffix_lapack)
+def ztrsen_(job_: cobj, compq_: cobj, select_: cobj, n_: cobj, t_: cobj, ldt_: cobj, q_: cobj, ldq_: cobj, w_: cobj, m_: cobj, s_: cobj, sep_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dgges" + _suffix_lapack)
+def dgges_(jobvsl_: cobj, jobvsr_: cobj, sort_: cobj, selctg_: cobj, n_: cobj, a_: cobj, lda_: cobj, b_: cobj, ldb_: cobj, sdim_: cobj, alphar_: cobj, alphai_: cobj, beta_: cobj, vsl_: cobj, ldvsl_: cobj, vsr_: cobj, ldvsr_: cobj, work_: cobj, lwork_: cobj, bwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zgges" + _suffix_lapack)
+def zgges_(jobvsl_: cobj, jobvsr_: cobj, sort_: cobj, selctg_: cobj, n_: cobj, a_: cobj, lda_: cobj, b_: cobj, ldb_: cobj, sdim_: cobj, alpha_: cobj, beta_: cobj, vsl_: cobj, ldvsl_: cobj, vsr_: cobj, ldvsr_: cobj, work_: cobj, lwork_: cobj, rwork_: cobj, bwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dtgsen" + _suffix_lapack)
+def dtgsen_(ijob_: cobj, wantq_: cobj, wantz_: cobj, select_: cobj, n_: cobj, a_: cobj, lda_: cobj, b_: cobj, ldb_: cobj, alphar_: cobj, alphai_: cobj, beta_: cobj, q_: cobj, ldq_: cobj, z_: cobj, ldz_: cobj, m_: cobj, pl_: cobj, pr_: cobj, dif_: cobj, work_: cobj, lwork_: cobj, iwork_: cobj, liwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("ztgsen" + _suffix_lapack)
+def ztgsen_(ijob_: cobj, wantq_: cobj, wantz_: cobj, select_: cobj, n_: cobj, a_: cobj, lda_: cobj, b_: cobj, ldb_: cobj, alpha_: cobj, beta_: cobj, q_: cobj, ldq_: cobj, z_: cobj, ldz_: cobj, m_: cobj, pl_: cobj, pr_: cobj, dif_: cobj, work_: cobj, lwork_: cobj, iwork_: cobj, liwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dsytrf" + _suffix_lapack)
+def dsytrf_(uplo_: cobj, n_: cobj, a_: cobj, lda_: cobj, ipiv_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zsytrf" + _suffix_lapack)
+def zsytrf_(uplo_: cobj, n_: cobj, a_: cobj, lda_: cobj, ipiv_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zhetrf" + _suffix_lapack)
+def zhetrf_(uplo_: cobj, n_: cobj, a_: cobj, lda_: cobj, ipiv_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dgtsv" + _suffix_lapack)
+def dgtsv_(n_: cobj, nrhs_: cobj, dl_: cobj, d_: cobj, du_: cobj, b_: cobj, ldb_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zgtsv" + _suffix_lapack)
+def zgtsv_(n_: cobj, nrhs_: cobj, dl_: cobj, d_: cobj, du_: cobj, b_: cobj, ldb_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dgbsv" + _suffix_lapack)
+def dgbsv_(n_: cobj, kl_: cobj, ku_: cobj, nrhs_: cobj, ab_: cobj, ldab_: cobj, ipiv_: cobj, b_: cobj, ldb_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zgbsv" + _suffix_lapack)
+def zgbsv_(n_: cobj, kl_: cobj, ku_: cobj, nrhs_: cobj, ab_: cobj, ldab_: cobj, ipiv_: cobj, b_: cobj, ldb_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dptsv" + _suffix_lapack)
+def dptsv_(n_: cobj, nrhs_: cobj, d_: cobj, e_: cobj, b_: cobj, ldb_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zptsv" + _suffix_lapack)
+def zptsv_(n_: cobj, nrhs_: cobj, d_: cobj, e_: cobj, b_: cobj, ldb_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dpbsv" + _suffix_lapack)
+def dpbsv_(uplo_: cobj, n_: cobj, kd_: cobj, nrhs_: cobj, ab_: cobj, ldab_: cobj, b_: cobj, ldb_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zpbsv" + _suffix_lapack)
+def zpbsv_(uplo_: cobj, n_: cobj, kd_: cobj, nrhs_: cobj, ab_: cobj, ldab_: cobj, b_: cobj, ldb_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dpbtrf" + _suffix_lapack)
+def dpbtrf_(uplo_: cobj, n_: cobj, kd_: cobj, ab_: cobj, ldab_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zpbtrf" + _suffix_lapack)
+def zpbtrf_(uplo_: cobj, n_: cobj, kd_: cobj, ab_: cobj, ldab_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dpbtrs" + _suffix_lapack)
+def dpbtrs_(uplo_: cobj, n_: cobj, kd_: cobj, nrhs_: cobj, ab_: cobj, ldab_: cobj, b_: cobj, ldb_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zpbtrs" + _suffix_lapack)
+def zpbtrs_(uplo_: cobj, n_: cobj, kd_: cobj, nrhs_: cobj, ab_: cobj, ldab_: cobj, b_: cobj, ldb_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dsbevd" + _suffix_lapack)
+def dsbevd_(jobz_: cobj, uplo_: cobj, n_: cobj, kd_: cobj, ab_: cobj, ldab_: cobj, w_: cobj, z_: cobj, ldz_: cobj, work_: cobj, lwork_: cobj, iwork_: cobj, liwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zhbevd" + _suffix_lapack)
+def zhbevd_(jobz_: cobj, uplo_: cobj, n_: cobj, kd_: cobj, ab_: cobj, ldab_: cobj, w_: cobj, z_: cobj, ldz_: cobj, work_: cobj, lwork_: cobj, rwork_: cobj, lrwork_: cobj, iwork_: cobj, liwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dsbevx" + _suffix_lapack)
+def dsbevx_(jobz_: cobj, range_: cobj, uplo_: cobj, n_: cobj, kd_: cobj, ab_: cobj, ldab_: cobj, q_: cobj, ldq_: cobj, vl_: cobj, vu_: cobj, il_: cobj, iu_: cobj, abstol_: cobj, m_: cobj, w_: cobj, z_: cobj, ldz_: cobj, work_: cobj, iwork_: cobj, ifail_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zhbevx" + _suffix_lapack)
+def zhbevx_(jobz_: cobj, range_: cobj, uplo_: cobj, n_: cobj, kd_: cobj, ab_: cobj, ldab_: cobj, q_: cobj, ldq_: cobj, vl_: cobj, vu_: cobj, il_: cobj, iu_: cobj, abstol_: cobj, m_: cobj, w_: cobj, z_: cobj, ldz_: cobj, work_: cobj, rwork_: cobj, iwork_: cobj, ifail_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dstevd" + _suffix_lapack)
+def dstevd_(jobz_: cobj, n_: cobj, d_: cobj, e_: cobj, z_: cobj, ldz_: cobj, work_: cobj, lwork_: cobj, iwork_: cobj, liwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dstev" + _suffix_lapack)
+def dstev_(jobz_: cobj, n_: cobj, d_: cobj, e_: cobj, z_: cobj, ldz_: cobj, work_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dsterf" + _suffix_lapack)
+def dsterf_(n_: cobj, d_: cobj, e_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dstebz" + _suffix_lapack)
+def dstebz_(range_: cobj, order_: cobj, n_: cobj, vl_: cobj, vu_: cobj, il_: cobj, iu_: cobj, abstol_: cobj, d_: cobj, e_: cobj, m_: cobj, nsplit_: cobj, w_: cobj, iblock_: cobj, isplit_: cobj, work_: cobj, iwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dstein" + _suffix_lapack)
+def dstein_(n_: cobj, d_: cobj, e_: cobj, m_: cobj, w_: cobj, iblock_: cobj, isplit_: cobj, z_: cobj, ldz_: cobj, work_: cobj, iwork_: cobj, ifail_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dstemr" + _suffix_lapack)
+def dstemr_(jobz_: cobj, range_: cobj, n_: cobj, d_: cobj, e_: cobj, vl_: cobj, vu_: cobj, il_: cobj, iu_: cobj, m_: cobj, w_: cobj, z_: cobj, ldz_: cobj, nzc_: cobj, isuppz_: cobj, tryrac_: cobj, work_: cobj, lwork_: cobj, iwork_: cobj, liwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dgerqf" + _suffix_lapack)
+def dgerqf_(m_: cobj, n_: cobj, a_: cobj, lda_: cobj, tau_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zgerqf" + _suffix_lapack)
+def zgerqf_(m_: cobj, n_: cobj, a_: cobj, lda_: cobj, tau_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dorgrq" + _suffix_lapack)
+def dorgrq_(m_: cobj, n_: cobj, k_: cobj, a_: cobj, lda_: cobj, tau_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zungrq" + _suffix_lapack)
+def zungrq_(m_: cobj, n_: cobj, k_: cobj, a_: cobj, lda_: cobj, tau_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dormqr" + _suffix_lapack)
+def dormqr_(side_: cobj, trans_: cobj, m_: cobj, n_: cobj, k_: cobj, a_: cobj, lda_: cobj, tau_: cobj, c_: cobj, ldc_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zunmqr" + _suffix_lapack)
+def zunmqr_(side_: cobj, trans_: cobj, m_: cobj, n_: cobj, k_: cobj, a_: cobj, lda_: cobj, tau_: cobj, c_: cobj, ldc_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dgelss" + _suffix_lapack)
+def dgelss_(m_: cobj, n_: cobj, nrhs_: cobj, a_: cobj, lda_: cobj, b_: cobj, ldb_: cobj, s_: cobj, rcond_: cobj, rank_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dgelsy" + _suffix_lapack)
+def dgelsy_(m_: cobj, n_: cobj, nrhs_: cobj, a_: cobj, lda_: cobj, b_: cobj, ldb_: cobj, jpvt_: cobj, rcond_: cobj, rank_: cobj, work_: cobj, lwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zgelsd" + _suffix_lapack)
+def zgelsd_(m_: cobj, n_: cobj, nrhs_: cobj, a_: cobj, lda_: cobj, b_: cobj, ldb_: cobj, s_: cobj, rcond_: cobj, rank_: cobj, work_: cobj, lwork_: cobj, rwork_: cobj, iwork_: cobj, info_: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("dgecon" + _suffix_lapack)
+def dgecon_(norm_: cobj, n_: cobj, a_: cobj, lda_: cobj, anorm_: cobj, rcond_: cobj, work_: cobj, iwork_: cobj, info_: cobj) -> None:
+    pass
+
