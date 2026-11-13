@@ -7,14 +7,14 @@ from ._classification import (accuracy_score, balanced_accuracy_score, brier_sco
                               matthews_corrcoef, multilabel_confusion_matrix,
                               precision_recall_fscore_support, precision_score, recall_score,
                               zero_one_loss)
-from .cluster import (contingency_matrix, pair_confusion_matrix, rand_score, adjusted_rand_score,
+from .cluster import (consensus_score, contingency_matrix, pair_confusion_matrix, rand_score, adjusted_rand_score,
                       mutual_info_score, adjusted_mutual_info_score, normalized_mutual_info_score,
                       homogeneity_completeness_v_measure, homogeneity_score, completeness_score,
                       v_measure_score, fowlkes_mallows_score, silhouette_samples, silhouette_score,
                       calinski_harabasz_score, davies_bouldin_score)
 from ._ranking import (auc, average_precision_score, confusion_matrix_at_thresholds, coverage_error,
                        dcg_score, det_curve, label_ranking_average_precision_score,
-                       label_ranking_loss, ndcg_score, precision_recall_curve, roc_auc_score,
+                       label_ranking_loss, metric_at_thresholds, ndcg_score, precision_recall_curve, roc_auc_score,
                        roc_curve, top_k_accuracy_score)
 from ._regression import (d2_absolute_error_score, d2_pinball_score, d2_tweedie_score,
                           explained_variance_score, max_error, mean_absolute_error,

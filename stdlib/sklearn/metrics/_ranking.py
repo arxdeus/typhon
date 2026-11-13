@@ -102,6 +102,50 @@ def confusion_matrix_at_thresholds(y_true, y_score, *, pos_label = None, sample_
     fns = tps[tps.shape[0] - 1] - tps
     return tns, fps, fns, tps, thr
 
+def metric_at_thresholds(y_true, y_score, metric_func, *, sample_weight = None, metric_params = None):
+    """metric_func(y_true, y_pred) evaluated at each threshold (scalar-valued
+    metric_func; inputs sorted by descending score, zero weights dropped).
+    metric_params: a callable taking the weight-less metric (unused keys are
+    not supported: pass a closure instead)."""
+    yt = np.asarray(y_true).reshape(-1)
+    sc = np.asarray(y_score, dtype=float).reshape(-1)
+    if yt.shape[0] != sc.shape[0]:
+        raise ValueError(f"Found input variables with inconsistent numbers of samples: [{yt.shape[0]}, {sc.shape[0]}]")
+    for v in sc:
+        if not np.isfinite(v):
+            raise ValueError("Input contains NaN or infinity.")
+    weighted: Literal[bool] = not isinstance(sample_weight, NoneType)
+    w0 = np.ones(sc.shape[0])
+    if weighted:
+        w0 = np.asarray(sample_weight, dtype=float).reshape(-1)
+        keep = w0 != 0
+        yt = yt[keep]
+        sc = sc[keep]
+        w0 = w0[keep]
+    order = np.argsort(-sc, kind="stable")
+    yt = yt[order]
+    sc = sc[order]
+    n = sc.shape[0]
+    idx = List[int]()
+    for i in range(n - 1):
+        if sc[i + 1] - sc[i] != 0:
+            idx.append(i)
+    idx.append(n - 1)
+    m = len(idx)
+    thr = np.empty(m)
+    vals = np.empty(m)
+    for t in range(m):
+        thr[t] = sc[idx[t]]
+        yp = np.empty(n, dtype=int)
+        for i in range(n):
+            yp[i] = 1 if sc[i] >= thr[t] else 0
+        if weighted:
+            ws = w0[order]
+            vals[t] = float(metric_func(yt, yp, sample_weight=ws))
+        else:
+            vals[t] = float(metric_func(yt, yp))
+    return vals, thr
+
 def _keep_idx(keep: List[bool]):
     out = List[int]()
     for i in range(len(keep)):

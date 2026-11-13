@@ -347,3 +347,30 @@ def davies_bouldin_score(X, labels) -> float:
                 m = v
         tot += m
     return tot / k
+
+# ---------------------------------------------------------- consensus_score
+
+def consensus_score(a, b, *, similarity: Literal[str] = "jaccard") -> float:
+    """Similarity of two sets of biclusters ((rows, columns) indicator
+    matrices), Jaccard coefficient + linear sum assignment."""
+    from scipy.optimize import linear_sum_assignment
+    ar = np.asarray(a[0], dtype=float)
+    ac = np.asarray(a[1], dtype=float)
+    br = np.asarray(b[0], dtype=float)
+    bc = np.asarray(b[1], dtype=float)
+    if ar.shape[0] != ac.shape[0] or br.shape[0] != bc.shape[0]:
+        raise ValueError("Found input variables with inconsistent numbers of samples")
+    n_a = ar.shape[0]
+    n_b = br.shape[0]
+    M = np.empty((n_a, n_b))
+    for i in range(n_a):
+        for j in range(n_b):
+            inter = float(np.sum(ar[i] * br[j])) * float(np.sum(ac[i] * bc[j]))
+            asz = float(np.sum(ar[i])) * float(np.sum(ac[i]))
+            bsz = float(np.sum(br[j])) * float(np.sum(bc[j]))
+            M[i, j] = inter / (asz + bsz - inter)
+    ri, ci = linear_sum_assignment(1.0 - M)
+    tot = 0.0
+    for k in range(ri.shape[0]):
+        tot += M[ri[k], ci[k]]
+    return tot / float(max(n_a, n_b))
