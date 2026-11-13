@@ -28,3 +28,4 @@ from _residue import unique_roots, residue, residuez, invres, invresz
 from _splines import gauss_spline, cspline1d, qspline1d, cspline1d_eval, qspline1d_eval, \
     cspline2d, qspline2d, spline_filter, sepfir2d, symiirorder1, symiirorder2
 from _signal_misc import max_len_seq, firwin_2d, gammatone, find_peaks_cwt, envelope
+from _short_time_fft import ShortTimeFFT, closest_STFT_dual_window
