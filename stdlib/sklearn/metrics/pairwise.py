@@ -9,7 +9,19 @@ import numpy as np
 from ..decomposition._extmath import row_norms
 from .._pairwise_k import manhattan_distances as _manhattan_k, additive_chi2_kernel as _chi2_k
 
+def _is_sp(a) -> Literal[bool]:
+    return hasattr(a, "tocsr") and hasattr(a, "indptr")
+
+def _dn(X):
+    if _is_sp(X):
+        return np.ascontiguousarray(np.asarray(X.toarray(), dtype=float))
+    else:
+        return X
+
 def _f2(X):
+    # scipy.sparse CSR/CSC input is densified (results match the sparse kernels)
+    if _is_sp(X):
+        return np.ascontiguousarray(np.asarray(X.toarray(), dtype=float))
     a = np.asarray(X, dtype=float)
     if static.len(a.shape) == 1:
         compile_error("Expected 2D array, got 1D array instead")
@@ -270,6 +282,9 @@ def pairwise_distances(X, Y = None, metric = "euclidean", *, n_jobs = None,
     """Distance matrix between rows of X (and Y). metric: a sklearn metric
     name, a scipy.spatial.distance metric name, "precomputed" or a
     callable f(x, y) -> float."""
+    return _pairwise_distances(_dn(X), _dn(Y), metric, p, V, VI, squared)
+
+def _pairwise_distances(X, Y, metric, p: float, V, VI, squared: bool):
     same = isinstance(Y, NoneType)
     if isinstance(metric, str):
         if metric == "precomputed":

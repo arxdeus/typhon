@@ -25,4 +25,5 @@ from ._regression import (d2_absolute_error_score, d2_pinball_score, d2_tweedie_
 from .pairwise import (euclidean_distances, nan_euclidean_distances, pairwise_distances,
                        pairwise_distances_argmin, pairwise_distances_argmin_min,
                        pairwise_distances_chunked, pairwise_kernels)
+from ._dist_metrics import DistanceMetric
 from ._scorer import check_scoring, get_scorer, get_scorer_names, make_scorer
