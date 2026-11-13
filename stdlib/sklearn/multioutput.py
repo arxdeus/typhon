@@ -32,7 +32,7 @@ class _MultiOutput[E]:
             self.estimators_.append(e)
 
 class MultiOutputRegressor[E](_MultiOutput[E]):
-    _estimator_type: Literal[str] = "regressor"
+    _estimator_type: ClassVar[str] = "regressor"
 
     def __init__(self, estimator: E, *, n_jobs: Optional[int] = None):
         self.estimator = estimator
@@ -61,7 +61,7 @@ class MultiOutputRegressor[E](_MultiOutput[E]):
         return MultiOutputRegressor[E](clone(self.estimator), n_jobs=self.n_jobs)
 
 class MultiOutputClassifier[E](_MultiOutput[E]):
-    _estimator_type: Literal[str] = "classifier"
+    _estimator_type: ClassVar[str] = "classifier"
 
     def __init__(self, estimator: E, *, n_jobs: Optional[int] = None):
         self.estimator = estimator
@@ -224,7 +224,7 @@ class _BaseChain[E]:
         return out
 
 class RegressorChain[E](_BaseChain[E]):
-    _estimator_type: Literal[str] = "regressor"
+    _estimator_type: ClassVar[str] = "regressor"
 
     def __init__(self, estimator: E, *, order = None, cv = None, random_state: Optional[int] = None,
                  verbose: bool = False):
@@ -242,7 +242,7 @@ class RegressorChain[E](_BaseChain[E]):
         return float(r2_score(y, self.predict(X)))
 
 class ClassifierChain[E](_BaseChain[E]):
-    _estimator_type: Literal[str] = "classifier"
+    _estimator_type: ClassVar[str] = "classifier"
 
     def __init__(self, estimator: E, *, order = None, cv = None, chain_method: str = "predict",
                  random_state: Optional[int] = None, verbose: bool = False):

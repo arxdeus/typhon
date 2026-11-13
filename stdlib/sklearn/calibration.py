@@ -204,7 +204,7 @@ class CalibratedClassifierCV[E]:
     ensemble: bool
     classes_: np.ndarray[int, 1]
     calibrated_classifiers_: List[_CalibratedClassifier[E]]
-    _estimator_type: Literal[str] = "classifier"
+    _estimator_type: ClassVar[str] = "classifier"
 
     def __init__(self, estimator: E, *, method: str = "sigmoid", cv = None, n_jobs = None,
                  ensemble = "auto"):

@@ -148,7 +148,7 @@ class GaussianProcessClassifier[K]:
     estimators_: List[_Binary[K]]
     pairs_: List[Tuple[int, int]]
     log_marginal_likelihood_value_: float
-    _estimator_type: Literal[str] = "classifier"
+    _estimator_type: ClassVar[str] = "classifier"
 
     def __init__(self, kernel: K = ConstantKernel(1.0, constant_value_bounds="fixed") * RBF(1.0, length_scale_bounds="fixed"),
                  *, optimizer = "fmin_l_bfgs_b", n_restarts_optimizer: int = 0,

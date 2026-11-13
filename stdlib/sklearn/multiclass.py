@@ -62,7 +62,7 @@ class OneVsRestClassifier[E]:
     n_jobs: Optional[int]
     classes_: np.ndarray[int, 1]
     estimators_: List[_Binary[E]]
-    _estimator_type: Literal[str] = "classifier"
+    _estimator_type: ClassVar[str] = "classifier"
 
     def __init__(self, estimator: E, *, n_jobs: Optional[int] = None, verbose: int = 0):
         self.estimator = estimator
@@ -159,7 +159,7 @@ class OneVsOneClassifier[E]:
     n_jobs: Optional[int]
     classes_: np.ndarray[int, 1]
     estimators_: List[_Binary[E]]
-    _estimator_type: Literal[str] = "classifier"
+    _estimator_type: ClassVar[str] = "classifier"
 
     def __init__(self, estimator: E, *, n_jobs: Optional[int] = None):
         self.estimator = estimator
@@ -241,7 +241,7 @@ class OutputCodeClassifier[E]:
     classes_: np.ndarray[int, 1]
     code_book_: np.ndarray[float, 2]
     estimators_: List[_Binary[E]]
-    _estimator_type: Literal[str] = "classifier"
+    _estimator_type: ClassVar[str] = "classifier"
 
     def __init__(self, estimator: E, *, code_size: float = 1.5, random_state: Optional[int] = None,
                  n_jobs: Optional[int] = None):
