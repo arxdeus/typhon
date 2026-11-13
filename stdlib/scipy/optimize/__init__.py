@@ -20,6 +20,9 @@ from ._nonlin import NoConvergence, broyden1, broyden2, anderson, linearmixing, 
                     diagbroyden, excitingmixing, newton_krylov, BroydenFirst, \
                     KrylovJacobian
 from ._dfsane import fixed_point, line_search
+from ._legacy import fmin, fmin_powell, fmin_bfgs, fmin_cg, fmin_ncg, fmin_l_bfgs_b, \
+                    fmin_tnc, fmin_slsqp, fmin_cobyla, leastsq, isotonic_regression, \
+                    rosen_hess_prod, toms748
 from ._lsap import linear_sum_assignment
 from ._constraints import LinearConstraint, NonlinearConstraint
 from ._cons import _has_constraints
