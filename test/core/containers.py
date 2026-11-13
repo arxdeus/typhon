@@ -1342,11 +1342,11 @@ def test_deque():
     dq = deque[int](5)
     for i in range(100):
         dq.append(i)
-    assert str(dq) == 'deque([95, 96, 97, 98, 99])'
+    assert str(dq) == 'deque([95, 96, 97, 98, 99], maxlen=5)'
 
     for i in range(5):
         dq.append(i)
-    assert str(dq) == 'deque([0, 1, 2, 3, 4])'
+    assert str(dq) == 'deque([0, 1, 2, 3, 4], maxlen=5)'
 
     dq = deque[str]()
     dq.append('1')
@@ -1381,11 +1381,11 @@ def test_deque():
     dq = deque[str](5)
     for i in range(100):
         dq.append(str(i))
-    assert str(dq) == "deque(['95', '96', '97', '98', '99'])"
+    assert str(dq) == "deque(['95', '96', '97', '98', '99'], maxlen=5)"
 
     for i in range(5):
         dq.append(str(i))
-    assert str(dq) == "deque(['0', '1', '2', '3', '4'])"
+    assert str(dq) == "deque(['0', '1', '2', '3', '4'], maxlen=5)"
 test_deque()
 
 @test
