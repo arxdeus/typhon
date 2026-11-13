@@ -7,6 +7,7 @@ import numpy as np
 import internal.static as static
 from _common import NAN, _bspl_find, _deboor, _band_solve, _searchsorted, _vals
 from _bspl import BSpline, _bspl_eval, _splder, _splantider, _pad
+import _dierckx as D
 
 def _not_a_knot(x, k: int):
     n = x.size
@@ -225,33 +226,215 @@ def make_interp_spline(x, y, k: int = 3, t = None, bc_type = None, axis: int = 0
 
 # ------------------------------------------------------------------ FITPACK API
 
+def _ier_check(ier: int):
+    if ier == 10:
+        raise ValueError("Error on input data")
+    if ier > 3:
+        raise ValueError(f"Unknown FITPACK error ier={ier}")
+
 def splrep(x, y, w = None, xb = None, xe = None, k: int = 3, task: int = 0,
-           s = None, t = None, full_output: int = 0, per: int = 0, quiet: int = 1):
-    xa = np.asarray(x, dtype=float)
-    ya = np.asarray(y, dtype=float)
+           s = None, t = None, full_output: Literal[int] = 0, per: int = 0, quiet: int = 1):
+    xa = np.ascontiguousarray(np.atleast_1d(np.asarray(x, dtype=float)))
+    ya = np.ascontiguousarray(np.atleast_1d(np.asarray(y, dtype=float)))
     m = xa.size
+    wa = np.ones(m)
+    sv = 0.0
+    if w is None:
+        if s is not None:
+            sv = float(s)
+    else:
+        wa = np.ascontiguousarray(np.atleast_1d(np.asarray(w, dtype=float)))
+        sv = float(m) - (2.0 * float(m)) ** 0.5
+        if s is not None:
+            sv = float(s)
+    if wa.size != m:
+        raise TypeError(f"len(w)={wa.size} is not equal to m={m}")
+    if m != ya.size:
+        raise TypeError("Lengths of the first three arguments (x,y,w) must be equal")
     if k < 1 or k > 5:
         raise TypeError(f"Given degree of the spline (k={k}) is not supported. (1<=k<=5)")
     if m <= k:
         raise TypeError("m > k must hold")
-    if ya.size != m:
-        raise TypeError("Lengths of the first two arguments (x,y) must be equal")
-    sv = 0.0
-    if s is None:
-        sv = 0.0 if w is None else float(m) - (2.0 * float(m)) ** 0.5
+    xbv = xa[0] if xb is None else float(xb)
+    xev = xa[m - 1] if xe is None else float(xe)
+    if task < -1 or task > 1:
+        raise TypeError("task must be -1, 0 or 1")
+    if per != 0:
+        raise NotImplementedError("splrep: periodic smoothing (percur) is not supported")
+    iopt = task
+    nest = max(m + k + 1, 2 * k + 3)
+    wk = D.CurfitWork(nest)
+    wk.n = nest
+    if t is not None:
+        iopt = -1
+        ti = np.asarray(t, dtype=float)
+        numknots = ti.size
+        nest = numknots + 2 * k + 2
+        wk = D.CurfitWork(nest)
+        for i in range(numknots):
+            wk.t[k + 1 + i] = ti[i]
+        wk.n = nest
+    elif iopt == -1:
+        raise TypeError("Knots must be given for task=-1")
+    D.curfit(iopt, xa, ya, wa, xbv, xev, k, sv, wk)
+    n = wk.n
+    tt = wk.t[:n].copy()
+    cc = np.zeros(n)
+    for i in range(n - k - 1):
+        cc[i] = wk.c[i]
+    _ier_check(wk.ier)
+    if full_output:
+        return (tt, cc, k), wk.fp, wk.ier
     else:
-        sv = float(s)
-    if sv != 0.0 or per != 0 or t is not None:
-        raise NotImplementedError("splrep: only s=0 non-periodic interpolation without user knots is supported")
-    for i in range(m - 1):
-        if not (xa[i + 1] > xa[i]):
-            raise ValueError("Error on input data")
-    b = make_interp_spline(xa, ya, k=k)
-    tt = b.t
-    cc = np.zeros(tt.size)
-    for i in range(b.c.size):
-        cc[i] = b.c[i]
-    return tt, cc, k
+        return (tt, cc, k)
+
+def splprep(x, w = None, u = None, ub = None, ue = None, k: int = 3, task: int = 0,
+            s = None, t = None, full_output: Literal[int] = 0, nest = None, per: int = 0,
+            quiet: int = 1):
+    X = np.asarray(x, dtype=float)
+    if X.ndim != 2:
+        X2 = np.atleast_2d(X)
+        return splprep(X2, w, u, ub, ue, k, task, s, t, full_output, nest, per, quiet)
+    idim = X.shape[0]
+    m = X.shape[1]
+    if not (0 < idim and idim < 11):
+        raise TypeError("0 < idim < 11 must hold")
+    if per != 0:
+        raise NotImplementedError("splprep: periodic curves (clocur) are not supported")
+    wa = np.ones(m) if w is None else np.ascontiguousarray(np.asarray(w, dtype=float))
+    ipar = 0 if u is None else 1
+    ua = np.zeros(m)
+    ubv = 0.0
+    uev = 1.0
+    if u is not None:
+        ua = np.array(u, dtype=float)
+        ubv = ua[0] if ub is None else float(ub)
+        uev = ua[m - 1] if ue is None else float(ue)
+    if k < 1 or k > 5:
+        raise TypeError(f"1 <= k= {k} <=5 must hold")
+    if task < -1 or task > 1:
+        raise TypeError("task must be -1, 0 or 1")
+    if wa.size != m or (ipar == 1 and ua.size != m):
+        raise TypeError("Mismatch of input dimensions")
+    sv = float(m) - (2.0 * float(m)) ** 0.5 if s is None else float(s)
+    if t is None and task == -1:
+        raise TypeError("Knots must be given for task=-1")
+    if m <= k:
+        raise TypeError("m > k must hold")
+    nst = m + 2 * k if nest is None else int(nest)
+    if (task >= 0 and sv == 0.0) or nst < 0:
+        nst = m + k + 1
+    nst = max(nst, 2 * k + 3)
+    wk = D.CurfitWork(nst, idim)
+    tlen = 0
+    if t is not None:
+        ti = np.asarray(t, dtype=float)
+        tlen = ti.size
+        for i in range(min(tlen, nst)):
+            wk.t[i] = ti[i]
+    wk.n = tlen
+    xf = np.empty(m * idim)
+    for i in range(m):
+        for j in range(idim):
+            xf[i * idim + j] = X[j, i]
+    ubv, uev = D.parcur(task, ipar, ua, xf, wa, ubv, uev, k, sv, wk)
+    _ier_check(wk.ier)
+    n = wk.n
+    tt = wk.t[:n].copy()
+    cs = List[np.ndarray[float, 1]]()
+    for j in range(idim):
+        cj = np.empty(n - k - 1)
+        for i in range(n - k - 1):
+            cj[i] = wk.c[j * n + i]
+        cs.append(cj)
+    if full_output:
+        return ((tt, cs, k), ua), wk.fp, wk.ier
+    else:
+        return ((tt, cs, k), ua)
+
+def sproot(tck, mest: int = 10):
+    if isinstance(tck[1], List):
+        res = List[np.ndarray[float, 1]]()
+        for cj in tck[1]:
+            res.append(sproot((tck[0], cj, tck[2]), mest))
+        return res
+    else:
+        t = np.ascontiguousarray(np.asarray(tck[0], dtype=float))
+        c = np.ascontiguousarray(np.asarray(tck[1], dtype=float))
+        k = int(tck[2])
+        if k != 3:
+            raise ValueError("sproot works only for cubic (k=3) splines")
+        if t.size < 8:
+            raise TypeError(f"The number of knots {t.size}>=8")
+        cc = np.zeros(max(t.size, c.size))
+        for i in range(c.size):
+            cc[i] = c[i]
+        z, ier = D.sproot(t, t.size, cc, mest)
+        if ier == 10:
+            raise TypeError("Invalid input data. t1<=..<=t4<t5<..<tn-3<=..<=tn must hold.")
+        return np.array(z, dtype=float)
+
+def _spalde1(t, c, k: int, xv: float):
+    d = np.zeros(k + 1)
+    ier = D.spalde(t, t.size, c, k + 1, xv, d)
+    if ier == 10:
+        raise TypeError("Invalid input data. t(k)<=x<=t(n-k+1) must hold.")
+    return d
+
+def spalde(x, tck):
+    if isinstance(tck[1], List):
+        res = List[type(spalde(x, (tck[0], tck[1][0], tck[2])))]()
+        for cj in tck[1]:
+            res.append(spalde(x, (tck[0], cj, tck[2])))
+        return res
+    else:
+        t = np.ascontiguousarray(np.asarray(tck[0], dtype=float))
+        c = np.ascontiguousarray(np.asarray(tck[1], dtype=float))
+        k = int(tck[2])
+        if isinstance(x, float) or isinstance(x, int):
+            return _spalde1(t, c, k, float(x))
+        else:
+            xa = np.atleast_1d(np.asarray(x, dtype=float)).ravel()
+            res = List[np.ndarray[float, 1]]()
+            for i in range(xa.size):
+                res.append(_spalde1(t, c, k, xa[i]))
+            return res
+
+def _insert1(x: float, t, c, k: int, m: int, per: int):
+    n = t.size
+    nest = n + m + (k if per != 0 else 0)
+    t1 = np.zeros(nest)
+    c1 = np.zeros(nest)
+    for i in range(n):
+        t1[i] = t[i]
+    for i in range(min(c.size, nest)):
+        c1[i] = c[i]
+    nn = n
+    for it in range(m):
+        t2 = np.zeros(nest)
+        c2 = np.zeros(nest)
+        nn2, ier = D.insert(per, t1, n + it, c1, k, x, t2, c2, nest)
+        if ier == 10:
+            raise ValueError("Invalid input data")
+        if ier != 0:
+            raise TypeError("An error occurred")
+        nn = nn2
+        t1 = t2
+        c1 = c2
+    return t1[:nn].copy(), c1[:nn].copy()
+
+def insert(x: float, tck, m: int = 1, per: int = 0):
+    if isinstance(tck[1], List):
+        t0 = np.asarray(tck[0], dtype=float)
+        cs = List[np.ndarray[float, 1]]()
+        tt = t0
+        for cj in tck[1]:
+            tt, cc = _insert1(float(x), t0, np.asarray(cj, dtype=float), int(tck[2]), m, per)
+            cs.append(cc)
+        return (tt, cs, int(tck[2]))
+    else:
+        tt, cc = _insert1(float(x), np.asarray(tck[0], dtype=float), np.asarray(tck[1], dtype=float), int(tck[2]), m, per)
+        return (tt, cc, int(tck[2]))
 
 def _tck(tck):
     t = np.ascontiguousarray(np.asarray(tck[0], dtype=float))
@@ -260,6 +443,15 @@ def _tck(tck):
     return t, c.reshape((c.shape[0], 1)), k
 
 def splev(x, tck, der: int = 0, ext: int = 0):
+    if isinstance(tck[1], List):
+        res = List[type(_splev1(x, (tck[0], tck[1][0], tck[2]), der, ext))]()
+        for cj in tck[1]:
+            res.append(_splev1(x, (tck[0], cj, tck[2]), der, ext))
+        return res
+    else:
+        return _splev1(x, tck, der, ext)
+
+def _splev1(x, tck, der: int = 0, ext: int = 0):
     t, c2, k = _tck(tck)
     if not (0 <= der and der <= k):
         raise ValueError(f"0<=der={der}<=k={k} must hold")

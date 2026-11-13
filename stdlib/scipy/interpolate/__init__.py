@@ -8,5 +8,6 @@ from _ppoly import PPoly
 from _cubic import CubicHermiteSpline, PchipInterpolator, pchip_interpolate, \
     Akima1DInterpolator, CubicSpline
 from _bspl import BSpline
-from _fitpack import make_interp_spline, splrep, splev, splint, splder, splantider
+from _fitpack import make_interp_spline, splrep, splev, splint, splder, splantider, \
+    splprep, sproot, spalde, insert
 from _interpolate import interp1d, RegularGridInterpolator, interpn
