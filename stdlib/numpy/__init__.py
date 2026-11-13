@@ -35,3 +35,4 @@ import strings
 import char
 import fusion
 from .scalar_types import *
+from .poly1d import *
