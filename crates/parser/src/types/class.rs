@@ -376,16 +376,7 @@ impl TypeArena {
         c.generics.iter().chain(c.hidden_generics.iter()).all(|g| g.ty.is_none_or(|t| self.can_realize(t)))
     }
 
-    /// `ClassType::isInstantiated`.
-    pub(crate) fn class_is_instantiated(&self, c: &ClassType, skip: Option<TypeId>) -> bool {
-        if c.name == stdlib().unrealized_type.as_str() {
-            return self.get_class(c.generics[0].ty()).is_some();
-        }
-        c.generics
-            .iter()
-            .chain(c.hidden_generics.iter())
-            .all(|g| g.ty.is_none_or(|t| self.is_instantiated_impl(t, skip)))
-    }
+    /// `ClassType::isInstantiated` is implemented by `TypeArena::is_instantiated_impl`.
 
     /// `ClassType::debugString` (also used as the base for `UnionType`/`FuncType` callers
     /// that explicitly ask for `ClassType::debugString`).
@@ -487,10 +478,10 @@ impl TypeArena {
         if let Some(canonical) = self.canonical_optional(this) {
             return self.realized_name(canonical);
         }
-        let c = self.class(this).unwrap();
-        if !c.rn.is_empty() {
-            return c.rn;
+        if let Some(rn) = self.with_class(this, |c| (!c.rn.is_empty()).then(|| c.rn.clone())).flatten() {
+            return rn;
         }
+        let c = self.class(this).unwrap();
         let s = if c.name == "Partial" {
             self.class_debug_string(this, 1)
         } else {

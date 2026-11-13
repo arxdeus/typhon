@@ -23,8 +23,20 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use rustc_hash::{FxHashMap, FxHashSet};
+use smallvec::SmallVec;
 use typhon_common::{Result, SrcInfo};
 use ustr::Ustr;
+
+/// Dispatch summary of a type slot (see `TypeArena::shape`).
+#[derive(Clone, Copy)]
+enum Shape {
+    Link(LinkKind, Option<TypeId>),
+    Func,
+    Static,
+    /// Plain or union class; flags for the names with special `canRealize` rules.
+    Class { type_: bool, unrealized: bool },
+    Trait,
+}
 
 use crate::ast::ParamStatus;
 pub use crate::ast::LiteralKind;
@@ -836,17 +848,17 @@ impl TypeArena {
 
     /// `hasUnbounds(includeGenerics)`.
     pub fn has_unbounds(&self, id: TypeId, include_generics: bool) -> bool {
-        match self.kind(id) {
-            TypeKind::Link(l) => match l.kind {
-                LinkKind::Unbound => true,
-                LinkKind::Generic => include_generics,
-                LinkKind::Link => self.has_unbounds(l.ty.unwrap(), include_generics),
-            },
-            TypeKind::Class(c) => match c.kind {
-                ClassKind::Func(_) => self.func_has_unbounds(id, include_generics),
-                _ => self.class_has_unbounds(&c, include_generics),
-            },
-            TypeKind::Trait(_) => false,
+        match self.shape(id) {
+            Shape::Link(LinkKind::Unbound, _) => true,
+            Shape::Link(LinkKind::Generic, _) => include_generics,
+            Shape::Link(LinkKind::Link, t) => self.has_unbounds(t.unwrap(), include_generics),
+            Shape::Func => self.func_has_unbounds(id, include_generics),
+            Shape::Class { unrealized: true, .. } => false,
+            Shape::Class { .. } | Shape::Static => self
+                .class_generic_tys(id)
+                .into_iter()
+                .any(|t| self.has_unbounds(t, include_generics)),
+            Shape::Trait => false,
         }
     }
 
@@ -877,15 +889,43 @@ impl TypeArena {
 
     /// `canRealize()`.
     pub fn can_realize(&self, id: TypeId) -> bool {
-        match self.kind(id) {
-            TypeKind::Link(l) => l.kind == LinkKind::Link && self.can_realize(l.ty.unwrap()),
-            TypeKind::Class(c) => match c.kind {
-                ClassKind::Func(_) => self.func_can_realize(id),
-                ClassKind::IntStatic(_) | ClassKind::StrStatic(_) | ClassKind::BoolStatic(_) => true,
-                _ => self.class_can_realize(&c),
-            },
-            TypeKind::Trait(_) => false,
+        match self.shape(id) {
+            Shape::Link(k, t) => k == LinkKind::Link && self.can_realize(t.unwrap()),
+            Shape::Func => self.func_can_realize(id),
+            Shape::Static => true,
+            Shape::Class { type_: true, .. } if !self.has_unbounds(id, false) => true,
+            Shape::Class { unrealized: true, .. } => {
+                let g0 = self.with_class(id, |c| c.generics[0].ty()).unwrap();
+                self.get_class(g0).is_some()
+            }
+            Shape::Class { .. } => self.class_generic_tys(id).into_iter().all(|t| self.can_realize(t)),
+            Shape::Trait => false,
         }
+    }
+
+    /// Cheap classification of a slot (avoids cloning the slot's data).
+    fn shape(&self, id: TypeId) -> Shape {
+        self.with(id, |d| match &d.kind {
+            TypeKind::Link(l) => Shape::Link(l.kind, l.ty),
+            TypeKind::Class(c) => match c.kind {
+                ClassKind::Func(_) => Shape::Func,
+                ClassKind::IntStatic(_) | ClassKind::StrStatic(_) | ClassKind::BoolStatic(_) => Shape::Static,
+                _ => {
+                    let st = typhon_common::mangle::stdlib();
+                    Shape::Class {
+                        type_: c.name == st.type_.as_str(),
+                        unrealized: c.name == st.unrealized_type.as_str(),
+                    }
+                }
+            },
+            TypeKind::Trait(_) => Shape::Trait,
+        })
+    }
+
+    /// Types of a class slot's generics followed by its hidden generics (unset ones skipped).
+    fn class_generic_tys(&self, id: TypeId) -> SmallVec<[TypeId; 8]> {
+        self.with_class(id, |c| c.generics.iter().chain(c.hidden_generics.iter()).filter_map(|g| g.ty).collect())
+            .unwrap_or_default()
     }
 
     /// `isInstantiated()`.
@@ -893,14 +933,18 @@ impl TypeArena {
         self.is_instantiated_impl(id, None)
     }
     pub(crate) fn is_instantiated_impl(&self, id: TypeId, skip_parent_of: Option<TypeId>) -> bool {
-        match self.kind(id) {
-            TypeKind::Link(l) => l.kind == LinkKind::Link && self.is_instantiated_impl(l.ty.unwrap(), skip_parent_of),
-            TypeKind::Class(c) => match c.kind {
-                ClassKind::Func(_) => self.func_is_instantiated(id, skip_parent_of),
-                ClassKind::IntStatic(_) | ClassKind::StrStatic(_) | ClassKind::BoolStatic(_) => true,
-                _ => self.class_is_instantiated(&c, skip_parent_of),
-            },
-            TypeKind::Trait(_) => false,
+        match self.shape(id) {
+            Shape::Link(k, t) => k == LinkKind::Link && self.is_instantiated_impl(t.unwrap(), skip_parent_of),
+            Shape::Func => self.func_is_instantiated(id, skip_parent_of),
+            Shape::Static => true,
+            Shape::Class { unrealized: true, .. } => {
+                let g0 = self.with_class(id, |c| c.generics[0].ty()).unwrap();
+                self.get_class(g0).is_some()
+            }
+            Shape::Class { .. } => {
+                self.class_generic_tys(id).into_iter().all(|t| self.is_instantiated_impl(t, skip_parent_of))
+            }
+            Shape::Trait => false,
         }
     }
 
@@ -930,20 +974,14 @@ impl TypeArena {
 
     /// `realizedName()`.
     pub fn realized_name(&self, id: TypeId) -> String {
-        match self.kind(id) {
-            TypeKind::Link(l) => match l.kind {
-                LinkKind::Unbound | LinkKind::Generic => format!("#{}", l.generic_name),
-                LinkKind::Link => self.realized_name(l.ty.unwrap()),
-            },
-            TypeKind::Class(c) => match c.kind {
-                ClassKind::Func(_) => self.func_realized_name(id),
-                ClassKind::IntStatic(_) | ClassKind::StrStatic(_) | ClassKind::BoolStatic(_) => {
-                    // StaticType::realizedName = debugString(0)
-                    self.static_debug_string(&c, 0)
-                }
-                _ => self.class_realized_name(id),
-            },
-            TypeKind::Trait(_) => String::new(),
+        match self.shape(id) {
+            Shape::Link(LinkKind::Link, t) => self.realized_name(t.unwrap()),
+            Shape::Link(..) => self.link(id).map(|l| format!("#{}", l.generic_name)).unwrap(),
+            Shape::Func => self.func_realized_name(id),
+            // StaticType::realizedName = debugString(0)
+            Shape::Static => self.with_class(id, |c| c.clone()).map(|c| self.static_debug_string(&c, 0)).unwrap(),
+            Shape::Class { .. } => self.class_realized_name(id),
+            Shape::Trait => String::new(),
         }
     }
 
