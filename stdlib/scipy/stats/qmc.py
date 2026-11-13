@@ -895,3 +895,83 @@ def _cov_root(c):
             for j in range(n):
                 out[j, i] = v[i, j] * K.sqrt(max(w[j], 0.0))
         return out
+
+# ------------------------------------------------- geometric_discrepancy
+
+def geometric_discrepancy(sample, method: str = "mindist", metric: str = "euclidean") -> float:
+    from scipy.spatial.distance import cdist
+    s = _ensure_in_unit_hypercube(sample)
+    n = s.shape[0]
+    if n < 2:
+        raise ValueError("Sample must contain at least two points")
+    if method != "mindist" and method != "mst":
+        raise ValueError(f"'{method}' is not a valid method. It must be one of {{'mindist', 'mst'}}")
+    D = cdist(s, s, metric=metric)
+    if method == "mindist":
+        best = K.INF
+        for i in range(n):
+            for j in range(i + 1, n):
+                v = D[i, j]
+                if v != 0.0 and v < best:
+                    best = v
+        return best
+    # Prim minimum spanning tree (zero distances are absent edges, as in scipy)
+    inf = K.INF
+    in_tree = [False for _ in range(n)]
+    key = [inf for _ in range(n)]
+    key[0] = 0.0
+    total = 0.0
+    cnt = 0
+    for _ in range(n):
+        u = -1
+        for i in range(n):
+            if not in_tree[i] and (u < 0 or key[i] < key[u]):
+                u = i
+        if u < 0 or key[u] == inf:
+            break
+        in_tree[u] = True
+        if u != 0 or cnt > 0:
+            total += key[u]
+            cnt += 1
+        for v in range(n):
+            if not in_tree[v] and D[u, v] != 0.0 and D[u, v] < key[v]:
+                key[v] = D[u, v]
+    return total / cnt if cnt > 0 else K.NAN
+
+# ------------------------------------------------------------ QMCEngine
+
+class QMCEngine:
+    """Base class for quasi-Monte Carlo engines. Subclasses override
+    ``_random(n)`` (returning an (n, d) array) and optionally ``reset``."""
+    d: int
+    rng: Generator[PCG64]
+    num_generated: int
+    optimization_method: Optional[str]
+
+    def __init__(self, d: int, *, optimization = None, rng = None):
+        if not (d == int(d)) or d < 1:
+            raise ValueError("d must be a positive integer value")
+        self.d = d
+        self.rng = _child_rng(rng)
+        self.num_generated = 0
+        self.optimization_method = None
+
+    def _random(self, n: int) -> np.ndarray[float, 2]:
+        raise NotImplementedError("_random must be overridden by subclasses")
+
+    def random(self, n: int = 1) -> np.ndarray[float, 2]:
+        sample = self._random(n)
+        self.num_generated += n
+        return sample
+
+    def integers(self, l_bounds, *, u_bounds = None, n: int = 1, endpoint: bool = False):
+        return _integers(self, l_bounds, u_bounds, n, endpoint)
+
+    def reset(self):
+        self.rng = _child_rng(None)
+        self.num_generated = 0
+        return self
+
+    def fast_forward(self, n: int):
+        self.random(n)
+        return self
