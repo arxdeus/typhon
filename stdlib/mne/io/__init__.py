@@ -26,3 +26,4 @@ from .nihon import read_raw_nihon
 from .nsx import read_raw_nsx
 from .boxy import read_raw_boxy
 from .kit import read_raw_kit
+from .eyelink import read_raw_eyelink

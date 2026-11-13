@@ -260,6 +260,9 @@ def read_raw(fname, *, preload = False, verbose = None, **kwargs):
     if low.endswith(".sqd") or low.endswith(".con"):
         from .kit import read_raw_kit
         return read_raw_kit(f, preload = preload)
+    if low.endswith(".asc"):
+        from .eyelink import read_raw_eyelink
+        return read_raw_eyelink(f)
     if low.endswith(".eeg"):
         from .nihon import read_raw_nihon
         return read_raw_nihon(f, preload = preload)
