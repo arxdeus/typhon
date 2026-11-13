@@ -180,6 +180,8 @@ pub const SCIPY: &[&str] = &[
     "sklearn/test_multioutput.py", "sklearn/test_calibration.py", "sklearn/test_pls_semi.py",
     "sklearn/test_feature_extraction.py", "sklearn/test_gp.py", "sklearn/test_gp2.py",
     "sklearn/test_gp_clf.py", "sklearn/test_mlp.py", "sklearn/test_mlp2.py",
+    "mne/test_proj_ref.py", "mne/test_csd_annot.py", "mne/test_montage_io.py",
+    "mne/test_epochs_more.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
