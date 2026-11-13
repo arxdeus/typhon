@@ -1,11 +1,12 @@
 # Ported from scipy 1.18.1 (BSD-3-Clause): NdPPoly (scipy/interpolate/
 # _interpolate.py, evaluate_nd from _ppoly.pyx).  Supported: __call__ (with
-# derivative orders nu) and derivative(); antiderivative/integrate are not
-# provided.  Real coefficients only.
+# derivative orders nu), derivative(), antiderivative() and integrate()
+# (built on the 1-D PPoly routines).  Real coefficients only.
 
 import numpy as np
 import internal.static as static
 from _common import NAN, _pp_find
+from _ppoly import PPoly
 
 def _poch(a: int, m: int) -> float:
     r = 1.0
@@ -135,3 +136,101 @@ class NdPPoly:
                     new[k] = cm[k] * _poch(K - 1 - k, n)
             c = np.ascontiguousarray(np.moveaxis(new, 0, d))
         return NdPPoly(c, self.x, self.extrapolate)
+
+    def antiderivative(self, nu):
+        nd, ks, ms, rest = self._dims()
+        nus = [int(v) for v in nu]
+        if len(nus) != nd:
+            raise ValueError("invalid number of derivative orders nu")
+        c = self.c
+        for d in range(nd):
+            n = nus[d]
+            if n == 0:
+                continue
+            if n < 0:
+                tmp = NdPPoly(c, self.x, self.extrapolate)
+                nn = [0] * nd
+                nn[d] = -n
+                c = tmp.derivative(nn).c
+                continue
+            cm = np.moveaxis(c, d, 0)
+            cm2 = np.moveaxis(cm, nd + d, 1)
+            K = cm2.shape[0]
+            M = cm2.shape[1]
+            c3 = np.ascontiguousarray(cm2).reshape((K, M, -1))
+            p = PPoly(c3, self.x[d])
+            q = p.antiderivative(n)
+            r = q._c3
+            back = r.reshape((K + n, M) + cm2.shape[2:])
+            c = np.ascontiguousarray(np.moveaxis(np.moveaxis(back, 1, nd + d), 0, d))
+        return NdPPoly(c, self.x, self.extrapolate)
+
+    def integrate_1d(self, a: float, b: float, axis: int, extrapolate = None):
+        nd, ks, ms, rest = self._dims()
+        ax = axis % nd
+        ext = self.extrapolate if extrapolate is None else bool(extrapolate)
+        cm = np.moveaxis(self.c, ax, 0)
+        cm2 = np.moveaxis(cm, nd + ax, 1)
+        K = cm2.shape[0]
+        M = cm2.shape[1]
+        c3 = np.ascontiguousarray(cm2).reshape((K, M, -1))
+        p = PPoly(c3, self.x[ax], extrapolate=ext)
+        out = p.integrate(a, b, extrapolate=ext)
+        return np.asarray(out).reshape(-1)
+
+    def integrate(self, ranges, extrapolate = None):
+        nd, ks, ms, rest = self._dims()
+        ext = self.extrapolate if extrapolate is None else bool(extrapolate)
+        if len(ranges) != nd:
+            raise ValueError("Range not a sequence of correct length")
+        # current data: flat C-order array over dims [k_n.., m_n.., rest]
+        F = List[float]()
+        cc = np.ascontiguousarray(self.c).reshape(-1)
+        for i in range(cc.shape[0]):
+            F.append(cc[i])
+        dims = ks + ms + [rest]
+        for n in range(nd):
+            ncur = nd - n
+            a = float(ranges[n][0])
+            b = float(ranges[n][1])
+            K = dims[0]
+            M = dims[ncur]
+            # remaining axes (everything except 0 and ncur), C order
+            rem = List[int]()
+            for q in range(len(dims)):
+                if q != 0 and q != ncur:
+                    rem.append(dims[q])
+            R = 1
+            for v in rem:
+                R *= v
+            c3 = np.zeros((K, M, R))
+            total = len(F)
+            for i in range(total):
+                # decompose i over dims
+                rest_i = i
+                idx = [0] * len(dims)
+                for q in range(len(dims) - 1, -1, -1):
+                    idx[q] = rest_i % dims[q]
+                    rest_i //= dims[q]
+                r = 0
+                for q in range(len(dims)):
+                    if q != 0 and q != ncur:
+                        r = r * dims[q] + idx[q]
+                c3[idx[0], idx[ncur], r] = F[i]
+            p = PPoly(c3, self.x[n], extrapolate=ext)
+            out = np.asarray(p.integrate(a, b, extrapolate=ext)).reshape(-1)
+            F = List[float]()
+            for i in range(out.shape[0]):
+                F.append(out[i])
+            nd2 = List[int]()
+            for q in range(len(dims)):
+                if q != 0 and q != ncur:
+                    nd2.append(dims[q])
+            dims = nd2
+        if static.len(self.c.shape) == 2 * static.len(self.x):
+            return F[0]
+        else:
+            o = np.empty(len(F))
+            for i in range(len(F)):
+                o[i] = F[i]
+            return o.reshape(self.c.shape[2 * static.len(self.x):])
