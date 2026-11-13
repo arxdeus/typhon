@@ -157,6 +157,9 @@ pub const SCIPY: &[&str] = &[
     "scipy/test_stats_qmc.py", "scipy/test_stats_misc.py",
     "mne/test_io_fif.py", "mne/test_io_edf_bv_eeglab.py", "mne/test_raw_api.py",
     "mne/test_events.py", "mne/test_events_epochs.py", "mne/test_filter_picks.py",
+    "sklearn/test_preprocessing_more.py", "sklearn/test_model_selection_more.py",
+    "sklearn/test_search_validation.py", "sklearn/test_learning_curves.py",
+    "sklearn/test_pipeline_compose.py", "sklearn/test_compose.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
