@@ -15,6 +15,9 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
+
+/// Insertion-ordered map with the fast (non-SipHash) hasher; iteration order is unaffected.
+pub type FxIndexMap<K, V> = IndexMap<K, V, rustc_hash::FxBuildHasher>;
 use typhon_common::fs::FileSystem;
 use typhon_common::mangle::{self, stdlib};
 use typhon_common::{CompilerError, Options, ParserErrors, Result, SrcInfo};
@@ -236,7 +239,7 @@ pub struct Cache {
     pub globals: BTreeMap<String, Option<typhon_ir::VarId>>,
 
     /// Canonical class name -> class.
-    pub classes: IndexMap<String, Class>,
+    pub classes: FxIndexMap<String, Class>,
     pub class_realization_cnt: usize,
 
     pub thunk_ids: BTreeMap<String, usize>,
@@ -244,7 +247,7 @@ pub struct Cache {
     pub super_call_signatures: BTreeMap<usize, TypeId>,
 
     /// Canonical function name -> function.
-    pub functions: IndexMap<String, Function>,
+    pub functions: FxIndexMap<String, Function>,
     /// Root name -> canonical overload names.
     pub overloads: FxHashMap<String, Vec<String>>,
 
@@ -295,12 +298,12 @@ impl Cache {
             module: None,
             imports: IndexMap::new(),
             globals: BTreeMap::new(),
-            classes: IndexMap::new(),
+            classes: FxIndexMap::default(),
             class_realization_cnt: 0,
             thunk_ids: BTreeMap::new(),
             super_calls: BTreeMap::new(),
             super_call_signatures: BTreeMap::new(),
-            functions: IndexMap::new(),
+            functions: FxIndexMap::default(),
             overloads: FxHashMap::default(),
             type_ctx: Rc::new(RefCell::new(TypeContext::placeholder())),
             codegen_ctx: None,
