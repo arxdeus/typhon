@@ -7,7 +7,7 @@
 # supported (ValueError). `events` may be
 # a callable or a tuple/list of callables; `terminal`/`direction` are read
 # from attributes of callable objects when present. When no events are given
-# `t_events`/`y_events` are empty lists (scipy: None).
+# `t_events`/`y_events` are None (as in scipy).
 
 import math
 import numpy as np
@@ -187,8 +187,8 @@ class OdeResult:
     t: np.ndarray[float, 1]
     y: np.ndarray[float, 2]
     sol: Optional[OdeSolution]
-    t_events: List[np.ndarray[float, 1]]
-    y_events: List[np.ndarray[float, 2]]
+    t_events: Optional[List[np.ndarray[float, 1]]]
+    y_events: Optional[List[np.ndarray[float, 2]]]
     nfev: int
     njev: int
     nlu: int
@@ -197,8 +197,8 @@ class OdeResult:
     success: bool
 
     def __init__(self, t: np.ndarray[float, 1], y: np.ndarray[float, 2],
-                 sol: Optional[OdeSolution], t_events: List[np.ndarray[float, 1]],
-                 y_events: List[np.ndarray[float, 2]], nfev: int, status: int,
+                 sol: Optional[OdeSolution], t_events: Optional[List[np.ndarray[float, 1]]],
+                 y_events: Optional[List[np.ndarray[float, 2]]], nfev: int, status: int,
                  message: str):
         self.t = t
         self.y = y
@@ -910,7 +910,10 @@ def _drive(solver, F, args, t0: float, tf: float, yv: np.ndarray[float, 1], n: i
             for j in range(n):
                 ye[k, j] = y_events[i][k][j]
         yev.append(ye)
-    res = OdeResult(tarr, yarr, osol, tev, yev, solver.nfev, status, message)
+    if has_ev:
+        res = OdeResult(tarr, yarr, osol, tev, yev, solver.nfev, status, message)
+    else:
+        res = OdeResult(tarr, yarr, osol, None, None, solver.nfev, status, message)
     res.njev = solver.njev
     res.nlu = solver.nlu
     return res

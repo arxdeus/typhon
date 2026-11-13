@@ -159,6 +159,7 @@ else:
     check('lv sol none', False)
 s = I.solve_ivp(decay, [0, 10], [2.0], t_eval=[0, 1, 2.5, 10])
 check('teval', s.nfev == TEVAL[0] and close(s.t, TEVAL[1]) and close(s.y, TEVAL[2], TOL))
+check('no events None', s.t_events is None and s.y_events is None)
 s = I.solve_ivp(cannon, [0, 100], [0, 10], events=(Hit(), apex))
 check('events status', s.status == EVENTS[0] and s.nfev == EVENTS[1])
 check('events message', s.message == "A termination event occurred.")
