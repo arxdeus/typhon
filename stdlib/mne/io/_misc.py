@@ -251,6 +251,9 @@ def read_raw(fname, *, preload = False, verbose = None, **kwargs):
     if low.endswith(".dat"):
         from .bci2k import read_raw_bci2k
         return read_raw_bci2k(f, preload = preload)
+    if low.endswith(".nxe"):
+        from .eximia import read_raw_eximia
+        return read_raw_eximia(f, preload = preload)
     if low.endswith(".nedf"):
         from .nedf import read_raw_nedf
         return read_raw_nedf(f, preload = preload)

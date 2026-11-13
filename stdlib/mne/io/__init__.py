@@ -17,3 +17,4 @@ from .besa import read_evoked_besa
 from .._containers import RawArray as BaseRaw
 from .._containers import RawArray as Raw
 from ._match import match_channel_orders
+from .eximia import read_raw_eximia
