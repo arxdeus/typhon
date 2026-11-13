@@ -52,6 +52,19 @@ GROUPS = {
         ('loggamma', (2.3,), 1e-11), ('alpha', (2.1,), 1e-11),
         ('ncx2', (3.5, 1.2), 1e-9), ('ncf', (4.0, 11.0, 1.5), 1e-8), ('nct', (9.0, 0.8), 1e-8),
     ],
+    'c3a': [
+        ('halflogistic', (), 1e-12), ('genhalflogistic', (0.6,), 1e-11),
+        ('halfgennorm', (0.7,), 1e-11), ('invweibull', (10.5,), 1e-11), ('exponpow', (2.7,), 1e-11),
+        ('powernorm', (4.4,), 1e-11), ('powerlognorm', (2.1, 0.45), 1e-10),
+        ('laplace_asymmetric', (2.0,), 1e-12), ('trapezoid', (0.2, 0.8), 1e-12),
+        ('truncweibull_min', (2.5, 0.25, 1.75), 1e-10),
+    ],
+    'c3b': [
+        ('truncpareto', (1.8, 5.3), 1e-11), ('gengamma', (4.4, 3.1), 1e-10),
+        ('genexpon', (9.1, 16.2, 3.3), 1e-9), ('kappa4', (0.1, 0.1), 1e-10),
+        ('crystalball', (2.0, 3.0), 1e-10), ('argus', (1.0,), 1e-9),
+        ('tukeylambda', (3.1,), 1e-9), ('kstwobign', (), 1e-9), ('rel_breitwigner', (36.5,), 1e-8),
+    ],
 }
 
 DGROUPS = {

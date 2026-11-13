@@ -19,6 +19,10 @@ from ._continuous_distns2 import erlang, reciprocal, loguniform, johnsonsb, \
     johnsonsu, skewnorm, exponnorm, gennorm, foldnorm, foldcauchy, nakagami, \
     loggamma, alpha, dgamma, betaprime, recipinvgauss, fatiguelife, wrapcauchy, \
     cosine, vonmises, truncnorm, ncx2, ncf, nct, pearson3
+from ._continuous_distns3 import halflogistic, genhalflogistic, halfgennorm, \
+    invweibull, exponpow, powernorm, powerlognorm, laplace_asymmetric, trapezoid, \
+    truncweibull_min, truncpareto, gengamma, genexpon, kappa4, crystalball, argus, \
+    tukeylambda, kstwobign, rel_breitwigner
 from ._distn_infrastructure import rv_discrete, rv_discrete_frozen, rv_histogram
 from ._discrete_distns import binom, bernoulli, betabinom, nbinom, betanbinom, \
     geom, hypergeom, nhypergeom, logser, poisson, planck, boltzmann, randint, \
