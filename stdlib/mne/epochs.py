@@ -606,7 +606,7 @@ def write_evokeds(fname, evoked, *, on_mismatch: str = "raise", overwrite: bool 
 
 
 def read_evokeds(fname, condition = None, baseline = None, kind: str = "average",
-                 proj: bool = True, allow_maxshield: bool = False, verbose = None) -> List[Evoked]:
+                 proj: bool = True, allow_maxshield: bool = False, verbose = None):
     f = FifFile(str(fname))
     info = read_meas_info(f)
     out = List[Evoked]()
@@ -651,10 +651,16 @@ def read_evokeds(fname, condition = None, baseline = None, kind: str = "average"
         for e in out:
             e.apply_baseline(baseline)
     if isinstance(condition, int):
-        return [out[condition]]
+        if condition >= len(out) or condition < -len(out):
+            raise ValueError(f"Dataset {condition} was not found")
+        return out[condition]
     elif isinstance(condition, str):
-        return [e for e in out if e.comment == condition]
-    return out
+        for e in out:
+            if e.comment == condition:
+                return e
+        raise ValueError(f'Could not find evoked data with comment "{condition}"')
+    else:
+        return out
 
 
 def combine_evoked(all_evoked, weights) -> Evoked:

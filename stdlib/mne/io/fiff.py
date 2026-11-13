@@ -75,6 +75,11 @@ def read_raw_fif(fname, allow_maxshield: bool = False, preload = False,
     return raw
 
 
+def read_info(fname, verbose = None) -> Info:
+    """Read measurement info from a FIF file (mne.io.read_info)."""
+    return read_meas_info(FifFile(str(fname)))
+
+
 def _write_raw_fif(raw, fname: str, picks, tmin: float, tmax: Optional[float],
                    buffer_size_sec: Optional[float], fmt: str):
     sf = raw.info.sfreq
