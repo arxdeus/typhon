@@ -15,3 +15,4 @@ from _fitpack2 import UnivariateSpline, InterpolatedUnivariateSpline, LSQUnivari
 from _polyint import KroghInterpolator, BarycentricInterpolator, krogh_interpolate, \
     barycentric_interpolate, approximate_taylor_polynomial, lagrange, pade
 from _rbfinterp import RBFInterpolator
+from _bsplines2 import make_lsq_spline, make_smoothing_spline
