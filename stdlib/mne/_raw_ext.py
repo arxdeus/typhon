@@ -118,11 +118,11 @@ class RawArray:
                      fir_design: str = "firwin", pad: str = "reflect_limited",
                      skip_by_annotation = ("edge", "bad_acq_skip"), verbose = None):
         """FIR notch filter (single or multiple frequencies) in place."""
-        if method != "fir":
-            raise NotImplementedError("only method='fir' notch filtering is supported in Typhon mne")
+        if method != "fir" and method != "iir":
+            raise NotImplementedError("only method='fir'/'iir' notch filtering is supported in Typhon mne")
         pk = _filter_picks(self.info, picks)
         _notch_inplace(self._data, self.info.sfreq, freqs, notch_widths, float(trans_bandwidth),
-                       pk, filter_length, phase, fir_window, fir_design, pad)
+                       pk, filter_length, phase, fir_window, fir_design, pad, method, iir_params)
         return self
 
     def __getitem__(self, item):
@@ -219,6 +219,16 @@ class RawArray:
 
     def get_montage(self):
         return self.info.get_montage()
+
+    def set_meas_date(self, meas_date):
+        """Set info.meas_date (seconds since the epoch, or None); annotations are re-referenced."""
+        if isinstance(meas_date, NoneType):
+            self.info.meas_date = None
+            self.annotations._orig_time = None
+        else:
+            self.info.meas_date = float(meas_date)
+            self.annotations._orig_time = float(meas_date)
+        return self
 
     def interpolate_bads(self, reset_bads: bool = True, mode: str = "accurate",
                          origin = "auto", method = None, exclude = (), verbose = None):

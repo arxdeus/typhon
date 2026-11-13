@@ -128,7 +128,7 @@ def annotate_amplitude(raw, peak = None, flat = None, bad_percent = 5, min_durat
                                 any_flat[index[j]] = True
                             else:
                                 any_peak[index[j]] = True
-    ft = raw.first_time
+    ft = raw.first_time if raw.info.meas_date is not None else 0.0
     ons = List[float]()
     dur = List[float]()
     des = List[str]()
@@ -144,7 +144,7 @@ def annotate_amplitude(raw, peak = None, flat = None, bad_percent = 5, min_durat
         nm = raw.info.ch_names[b]
         if nm not in raw.info.bads:
             bads.append(nm)
-    return Annotations(ons, dur, des), bads
+    return Annotations(ons, dur, des, raw.info.meas_date), bads
 
 
 def annotate_break(raw, events = None, min_break_duration: float = 15.0,
@@ -221,5 +221,6 @@ def annotate_break(raw, events = None, min_break_duration: float = 15.0,
         o = merged[-1][1] + t_start_after_previous
         bo.append(o)
         bd.append(t_last - o)
-    out_on = [o + raw.first_time for o in bo]
-    return Annotations(out_on, bd, ["BAD_break" for _ in bo])
+    adj = raw.first_time if raw.info.meas_date is not None else 0.0
+    out_on = [o + adj for o in bo]
+    return Annotations(out_on, bd, ["BAD_break" for _ in bo], raw.info.meas_date)

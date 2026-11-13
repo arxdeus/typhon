@@ -18,7 +18,7 @@ mne.set_log_level("ERROR")
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEST_DIR = os.path.dirname(HERE)
 NAMES = ["test_io_fif", "test_io_edf_bv_eeglab", "test_raw_api", "test_events",
-         "test_events_epochs", "test_filter_picks", "test_proj_ref", "test_csd_annot", "test_montage_io", "test_epochs_more"]
+         "test_events_epochs", "test_filter_picks", "test_proj_ref", "test_csd_annot", "test_montage_io", "test_epochs_more", "test_filter_more"]
 
 
 def run(name):
@@ -39,7 +39,7 @@ def run(name):
     os.symlink(TEST_DIR, os.path.join(tmp, "test"))
     os.chdir(tmp)
     try:
-        g = {"np": np, "mne": mne, "check": check, "checks": checks, "V": lambda x: x,
+        g = {"np": np, "mne": mne, "check": check, "checks": checks, "V": lambda x: x, "TS": lambda x: x.timestamp(),
              "List": type("L", (), {"__class_getitem__": classmethod(lambda c, k: list)})}
         exec(compile(body, name + ".tpl", "exec"), g)
     finally:

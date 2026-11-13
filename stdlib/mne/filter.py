@@ -7,6 +7,7 @@
 import math
 import numpy as np
 from scipy.signal import firwin as _sp_firwin, firwin2 as _sp_firwin2
+from scipy.signal import minimum_phase as _sp_minimum_phase
 from scipy.fft import rfft as _rfft, irfft as _irfft
 
 _known_phases_fir = ("zero", "zero-double", "minimum", "minimum-half")
@@ -218,10 +219,22 @@ def _construct_fir_filter(sfreq: float, freq: List[float], gain: List[float], fi
     if nfreq[0] != 0 or nfreq[-1] != 1:
         raise ValueError(f"freq must start at 0 and end an Nyquist ({sfreq / 2.0}), got {freq}")
     N = _check_zero_phase_length(filter_length, phase, gain[-1])
-    if phase == "minimum" or phase == "minimum-half":
-        raise NotImplementedError("minimum-phase FIR filters are not supported in Typhon mne")
     h = np.zeros(1)
-    if fir_design == "firwin2":
+    if phase == "minimum-half":
+        h0 = np.zeros(1)
+        if fir_design == "firwin2":
+            h0 = _sp_firwin2(N * 2 - 1, nfreq, gain, window=fir_window)
+        else:
+            h0 = _firwin_design(N * 2 - 1, nfreq, gain, fir_window, sfreq)
+        h = _sp_minimum_phase(h0)
+    elif phase == "minimum":
+        h0 = np.zeros(1)
+        if fir_design == "firwin2":
+            h0 = _sp_firwin2(N, nfreq, gain, window=fir_window)
+        else:
+            h0 = _firwin_design(N, nfreq, gain, fir_window, sfreq)
+        h = _sp_minimum_phase(h0, half=False)
+    elif fir_design == "firwin2":
         h = _sp_firwin2(N, nfreq, gain, window=fir_window)
     else:
         h = _firwin_design(N, nfreq, gain, fir_window, sfreq)
@@ -596,9 +609,15 @@ def _notch_bands(freqs, notch_widths, trans_bandwidth: float) -> Tuple[List[floa
 
 def _notch_inplace(data, sfreq: float, freqs, notch_widths, trans_bandwidth: float,
                    picks: List[int], filter_length, phase: str, fir_window: str,
-                   fir_design: str, pad: str):
+                   fir_design: str, pad: str, method: str = "fir", iir_params = None):
     """FIR notch of a 2-D (or 3-D) array in place (one combined band-stop filter)."""
     lows, highs = _notch_bands(freqs, notch_widths, trans_bandwidth)
+    if method == "iir":
+        if len(lows) != 1:
+            raise ValueError("Multiple stop-bands can only be used with method='fir' and method='spectrum_fit'")
+        _filter_inplace_3d(data, sfreq, highs[0], lows[0], picks, filter_length, trans_bandwidth / 2.0,
+                           trans_bandwidth / 2.0, "iir", iir_params, phase, fir_window, fir_design, pad)
+        return
     h = _bandstop_multi_fir(sfreq, lows, highs, trans_bandwidth / 2.0, filter_length, phase,
                             fir_window, fir_design)
     if data.ndim == 3:
@@ -622,8 +641,8 @@ def notch_filter(x, Fs: float, freqs, filter_length = "auto", notch_widths = Non
                  copy: bool = True, phase: str = "zero", fir_window: str = "hamming",
                  fir_design: str = "firwin", pad: str = "reflect_limited", verbose = None):
     """FIR notch filter (mne.filter.notch_filter, method='fir'/'fft')."""
-    if method != "fir" and method != "fft":
-        raise NotImplementedError("only method='fir' notch filtering is supported in Typhon mne")
+    if method != "fir" and method != "fft" and method != "iir":
+        raise NotImplementedError("only method='fir'/'iir' notch filtering is supported in Typhon mne")
     a = np.asarray(x)
     if a.dtype is not float:
         compile_error("data must be float64 (mne requires real floating-point data)")
@@ -631,7 +650,7 @@ def notch_filter(x, Fs: float, freqs, filter_length = "auto", notch_widths = Non
     if out.ndim == 1:
         x2 = out.reshape((1, out.shape[0]))
         _notch_inplace(x2, float(Fs), freqs, notch_widths, trans_bandwidth, [0], filter_length,
-                       phase, fir_window, fir_design, pad)
+                       phase, fir_window, fir_design, pad, method, iir_params)
     else:
         n_rows = out.shape[out.ndim - 2]
         pk = List[int]()
@@ -641,7 +660,7 @@ def notch_filter(x, Fs: float, freqs, filter_length = "auto", notch_widths = Non
             for p in picks:
                 pk.append(int(p))
         _notch_inplace(out, float(Fs), freqs, notch_widths, trans_bandwidth, pk, filter_length,
-                       phase, fir_window, fir_design, pad)
+                       phase, fir_window, fir_design, pad, method, iir_params)
     return out
 
 

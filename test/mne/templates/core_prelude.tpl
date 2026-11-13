@@ -56,3 +56,7 @@ def checks(name: str, got):
 
 def V(x):
     return x.__val__()
+
+
+def TS(x):
+    return x.__val__()

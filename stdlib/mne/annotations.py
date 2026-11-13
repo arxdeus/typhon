@@ -15,10 +15,10 @@ class Annotations:
     onset: List[float]
     duration: List[float]
     description: List[str]
+    _orig_time: Optional[float]
 
-    def __init__(self, onset, duration, description, orig_time = None, ch_names = None):
-        if not isinstance(orig_time, NoneType):
-            compile_error("Typhon mne: only Annotations(orig_time=None) is supported")
+    def __init__(self, onset, duration, description, orig_time: Optional[float] = None, ch_names = None):
+        self._orig_time = orig_time
         self.onset = [float(v) for v in onset]
         n = len(self.onset)
         if isinstance(duration, int) or isinstance(duration, float):
@@ -33,14 +33,14 @@ class Annotations:
             raise ValueError("Onset, duration and description must be equal in sizes")
 
     @property
-    def orig_time(self):
-        return None
+    def orig_time(self) -> Optional[float]:
+        return self._orig_time
 
     def __len__(self) -> int:
         return len(self.onset)
 
     def copy(self):
-        return Annotations(list(self.onset), list(self.duration), list(self.description))
+        return Annotations(list(self.onset), list(self.duration), list(self.description), self._orig_time)
 
     def __repr__(self) -> str:
         return f"<Annotations | {len(self)} segments>"
@@ -55,6 +55,8 @@ class Annotations:
         return self
 
     def __add__(self, other: Annotations):
+        if self._orig_time != other._orig_time:
+            raise ValueError("orig_time should be the same to add/append operations")
         a = self.copy()
         for i in range(len(other)):
             a.append(other.onset[i], other.duration[i], other.description[i])

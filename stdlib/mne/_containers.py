@@ -762,7 +762,7 @@ class RawArray:
         self.info = info.copy()
         self.first_samp = first_samp
         self.times = np.arange(self._data.shape[1]).astype(float) / info.sfreq
-        self.annotations = Annotations(List[float](), List[float](), List[str]())
+        self.annotations = Annotations(List[float](), List[float](), List[str](), info.meas_date)
         self._raw_kind = "RawArray"
 
     @property
@@ -853,16 +853,27 @@ class RawArray:
 
     def set_annotations(self, annotations: Optional[Annotations], emit_warning: bool = True,
                         on_missing: str = "raise", *, verbose = None):
-        """Set annotations (orig_time=None: onsets relative to the first sample)."""
+        """Set annotations. orig_time=None onsets are relative to the first sample;
+        otherwise they are relative to orig_time (seconds since epoch) and are
+        re-referenced to info.meas_date."""
+        md = self.info.meas_date
         if annotations is None:
-            self.annotations = Annotations(List[float](), List[float](), List[str]())
+            self.annotations = Annotations(List[float](), List[float](), List[str](), md)
             return self
+        if md is None and annotations.orig_time is not None:
+            raise RuntimeError("Ambiguous operation. Setting an Annotation object with known ``orig_time`` to a raw object which has ``meas_date`` set to None is ambiguous. Please, either set a meaningful ``meas_date`` to the raw object; or set ``orig_time`` to None in which case the annotation onsets would be taken in reference to the first sample of the raw object.")
         sf = self.info.sfreq
         end = (self._data.shape[1] - 1) / sf + 1.0 / sf
-        a = annotations.copy()
-        a.crop(0.0, end)
         ft = self.first_time
-        a.onset = [o + ft for o in a.onset]
+        a = annotations.copy()
+        if annotations.orig_time is None:
+            a.crop(0.0, end)
+            a.onset = [o + ft for o in a.onset]
+        else:
+            shift = md.__val__() - annotations.orig_time.__val__()
+            a.crop(shift + ft, shift + ft + end)
+            a.onset = [o - shift for o in a.onset]
+        a._orig_time = md
         self.annotations = a
         return self
 
@@ -1057,10 +1068,22 @@ class RawArray:
     def resample(self, sfreq: float, *, npad = "auto", window = "auto", stim_picks = None,
                  n_jobs = None, events = None, pad: str = "auto", method: str = "fft",
                  verbose = None):
+        o = self.info.sfreq
+        self._resample_core(sfreq, npad, window, stim_picks, pad, method)
+        if isinstance(events, NoneType):
+            return self
+        else:
+            ratio = float(sfreq) / o
+            if abs(float(sfreq) - o) <= 1e-6 * o:
+                return self, np.asarray(events).astype(int).copy()
+            ev = np.asarray(events).astype(int).copy()
+            for i in range(ev.shape[0]):
+                ev[i, 0] = min(int(np.round(ev[i, 0] * ratio)), self._data.shape[1] + self.first_samp - 1)
+            return self, ev
+
+    def _resample_core(self, sfreq: float, npad, window, stim_picks, pad: str, method: str):
         """FFT resampling in place (mne.io.Raw.resample). Stim channels use
         mne's sample-picking rule. Passing events is not supported."""
-        if not isinstance(events, NoneType):
-            compile_error("resample(events=...) is not supported in Typhon mne")
         if method != "fft":
             raise NotImplementedError("only method='fft' resampling is supported in Typhon mne")
         o = self.info.sfreq

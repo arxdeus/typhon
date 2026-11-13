@@ -212,6 +212,7 @@ class Info:
     units: List[int]
     line_freq: Optional[float]
     experimenter: Optional[str]
+    meas_date: Optional[float]
     _montage: Optional[DigMontage]
     projs: List[Projection]
 
@@ -231,6 +232,7 @@ class Info:
         self.units = [_default_unit(t) for t in ch_types]
         self.line_freq = None
         self.experimenter = None
+        self.meas_date = None
         self._montage = None
         self.projs = List[Projection]()
 
@@ -242,6 +244,7 @@ class Info:
         self.units = [other.units[i] for i in sel]
         self.line_freq = other.line_freq
         self.experimenter = other.experimenter
+        self.meas_date = other.meas_date
         self.projs = [p.copy() for p in other.projs]
         if other._montage is not None:
             keep = [other.ch_names[i] for i in sel]
@@ -280,6 +283,8 @@ class Info:
             return self.description
         elif key == "projs":
             return self.projs
+        elif key == "meas_date":
+            return self.meas_date
         else:
             compile_error("unsupported Info key")
 
@@ -295,11 +300,16 @@ class Info:
             self.lowpass = float(value)
         elif key == "description":
             self.description = value
+        elif key == "meas_date":
+            if value is None:
+                self.meas_date = None
+            else:
+                self.meas_date = float(value)
         else:
             compile_error("unsupported or read-only Info key")
 
     def __contains__(self, key: str) -> bool:
-        return key in ("sfreq", "ch_names", "nchan", "bads", "highpass", "lowpass", "description", "projs")
+        return key in ("sfreq", "ch_names", "nchan", "bads", "highpass", "lowpass", "description", "projs", "meas_date")
 
     def get_channel_types(self, picks=None, unique: bool = False, only_data_chs: bool = False) -> List[str]:
         idx = _picks_to_idx(self, picks, "all", ())
