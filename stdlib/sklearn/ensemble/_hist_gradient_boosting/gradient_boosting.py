@@ -14,7 +14,7 @@ from .binning import _BinMapper
 from .grower import TreeGrower, TreePredictor, make_predictor
 from ._loss import _HGBLoss, _average
 from ...tree._classes import _check_rs, _encode_classes, _r2
-from ...model_selection import _tts_indices
+from ...model_selection._split import _tts_indices
 
 def _norm_cat(cf) -> Tuple[List[int], List[bool], bool]:
     """-> (indices, mask, is_mask); empty means no categorical features."""

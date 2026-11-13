@@ -10,3 +10,4 @@ from ._bagging import BaggingClassifier, BaggingRegressor, IsolationForest
 from ._voting import VotingClassifier, VotingRegressor
 from ._hist_gradient_boosting.gradient_boosting import (HistGradientBoostingClassifier,
                                                         HistGradientBoostingRegressor)
+from ._stacking import StackingClassifier, StackingRegressor

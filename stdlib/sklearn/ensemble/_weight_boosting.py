@@ -137,6 +137,13 @@ class AdaBoostClassifier[E]:
         tot = float(np.sum(self.estimator_weights_))
         return self._finish_decision(pred, tot)
 
+    def decision_function_1d(self, X):
+        """Binary-only (n,) decision function (sklearn's binary output shape)."""
+        d = self.decision_function(X)
+        if d.shape[1] != 1:
+            raise ValueError("decision_function_1d is only defined for binary problems")
+        return d.ravel()
+
     def staged_decision_function(self, X):
         for k in range(1, len(self.estimators_) + 1):
             pred, norm = self._decision_rows(X, k)

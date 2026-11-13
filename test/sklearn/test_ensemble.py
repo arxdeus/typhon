@@ -103,7 +103,9 @@ def t_gb():
     assert close(e.decision_function(Xt), gbe_dec, R, A)
     mc = GradientBoostingClassifier(n_estimators=8, random_state=0, learning_rate=0.2).fit(X, y)
     assert close(mc.predict_proba(Xt), gbm_proba, R, A) and close(mc.feature_importances_, gbm_fi, R, A)
-    st = [float(p[0]) for p in mc.staged_predict(Xt[:1])]
+    st = List[float]()
+    for p in mc.staged_predict(Xt[:1]):
+        st.append(float(p[0]))
     assert close(st, gbm_staged, 0.0)
     r1 = GradientBoostingRegressor(loss="squared_error", n_estimators=10, random_state=1, subsample=0.7, max_depth=2).fit(X, yr)
     assert close(r1.predict(Xt), gbr_squared_error_pred, R, A) and close(r1.feature_importances_, gbr_squared_error_fi, R, A)

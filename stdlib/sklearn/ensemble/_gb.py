@@ -4,15 +4,18 @@
 # the losses of sklearn/_loss). The regression trees share the boosting
 # RandomState like sklearn (splitter seeds and subsample masks come from the
 # same stream), so trees, predictions and importances match sklearn.
-# Not supported: n_iter_no_change (early stopping), warm_start, custom init
-# estimators (init=None or "zero" only).
+# init may be None (prior), "zero" or an estimator (fitted on the float32
+# training data like sklearn); n_iter_no_change early stopping and warm_start
+# follow sklearn (train_test_split needs an integer random_state).
 
 import math
 import numpy as np
+from numpy.random import RandomState
 from ..tree._classes import (DecisionTreeRegressor, _set_tree_params, _copy_tree_params,
                              _to_f32_colmajor, _encode_classes, _check_rs, _r2)
 from ..tree._tree import TREE_LEAF
 from ._base import _mean_rows
+from ..model_selection._split import _tts_indices
 
 _EPS: float = 2.220446049250313e-16
 
@@ -73,8 +76,36 @@ def _weighted_percentile(a: List[float], w: List[float], q: float) -> float:
 def _init_name(init) -> str:
     if init is None:
         return ""
+    elif isinstance(init, str):
+        if init != "zero":
+            raise ValueError(f"The init parameter must be an estimator or 'zero'. Got init={init}")
+        return "zero"
     else:
-        return init  # only "zero" is supported (custom init estimators are not)
+        return "est"
+
+def _init_fit(est, X, y, sw, has_w: bool):
+    if isinstance(est, NoneType) or isinstance(est, str):
+        pass
+    else:
+        if has_w:
+            est.fit(X, y, sample_weight=sw)
+        else:
+            est.fit(X, y)
+
+def _init_predict(est, X, is_clf: bool) -> np.ndarray[float, 2]:
+    if isinstance(est, NoneType) or isinstance(est, str):
+        return np.empty((0, 0))
+    elif hasattr(est, "predict_proba"):
+        if is_clf:
+            return np.asarray(est.predict_proba(X), dtype=float)
+        else:
+            pr = np.asarray(est.predict(X), dtype=float)
+            return pr.reshape((pr.shape[0], 1))
+    else:
+        if is_clf:
+            raise ValueError("The init estimator of a classifier must support predict_proba.")
+        pr = np.asarray(est.predict(X), dtype=float)
+        return pr.reshape((pr.shape[0], 1))
 
 class _Loss:
     kind: str          # squared_error absolute_error huber quantile log_loss(binomial) multinomial exponential
@@ -212,7 +243,7 @@ def _random_sample_mask(n: int, n_inbag: int, rs) -> List[bool]:
             n_bagged += 1
     return mask
 
-class _BaseGB[T]:
+class _BaseGB[T, I]:
     loss: str
     learning_rate: float
     n_estimators: int
@@ -231,11 +262,16 @@ class _BaseGB[T]:
     min_impurity_decrease: float
     ccp_alpha: float
     monotonic_cst: List[int]
-    init_: str
+    init_: str           # "" (prior), "zero" or "est"
+    init: I
     random_state: Optional[int]
     alpha: float
     verbose: int
     n_iter_no_change: Optional[int]
+    validation_fraction: float
+    tol: float
+    warm_start: bool
+    _rng: RandomState
     _is_clf: bool
     # fitted
     estimators_: List[List[T]]
@@ -258,7 +294,8 @@ class _BaseGB[T]:
                  min_weight_fraction_leaf: float, max_depth: Optional[int],
                  min_impurity_decrease: float, init, random_state: Optional[int], max_features,
                  alpha: float, verbose: int, max_leaf_nodes: Optional[int],
-                 n_iter_no_change: Optional[int], ccp_alpha: float):
+                 n_iter_no_change: Optional[int], ccp_alpha: float, warm_start: bool,
+                 validation_fraction: float, tol: float):
         self._is_clf = is_clf
         self.loss = loss
         self.learning_rate = learning_rate
@@ -268,10 +305,15 @@ class _BaseGB[T]:
                          min_samples_leaf, min_weight_fraction_leaf, max_features,
                          max_leaf_nodes, min_impurity_decrease, ccp_alpha, None)
         self.init_ = _init_name(init)
+        self.init = init
         self.random_state = random_state
         self.alpha = alpha
         self.verbose = verbose
         self.n_iter_no_change = n_iter_no_change
+        self.validation_fraction = validation_fraction
+        self.tol = tol
+        self.warm_start = warm_start
+        self._rng = np.random.RandomState(0)
         self.estimators_ = List[List[T]]()
         self.train_score_ = np.empty(0)
         self.oob_improvement_ = np.empty(0)
@@ -390,43 +432,140 @@ class _BaseGB[T]:
         for i in range(n):
             raw[i, k] += lr * t.val[int(leaves[i]) * vs]
 
+    def _init_raw_of(self, X32, n: int):
+        """raw predictions of the init estimator (_init_raw_predictions)."""
+        K = self.n_trees_per_iteration_
+        raw = np.empty((n, K))
+        if self.init_ == "est":
+            pr = _init_predict(self.init, X32, self._is_clf)
+            kind = self._loss.kind
+            for i in range(n):
+                if not self._is_clf:
+                    raw[i, 0] = pr[i, 0]
+                elif kind == "multinomial":
+                    s = 0.0
+                    lg = [0.0] * K
+                    for k in range(K):
+                        lg[k] = math.log(min(max(pr[i, k], _EPS), 1.0 - _EPS))
+                    # MultinomialLogit.link: log(p) - log(gmean(p))
+                    a = np.array(lg)
+                    gm = math.exp(float(np.mean(a)))
+                    for k in range(K):
+                        raw[i, k] = math.log(min(max(pr[i, k], _EPS), 1.0 - _EPS) / gm)
+                else:
+                    p1 = min(max(pr[i, 1], _EPS), 1.0 - _EPS)
+                    raw[i, 0] = 0.5 * _logit(p1) if kind == "exponential" else _logit(p1)
+        else:
+            for i in range(n):
+                for k in range(K):
+                    raw[i, k] = self._init_raw[k]
+        return raw
+
     def _fit_impl(self, X, yv: List[float], sample_weight):
-        Xa = np.asarray(X, dtype=float)
-        Xf, n, p = _to_f32_colmajor(Xa)
-        X32 = Xa.astype(np.float32).astype(float)
-        self.n_features_in_ = p
-        if self.n_iter_no_change is not None:
-            raise ValueError("GradientBoosting: n_iter_no_change (early stopping) is not supported")
+        Xa_all = np.asarray(X, dtype=float)
+        n_all = Xa_all.shape[0]
+        self.n_features_in_ = Xa_all.shape[1]
+        if not self.warm_start:
+            self.estimators_ = List[List[T]]()
         has_w = sample_weight is not None
-        sw = [1.0] * n
+        sw_all = [1.0] * n_all
         if sample_weight is not None:
             swa = np.asarray(sample_weight, dtype=float)
-            for i in range(n):
-                sw[i] = float(swa[i])
+            for i in range(n_all):
+                sw_all[i] = float(swa[i])
+        Xa = Xa_all
+        yt = yv
+        sw = sw_all
+        Xv = np.empty((0, Xa_all.shape[1]))
+        yval = List[float]()
+        swv = List[float]()
+        if self.n_iter_no_change is not None:
+            tr = np.empty(0, dtype=int)
+            te = np.empty(0, dtype=int)
+            if self._is_clf:
+                tr, te = _tts_indices(n_all, self.validation_fraction, None, self.random_state, True, np.array(yv))
+            else:
+                tr, te = _tts_indices(n_all, self.validation_fraction, None, self.random_state, True, None)
+            Xa = Xa_all[tr]
+            Xv = Xa_all[te].astype(np.float32).astype(float)
+            yt = [yv[int(i)] for i in tr]
+            yval = [yv[int(i)] for i in te]
+            sw = [sw_all[int(i)] for i in tr]
+            swv = [sw_all[int(i)] for i in te]
+        Xf, n, p = _to_f32_colmajor(Xa)
+        X32 = Xa.astype(np.float32).astype(float)
         probe = DecisionTreeRegressor()
         _copy_tree_params(probe, self)
         self.max_features_ = probe._resolve_max_features(p)
         K = self.n_trees_per_iteration_
-        self._init_raw = self._compute_init(yv, sw, has_w)
-        raw = np.empty((n, K))
-        for i in range(n):
-            for k in range(K):
-                raw[i, k] = self._init_raw[k]
-        rng = _check_rs(self.random_state)
+        begin = 0
+        raw = np.empty((0, 0))
+        if len(self.estimators_) == 0:
+            self.train_score_ = np.zeros(self.n_estimators)
+            if self.subsample < 1.0:
+                self.oob_improvement_ = np.zeros(self.n_estimators)
+                self.oob_scores_ = np.zeros(self.n_estimators)
+                self.oob_score_ = math.nan
+            if self.init_ == "est":
+                yi = np.array(yt)
+                if self._is_clf:
+                    yi_int = np.array([int(v) for v in yt])
+                    _init_fit(self.init, X32, yi_int, np.array(sw), has_w)
+                else:
+                    _init_fit(self.init, X32, yi, np.array(sw), has_w)
+            else:
+                self._init_raw = self._compute_init(yt, sw, has_w)
+            raw = self._init_raw_of(X32, n)
+            self._rng = _check_rs(self.random_state)
+        else:
+            if self.n_estimators < len(self.estimators_):
+                raise ValueError(f"n_estimators={self.n_estimators} must be larger or equal to estimators_.shape[0]={len(self.estimators_)} when warm_start==True")
+            begin = len(self.estimators_)
+            raw = self._raw_predict(X32)
+            self.train_score_ = np.resize(self.train_score_, self.n_estimators)
+            if self.subsample < 1.0 or self.oob_improvement_.shape[0] > 0:
+                if self.oob_improvement_.shape[0] > 0:
+                    self.oob_improvement_ = np.resize(self.oob_improvement_, self.n_estimators)
+                    self.oob_scores_ = np.resize(self.oob_scores_, self.n_estimators)
+                else:
+                    self.oob_improvement_ = np.zeros(self.n_estimators)
+                    self.oob_scores_ = np.zeros(self.n_estimators)
+                self.oob_score_ = math.nan
+        n_stages = self._fit_stages(Xf, X32, n, p, yt, sw, raw, Xv, yval, swv, begin)
+        if n_stages != len(self.estimators_):
+            self.estimators_ = self.estimators_[:n_stages]
+        if n_stages != self.train_score_.shape[0]:
+            self.train_score_ = self.train_score_[:n_stages].copy()
+            if self.oob_improvement_.shape[0] > 0:
+                self.oob_improvement_ = self.oob_improvement_[:n_stages].copy()
+                self.oob_scores_ = self.oob_scores_[:n_stages].copy()
+                self.oob_score_ = self.oob_scores_[n_stages - 1]
+        self.n_estimators_ = n_stages
+        self._fitted = True
+
+    def _fit_stages(self, Xf: List[float32], X32, n: int, p: int, yv: List[float],
+                    sw: List[float], raw, Xv, yval: List[float], swv: List[float],
+                    begin: int) -> int:
+        rng = self._rng
         do_oob = self.subsample < 1.0
         mask = [True] * n
         n_inbag = max(1, int(self.subsample * float(n)))
         loss = self._loss
         factor = loss.factor()
-        self.estimators_ = List[List[T]]()
-        self.train_score_ = np.zeros(self.n_estimators)
-        if do_oob:
-            self.oob_improvement_ = np.zeros(self.n_estimators)
-            self.oob_scores_ = np.zeros(self.n_estimators)
-            self.oob_score_ = math.nan
+        K = self.n_trees_per_iteration_
         all_rows = list(range(n))
         initial_loss = 0.0
-        for it in range(self.n_estimators):
+        es = self.n_iter_no_change is not None
+        nv = len(yval)
+        loss_history = List[float]()
+        raw_val = np.empty((0, 0))
+        val_rows = list(range(nv))
+        val_stage = 0
+        if es:
+            loss_history = [math.inf] * self.n_iter_no_change
+            raw_val = self._init_raw_of(Xv, nv)
+        it = begin
+        while it < self.n_estimators:
             in_rows = all_rows
             oob_rows = List[int]()
             if do_oob:
@@ -466,21 +605,32 @@ class _BaseGB[T]:
                 self.oob_scores_[it] = factor * loss(yv, raw, oob_rows, sw)
                 prev = initial_loss if it == 0 else self.oob_scores_[it - 1]
                 self.oob_improvement_[it] = prev - self.oob_scores_[it]
-                self.oob_score_ = self.oob_scores_[it]
+                self.oob_score_ = self.oob_scores_[self.oob_scores_.shape[0] - 1]
             else:
                 self.train_score_[it] = factor * loss(yv, raw, all_rows, sw)
-        self.n_estimators_ = self.n_estimators
-        self._fitted = True
+            if es:
+                # sklearn's staged validation iterator starts at stage 0 even
+                # when warm-starting (it is created lazily at begin_at_stage)
+                self._predict_stage(val_stage, Xv, raw_val)
+                val_stage += 1
+                vl = factor * loss(yval, raw_val, val_rows, swv)
+                improved = False
+                for v in loss_history:
+                    if vl + self.tol < v:
+                        improved = True
+                if improved:
+                    loss_history[it % len(loss_history)] = vl
+                else:
+                    break
+            it += 1
+        if it == self.n_estimators:
+            return it
+        return it + 1
 
     # ---------------------------------------------------------- predict
 
-    def _raw_predict_init(self, n: int):
-        K = self.n_trees_per_iteration_
-        raw = np.empty((n, K))
-        for i in range(n):
-            for k in range(K):
-                raw[i, k] = self._init_raw[k]
-        return raw
+    def _raw_predict_init(self, X):
+        return self._init_raw_of(X.astype(np.float32).astype(float), X.shape[0])
 
     def _check_X(self, X):
         if not self._fitted:
@@ -501,14 +651,14 @@ class _BaseGB[T]:
 
     def _raw_predict(self, X):
         Xa = self._check_X(X)
-        raw = self._raw_predict_init(Xa.shape[0])
+        raw = self._raw_predict_init(Xa)
         for i in range(len(self.estimators_)):
             self._predict_stage(i, Xa, raw)
         return raw
 
     def _staged_raw_predict(self, X):
         Xa = self._check_X(X)
-        raw = self._raw_predict_init(Xa.shape[0])
+        raw = self._raw_predict_init(Xa)
         for i in range(len(self.estimators_)):
             self._predict_stage(i, Xa, raw)
             yield raw.copy()
@@ -539,7 +689,7 @@ class _BaseGB[T]:
                     out[r, i, k] = lv[r]
         return out
 
-class GradientBoostingClassifier(_BaseGB[DecisionTreeRegressor]):
+class GradientBoostingClassifier[I](_BaseGB[DecisionTreeRegressor, I]):
     @property
     def _estimator_type(self) -> str:
         return "classifier"
@@ -548,15 +698,16 @@ class GradientBoostingClassifier(_BaseGB[DecisionTreeRegressor]):
                  n_estimators: int = 100, subsample: float = 1.0, criterion: str = "deprecated",
                  min_samples_split = 2, min_samples_leaf = 1,
                  min_weight_fraction_leaf: float = 0.0, max_depth: Optional[int] = 3,
-                 min_impurity_decrease: float = 0.0, init = None,
+                 min_impurity_decrease: float = 0.0, init: I = None,
                  random_state: Optional[int] = None, max_features = None, verbose: int = 0,
                  max_leaf_nodes: Optional[int] = None, warm_start: bool = False,
                  validation_fraction: float = 0.1, n_iter_no_change: Optional[int] = None,
                  tol: float = 1e-4, ccp_alpha: float = 0.0):
-        _BaseGB[DecisionTreeRegressor].__init__(self, True, loss, learning_rate, n_estimators, subsample, min_samples_split,
+        _BaseGB[DecisionTreeRegressor, I].__init__(self, True, loss, learning_rate, n_estimators, subsample, min_samples_split,
                       min_samples_leaf, min_weight_fraction_leaf, max_depth,
                       min_impurity_decrease, init, random_state, max_features, 0.9, verbose,
-                      max_leaf_nodes, n_iter_no_change, ccp_alpha)
+                      max_leaf_nodes, n_iter_no_change, ccp_alpha, warm_start,
+                      validation_fraction, tol)
 
     def fit(self, X, y, sample_weight = None, monitor = None):
         classes, enc = _encode_classes(np.asarray(y))
@@ -579,8 +730,15 @@ class GradientBoostingClassifier(_BaseGB[DecisionTreeRegressor]):
 
     def decision_function(self, X):
         """(n, n_trees_per_iteration_): binary problems give (n, 1) (sklearn
-        ravels to (n,); the static return type cannot depend on n_classes)."""
+        ravels to (n,); the static return rank cannot depend on n_classes).
+        decision_function_1d returns the (n,) binary form."""
         return self._raw_predict(X)
+
+    def decision_function_1d(self, X):
+        raw = self._raw_predict(X)
+        if raw.shape[1] != 1:
+            raise ValueError("decision_function_1d is only defined for binary problems")
+        return raw.ravel()
 
     def _labels(self, raw):
         n = raw.shape[0]
@@ -624,7 +782,7 @@ class GradientBoostingClassifier(_BaseGB[DecisionTreeRegressor]):
         from ..base import _accuracy
         return _accuracy(y, self.predict(X))
 
-class GradientBoostingRegressor(_BaseGB[DecisionTreeRegressor]):
+class GradientBoostingRegressor[I](_BaseGB[DecisionTreeRegressor, I]):
     @property
     def _estimator_type(self) -> str:
         return "regressor"
@@ -633,16 +791,17 @@ class GradientBoostingRegressor(_BaseGB[DecisionTreeRegressor]):
                  n_estimators: int = 100, subsample: float = 1.0, criterion: str = "deprecated",
                  min_samples_split = 2, min_samples_leaf = 1,
                  min_weight_fraction_leaf: float = 0.0, max_depth: Optional[int] = 3,
-                 min_impurity_decrease: float = 0.0, init = None,
+                 min_impurity_decrease: float = 0.0, init: I = None,
                  random_state: Optional[int] = None, max_features = None, alpha: float = 0.9,
                  verbose: int = 0, max_leaf_nodes: Optional[int] = None,
                  warm_start: bool = False, validation_fraction: float = 0.1,
                  n_iter_no_change: Optional[int] = None, tol: float = 1e-4,
                  ccp_alpha: float = 0.0):
-        _BaseGB[DecisionTreeRegressor].__init__(self, False, loss, learning_rate, n_estimators, subsample, min_samples_split,
+        _BaseGB[DecisionTreeRegressor, I].__init__(self, False, loss, learning_rate, n_estimators, subsample, min_samples_split,
                       min_samples_leaf, min_weight_fraction_leaf, max_depth,
                       min_impurity_decrease, init, random_state, max_features, alpha, verbose,
-                      max_leaf_nodes, n_iter_no_change, ccp_alpha)
+                      max_leaf_nodes, n_iter_no_change, ccp_alpha, warm_start,
+                      validation_fraction, tol)
 
     def fit(self, X, y, sample_weight = None, monitor = None):
         ya = np.asarray(y, dtype=float)
