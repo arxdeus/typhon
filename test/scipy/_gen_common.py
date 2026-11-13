@@ -1,12 +1,12 @@
 # Shared helpers for test/scipy/gen_*2_expected.py generators.
 import numpy as np, os
-HEADER = ['def closec(a, b, tol: float = 1e-12) -> bool:', '    a = np.asarray(a).ravel()', '    if a.size != len(b):', "        print('size', a.size, len(b))", '        return False',
- '    for i in range(len(b)):', '        if abs(a[i] - b[i]) > tol * max(1.0, abs(b[i])):', "            print('mismatch at', i, a[i], b[i])", '            return False', '    return True', '']
+HEADER = ['NAN = float("nan")', '', 'def closec(a, b, tol: float = 1e-12) -> bool:', '    a = np.asarray(a).ravel()', '    if a.size != len(b):', "        print('size', a.size, len(b))", '        return False',
+ '    for i in range(len(b)):', '        if b[i] != b[i]:', '            if a[i] == a[i]:', "                print('expected nan at', i, a[i])", '                return False', '            continue', '        if abs(a[i] - b[i]) > tol * max(1.0, abs(b[i])):', "            print('mismatch at', i, a[i], b[i])", '            return False', '    return True', '']
 def lit(val):
     v = np.asarray(val).ravel()
     if np.iscomplexobj(v):
         return '[' + ', '.join(f'complex({z.real!r}, {z.imag!r})' for z in v) + ']'
-    return '[' + ', '.join(repr(float(z)) for z in v) + ']'
+    return '[' + ', '.join(('NAN' if z != z else repr(float(z))) for z in v) + ']'
 class Gen:
     def __init__(self, ns, tol=None):
         self.ns = ns; self.L = []; self.tol = tol

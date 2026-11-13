@@ -2,12 +2,19 @@
 import numpy as np
 import scipy.spatial as S
 
+NAN = float("nan")
+
 def closec(a, b, tol: float = 1e-12) -> bool:
     a = np.asarray(a).ravel()
     if a.size != len(b):
         print('size', a.size, len(b))
         return False
     for i in range(len(b)):
+        if b[i] != b[i]:
+            if a[i] == a[i]:
+                print('expected nan at', i, a[i])
+                return False
+            continue
         if abs(a[i] - b[i]) > tol * max(1.0, abs(b[i])):
             print('mismatch at', i, a[i], b[i])
             return False
