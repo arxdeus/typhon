@@ -153,6 +153,10 @@ pub const SCIPY: &[&str] = &[
     "scipy/test_linalg2.py", "scipy/test_linalg_matfuncs.py", "scipy/test_signal_design.py",
     "scipy/test_signal_filter.py", "scipy/test_signal_spectral.py",
     "sklearn/test_cluster_bisect_bicluster.py", "mne/test_ica_picard.py",
+    "scipy/test_stats_desc.py", "scipy/test_stats_tests1.py", "scipy/test_stats_tests2.py",
+    "scipy/test_stats_qmc.py", "scipy/test_stats_misc.py",
+    "mne/test_io_fif.py", "mne/test_io_edf_bv_eeglab.py", "mne/test_raw_api.py",
+    "mne/test_events.py", "mne/test_events_epochs.py", "mne/test_filter_picks.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
