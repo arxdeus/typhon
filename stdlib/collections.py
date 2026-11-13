@@ -390,19 +390,13 @@ class Counter:
             if n <= 0:
                 return []
 
-            result = List[_CounterItem](capacity=n)
+            allv = List(capacity=len(self))
             for t in self.items():
-                ct = _CounterItem(*t)
-                if len(result) < n:
-                    result.append(ct)
-                    if len(result) == n:
-                        heapify(result)
-                else:
-                    if result[0] < ct:
-                        heapreplace(result, ct)
-
-            result.sort(reverse=True)
-            return [tuple(i) for i in result]
+                allv.append(t)
+            allv.sort(reverse=True, key=lambda i: i[1])
+            if n < len(allv):
+                return allv[:n]
+            return allv
 
     def subtract(self, elements: Generator[T], /):
         for a in elements:
@@ -430,6 +424,21 @@ class Counter:
 
     def update(self, /):
         pass
+
+    def __le__(self, other: Counter[T]) -> bool:
+        for kv in self._dict.items():
+            if kv[1] > other._dict.get(kv[0], 0):
+                return False
+        return True
+
+    def __ge__(self, other: Counter[T]) -> bool:
+        return other.__le__(self)
+
+    def __lt__(self, other: Counter[T]) -> bool:
+        return self.__le__(other) and not (self == other)
+
+    def __gt__(self, other: Counter[T]) -> bool:
+        return other.__lt__(self)
 
     def total(self) -> int:
         m = 0
@@ -485,8 +494,8 @@ class Counter:
         return self
 
     def __iand__(self, other: Counter[T]) -> Counter[T]:
-        for k, v in other.items():
-            self[k] = min(self.get(k, 0), v)
+        for k, v in self.items():
+            self[k] = min(v, other.get(k, 0))
         self._del_non_positives()
         return self
 
@@ -756,3 +765,79 @@ class Counter:
 @__generated__
 def namedtuple(name: Literal[str], args):  # internal
     pass
+
+class ChainMap:
+    maps: List[Dict[K, V]]
+    K: type
+    V: type
+
+    def __init__(self, maps: List[Dict[K, V]]):
+        self.maps = maps if len(maps) > 0 else [Dict[K, V]()]
+
+    def __init__(self, first: Dict[K, V]):
+        self.maps = [first]
+
+    def __getitem__(self, key: K) -> V:
+        for m in self.maps:
+            if key in m:
+                return m[key]
+        raise KeyError(f"{key!r}")
+
+    def get(self, key: K, default: V) -> V:
+        for m in self.maps:
+            if key in m:
+                return m[key]
+        return default
+
+    def __contains__(self, key: K) -> bool:
+        for m in self.maps:
+            if key in m:
+                return True
+        return False
+
+    def __setitem__(self, key: K, value: V):
+        self.maps[0][key] = value
+
+    def __delitem__(self, key: K):
+        if key in self.maps[0]:
+            del self.maps[0][key]
+            return
+        raise KeyError(f"Key not found in the first mapping: {key!r}")
+
+    def pop(self, key: K) -> V:
+        if key in self.maps[0]:
+            return self.maps[0].pop(key)
+        raise KeyError(f"Key not found in the first mapping: {key!r}")
+
+    def keys(self) -> List[K]:
+        seen = Dict[K, bool]()
+        for i in range(len(self.maps) - 1, -1, -1):
+            for k in self.maps[i]:
+                seen[k] = True
+        return [k for k in seen]
+
+    def __len__(self) -> int:
+        return len(self.keys())
+
+    def __iter__(self) -> Generator[K]:
+        for k in self.keys():
+            yield k
+
+    def items(self) -> List[Tuple[K, V]]:
+        out = List[Tuple[K, V]]()
+        for k in self.keys():
+            out.append((k, self[k]))
+        return out
+
+    def values(self) -> List[V]:
+        out = List[V]()
+        for k in self.keys():
+            out.append(self[k])
+        return out
+
+    def new_child(self) -> ChainMap[K, V]:
+        return ChainMap[K, V]([Dict[K, V]()] + self.maps)
+
+    @property
+    def parents(self) -> ChainMap[K, V]:
+        return ChainMap[K, V](self.maps[1:])

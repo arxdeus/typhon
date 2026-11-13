@@ -393,6 +393,31 @@ class OrderedDict:
 
         return e.value
 
+    def move_to_end(self, key: K, last: bool = True):
+        if key not in self:
+            raise KeyError(f"{key!r}")
+        v = self.pop(key)
+        if last:
+            self[key] = v
+        else:
+            items = List[Tuple[K, V]]()
+            for kv in self.items():
+                items.append(kv)
+            self.clear()
+            self[key] = v
+            for kv in items:
+                self[kv[0]] = kv[1]
+
+    def popitem(self, last: bool):
+        if last:
+            return self.popitem()
+        if self._used == 0:
+            raise KeyError("popitem(): dictionary is empty")
+        for kv in self.items():
+            v = self.pop(kv[0])
+            return (kv[0], v)
+        raise KeyError("popitem(): dictionary is empty")
+
     def popitem(self, /):
         if self._used == 0:
             raise KeyError("popitem(): dictionary is empty")
