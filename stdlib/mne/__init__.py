@@ -31,6 +31,12 @@ import decoding
 from .cov import (Covariance, compute_covariance, compute_raw_covariance, make_ad_hoc_cov,
                   regularize, compute_whitener, prepare_noise_cov, whiten_evoked,
                   pick_channels_cov)
+from .bem import make_sphere_model, ConductorModel
+from .source_space import setup_volume_source_space, SourceSpaces
+from .source_estimate import SourceEstimate, VolSourceEstimate, VolVectorSourceEstimate
+from .forward import (Forward, make_forward_solution, convert_forward_solution, apply_forward,
+                      apply_forward_raw, pick_channels_forward)
+import forward
 
 
 def set_log_level(verbose = None, return_old_level: bool = False, add_frames = None):
