@@ -599,6 +599,66 @@ def _mvt_params(loc, shape, df):
         raise ValueError("'df' is 'nan' but must be greater than zero or 'np.inf'.")
     return dim, l, _as_cov(shape, dim), d
 
+def _qmvt(m: int, nu: float, covar: np.ndarray[float, 2], low: np.ndarray[float, 1],
+          high: np.ndarray[float, 1], rng, n_batches: int = 10):
+    sn = max(1.0, K.sqrt(nu))
+    cho, lo, hi = _permuted_cholesky(covar, low / sn, high / sn)
+    n = cho.shape[0]
+    q, nq = _cbc_lattice(n, max(m // n_batches, 1))
+    rndm = rng.random(size=(n_batches, n))
+    prob = 0.0
+    error_var = 0.0
+    y = np.zeros(nq)
+    c = np.ones(nq)
+    dc = np.zeros(nq)
+    r = np.ones(nq)
+    for j in range(n_batches):
+        pv = np.ones(nq)
+        s = np.zeros((n, nq))
+        for k in range(nq):
+            z = q[0] * (k + 1) + rndm[j, 0]
+            z = z - float(int(z))
+            x = abs(2 * z - 1)
+            r[k] = K.sqrt(2 * K.gammaincinv(nu / 2, x)) if nu > 0 else 1.0
+        for i in range(n):
+            qq = q[i]
+            rr = rndm[j, i]
+            if i > 0:
+                for k in range(nq):
+                    z_k = fmod(qq * (k + 1) + rr, 1.0)
+                    x_k = abs(2 * z_k - 1)
+                    y[k] = K.ndtri(c[k] + x_k * dc[k])
+                    for ip in range(i, n):
+                        s[ip, k] += cho[ip, i - 1] * y[k]
+            for k in range(nq):
+                lois = lo[i] * r[k] - s[i, k]
+                ck = 0.0
+                if lois < -9:
+                    ck = 0.0
+                elif lois < 9:
+                    ck = K.ndtr(lois)
+                else:
+                    ck = 1.0
+                hiis = hi[i] * r[k] - s[i, k]
+                dk = 0.0
+                if hiis < -9:
+                    dk = 0.0
+                elif hiis < 9:
+                    dk = K.ndtr(hiis)
+                else:
+                    dk = 1.0
+                c[k] = ck
+                dc[k] = dk - ck
+                pv[k] *= dc[k]
+        dd = (float(np.mean(pv)) - prob) / (j + 1)
+        prob += dd
+        error_var = (j - 1) * error_var / (j + 1) + dd * dd
+    return prob
+
+def _mvt_box(rho: np.ndarray[float, 2], df: float, a: np.ndarray[float, 1], b: np.ndarray[float, 1], rs):
+    """P(a < T < b) for centered multivariate t (a <= b), maxpts = 1000 * dim."""
+    return _qmvt(1000 * rho.shape[0], df, rho, a, b, rs)
+
 class multivariate_t_frozen:
     dim: int
     loc: np.ndarray[float, 1]
@@ -633,6 +693,27 @@ class multivariate_t_frozen:
         return _pts(out, x, self.dim)
     def pdf(self, x):
         return np.exp(self.logpdf(x))
+    def cdf(self, x, maxpts = None, lower_limit = None, random_state = None):
+        X = _quantiles(x, self.dim)
+        rs = check_random_state(random_state) if random_state is not None else np.random.default_rng()
+        mp = 1000 * self.dim if maxpts is None else int(maxpts)
+        n = X.shape[0]
+        out = np.empty(n, dtype=float)
+        lower = np.full(self.dim, -INF)
+        if lower_limit is not None:
+            lower = np.broadcast_to(np.asarray(lower_limit).astype(float), (self.dim,)).copy()
+        for i in range(n):
+            b = X[i] - self.loc
+            a = lower - self.loc
+            sign = 1.0
+            for j in range(self.dim):
+                if b[j] < a[j]:
+                    t = a[j]
+                    a[j] = b[j]
+                    b[j] = t
+                    sign = -sign
+            out[i] = _qmvt(mp, self.df, self.shape, a, b, rs) * sign
+        return _pts(out, x, self.dim)
     def rvs(self, size: Literal[int] = 1, random_state = None):
         rs = check_random_state(random_state)
         if self.df == INF:
@@ -670,6 +751,9 @@ class multivariate_t_gen:
         return multivariate_t_frozen(loc, shape, df).logpdf(x)
     def pdf(self, x, loc = None, shape = 1, df = 1, allow_singular: bool = False):
         return multivariate_t_frozen(loc, shape, df, allow_singular).pdf(x)
+    def cdf(self, x, loc = None, shape = 1, df = 1, allow_singular: bool = False, *,
+            maxpts = None, lower_limit = None, random_state = None):
+        return multivariate_t_frozen(loc, shape, df, allow_singular).cdf(x, maxpts, lower_limit, random_state)
     def rvs(self, loc = None, shape = 1, df = 1, size: Literal[int] = 1, random_state = None):
         return multivariate_t_frozen(loc, shape, df, True).rvs(size, random_state)
     def entropy(self, loc = None, shape = 1, df = 1) -> float:
