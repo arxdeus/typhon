@@ -113,6 +113,20 @@ def distance_wasserstein(A, B, squared: bool = False):
     d2 = _clip0(_real(_trace(A + B - 2 * sqrtm(B12 @ A @ B12))))
     return _sqrt_or_sq(d2, squared)
 
+def distance_logchol(A, B, squared: bool = False):
+    A = np.asarray(A)
+    B = np.asarray(B)
+    _check_pair(A, B)
+    Ac = np.linalg.cholesky(A)
+    Bc = np.linalg.cholesky(B)
+    n = A.shape[A.ndim - 1]
+    mask = np.tril(np.ones((n, n)), -1)
+    eye_n = np.eye(n)
+    off = (Ac - Bc) * mask
+    dg = (np.log(Ac * eye_n + (1.0 - eye_n)) - np.log(Bc * eye_n + (1.0 - eye_n)))
+    d2 = np.sum(np.sum(off * off, axis=-1), axis=-1) + np.sum(np.sum(dg * dg, axis=-1), axis=-1)
+    return _sqrt_or_sq(d2, squared)
+
 def _distance_dispatch(A, B, metric: str, squared: bool):
     if metric == "riemann":
         return distance_riemann(A, B, squared=squared)
@@ -132,6 +146,8 @@ def _distance_dispatch(A, B, metric: str, squared: bool):
         return distance_kullback_sym(A, B, squared=squared)
     elif metric == "logdet":
         return distance_logdet(A, B, squared=squared)
+    elif metric == "logchol":
+        return distance_logchol(A, B, squared=squared)
     elif metric == "thompson":
         return distance_thompson(A, B, squared=squared)
     elif metric == "wasserstein":

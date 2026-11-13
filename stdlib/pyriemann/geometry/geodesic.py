@@ -51,6 +51,8 @@ def geodesic(A, B, alpha: float, metric: str = "riemann"):
         return geodesic_euclid(A, B, alpha)
     elif metric == "chol":
         return geodesic_chol(A, B, alpha)
+    elif metric == "logchol":
+        return geodesic_logchol(A, B, alpha)
     elif metric == "thompson":
         return geodesic_thompson(A, B, alpha)
     elif metric == "wasserstein":
@@ -59,3 +61,16 @@ def geodesic(A, B, alpha: float, metric: str = "riemann"):
         raise ValueError(
             f"Unknown function name '{metric}'. Must be one of chol euclid logchol "
             "logeuclid riemann thompson wasserstein")
+
+def geodesic_logchol(A, B, alpha: float = 0.5):
+    A = np.asarray(A)
+    B = np.asarray(B)
+    Ac = np.linalg.cholesky(A)
+    Bc = np.linalg.cholesky(B)
+    n = A.shape[A.ndim - 1]
+    geo = np.zeros(Ac.shape)
+    for i in range(n):
+        for j in range(i):
+            geo[..., i, j] = (1.0 - alpha) * Ac[..., i, j] + alpha * Bc[..., i, j]
+        geo[..., i, i] = Ac[..., i, i] ** (1.0 - alpha) * Bc[..., i, i] ** alpha
+    return geo @ ctranspose(geo)

@@ -5,7 +5,7 @@
 
 import numpy as np
 from .base import ctranspose, sqrtm, invsqrtm, logm, expm, powm
-from .geodesic import geodesic_riemann
+from .geodesic import geodesic_riemann, geodesic_thompson
 from .tangentspace import log_map_wasserstein, exp_map_wasserstein
 
 def check_weights(weights, n_weights: int, check_positivity: bool = False):
@@ -209,13 +209,175 @@ def gmean(X, metric: str = "riemann", sample_weight = None):
         return mean_logdet(X, sample_weight=sample_weight)
     elif metric == "wasserstein":
         return mean_wasserstein(X, sample_weight=sample_weight)
+    elif metric == "logchol":
+        return mean_logchol(X, sample_weight=sample_weight)
+    elif metric == "ale":
+        return mean_ale(X, sample_weight=sample_weight)
+    elif metric == "alm":
+        return mean_alm(X, sample_weight=sample_weight)
+    elif metric == "bmp":
+        return mean_bmp(X, sample_weight=sample_weight)
+    elif metric == "cheap":
+        return mean_cheap(X, sample_weight=sample_weight)
+    elif metric == "thompson":
+        return mean_thompson(X, sample_weight=sample_weight)
     else:
         raise ValueError(
-            f"Unknown function name '{metric}'. Must be one of chol euclid harmonic "
-            "kullback_sym logdet logeuclid riemann wasserstein")
+            f"Unknown function name '{metric}'. Must be one of ale alm bmp cheap chol euclid "
+            "harmonic kullback_sym logchol logdet logeuclid power poweuclid riemann "
+            "thompson wasserstein")
 
 def mean_covariance(X, metric: str = "riemann", sample_weight = None):
     # Deprecated in pyriemann 0.12. Note: pyriemann 0.12 ignores both
     # `metric` and `sample_weight` here (it always calls the riemann mean
     # unweighted); this behaviour is reproduced.
     return gmean(X, metric="riemann", sample_weight=None)
+
+
+def _spec(A):
+    return np.linalg.svd(A, compute_uv=False)[0]
+
+def mean_logchol(X, sample_weight = None):
+    X = _check3(X)
+    n_m = X.shape[0]
+    n = X.shape[1]
+    w = check_weights(sample_weight, n_m)
+    Lc = np.linalg.cholesky(X)
+    L = np.zeros((n, n))
+    for i in range(n):
+        for j in range(i):
+            L[i, j] = np.sum(w * Lc[:, i, j])
+        L[i, i] = np.exp(np.sum(w * np.log(Lc[:, i, i])))
+    return L @ L.T
+
+def mean_thompson(X, tol: float = 1e-6, maxiter: int = 50, init = None,
+                  sample_weight = None):
+    X = _check3(X)
+    n_m = X.shape[0]
+    n = X.shape[1]
+    M = mean_euclid(X) if init is None else _check_init(init, n)
+    converged = False
+    for i in range(maxiter):
+        Mnew = geodesic_thompson(M, X[i % n_m], 1.0 / (i + 2))
+        crit = np.linalg.norm(Mnew - M, 'fro')
+        M = Mnew
+        if crit <= tol:
+            converged = True
+            break
+    if not converged:
+        _warn()
+    return M
+
+def mean_ale(X, tol: float = 10e-7, maxiter: int = 50, sample_weight = None,
+             init = None):
+    from .ajd import ajd_pham
+    X = _check3(X)
+    n_m = X.shape[0]
+    n = X.shape[1]
+    w = check_weights(sample_weight, n_m)
+    if init is None:
+        B = ajd_pham(X)[0]
+    else:
+        B = _check_init(init, n)
+    eye_n = np.eye(n)
+    converged = False
+    for _ in range(maxiter):
+        J = _wsum(w, logm(B @ X @ B.T))
+        delta = np.diagonal(expm(J)).copy()
+        B = (np.abs(delta) ** -0.5)[:, None] * B
+        dd = np.log(delta)
+        crit = np.sqrt(np.sum(dd * dd))
+        if crit <= tol:
+            converged = True
+            break
+    if not converged:
+        _warn()
+    J = _wsum(w, logm(B @ X @ B.T))
+    A = np.linalg.solve(B, eye_n)
+    return A @ expm(J) @ A.T
+
+def _subset_idx(h: int, n_m: int):
+    return np.mod(np.arange(h, h + n_m - 1) + 1, n_m)
+
+def mean_alm(X, tol: float = 1e-14, maxiter: int = 100, sample_weight = None):
+    X = _check3(X)
+    n_m = X.shape[0]
+    w = check_weights(sample_weight, n_m)
+    if n_m == 1:
+        return X[0].copy()
+    if n_m == 2:
+        alpha = w[1] / w[0] / 2.0
+        return geodesic_riemann(X[0], X[1], alpha)
+    M = X.copy()
+    M_iter = np.zeros(M.shape)
+    converged = False
+    for _ in range(maxiter):
+        for h in range(n_m):
+            s = _subset_idx(h, n_m)
+            M_iter[h] = mean_alm(M[s], sample_weight=w[s])
+        norm_iter = _spec(M_iter[0] - M[0])
+        norm_c = _spec(M[0])
+        if norm_iter / norm_c < tol:
+            converged = True
+            break
+        M = M_iter
+        M_iter = np.zeros(M.shape)
+    if not converged:
+        _warn()
+    return np.mean(M_iter, axis=0)
+
+def mean_bmp(X, tol: float = 1e-7, maxiter: int = 50, sample_weight = None):
+    X = _check3(X)
+    n_m = X.shape[0]
+    w = check_weights(sample_weight, n_m)
+    if n_m == 1:
+        return X[0].copy()
+    if n_m == 2:
+        alpha = w[1] / w[0] / 2.0
+        return geodesic_riemann(X[0], X[1], alpha)
+    M = X.copy()
+    M_iter = np.zeros(M.shape)
+    converged = False
+    for _ in range(maxiter):
+        for h in range(n_m):
+            s = _subset_idx(h, n_m)
+            M_iter[h] = geodesic_riemann(M[h], mean_bmp(M[s], sample_weight=w[s]),
+                                         (n_m - 1.0) / n_m)
+        norm_iter = _spec(M_iter[0] - M[0])
+        norm_c = _spec(M[0])
+        if norm_iter / norm_c < tol:
+            converged = True
+            break
+        M = M_iter
+        M_iter = np.zeros(M.shape)
+    if not converged:
+        _warn()
+    return np.mean(M_iter, axis=0)
+
+def mean_cheap(X, tol: float = 1e-7, maxiter: int = 50, sample_weight = None):
+    X = _check3(X)
+    n_m = X.shape[0]
+    w = check_weights(sample_weight, n_m)
+    if n_m == 1:
+        return X[0].copy()
+    if n_m == 2:
+        alpha = w[1] / w[0] / 2.0
+        return geodesic_riemann(X[0], X[1], alpha)
+    M = X.copy()
+    M_iter = np.zeros(M.shape)
+    converged = False
+    for _ in range(maxiter):
+        for h in range(n_m):
+            M_ = np.concatenate((M[:h], M[h + 1:]), axis=0)
+            L = logm(np.linalg.solve(M[h], M_))
+            M_iter[h] = M[h] @ expm(np.sum(L, axis=0) / n_m)
+        norm_iter = _spec(M_iter[0] - M[0])
+        norm_c = _spec(M[0])
+        if norm_iter / norm_c < tol:
+            converged = True
+            break
+        M = M_iter
+        M_iter = np.zeros(M.shape)
+    if not converged:
+        _warn()
+    return np.mean(M_iter, axis=0)
