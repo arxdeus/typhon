@@ -66,3 +66,4 @@ from ._stats_extra import sigmaclip, obrientransform, gzscore, directional_stats
 from . import mstats
 from ._studentized_range import studentized_range
 from ._multicomp import tukey_hsd, dunnett, TukeyHSDResult, DunnettResult
+from ._exact2x2 import barnard_exact, boschloo_exact, BarnardExactResult, BoschlooExactResult
