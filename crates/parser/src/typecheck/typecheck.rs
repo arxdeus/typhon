@@ -238,6 +238,23 @@ impl<'a> TypecheckVisitor<'a> {
         Ok(Some(expr))
     }
 
+    /// String annotation (`x: 'B'`, PEP 484 forward reference): parse it as a type expression.
+    /// Only for top-level function annotations (nested strings are static generic arguments).
+    pub fn parse_fwd_ref(&mut self, expr: Option<ExprId>) -> Option<ExprId> {
+        let e = expr?;
+        let fwd = self.cache.ast[e].kind.as_string().and_then(|s| {
+            (s.strings.len() == 1 && s.strings[0].expr.is_none() && s.strings[0].prefix.is_empty())
+                .then(|| s.strings[0].value.clone())
+        });
+        if let Some(code) = fwd {
+            let src = self.cache.ast[e].src;
+            if let Ok((pe, _)) = crate::peg::parse_expr(&mut self.cache.ast, &code, &src) {
+                return Some(pe);
+            }
+        }
+        expr
+    }
+
     /// `transformType(expr, simple)`: typecheck a type expression (`None` -> `NoneType`).
     pub fn transform_type(&mut self, expr: Option<ExprId>, simple: bool) -> Result<Option<ExprId>> {
         let st = stdlib();
@@ -261,17 +278,6 @@ impl<'a> TypecheckVisitor<'a> {
             let ne = self.n_expr(IdExpr::new(st.none_type.clone()));
             self.cache.ast[ne].src = src;
             expr = ne;
-        }
-        // String annotation (`x: 'B'`, PEP 484 forward reference): parse it as a type expression.
-        let fwd = self.cache.ast[expr].kind.as_string().and_then(|s| {
-            (s.strings.len() == 1 && s.strings[0].expr.is_none() && s.strings[0].prefix.is_empty())
-                .then(|| s.strings[0].value.clone())
-        });
-        if let Some(code) = fwd {
-            let src = self.cache.ast[expr].src;
-            if let Ok((pe, _)) = crate::peg::parse_expr(&mut self.cache.ast, &code, &src) {
-                expr = pe;
-            }
         }
         let old = std::mem::replace(&mut self.ctx.borrow_mut().simple_types, simple);
         let r = self.transform(Some(expr));

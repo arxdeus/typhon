@@ -826,7 +826,8 @@ impl<'a> TypecheckVisitor<'a> {
         // Parse arguments to the context. Needs to be done after adding generics
         // to support cases like `foo(a: T, T: type)`
         for a in args.iter_mut() {
-            a.ty = self.transform_type(a.ty, true)?;
+            let aty = self.parse_fwd_ref(a.ty);
+            a.ty = self.transform_type(aty, true)?;
         }
 
         // Unify base type generics with argument types. Add non-generic arguments to the
@@ -874,7 +875,8 @@ impl<'a> TypecheckVisitor<'a> {
             } else {
                 let g = self.extract_class_generic(arg_type, aj);
                 // Forward reference to a later class (`b: B` / `b: 'B'`): treat as generic.
-                match self.transform_type(p.ty, true) {
+                let pty = self.parse_fwd_ref(p.ty);
+                match self.transform_type(pty, true) {
                     Err(e) if e.to_string().contains("is not defined") => generics.push(g),
                     r => {
                         let te = r?.unwrap();
@@ -891,6 +893,7 @@ impl<'a> TypecheckVisitor<'a> {
         // Forward reference to a class defined later in the module (`-> B` before
         // `class B`, also nested as `List[B]` / `Optional[B]`): CPython does not
         // evaluate it eagerly, so infer the return type.
+        let r = self.parse_fwd_ref(r);
         let ret = match self.transform_type(r, true) {
             Err(e) if r.is_some() && e.to_string().contains("is not defined") => None,
             x => x?,
