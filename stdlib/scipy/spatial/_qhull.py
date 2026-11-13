@@ -130,7 +130,7 @@ class _Tri:
     shift: float
     lifted: np.ndarray[float, 2]
 
-    def __init__(self, P):
+    def __init__(self, P, furthest: bool = False):
         n = P.shape[0]
         D = P.shape[1]
         if n < D + 2:
@@ -141,11 +141,14 @@ class _Tri:
         self.lifted = L
         H = Hull(L)
         H.build()
-        cop = H.finish_delaunay()
+        cop = List[Tuple[int, int, int]]()
+        if not furthest:
+            cop = H.finish_delaunay()
         ids = List[int]()
         idmap = [-1] * len(H.verts)
         for f in range(len(H.verts)):
-            if H.alive[f] and H.normal[f][D] < -1e-12:
+            # lower hull = Delaunay; upper hull = furthest-site Delaunay
+            if H.alive[f] and ((not furthest and H.normal[f][D] < -1e-12) or (furthest and H.normal[f][D] > 1e-12)):
                 idmap[f] = len(ids)
                 ids.append(f)
         ns = len(ids)
@@ -187,11 +190,15 @@ class Delaunay:
                  qhull_options: Optional[str] = None):
         P = np.ascontiguousarray(np.asarray(points, dtype=float))
         _check_points(P, 2)
-        if furthest_site:
-            raise NotImplementedError("Delaunay: furthest_site is not supported")
-        tri = _Tri(P)
+        self.furthest_site = furthest_site
+        self._incremental = incremental
         self._points = P
         self.ndim = P.shape[1]
+        self._build(P)
+
+    def _build(self, P):
+        tri = _Tri(P, self.furthest_site)
+        self._points = P
         self.npoints = P.shape[0]
         self.min_bound = np.min(P, axis=0)
         self.max_bound = np.max(P, axis=0)
@@ -203,9 +210,29 @@ class Delaunay:
         self.nsimplex = tri.simplices.shape[0]
         self.paraboloid_scale = tri.scale
         self.paraboloid_shift = tri.shift
-        self.furthest_site = furthest_site
         self._transform = np.zeros((0, 0, 0))
         self._have_transform = False
+
+    def add_points(self, points, restart: bool = False):
+        """Add points and re-triangulate (the result equals a fresh
+        triangulation of all points; Qhull's incremental order is not kept)."""
+        if not self._incremental:
+            raise RuntimeError("incremental mode not enabled when last PointSet was created")
+        Q = np.ascontiguousarray(np.asarray(points, dtype=float))
+        if Q.ndim != 2 or Q.shape[1] != self.ndim:
+            raise ValueError("points have wrong shape")
+        n0 = self._points.shape[0]
+        A = np.empty((n0 + Q.shape[0], self.ndim))
+        for i in range(n0):
+            for j in range(self.ndim):
+                A[i, j] = self._points[i, j]
+        for i in range(Q.shape[0]):
+            for j in range(self.ndim):
+                A[n0 + i, j] = Q[i, j]
+        self._build(A)
+
+    def close(self):
+        pass
 
     @property
     def points(self):
