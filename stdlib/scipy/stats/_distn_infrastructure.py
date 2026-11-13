@@ -912,6 +912,45 @@ class rv_continuous[Kr]:
             floc = None, fscale = None, loc = None, scale = None, method: str = 'MLE'):
         return _fit(Kr, data, args, f0, f1, f2, f3, floc, fscale, loc, scale, method)
 
+    # ---- helpers for scipy.stats.fit / goodness_of_fit (_fitting.py)
+    def _nshape(self) -> Literal[int]:
+        return Kr.nshape()
+    def _nllf_full(self, theta: List[float], data: np.ndarray[float, 1], mm: bool) -> float:
+        NS: Literal[int] = Kr.nshape()
+        full = List[float]()
+        for _ in range(NS + 2):
+            full.append(NAN)
+        dm = np.empty(0, dtype=float)
+        if mm:
+            dm = np.empty(NS + 2, dtype=float)
+            for k in range(NS + 2):
+                dm[k] = float(np.sum(data ** float(k + 1) / len(data)))
+        return _NNLF[Kr](full, data, mm, dm)(theta)
+    def _fit_vals(self, data, fixed: List[float], guess: List[float]):
+        # fixed / guess: [shapes..., loc, scale], NaN = not given
+        NS: Literal[int] = Kr.nshape()
+        allg = True
+        for i in range(NS):
+            if guess[i] != guess[i]:
+                allg = False
+        f0 = None if fixed[0] != fixed[0] else fixed[0]
+        f1 = None if (NS < 2 or fixed[1] != fixed[1]) else fixed[1]
+        f2 = None if (NS < 3 or fixed[2] != fixed[2]) else fixed[2]
+        f3 = None if (NS < 4 or fixed[3] != fixed[3]) else fixed[3]
+        fl = None if fixed[NS] != fixed[NS] else fixed[NS]
+        fs = None if fixed[NS + 1] != fixed[NS + 1] else fixed[NS + 1]
+        gl = None if guess[NS] != guess[NS] else guess[NS]
+        gs = None if guess[NS + 1] != guess[NS + 1] else guess[NS + 1]
+        if allg and NS > 0:
+            args = tuple(guess[i] for i in static.range(NS))
+            return _fit(Kr, data, args, f0, f1, f2, f3, fl, fs, gl, gs, 'MLE')
+        else:
+            return _fit(Kr, data, (), f0, f1, f2, f3, fl, fs, gl, gs, 'MLE')
+    def _from_vals(self, vals):
+        NS: Literal[int] = Kr.nshape()
+        sh = tuple(vals[i] for i in static.range(NS))
+        return self(*sh, loc=vals[NS], scale=vals[NS + 1])
+
 def _generic_munp(Kr: type, n: float, sh) -> float:
     # rv_continuous.generic_moment (momtype=1: integrate ppf**n over (0, 1))
     return quad(_Mom1[Kr, type(sh)](sh, n), 0.0, 1.0)[0]
