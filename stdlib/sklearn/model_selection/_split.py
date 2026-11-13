@@ -93,6 +93,11 @@ class StratifiedKFold:
 
     def _make_test_folds(self, y):
         from ..utils import _LegacyRS
+        if self.shuffle and self.random_state is None:
+            raise ValueError("StratifiedKFold(shuffle=True) needs an integer random_state in Typhon")
+        return self._test_folds_rng(y, _LegacyRS(0 if self.random_state is None else self.random_state))
+
+    def _test_folds_rng(self, y, rng):
         ya = np.asarray(y)
         n = ya.shape[0]
         _, y_idx, y_inv = np.unique(ya, return_index=True, return_inverse=True)
@@ -109,9 +114,6 @@ class StratifiedKFold:
             while j < n:
                 alloc[i, y_order[j]] += 1
                 j += self.n_splits
-        rng = _LegacyRS(0 if self.random_state is None else self.random_state)
-        if self.shuffle and self.random_state is None:
-            raise ValueError("StratifiedKFold(shuffle=True) needs an integer random_state in Typhon")
         test_folds = np.empty(n, dtype=int)
         for k in range(nc):
             tot = int(np.sum(alloc[:, k]))
@@ -135,14 +137,6 @@ class StratifiedKFold:
         n = tf.shape[0]
         for f in range(self.n_splits):
             yield (np.nonzero(tf != f)[0], np.nonzero(tf == f)[0])
-
-def check_cv(cv = 5, y = None, *, classifier: bool = True):
-    # sklearn: an int cv means StratifiedKFold for classifiers (all ported
-    # estimators are classifiers)
-    if isinstance(cv, int):
-        return StratifiedKFold(cv)
-    else:
-        return cv
 
 def _n_split(test_size, train_size, n: int):
     import math
