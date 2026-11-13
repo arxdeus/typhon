@@ -11,3 +11,4 @@ from ._validation import (check_cv, cross_validate, cross_val_score, cross_val_p
                           learning_curve, validation_curve, permutation_test_score)
 from ._params import ParameterGrid, ParameterSampler
 from ._search import GridSearchCV, RandomizedSearchCV
+from ._classification_threshold import FixedThresholdClassifier, TunedThresholdClassifierCV
