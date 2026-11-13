@@ -58,30 +58,12 @@ E_fgda_ft = [1.4507277612639562, 0.06616729730561693, 0.045880841321024046, 0.05
 E_fg_pred = [0.0, 0.0, 1.0, 1.0]
 E_fg_tr = [0.023881806237406433, 1.1806574903905078, 0.013040795664128786, 1.1698164798172304, 1.1483316879458587, 0.008443996207242769, 1.1685692100659928, 0.011793525912891224]
 E_fg_pr = [0.8011315745364124, 0.19886842546358763, 0.7971054405151746, 0.2028945594848254, 0.21105224966110872, 0.7889477503388913, 0.2033616466195335, 0.7966383533804665]
-E_ts_pr = [0.7677314076862157, 0.2322685923137843, 0.7367527381296162, 0.2632472618703838, 0.24510520590729334, 0.7548947940927067, 0.283197131420153, 0.716802868579847]
-E_ts_pred = [0.0, 0.0, 1.0, 1.0]
-E_knn_pred = [0.0, 0.0, 1.0, 1.0]
-E_knn_pr = [1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0]
-E_svc_df = [-1.1438120709017874, -0.9937479097040087, 0.9887142375160641, 0.8817798890550771]
-E_svc_pred = [0.0, 0.0, 1.0, 1.0]
-E_mf_tr = [0.7846817879976437, 2.302401906678494, 1.0137940685127047, 2.2608917778596207, 2.2979298194580906, 0.8704700732395935, 2.3482970277523463, 1.3652475411774652]
-E_mf_pred = [0.0, 0.0, 1.0, 1.0]
-E_mf2_tr = [0.4237664035688541, 1.3052403387141374, 0.5635942915719682, 1.298258761846487, 1.315539258844832, 0.48821555902767044, 1.3520617710506546, 0.7738434822742284]
 
 @test
-def test_classif():
+def test_classif_a():
     assert close(FGDA().fit(Xtr, ytr).transform(Xte), E_fgda, atol=1e-08)
     assert close(FGDA().fit_transform(Xtr, ytr), E_fgda_ft, atol=1e-08)
     assert close(FgMDM().fit(Xtr, ytr).predict(Xte), E_fg_pred, atol=1e-08)
     assert close(FgMDM().fit(Xtr, ytr).transform(Xte), E_fg_tr, atol=1e-08)
     assert close(FgMDM().fit(Xtr, ytr).predict_proba(Xte), E_fg_pr, atol=1e-08)
-    assert close(TSClassifier().fit(Xtr, ytr).predict_proba(Xte), E_ts_pr, atol=1e-06)
-    assert close(TSClassifier().fit(Xtr, ytr).predict(Xte), E_ts_pred, atol=1e-08)
-    assert close(KNearestNeighbor(3).fit(Xtr, ytr).predict(Xte), E_knn_pred, atol=1e-08)
-    assert close(KNearestNeighbor(3).fit(Xtr, ytr).predict_proba(Xte), E_knn_pr, atol=1e-08)
-    assert close(SVC("riemann", None, 2.0).fit(Xtr, ytr).decision_function(Xte), E_svc_df, atol=1e-06)
-    assert close(SVC("riemann", None, 2.0).fit(Xtr, ytr).predict(Xte), E_svc_pred, atol=1e-08)
-    assert close(MeanField().fit(Xtr, ytr).transform(Xte), E_mf_tr, atol=1e-07)
-    assert close(MeanField().fit(Xtr, ytr).predict(Xte), E_mf_pred, atol=1e-08)
-    assert close(MeanField([-0.5, 0.5], "inf_means").fit(Xtr, ytr).transform(Xte), E_mf2_tr, atol=1e-07)
-test_classif()
+test_classif_a()
