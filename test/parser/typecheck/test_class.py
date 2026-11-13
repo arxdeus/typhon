@@ -1235,3 +1235,15 @@ class G2(B2[E["regressor"]]):
     def __init__(self):
         self._i()
 print len(G2().xs)  #: 0
+
+#%% class_static_generic_explicit,barebones
+class C[F, N: Literal[int]]:
+    x: F
+    def __init__(self, x: F):
+        self.x = x
+    def get(self) -> F:
+        return self.x * N
+print C[float, 4](2.0).x, C[float, 2](1.5).get(), C[int, 1](3).N  #: 2.0 3.0 1
+def mk(n: Literal[int]):
+    return C[float, n](1.0)
+print mk(3).get()  #: 3.0

@@ -415,10 +415,29 @@ impl<'a> TypecheckVisitor<'a> {
             .map(|e| {
                 let src = a[e].src;
                 let code = self.cache.content(&src);
+                // Class instance with generics that nothing could deduce (e.g. `C(1.0)`
+                // for `class C[F, N: Literal[int]]`): name them.
+                let types = &self.cache.types;
+                let hint = a[e]
+                    .ty
+                    .and_then(|t| types.get_class(t))
+                    .filter(|c| types.get_func(*c).is_none())
+                    .map(|c| {
+                        let missing: Vec<String> = types
+                            .generics(c)
+                            .iter()
+                            .filter(|g| g.ty.is_none_or(|t| types.get_unbound(t).is_some()))
+                            .map(|g| format!("'{}'", self.get_user_facing_name(g.name.as_str())))
+                            .collect();
+                        (types.class_name(c).map(|n| self.get_user_facing_name(n.as_str())).unwrap_or_default(), missing)
+                    })
+                    .filter(|(_, m)| !m.is_empty())
+                    .map(|(n, m)| format!(" (cannot deduce generic {} of '{n}'; pass it explicitly, e.g. {n}[...](...))", m.join(", ")))
+                    .unwrap_or_default();
                 if !code.is_empty() {
-                    ErrorMessage::new(format!("cannot typecheck '{code}'"), src)
+                    ErrorMessage::new(format!("cannot typecheck '{code}'{hint}"), src)
                 } else {
-                    ErrorMessage::new("cannot typecheck the expression", src)
+                    ErrorMessage::new(format!("cannot typecheck the expression{hint}"), src)
                 }
             })
             .collect();
