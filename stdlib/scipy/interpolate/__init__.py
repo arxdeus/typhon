@@ -21,3 +21,4 @@ from _ndgriddata import LinearNDInterpolator, CloughTocher2DInterpolator, Neares
 from _bpoly import BPoly
 from _fitpack2d import RectBivariateSpline, bisplev, SmoothBivariateSpline, LSQBivariateSpline, bisplrep
 from _rbf import Rbf
+from _ndppoly import NdPPoly
