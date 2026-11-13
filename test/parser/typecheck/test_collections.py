@@ -448,3 +448,16 @@ def mk(T: type):
 def fdl(x, T: type):
     return {'a': mk(T), 'b': x}, [[], [x]], {'k': [], 'j': [x]}
 print fdl(1, int)  #: ({'a': 0, 'b': 1}, [[], [1]], {'k': [], 'j': [1]})
+
+#%% list_optional_mixed_numeric,barebones
+a = [None, 1, 2.5]
+print(a, a.__class__.__name__)
+#: [None, 1, 2.5] List[Optional[float]]
+b = [1, None, 2]
+print(b, b.__class__.__name__)
+#: [1, None, 2] List[Optional[int]]
+
+#%% list_optional_heterogeneous,barebones
+x = [None, True, 1]
+print(len(x), x[0] is None)
+#: 3 True

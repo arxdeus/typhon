@@ -166,11 +166,47 @@ impl<'a> TypecheckVisitor<'a> {
             return Ok(Some(ti));
         } else if types.is(coll, &st.complex) && (types.is(ti, "Int") || types.is(ti, "float")) {
             return Ok(Some(coll));
-        } else if cn.as_str() != st.optional && tn.as_str() == st.optional {
-            // Rule: T derives from Optional[T]
-            return Ok(Some(opt(self, coll)?));
-        } else if cn.as_str() == st.optional && tn.as_str() != st.optional {
-            return Ok(Some(opt(self, ti)?));
+        } else if cn.as_str() == st.optional || tn.as_str() == st.optional {
+            // Rule: T derives from Optional[T]. The non-None members are combined by the
+            // same rules ([None, 1, 2.5] -> Optional[float]); members without a common
+            // type yield no lowest common type (the slot becomes Optional[Union[...]]).
+            let inner_of = |v: &Self, t: TypeId| -> Option<TypeId> {
+                if types.is(t, &st.optional) {
+                    let g = v.extract_class_generic(t, 0);
+                    if types.can_realize(g) { types.get_class(g) } else { None }
+                } else {
+                    Some(t)
+                }
+            };
+            let (a, b) = (inner_of(self, coll), inner_of(self, ti));
+            let t = match (a, b) {
+                (None, None) => return Ok(Some(coll)),
+                (Some(a), None) | (None, Some(a)) => a,
+                (Some(a), Some(b)) if types.realized_name(a) == types.realized_name(b) => a,
+                (Some(a), Some(b)) => match self.collection_lctyp(Some(a), b)? {
+                    Some(t) => t,
+                    // `None` items keep the slot non-realizable for the union pass, so
+                    // build Optional[Union[a, b]] here ([None, True, 1]).
+                    None if types.can_realize(a) && types.can_realize(b) => {
+                        let mut ms = vec![];
+                        for t in [a, b] {
+                            match types.get_union(t) {
+                                Some(u) => ms.extend(types.union_realization_types(u).into_iter().filter_map(|m| types.get_class(m))),
+                                None => ms.push(t),
+                            }
+                        }
+                        let mut uniq: Vec<TypeId> = vec![];
+                        for m in ms {
+                            if !uniq.iter().any(|u| types.realized_name(*u) == types.realized_name(m)) {
+                                uniq.push(m);
+                            }
+                        }
+                        self.union_of(&uniq)?
+                    }
+                    None => return Ok(None),
+                },
+            };
+            return Ok(Some(if types.is(t, &st.optional) { t } else { opt(self, t)? }));
         } else if cn != tn {
             // Rule: subclass derives from its base class
             let mros = self.get_class_type(coll).mro.clone();
