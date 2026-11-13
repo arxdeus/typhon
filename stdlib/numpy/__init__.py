@@ -36,3 +36,4 @@ import char
 import fusion
 from .scalar_types import *
 from .poly1d import *
+# TODO enable after smoke test: from .matrix import matrix, asmatrix, mat, bmat

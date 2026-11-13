@@ -291,3 +291,5 @@ typecodes = {
     'AllFloat': 'efdgFDG', 'Datetime': 'Mm', 'All': '?bhilqnpBHILQNPefdgFDGSUVOMm'
 }
 little_endian = True
+
+ScalarType = ('int', 'float', 'complex', 'bool', 'bytes', 'str')

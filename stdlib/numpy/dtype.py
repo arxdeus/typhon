@@ -482,3 +482,17 @@ long = int
 ulong = UInt[64]
 True_ = True
 False_ = False
+
+# sctypeDict: name -> scalar type name (types are static in Typhon)
+sctypeDict = {
+    'int8': 'int8', 'int16': 'int16', 'int32': 'int32', 'int64': 'int64',
+    'uint8': 'uint8', 'uint16': 'uint16', 'uint32': 'uint32', 'uint64': 'uint64',
+    'float16': 'float16', 'float32': 'float32', 'float64': 'float64',
+    'complex64': 'complex64', 'complex128': 'complex128', 'bool': 'bool',
+    'str': 'str', 'bytes': 'bytes', 'int': 'int64', 'float': 'float64',
+    'complex': 'complex128', 'half': 'float16', 'single': 'float32',
+    'double': 'float64', 'f2': 'float16', 'f4': 'float32', 'f8': 'float64',
+    'i1': 'int8', 'i2': 'int16', 'i4': 'int32', 'i8': 'int64',
+    'u1': 'uint8', 'u2': 'uint16', 'u4': 'uint32', 'u8': 'uint64',
+    'c8': 'complex64', 'c16': 'complex128', 'b1': 'bool', '?': 'bool',
+}

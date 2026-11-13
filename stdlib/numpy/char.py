@@ -80,3 +80,15 @@ def array(obj):
 
 def asarray(obj):
     return np.asarray(obj)
+
+from .strings import encode, decode, translate, mod
+str_ = str
+bytes_ = bytes
+character = str
+chararray = np.ndarray
+ndarray = np.ndarray
+narray = array
+asnarray = asarray
+strings_multiply = multiply
+strings_partition = partition
+strings_rpartition = rpartition
