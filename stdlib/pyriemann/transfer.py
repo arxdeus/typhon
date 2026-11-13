@@ -2,7 +2,7 @@
 # Ported from pyriemann 0.12 (BSD-3-Clause)
 
 # Transfer learning: domain encoding, TLDummy, TLCenter and TLScale for SPD
-# matrix input (3-D arrays). TLRotate is not provided.
+# matrix input (3-D arrays). TLRotate supports manifold input only.
 
 import numpy as np
 from .geometry.base import sqrtm, invsqrtm, powm
@@ -153,4 +153,183 @@ class TLScale:
         for d in self.domains_:
             idx = _mask(dom, d)
             out[idx] = self._apply(X[idx], d)
+        return out
+
+# ---------------------------------------------------------------------------
+# TLRotate (manifold input): Riemannian Procrustes analysis on orthogonal
+# matrices, ported from pyriemann.optimization.grassmann.
+
+def _rot_project(X, U):
+    A = X.T @ U
+    return X @ (A - A.T) / 2.0
+
+def _rot_retract(X, v):
+    Q, R = np.linalg.qr(X + v)
+    for i in range(R.shape[0]):
+        if R[i, i] < 0:
+            Q[:, i] = -1.0 * Q[:, i]
+    return Q
+
+def _rot_loss(Q, X, Y, weights, metric: str):
+    n = X.shape[0]
+    P = np.empty(Y.shape)
+    for i in range(n):
+        P[i] = Q @ Y[i] @ Q.T
+    return weights @ distance(X, P, metric=metric)
+
+def _rot_grad(Q, X, Y, weights, metric: str):
+    n = X.shape[0]
+    d = X.shape[1]
+    G = np.zeros((d, d))
+    if metric == "euclid":
+        for i in range(n):
+            G = G + weights[i] * (-4.0 * (X[i] - Q @ Y[i] @ Q.T) @ Q @ Y[i])
+    elif metric == "riemann":
+        for i in range(n):
+            Xi = X[i]
+            ev, U = np.linalg.eigh(Xi)
+            Xs = (U * np.sqrt(ev)) @ U.T
+            Xis = (U / np.sqrt(ev)) @ U.T
+            S = Xis @ (Q @ Y[i] @ Q.T) @ Xis
+            S = (S + S.T) / 2.0
+            w, V = np.linalg.eigh(S)
+            LS = (V * np.log(w)) @ V.T
+            logM = Xis @ LS @ Xs
+            G = G + weights[i] * (4.0 * logM @ Q)
+    else:
+        raise ValueError(
+            f"Unknown metric {metric}. TLRotate supports only 'euclid' and 'riemann' metrics.")
+    return G
+
+def _rot_local(Xi, Yi):
+    # general eig (not eigh): the eigenvector signs select the warm start
+    wX, qXc = np.linalg.eig(Xi)
+    iX = np.argsort(np.real(wX))[::-1]
+    qX = np.real(qXc)[:, iX]
+    wY, qYc = np.linalg.eig(Yi)
+    iY = np.argsort(np.real(wY))[::-1]
+    qY = np.real(qYc)[:, iY]
+    return qX @ qY.T
+
+def _rot_warm_start(X, Y, weights, metric: str):
+    best = 0
+    bestl = 0.0
+    cand0 = _rot_local(X[0], Y[0])
+    cand = cand0
+    for i in range(X.shape[0]):
+        c = _rot_local(X[i], Y[i])
+        l = float(_rot_loss(c, X, Y, weights, metric))
+        if i == 0 or l < bestl:
+            bestl = l
+            cand = c
+    return cand
+
+def _rot_minimize(Q_ini, X_source, X_target, weights, metric: str, tol_step: float,
+                  maxiter: int, maxiter_linesearch: int = 32):
+    Q_1 = Q_ini.copy()
+    Q = Q_ini.copy()
+    F = float(_rot_loss(Q_ini, X_target, X_source, weights, metric))
+    for _ in range(maxiter):
+        F_1 = float(_rot_loss(Q_1, X_target, X_source, weights, metric))
+        direction = _rot_project(Q_1, _rot_grad(Q_1, X_target, X_source, weights, metric))
+        alpha = 1.0
+        Q = _rot_retract(Q_1, -alpha * direction)
+        F = float(_rot_loss(Q, X_target, X_source, weights, metric))
+        dn = float(np.linalg.norm(direction))
+        for _ in range(maxiter_linesearch):
+            if F_1 - F > 1e-4 * alpha * dn * dn:
+                break
+            alpha = 0.5 * alpha
+            Q = _rot_retract(Q_1, -alpha * direction)
+            F = float(_rot_loss(Q, X_target, X_source, weights, metric))
+        crit = float(np.linalg.norm(-alpha * direction))
+        if crit <= tol_step:
+            break
+        Q_1 = Q
+    return Q, F
+
+def _swap01(Q):
+    Z = Q.copy()
+    Z[0, :] = Q[1, :]
+    Z[1, :] = Q[0, :]
+    return Z
+
+def _get_rotation_manifold(X_source, X_target, weights, metric: str, tol_step: float, maxiter: int):
+    if X_source.shape[0] != X_target.shape[0]:
+        raise ValueError("Number of matrices in each domain doesn't match.")
+    n = X_source.shape[0]
+    if weights.shape[0] == 0:
+        w = check_weights(None, n)
+    else:
+        w = check_weights(weights, n)
+    Q_ini = _rot_warm_start(X_target, X_source, w, metric)
+    if np.linalg.det(Q_ini) < 0:
+        Q_ini = _swap01(Q_ini)
+    Qp, Fp = _rot_minimize(Q_ini, X_source, X_target, w, metric, tol_step, maxiter)
+    Qn, Fn = _rot_minimize(_swap01(Q_ini), X_source, X_target, w, metric, tol_step, maxiter)
+    if Fp < Fn:
+        return Qp
+    return Qn
+
+class TLRotate:
+    # Manifold (3-D SPD input) variant only.
+    target_domain: str
+    metric: str
+    tol_step: float
+    maxiter: int
+    weights: np.ndarray[float, 1]
+    rotations_: Dict[str, np.ndarray[float, 2]]
+
+    def __init__(self, target_domain: str, weights = None, metric: str = "euclid",
+                 n_jobs: int = 1, expl_var: float = 0.999, n_components: int = 1,
+                 n_clusters: int = 3, tol_step: float = 1e-9, maxiter: int = 10000):
+        self.target_domain = target_domain
+        self.metric = metric
+        self.tol_step = tol_step
+        self.maxiter = maxiter
+        self.weights = np.empty(0) if weights is None else np.asarray(weights, dtype=float)
+        self.rotations_ = Dict[str, np.ndarray[float, 2]]()
+
+    def _class_means(self, X, lab: List[str], sw, idx):
+        classes = _unique_sorted([lab[i] for i in range(len(lab)) if idx[i]])
+        parts = []
+        for c in classes:
+            m = np.array([idx[i] and lab[i] == c for i in range(len(lab))])
+            parts.append(gmean(X[m], metric="riemann", sample_weight=sw[m]))
+        return np.stack(parts)
+
+    def fit(self, X, y_enc, sample_weight = None):
+        X = np.asarray(X, dtype=float)
+        _, lab, dom = decode_domains(X, y_enc)
+        sw = check_weights(sample_weight, X.shape[0])
+        tidx = _mask(dom, self.target_domain)
+        M_target = self._class_means(X, lab, sw, tidx)
+        self.rotations_ = Dict[str, np.ndarray[float, 2]]()
+        for d in _unique_sorted(dom):
+            if d == self.target_domain:
+                continue
+            M_src = self._class_means(X, lab, sw, _mask(dom, d))
+            self.rotations_[d] = _get_rotation_manifold(
+                M_src, M_target, self.weights, self.metric, self.tol_step, self.maxiter)
+        return self
+
+    def transform(self, X):
+        return np.asarray(X, dtype=float)
+
+    def fit_transform(self, X, y_enc, sample_weight = None):
+        X = np.asarray(X, dtype=float)
+        self.fit(X, y_enc, sample_weight=sample_weight)
+        _, _, dom = decode_domains(X, y_enc)
+        out = np.zeros(X.shape)
+        for d in _unique_sorted(dom):
+            idx = _mask(dom, d)
+            if d == self.target_domain:
+                out[idx] = X[idx]
+            else:
+                R = self.rotations_[d]
+                Xd = X[idx]
+                Xo = np.empty(Xd.shape)
+                for i in range(Xd.shape[0]):
+                    Xo[i] = R @ Xd[i] @ R.T
+                out[idx] = Xo
         return out

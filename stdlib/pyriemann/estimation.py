@@ -14,15 +14,21 @@ def _nextpow2(i: int) -> int:
 
 class Covariances:
     estimator: str
+    random_state: Optional[int]
+    support_fraction: Optional[float]
 
-    def __init__(self, estimator: str = "scm"):
+    def __init__(self, estimator: str = "scm", random_state: Optional[int] = None,
+                 support_fraction: Optional[float] = None):
         self.estimator = estimator
+        self.random_state = random_state
+        self.support_fraction = support_fraction
 
     def fit(self, X, y = None):
         return self
 
     def transform(self, X):
-        return covariances(X, estimator=self.estimator)
+        return covariances(X, estimator=self.estimator, random_state=self.random_state,
+                           support_fraction=self.support_fraction)
 
     def fit_transform(self, X, y = None):
         return self.fit(X, y).transform(X)

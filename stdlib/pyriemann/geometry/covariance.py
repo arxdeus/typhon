@@ -1,11 +1,11 @@
 # Ported from pyriemann 0.12 (BSD-3-Clause)
 # Shrinkage estimators follow scikit-learn's ledoit_wolf / oas (BSD-3-Clause).
 #
-# Real-valued input only. Estimators 'mcd', 'hub', 'stu', 'tyl' are not
-# implemented.
+# Real-valued input only.
 
 import numpy as np
 from .base import ctranspose, invsqrtm
+from sklearn.covariance import fast_mcd
 
 def _per_matrix(X, f):
     # Apply f: (n_channels, n_times) -> (n_channels, n_channels) over all
@@ -134,6 +134,16 @@ def covariance_scm(X, assume_centered: bool = False, weights = None):
 def covariance_sch(X):
     return _per_matrix(X, _sch)
 
+class _McdFn:
+    random_state: Optional[int]
+    support_fraction: Optional[float]
+    def __init__(self, random_state: Optional[int], support_fraction: Optional[float]):
+        self.random_state = random_state
+        self.support_fraction = support_fraction
+    def __call__(self, x):
+        r = fast_mcd(np.ascontiguousarray(x.T), self.support_fraction, self.random_state)
+        return r[1]
+
 class _MestFn:
     m: str
     def __init__(self, m: str):
@@ -141,7 +151,8 @@ class _MestFn:
     def __call__(self, x):
         return covariance_mest(x, self.m)
 
-def covariances(X, estimator: str = "cov"):
+def covariances(X, estimator: str = "cov", random_state: Optional[int] = None,
+                support_fraction: Optional[float] = None):
     if estimator == "cov":
         return _per_matrix(X, _cov)
     elif estimator == "scm":
@@ -154,12 +165,14 @@ def covariances(X, estimator: str = "cov"):
         return _per_matrix(X, _sch)
     elif estimator == "corr":
         return _per_matrix(X, _corr)
+    elif estimator == "mcd":
+        return _per_matrix(X, _McdFn(random_state, support_fraction))
     elif estimator == "hub" or estimator == "stu" or estimator == "tyl":
         return _per_matrix(X, _MestFn(estimator))
     else:
         raise ValueError(
             f"Unknown function name '{estimator}'. Must be one of corr cov hub lwf "
-            "mcd oas sch scm stu tyl (mcd is not available in Typhon)")
+            "mcd oas sch scm stu tyl")
 
 def normalize(X, norm: str):
     X = np.asarray(X)
