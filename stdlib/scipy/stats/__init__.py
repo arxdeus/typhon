@@ -36,3 +36,4 @@ from ._morestats import shapiro, anderson, anderson_ksamp, ansari, mood, \
     levene, bartlett, fligner, median_test, binomtest, fisher_exact, \
     ks_1samp, ks_2samp, kstest, cramervonmises, cramervonmises_2samp, \
     poisson_means_test, epps_singleton_2samp
+from . import qmc

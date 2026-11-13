@@ -226,4 +226,24 @@ def tests2():
     r = st.chi2_contingency(tb, lambda_='log-likelihood'); r2 = st.chi2_contingency(np.array([[[3, 4], [5, 2]], [[6, 1], [2, 7]]]))
     emit('c2c', [r.statistic, r.pvalue, r2.statistic, r2.pvalue, float(r2.dof)])
 
-{'desc': desc, 'tests1': tests1, 'tests2': tests2}[sys.argv[1]]()
+def qmc_():
+    from scipy.stats import qmc
+    from scipy.stats._qmc import van_der_corput
+    emit('sob_u', qmc.Sobol(3, scramble=False).random(8))
+    emit('sob_s', qmc.Sobol(3, rng=7).random(8))
+    s=qmc.Sobol(5, rng=np.random.default_rng(11)); s.random(4); emit('sob_s2', s.random(4))
+    emit('sob_b', qmc.Sobol(2, rng=3, bits=40).random_base2(3))
+    s=qmc.Sobol(2, rng=3); s.fast_forward(5); emit('sob_ff', s.random(3))
+    emit('sob_hd', qmc.Sobol(40, rng=1).random(4))
+    emit('hal_u', qmc.Halton(3, scramble=False).random(6))
+    emit('hal_s', qmc.Halton(4, rng=5).random(6))
+    emit('lhs', qmc.LatinHypercube(3, rng=2).random(5))
+    emit('lhs_c', qmc.LatinHypercube(2, rng=2, scramble=False).random(4))
+    smp = qmc.Halton(3, scramble=False).random(10)[1:]
+    emit('disc', [qmc.discrepancy(smp, method=m) for m in ['CD','WD','MD','L2-star']] + [qmc.discrepancy(smp, iterative=True), qmc.update_discrepancy(np.array([0.3,0.6,0.1]), smp, qmc.discrepancy(smp))])
+    emit('scl', qmc.scale(smp[:3], [-1, 0, 2], [1, 5, 3]))
+    emit('scl_r', qmc.scale(qmc.scale(smp[:3], [-1, 0, 2], [1, 5, 3]), [-1, 0, 2], [1, 5, 3], reverse=True))
+    emit('vdc', van_der_corput(7, 3, start_index=2))
+    emit('ints', qmc.Sobol(2, rng=4).integers(10, n=4))
+
+{'qmc': qmc_, 'desc': desc, 'tests1': tests1, 'tests2': tests2}[sys.argv[1]]()
