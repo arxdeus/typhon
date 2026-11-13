@@ -2243,7 +2243,7 @@ def _inverted_cdf(n, quantiles):
     return _discret_interpolation_to_boundaries((n * quantiles) - 1, gamma_fun)
 
 def _closest_observation(n, quantiles):
-    gamma_fun = lambda gamma, index: (gamma == 0) & (floor(index) % 2 == 0)
+    gamma_fun = lambda gamma, index: (gamma == 0) & (floor(index) % 2 == 1)
     return _discret_interpolation_to_boundaries((n * quantiles) - 1 - 0.5,
                                                 gamma_fun)
 

@@ -302,8 +302,58 @@ def histogram2d(x, y, bins = 10, range = None, density: bool = False, weights = 
 def _brange(n: int):
     return range(n)
 
-def histogramdd(sample, bins = 10, range = None, density: bool = False, weights = None):
-    # 2-column samples (the common case); returns (hist, [edges...])
-    s = asarray(sample)
-    h, ex, ey = histogram2d(s[:, 0], s[:, 1], bins, range, density, weights)
-    return h, [ex, ey]
+def _hdd_edges(col, b, r, k: int):
+    if isinstance(b, int):
+        if r is None:
+            return histogram_bin_edges(col, b)
+        return histogram_bin_edges(col, b, range=r[k])
+    else:
+        bk = b[k]
+        if isinstance(bk, int):
+            if r is None:
+                return histogram_bin_edges(col, bk)
+            return histogram_bin_edges(col, bk, range=r[k])
+        return asarray(bk).astype(float)
+
+def histogramdd(sample, bins = 10, range = None, density: bool = False, weights = None,
+                ndim: Literal[int] = 2):
+    # `ndim` (number of sample dimensions) must be static so the result rank is known
+    s = asarray(sample).astype(float)
+    if s.ndim != 2 or s.shape[1] != ndim:
+        raise ValueError("The dimension of bins must be equal to the dimension of the sample x.")
+    n = s.shape[0]
+    edges = []
+    for k in _brange(ndim):
+        edges.append(_hdd_edges(s[:, k], bins, range, k))
+    shape = (0,) * ndim
+    for k in static.range(ndim):
+        shape = _tset(shape, k, edges[k].size - 1)
+    h = zeros(shape, dtype=float)
+    w = None
+    if weights is not None:
+        w = asarray(weights).astype(float).ravel()
+    for i in _brange(n):
+        idx = (0,) * ndim
+        ok = True
+        for k in static.range(ndim):
+            q = _hist_bin(edges[k], s[i, k])
+            if q < 0:
+                ok = False
+            idx = _tset(idx, k, q)
+        if ok:
+            if w is None:
+                h[idx] += 1.0
+            else:
+                h[idx] += w[i]
+    if density:
+        tot = h.sum()
+        for idx in util.multirange(h.shape):
+            vol = 1.0
+            for k in static.range(ndim):
+                vol *= edges[k][idx[k] + 1] - edges[k][idx[k]]
+            h[idx] = h[idx] / tot / vol
+    return h, edges
+
+def _tset(t, k: Literal[int], v: int):
+    from .util import tuple_set
+    return tuple_set(t, k, v)
