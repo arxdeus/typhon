@@ -138,8 +138,9 @@ def _rot_cols(Q: np.ndarray[float, 2], a: int, b: int, M: np.ndarray[float, 2]):
     for i in range(Q.shape[0]):
         qa = Q[i, a]
         qb = Q[i, b]
-        Q[i, a] = qa * M[0, 0] + qb * M[1, 0]
-        Q[i, b] = qa * M[0, 1] + qb * M[1, 1]
+        # BLAS gemm accumulates with fused multiply-add: fma(qb, M10, qa*M00)
+        Q[i, a] = math.fma(qb, M[1, 0], qa * M[0, 0])
+        Q[i, b] = math.fma(qb, M[1, 1], qa * M[0, 1])
 
 def qradd_Rdiag(c: np.ndarray[float, 1], Q: np.ndarray[float, 2],
                 Rdiag: np.ndarray[float, 1], n: int):
@@ -175,8 +176,8 @@ def qrexc_Rdiag(A: np.ndarray[float, 2], Q: np.ndarray[float, 2],
         for r in range(Q.shape[0]):
             a = Q[r, k + 1]
             b = Q[r, k]
-            Q[r, k] = a * GT[0, 0] + b * GT[1, 0]
-            Q[r, k + 1] = a * GT[0, 1] + b * GT[1, 1]
+            Q[r, k] = math.fma(b, GT[1, 0], a * GT[0, 0])
+            Q[r, k + 1] = math.fma(b, GT[1, 1], a * GT[0, 1])
     for k in range(i, n - 1):
         Rdiag[k] = float(np.dot(Q[:, k], A[:, k + 1]))
     Rdiag[n - 1] = float(np.dot(Q[:, n - 1], A[:, i]))
@@ -664,7 +665,13 @@ def _Amat(amat: np.ndarray[float, 2], m_lcon: int, conmat: np.ndarray[float, 2],
         for r in range(m - m_lcon):
             for k in range(n):
                 D[r, k] = conmat[m_lcon + r, k] - conmat[m_lcon + r, n]
-        P = D @ simi
+        P = np.zeros((m - m_lcon, n))
+        for r in range(m - m_lcon):
+            for i in range(n):
+                acc = 0.0
+                for k in range(n):
+                    acc = math.fma(D[r, k], simi[k, i], acc)
+                P[r, i] = acc
         for r in range(m - m_lcon):
             for i in range(n):
                 A[i, m_lcon + r] = P[r, i]
