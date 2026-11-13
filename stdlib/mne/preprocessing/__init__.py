@@ -31,3 +31,4 @@ from ._realign import realign_raw
 from ._css import cortical_signal_suppression
 from ._ica_io import read_ica
 from ._hfc import compute_proj_hfc, read_fine_calibration, write_fine_calibration
+from ._fine_cal import compute_fine_calibration
