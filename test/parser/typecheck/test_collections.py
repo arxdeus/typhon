@@ -427,3 +427,9 @@ class S:
             return False
 s = S()
 print s.step(), s.step(), s.step()  #: True True False
+
+#%% generator_over_heterogeneous_tuple,barebones
+def emit(*args):
+    return ' '.join(str(a) for a in args)
+print emit(1, [2.0], 3.5)  #: 1 [2.0] 3.5
+print list(str(a) for a in (1, 'x')), sum(float(a) for a in (1, 2.5))  #: ['1', 'x'] 3.5

@@ -656,6 +656,25 @@ impl<'a> TypecheckVisitor<'a> {
                 self.result_expr = self.transform(Some(se))?;
             }
             GeneratorKind::Generator => {
+                // `(f(a) for a in hetero_tuple)`: unroll statically into a tuple and iterate
+                // it (elements must share a type), like a `for` over a heterogeneous tuple.
+                if self.ast().generator_loop_count(e) == 1 {
+                    let it = self.gen_root_iter(e);
+                    let c = self.cache.ast.clone_expr(it, false);
+                    let ti = self.tr(c)?;
+                    if let Some(tc) = self.expr_class(ti).filter(|t| types.is(*t, &st.tuple)) {
+                        if !types.can_realize(tc) {
+                            return Ok(()); // wait for the iterator type
+                        }
+                        if self.is_heterogenous(tc)? {
+                            self.ast_mut()[e].kind.as_generator_mut().unwrap().kind = GeneratorKind::TupleGenerator;
+                            let d = self.dot_n(e, "__iter__");
+                            let call = self.call_n(d, vec![]);
+                            self.result_expr = self.transform(Some(call))?;
+                            return Ok(());
+                        }
+                    }
+                }
                 let root = self.gen_root_for(e);
                 let l = self.tr_stmt(root)?; // assume: internal data will be changed
                 self.ast_mut()[e].kind.as_generator_mut().unwrap().loops = Some(l);
