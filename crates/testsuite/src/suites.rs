@@ -77,6 +77,7 @@ pub const STDLIB: &[&str] = &[
     "stdlib/array_test.py", "stdlib/collections_more_test.py", "stdlib/statistics_more_test.py",
     "stdlib/zlib_identical_test.py", "stdlib/datetime_strftime_test.py", "stdlib/string_template_test.py",
     "stdlib/ipaddress_v6_test.py",
+    "stdlib/decimal_context_test.py", "stdlib/difflib_more_test.py", "stdlib/functools_cache_test.py",
 ];
 
 pub const CNUMERICS: &[&str] = &[
@@ -125,6 +126,7 @@ pub const NUMPY: &[&str] = &[
     "numpy/test_empty_errstate.py", "numpy/test_strings.py", "numpy/test_lib_more.py",
     "numpy/test_generator.py", "numpy/test_ndarray_methods.py", "numpy/test_ma2.py",
     "numpy/test_empty_fancy.py", "numpy/test_savez.py",
+    "numpy/test_final2.py", "numpy/test_final3.py", "numpy/test_sort_ties.py",
 ];
 
 pub const SCIPY: &[&str] = &[
@@ -224,6 +226,15 @@ pub const SCIPY: &[&str] = &[
     "scipy/test_stats_final_dists_a.py", "scipy/test_stats_final_dists_b.py",
     "scipy/test_stats_final_discrete.py", "scipy/test_stats_final_misc.py",
     "scipy/test_special_spheroidal.py",
+    "mne/test_beamformer_eeg.py", "mne/test_inverse.py", "mne/test_preproc3.py", "mne/test_preproc_misc.py",
+    "mne/test_sim_labels.py", "mne/test_ssp_exg.py",
+    "pandas/test_csv2.py", "pandas/test_ops4.py",
+    "pyriemann/test_embed.py", "pyriemann/test_nch.py", "pyriemann/test_stats.py", "pyriemann/test_tl3.py",
+    "scipy/test_leftovers2.py", "sklearn/test_leftovers2.py",
+    "scipy/test_stats_final_cens.py", "scipy/test_stats_final_cov.py", "scipy/test_stats_final_levy.py",
+    "scipy/test_stats_final_methods.py", "scipy/test_stats_final_mgc.py", "scipy/test_stats_final_mv.py",
+    "scipy/test_stats_final_newdist.py", "scipy/test_stats_final_qmc.py", "scipy/test_stats_final_quantile.py",
+    "scipy/test_stats_final_sobol.py", "scipy/test_stats_final_surv.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
