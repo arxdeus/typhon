@@ -563,7 +563,7 @@ rule for_if_clause_async() -> Vec<StmtId>
 rule for_if_clause() -> Vec<StmtId>
     = p:position!() "for" SPACE() v:star_targets() SPACE() "in" SPACE() i:disjunction()
       cs:(SPACE()? "if" SPACE()? c:disjunction() {c})* q:position!() {
-        let mut r = vec![st.s(ForStmt { var: Some(v), iter: Some(i), ..Default::default() }, (p, q))];
+        let mut r = vec![st.s(ForStmt { var: Some(v), iter: Some(i), comprehension: true, ..Default::default() }, (p, q))];
         for c in cs { r.push(st.s(IfStmt { cond: Some(c), if_suite: None, else_suite: None }, (p, q))); }
         r
     }

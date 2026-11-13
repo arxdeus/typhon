@@ -123,6 +123,9 @@ pub struct ForStmt {
     pub wrapped: bool,
     /// True if there are no break/continue within the loop.
     pub flat: bool,
+    /// Comprehension/generator clause (`[e for x in it]`), not a `for` statement.
+    #[serde(default)]
+    pub comprehension: bool,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct IfStmt {

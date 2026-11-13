@@ -450,7 +450,7 @@ impl<'a> TypecheckVisitor<'a> {
             Ok(AstNode::Stmt(ret))
         };
         let (ok, delay, preamble, items) =
-            self.transform_static_loop_call(f.var.unwrap(), &mut suite, f.iter.unwrap(), &mut wrap, false)?;
+            self.transform_static_loop_call_ex(f.var.unwrap(), &mut suite, f.iter.unwrap(), &mut wrap, false, !f.comprehension)?;
         if !ok {
             return Ok((false, None));
         }
@@ -496,6 +496,21 @@ impl<'a> TypecheckVisitor<'a> {
         iter: ExprId,
         wrap: &mut StaticLoopWrapFn<'_, 'a>,
         allow_non_heterogenous: bool,
+    ) -> Result<(bool, bool, Option<StmtId>, Vec<AstNode>)> {
+        self.transform_static_loop_call_ex(var, _var_suite, iter, wrap, allow_non_heterogenous, false)
+    }
+
+    /// [`Self::transform_static_loop_call`]; `unroll_empty`: a `for` statement over an
+    /// empty tuple unrolls to nothing (never for comprehension clauses, whose element
+    /// type must still come from the regular loop).
+    pub fn transform_static_loop_call_ex(
+        &mut self,
+        var: ExprId,
+        _var_suite: &mut Option<StmtId>,
+        iter: ExprId,
+        wrap: &mut StaticLoopWrapFn<'_, 'a>,
+        allow_non_heterogenous: bool,
+        unroll_empty: bool,
     ) -> Result<(bool, bool, Option<StmtId>, Vec<AstNode>)> {
         if self.expr_class(iter).is_none() {
             return Ok((true, true, None, vec![]));
@@ -549,7 +564,7 @@ impl<'a> TypecheckVisitor<'a> {
                 let c = self.expr_class(iter).unwrap();
                 // `for x in ()`: unroll to nothing instead of typing `x` with a dummy
                 // element type (the body is dead code, as in Python).
-                let empty = !allow_non_heterogenous && self.cache.types.generics_len(c) == 0;
+                let empty = unroll_empty && !allow_non_heterogenous && self.cache.types.generics_len(c) == 0;
                 if !empty && !self.is_heterogenous(c)? && !allow_non_heterogenous {
                     return Ok((false, false, None, vec![]));
                 }
