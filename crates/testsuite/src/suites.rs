@@ -114,6 +114,8 @@ pub const NUMPY: &[&str] = &[
     "numpy/test_statistics.py", "numpy/test_ufunc.py", "numpy/test_window.py",
     "numpy/test_polynomial.py", "numpy/test_testing.py", "numpy/test_ma.py",
     "numpy/test_empty_errstate.py", "numpy/test_strings.py", "numpy/test_lib_more.py",
+    "numpy/test_generator.py", "numpy/test_ndarray_methods.py", "numpy/test_ma2.py",
+    "numpy/test_empty_fancy.py",
 ];
 
 pub const SCIPY: &[&str] = &[
@@ -163,6 +165,21 @@ pub const SCIPY: &[&str] = &[
     "sklearn/test_linear_sgd.py", "sklearn/test_linear_basic.py", "sklearn/test_linear_cd.py",
     "sklearn/test_linear_lars.py", "sklearn/test_logistic.py", "sklearn/test_logistic_cv.py",
     "sklearn/test_linear_robust_glm.py",
+    "mne/test_tfr.py", "mne/test_tfr_mt.py", "mne/test_tfr_csd.py", "mne/test_mne_stats.py",
+    "mne/test_decoding.py", "mne/test_decoding_lm.py", "mne/test_decoding_sl.py",
+    "mne/test_decoding_gl.py", "mne/test_decoding_spoc.py", "mne/test_decoding_rf.py",
+    "mne/test_decoding_ssd.py", "mne/test_infomax.py", "mne/test_muscle.py",
+    "scipy/test_dists_discrete.py", "scipy/test_dists_discrete2.py", "scipy/test_dists_sample.py",
+    "scipy/test_dists_mv.py", "scipy/test_dists_fit.py", "scipy/test_dists_c2a.py",
+    "scipy/test_dists_c2b.py", "scipy/test_dists_c2c.py", "scipy/test_dists_c3a.py",
+    "scipy/test_dists_c3b.py", "scipy/test_dists_c4.py",
+    "scipy/test_optimize_root.py", "scipy/test_optimize_legacy.py", "scipy/test_integrate_bvp.py",
+    "scipy/test_signal_more.py", "scipy/test_signal_more2.py", "scipy/test_linalg3.py",
+    "sklearn/test_datasets.py", "sklearn/test_misc_estimators.py", "sklearn/test_svm.py",
+    "sklearn/test_svm2.py", "sklearn/test_lda_cov.py", "sklearn/test_multiclass.py",
+    "sklearn/test_multioutput.py", "sklearn/test_calibration.py", "sklearn/test_pls_semi.py",
+    "sklearn/test_feature_extraction.py", "sklearn/test_gp.py", "sklearn/test_gp2.py",
+    "sklearn/test_gp_clf.py", "sklearn/test_mlp.py", "sklearn/test_mlp2.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
