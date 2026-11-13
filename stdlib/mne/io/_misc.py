@@ -266,6 +266,9 @@ def read_raw(fname, *, preload = False, verbose = None, **kwargs):
     if low.endswith(".hdr"):
         from .nirx import read_raw_nirx
         return read_raw_nirx(f, preload = preload)
+    if low.endswith(".mat"):
+        from .fieldtrip import read_raw_fieldtrip
+        return read_raw_fieldtrip(f, None)
     if low.endswith(".eeg"):
         from .nihon import read_raw_nihon
         return read_raw_nihon(f, preload = preload)
