@@ -43,6 +43,7 @@ def realign_raw(raw, other, t_raw, t_other, *, verbose = None):
     sfreq_new = raw.info.sfreq * first_ord
     other.resample(sfreq_new)
     other.info.sfreq = raw.info.sfreq
+    other.times = np.arange(other._data.shape[1]).astype(float) / raw.info.sfreq
     # 4. correct annotations in other
     ann = other.annotations
     ann.onset = [o * first_ord for o in ann.onset]
