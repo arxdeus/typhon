@@ -433,3 +433,11 @@ def emit(*args):
     return ' '.join(str(a) for a in args)
 print emit(1, [2.0], 3.5)  #: 1 [2.0] 3.5
 print list(str(a) for a in (1, 'x')), sum(float(a) for a in (1, 2.5))  #: ['1', 'x'] 3.5
+
+#%% list_numeric_promotion,barebones
+a = [1., 2.+1j]
+print a  #: [(1+0j), (2+1j)]
+b = [[1, 2], [3.5, 4]]
+print b  #: [[1.0, 2.0], [3.5, 4.0]]
+c = [[1., 2.+1j], [3., 4.]]
+print c  #: [[(1+0j), (2+1j)], [(3+0j), (4+0j)]]

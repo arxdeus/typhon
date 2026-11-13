@@ -64,6 +64,29 @@ impl<'a> TypecheckVisitor<'a> {
         self.visit_collection(e, &stdlib().dict, "__setitem__", Attr::ExprDict)
     }
 
+    /// Whether a value of type `from` converts to `to` by numeric promotion
+    /// (int -> float -> complex), recursively through `List`.
+    pub fn list_promotable(&self, from: TypeId, to: TypeId) -> bool {
+        let types = self.types();
+        let st = stdlib();
+        if !types.can_realize(from) || !types.can_realize(to) {
+            return false;
+        }
+        if types.realized_name(from) == types.realized_name(to) {
+            return true;
+        }
+        if types.is(to, "float") {
+            return types.is(from, "Int");
+        }
+        if types.is(to, &st.complex) {
+            return types.is(from, "Int") || types.is(from, "float");
+        }
+        if types.is(to, &st.list) && types.is(from, &st.list) {
+            return self.list_promotable(self.extract_class_generic(from, 0), self.extract_class_generic(to, 0));
+        }
+        false
+    }
+
     /// Lowest common type of a collection slot (`lctyp` lambda).
     fn collection_lctyp(&mut self, coll: Option<TypeId>, ti: TypeId) -> Result<Option<TypeId>> {
         let types = self.types();
@@ -116,9 +139,33 @@ impl<'a> TypecheckVisitor<'a> {
             let tt = self.generate_tuple(n, true)?;
             return Ok(Some(self.instantiate_type_with(tt, &out)?));
         }
+        if cn.as_str() == st.list && tn.as_str() == st.list && types.can_realize(coll) && types.can_realize(ti) {
+            // Rule: nested lists combine element-wise ([[1, 2], [3.5, 4]] -> List[List[float]]);
+            // the narrower items are promoted by `List._promote` (see can_wrap_expr).
+            let (a, b) = (self.extract_class_generic(coll, 0), self.extract_class_generic(ti, 0));
+            if types.realized_name(a) == types.realized_name(b) {
+                return Ok(Some(coll));
+            }
+            let (Some(ac), Some(bc)) = (types.get_class(a), types.get_class(b)) else { return Ok(None) };
+            if types.is(ac, &st.optional) || types.is(bc, &st.optional) || types.is(ac, &st.none_type) || types.is(bc, &st.none_type) {
+                return Ok(None);
+            }
+            return match self.collection_lctyp(Some(ac), bc)? {
+                Some(t) if self.list_promotable(a, t) && self.list_promotable(b, t) => {
+                    let l = self.get_stdlib_type(&st.list)?;
+                    Ok(Some(self.instantiate_type_with(l, &[t])?))
+                }
+                _ => Ok(None),
+            };
+        }
         if types.is(coll, "Int") && types.is(ti, "float") {
             // Rule: int derives from float
             return Ok(Some(ti));
+        } else if (types.is(coll, "Int") || types.is(coll, "float")) && types.is(ti, &st.complex) {
+            // Rule: int and float derive from complex
+            return Ok(Some(ti));
+        } else if types.is(coll, &st.complex) && (types.is(ti, "Int") || types.is(ti, "float")) {
+            return Ok(Some(coll));
         } else if cn.as_str() != st.optional && tn.as_str() == st.optional {
             // Rule: T derives from Optional[T]
             return Ok(Some(opt(self, coll)?));

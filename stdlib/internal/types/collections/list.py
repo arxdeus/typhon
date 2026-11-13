@@ -379,6 +379,19 @@ class List:
 
     # Helper functions
 
+    def _promote(x, T: type) -> List[T]:
+        # compiler-generated: nested collection literal promotion
+        # ([[1, 2], [3.5, 4]] -> List[List[float]], int/float -> complex)
+        r = List[T](len(x))
+        for v in x:
+            if isinstance(v, T):
+                r.append(v)
+            elif isinstance(T, List):
+                r.append(List._promote(v, T.T))
+            else:
+                r.append(T(v))
+        return r
+
     def append(self, x: T, /):
         self._resize_if_full()
         self._set(self._len, x)

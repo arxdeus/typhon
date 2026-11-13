@@ -234,6 +234,37 @@ impl<'a> TypecheckVisitor<'a> {
                 let fl = tv.id_n("float");
                 Ok(tv.call_n(fl, vec![e]))
             }));
+        } else if is(ec, &st.complex) && (is(xc, "Int") || is(xc, "float")) && callee.is_some_and(|c| {
+            let n = if types.get_func(c).is_some() { types.func_name(c) } else { String::new() };
+            (n.contains(".List.") && n.contains(".append:"))
+                || (n.contains(".Set.") && n.contains(".add:"))
+                || (n.contains(".Dict.") && n.contains(".__setitem__:"))
+        }) {
+            // Collection literals (`[1., 2j]`): numeric tower int/float -> complex.
+            ty = Some(self.instantiate_type(ec.unwrap(), None)?);
+            f = Some(Box::new(|tv, e| {
+                let c = tv.id_n("complex");
+                Ok(tv.call_n(c, vec![e]))
+            }));
+        } else if is(ec, &st.list) && is(xc, &st.list) && ec.is_some_and(|e| types.can_realize(e))
+            && xc.is_some_and(|x| types.can_realize(x))
+            && types.realized_name(ec.unwrap()) != types.realized_name(xc.unwrap())
+            && self.list_promotable(xc.unwrap(), ec.unwrap())
+            && callee.is_some_and(|c| {
+                let n = if types.get_func(c).is_some() { types.func_name(c) } else { String::new() };
+                n.contains(".List.") && n.contains(".append:")
+            })
+        {
+            // Nested list literal promotion: `[[1, 2], [3.5, 4]]`.
+            let t = ec.unwrap();
+            ty = Some(t);
+            let inner = types.realized_name(self.extract_class_generic(t, 0));
+            f = Some(Box::new(move |tv, e| {
+                let l = tv.id_n(&stdlib().list);
+                let d = tv.dot_n(l, "_promote");
+                let ti = tv.id_n(&inner);
+                Ok(tv.call_n(d, vec![e, ti]))
+            }));
         } else if callee.is_none() && is(ec, &st.bool_) && xc.is_some() && !is(xc, &st.bool_) {
             // Do not do this in function calls---only use for if-else wrapping
             ty = Some(self.instantiate_type(ec.unwrap(), None)?);
