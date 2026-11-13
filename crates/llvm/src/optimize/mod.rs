@@ -116,6 +116,7 @@ fn run_llvm_optimization_passes(module: &Module, options: &Options) -> Result<()
     let debug = options.debug;
     // `opt.isOptimizingForSpeed()` is false for O0 (debug).
     let speed = !debug;
+    let t1 = Timer::new("  llvm: early EPs");
 
     // PipelineStart / EarlySimplification
     if options.native {
@@ -129,7 +130,9 @@ fn run_llvm_optimization_passes(module: &Module, options: &Options) -> Result<()
             let k = ffi::attr_kind("alwaysinline");
             for f in ffi::functions(m) {
                 for i in ffi::fn_instructions(f) {
-                    if ffi::is_call(i) {
+                    if ffi::is_call(i)
+                        && unsafe { !llvm_sys::core::LLVMGetCallSiteEnumAttribute(i, ffi::FN_INDEX, k).is_null() }
+                    {
                         unsafe { llvm_sys::core::LLVMRemoveCallSiteEnumAttribute(i, ffi::FN_INDEX, k) };
                     }
                 }
@@ -144,15 +147,21 @@ fn run_llvm_optimization_passes(module: &Module, options: &Options) -> Result<()
     }
 
     // Peephole (early)
+    drop(t1);
     if speed {
+        let _t = Timer::new("  llvm: peephole-early");
         peephole(m, options, tm)?;
     }
 
     // Standard pipeline
-    run_pipeline(m, if debug { "default<O0>" } else { "default<O3>" }, tm)?;
+    {
+        let _t = Timer::new("  llvm: default pipeline");
+        run_pipeline(m, if debug { "default<O0>" } else { "default<O3>" }, tm)?;
+    }
 
     // Peephole (late) + cleanup
     if speed {
+        let _t = Timer::new("  llvm: peephole-late");
         for_each_definition(m, coro::coro_branch_simplifier);
         peephole(m, options, tm)?;
         // `instcombine` named directly verifies a 1-iteration fixpoint and aborts

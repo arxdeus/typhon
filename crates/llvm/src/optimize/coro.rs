@@ -215,10 +215,10 @@ fn merge_guarded_state(cfg: &Cfg, header: BB) -> bool {
 }
 
 /// Port of `CoroBranchSimplifier::run` on one loop (identified by header block).
-fn coro_branch_simplify_loop(func: V, header: BB) -> bool {
-    let cfg = Cfg::new(func);
-    let dt = DomTree::dominators(&cfg);
-    let li = LoopInfo::new(&cfg, &dt);
+/// `analyses` must describe the current CFG of `func`.
+fn coro_branch_simplify_loop(func: V, header: BB, analyses: &(Cfg, LoopInfo)) -> bool {
+    let _ = func;
+    let (cfg, li) = analyses;
     let Some(&h) = cfg.index.get(&header) else { return false };
     let Some(lid) = li.loops.iter().position(|l| l.header == h) else { return false };
     let mut changed = merge_guarded_state(&cfg, header);
@@ -308,15 +308,26 @@ pub fn coro_branch_simplifier(func: V) -> bool {
     if ffi::is_declaration(func) {
         return false;
     }
-    let headers: Vec<BB> = {
+    let build = || {
         let cfg = Cfg::new(func);
         let dt = DomTree::dominators(&cfg);
         let li = LoopInfo::new(&cfg, &dt);
+        (cfg, li)
+    };
+    let mut analyses = build();
+    let headers: Vec<BB> = {
+        let (cfg, li) = &analyses;
         li.worklist_order().into_iter().map(|l| cfg.blocks[li.loops[l].header]).collect()
     };
     let mut changed = false;
     for h in headers {
-        changed |= coro_branch_simplify_loop(func, h);
+        // The rewrite only replaces phis/compares and branch conditions, so the analyses
+        // stay structurally valid; they are rebuilt after a change to also refresh the
+        // block contents exactly as a per-loop recomputation would.
+        if coro_branch_simplify_loop(func, h, &analyses) {
+            changed = true;
+            analyses = build();
+        }
     }
     changed
 }
