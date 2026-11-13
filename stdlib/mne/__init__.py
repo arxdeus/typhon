@@ -7,15 +7,17 @@ __version__: Literal[str] = "1.13.2"
 
 from ._info import Info, create_info
 from ._containers import EpochsArray, Evoked, Spectrum, EpochsSpectrum
-from .annotations import Annotations, events_from_annotations
+from .annotations import (Annotations, events_from_annotations, annotations_from_events,
+                          count_annotations)
 from .filter import filter_data, create_filter, IIRParams
 from ._containers import RawArray
 from ._raw_ext import concatenate_raws
-from .epochs import (Epochs, read_epochs, write_evokeds, read_evokeds, combine_evoked,
+from .epochs import (concatenate_epochs, make_fixed_length_epochs, equalize_epoch_counts,
+                     combine_event_ids, Epochs, read_epochs, write_evokeds, read_evokeds, combine_evoked,
                      EvokedArray)
 from .event import (find_events, find_stim_steps, make_fixed_length_events, merge_events,
                     pick_events, read_events, write_events, concatenate_events,
-                    shift_time_events)
+                    shift_time_events, count_events, match_event_names, define_target_events)
 from .io import read_raw_fif
 import channels
 from .channels import make_standard_montage, make_dig_montage, equalize_channels
