@@ -491,3 +491,13 @@ def zgelsd_(m_: cobj, n_: cobj, nrhs_: cobj, a_: cobj, lda_: cobj, b_: cobj, ldb
 def dgecon_(norm_: cobj, n_: cobj, a_: cobj, lda_: cobj, anorm_: cobj, rcond_: cobj, work_: cobj, iwork_: cobj, info_: cobj) -> None:
     pass
 
+
+@C
+@_C.linkname("dorcsd" + _suffix_lapack)
+def dorcsd_(jobu1: cobj, jobu2: cobj, jobv1t: cobj, jobv2t: cobj, trans: cobj, signs: cobj, m: cobj, p: cobj, q: cobj, x11: cobj, ldx11: cobj, x12: cobj, ldx12: cobj, x21: cobj, ldx21: cobj, x22: cobj, ldx22: cobj, theta: cobj, u1: cobj, ldu1: cobj, u2: cobj, ldu2: cobj, v1t: cobj, ldv1t: cobj, v2t: cobj, ldv2t: cobj, work: cobj, lwork: cobj, iwork: cobj, info: cobj) -> None:
+    pass
+
+@C
+@_C.linkname("zuncsd" + _suffix_lapack)
+def zuncsd_(jobu1: cobj, jobu2: cobj, jobv1t: cobj, jobv2t: cobj, trans: cobj, signs: cobj, m: cobj, p: cobj, q: cobj, x11: cobj, ldx11: cobj, x12: cobj, ldx12: cobj, x21: cobj, ldx21: cobj, x22: cobj, ldx22: cobj, theta: cobj, u1: cobj, ldu1: cobj, u2: cobj, ldu2: cobj, v1t: cobj, ldv1t: cobj, v2t: cobj, ldv2t: cobj, work: cobj, lwork: cobj, rwork: cobj, lrwork: cobj, iwork: cobj, info: cobj) -> None:
+    pass

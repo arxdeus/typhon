@@ -25,3 +25,4 @@ class LinAlgWarning(Exception):
     pass
 from ._decomp_update import qr_update, qr_insert, qr_delete, qr_multiply, cdf2rdf, \
                     clarkson_woodruff_transform, find_best_blas_type
+from ._cossin import cossin
