@@ -35,6 +35,8 @@ from math import (
     sin as _sin,
     tan as _tan,
     log1p as _log1p,
+    frexp as _frexp,
+    ldexp as _ldexp,
 )
 
 class StatisticsError(ValueError):
@@ -408,6 +410,22 @@ def harmonic_mean(data, weights=None) -> float:
         raise OverflowError("intermediate overflow in sum")
     if total <= 0:
         raise StatisticsError("Weighted sum must be positive")
+    if _isfinite(total) and _isfinite(total_weight):
+        recips = List[float]()
+        ws = List[float]()
+        if weights is None:
+            for value in values:
+                recips.append(1.0.cdiv(float(value)))
+                ws.append(1.0)
+        else:
+            wv = weight_values
+            for k in range(n):
+                w = float(wv[k])
+                ws.append(w)
+                recips.append(0.0 if w == 0.0 else w.cdiv(float(values[k])))
+        ex = _exact_ratio_sum(ws, recips)
+        if ex is not None and not _isnan(ex):
+            return ex
     return total_weight.cdiv(total)
 
 def _difference(value, center) -> float:
@@ -470,14 +488,28 @@ def _spread(data, center, correction: int, root: bool, recenter: Literal[bool] =
         raise OverflowError("integer division result too large for a float")
     return result
 
+def _all_finite(values) -> bool:
+    for v in values:
+        if not _isfinite(float(v)):
+            return False
+    return True
+
 def _dispersion(data, center, correction: int, root: bool, name: str) -> float:
     values = _as_sequence(data)
     if len(values) <= correction:
         requirement = "two data points" if correction else "one data point"
         raise StatisticsError(f"{name} requires at least {requirement}")
     if center is None:
+        if _all_finite(values):
+            r = _exact_dispersion(values, 0, False, correction, root)
+            if r is not None and not _isnan(r):
+                return r
         return _spread(values, values[0], correction, root)
     else:
+        if _all_finite(values) and _isfinite(float(center)):
+            r = _exact_dispersion(values, center, True, correction, root)
+            if r is not None and not _isnan(r):
+                return r
         return _spread(values, center, correction, root, recenter=False)
 
 def pvariance(data, mu=None) -> float:
@@ -605,6 +637,10 @@ def _origin_parts(value):
 
 def linear_regression(xdata, ydata, /, *, proportional: bool = False):
     left, right = _paired(xdata, ydata, "linear regression")
+    if not (isinstance(left[0], int) and isinstance(right[0], int)):
+        ex = _regression_exact(left, right, proportional)
+        if ex is not None:
+            return LinearRegression(ex[0], ex[1])
     left_origin, left_mean = _origin_mean(left, proportional)
     right_origin, right_mean = _origin_mean(right, proportional)
     count = len(left)
@@ -994,3 +1030,221 @@ class NormalDist:
 
     def __repr__(self):
         return f"NormalDist(mu={self._mu}, sigma={self._sigma})"
+
+
+# ---- exact (Fraction-equivalent) dispersion, as CPython's _ss / _float_sqrt_of_frac ----
+W = Int[2048]
+
+def _wisqrt(n: W) -> W:
+    if n <= W(0):
+        return W(0)
+    x = W(1) << ((n.bit_length() + 2) // 2)
+    while True:
+        y = (x + n // x) >> 1
+        if y >= x:
+            return x
+        x = y
+
+def _mant_exp(value) -> Tuple[W, int]:
+    if isinstance(value, int):
+        return (W(value), 0)
+    f = float(value)
+    if f == 0.0:
+        return (W(0), 0)
+    fr = _frexp(f)
+    m = int(_ldexp(fr[0], 53))
+    return (W(m), fr[1] - 53)
+
+def _wfloat(q: W, e2: int) -> float:
+    if q.bit_length() + e2 > 1000 or q.bit_length() + e2 < -1000:
+        return _nan
+    return _ldexp(float(int(q)), e2)
+
+def _ratio_to_float(a: W, b: W, e2: int, root: bool) -> float:
+    if a == W(0):
+        return 0.0
+    la = a.bit_length()
+    lb = b.bit_length()
+    if not root:
+        sh = 60 - (la - lb)
+        if sh >= 0:
+            num = a << sh
+            den = b
+        else:
+            num = a
+            den = b << (-sh)
+        q = num // den
+        sticky = num - q * den != W(0)
+        q = q * W(2) + (W(1) if sticky else W(0))
+        return _wfloat(q, e2 - sh - 1)
+    # sqrt(a/b) * 2**(e2/2)  (e2 even)
+    sh = 2 * ((120 - (la - lb)) // 2)
+    if sh >= 0:
+        num = a << sh
+        den = b
+    else:
+        num = a
+        den = b << (-sh)
+    t = num // den
+    exact = (t * den == num)
+    r = _wisqrt(t)
+    sticky = (not exact) or (r * r != t)
+    r = r * W(2) + (W(1) if sticky else W(0))
+    return _wfloat(r, e2 // 2 - sh // 2 - 1)
+
+def _exact_dispersion(values, center, has_center: Literal[bool], correction: int, root: bool) -> Optional[float]:
+    n = len(values)
+    mants = List[W](n + 1)
+    exps = List[int](n + 1)
+    emin = 0
+    first = True
+    for v in values:
+        t = _mant_exp(v)
+        if t[0] != W(0):
+            if first or t[1] < emin:
+                emin = t[1]
+                first = False
+        mants.append(t[0])
+        exps.append(t[1])
+    cm = W(0)
+    ce = 0
+    if has_center:
+        t = _mant_exp(center)
+        cm = t[0]
+        ce = t[1]
+        if cm != W(0) and (first or ce < emin):
+            emin = ce
+            first = False
+    if first:
+        return 0.0
+    hi = emin
+    for i in range(n):
+        if mants[i] != W(0) and exps[i] > hi:
+            hi = exps[i]
+    if has_center and cm != W(0) and ce > hi:
+        hi = ce
+    if hi - emin > 450:
+        return None
+    s1 = W(0)
+    s2 = W(0)
+    for i in range(n):
+        x = mants[i] << (exps[i] - emin) if mants[i] != W(0) else W(0)
+        if has_center:
+            c = (cm << (ce - emin)) if cm != W(0) else W(0)
+            x = x - c
+        s1 += x
+        s2 += x * x
+    nn = W(n)
+    if has_center:
+        a = s2
+        b = nn if False else W(1)
+        return _ratio_to_float(a, W(n - correction), 2 * emin, root)
+    a = nn * s2 - s1 * s1
+    b = nn * W(n - correction)
+    return _ratio_to_float(a, b, 2 * emin, root)
+
+def _exact_sum(vals: List[float]) -> Optional[Tuple[W, int]]:
+    n = len(vals)
+    mants = List[W](n + 1)
+    exps = List[int](n + 1)
+    emin = 0
+    emax = 0
+    first = True
+    for v in vals:
+        t = _mant_exp(v)
+        mants.append(t[0])
+        exps.append(t[1])
+        if t[0] != W(0):
+            if first or t[1] < emin:
+                emin = t[1]
+            if first or t[1] > emax:
+                emax = t[1]
+            first = False
+    if first:
+        return (W(0), 0)
+    if emax - emin > 450:
+        return None
+    s = W(0)
+    for i in range(n):
+        if mants[i] != W(0):
+            s += mants[i] << (exps[i] - emin)
+    return (s, emin)
+
+def _exact_ratio_sum(num: List[float], den: List[float]) -> Optional[float]:
+    a = _exact_sum(num)
+    b = _exact_sum(den)
+    if a is None or b is None:
+        return None
+    if b[0] <= W(0):
+        return None
+    return _ratio_to_float(a[0], b[0], a[1] - b[1], False)
+
+def _exact_sumprod(a: List[float], b: List[float]) -> Optional[float]:
+    n = len(a)
+    ms = List[W](n + 1)
+    es = List[int](n + 1)
+    emin = 0
+    emax = 0
+    first = True
+    for i in range(n):
+        ta = _mant_exp(a[i])
+        tb = _mant_exp(b[i])
+        m = ta[0] * tb[0]
+        e = ta[1] + tb[1]
+        ms.append(m)
+        es.append(e)
+        if m != W(0):
+            if first or e < emin:
+                emin = e
+            if first or e > emax:
+                emax = e
+            first = False
+    if first:
+        return 0.0
+    if emax - emin > 400:
+        return None
+    s = W(0)
+    for i in range(n):
+        if ms[i] != W(0):
+            s += ms[i] << (es[i] - emin)
+    if s == W(0):
+        return 0.0
+    if s < W(0):
+        return -_ratio_to_float(-s, W(1), emin, False)
+    return _ratio_to_float(s, W(1), emin, False)
+
+def _floats_finite(v: List[float]) -> bool:
+    for x in v:
+        if not _isfinite(x):
+            return False
+    return True
+
+def _regression_exact(xdata, ydata, proportional: bool) -> Optional[Tuple[float, float]]:
+    xs = List[float]()
+    ys = List[float]()
+    for v in xdata:
+        xs.append(float(v))
+    for v in ydata:
+        ys.append(float(v))
+    if len(xs) != len(ys) or len(xs) < 2:
+        return None
+    if not _floats_finite(xs) or not _floats_finite(ys):
+        return None
+    n = len(xs)
+    xbar = 0.0
+    ybar = 0.0
+    if not proportional:
+        xbar = _fsum(xs) / float(n)
+        ybar = _fsum(ys) / float(n)
+        for i in range(n):
+            xs[i] = xs[i] - xbar
+            ys[i] = ys[i] - ybar
+    sxy = _exact_sumprod(xs, ys)
+    sxx = _exact_sumprod(xs, xs)
+    if sxy is None or sxx is None or sxx == 0.0:
+        return None
+    slope = sxy / sxx
+    if _isnan(slope) or not _isfinite(slope):
+        return None
+    intercept = 0.0 if proportional else ybar - slope * xbar
+    return (slope, intercept)
