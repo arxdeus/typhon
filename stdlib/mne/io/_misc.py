@@ -251,6 +251,9 @@ def read_raw(fname, *, preload = False, verbose = None, **kwargs):
     if low.endswith(".dat"):
         from .bci2k import read_raw_bci2k
         return read_raw_bci2k(f, preload = preload)
+    if low.endswith(".eeg"):
+        from .nihon import read_raw_nihon
+        return read_raw_nihon(f, preload = preload)
     if low.endswith(".nxe"):
         from .eximia import read_raw_eximia
         return read_raw_eximia(f, preload = preload)
