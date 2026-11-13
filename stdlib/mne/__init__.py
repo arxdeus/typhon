@@ -46,10 +46,6 @@ def set_log_level(verbose = None, return_old_level: bool = False, add_frames = N
     return None
 
 
-def set_config(key: str, value = None, home_dir = None, set_env: bool = True):
-    return None
-
-
 def pick_types(info: Info, meg = False, eeg: bool = False, stim: bool = False,
                eog: bool = False, ecg: bool = False, emg: bool = False, misc: bool = False,
                exclude = "bads"):
@@ -146,3 +142,23 @@ import simulation
 from ._annot_io import read_annotations
 import minimum_norm
 from ._metadata import make_metadata, Metadata
+
+# top-level lane (config, io, labels, dipole, morph, references)
+from ._config import (get_config, get_config_path, set_config, read_reject_parameters,
+                      read_vectorview_selection, read_freesurfer_lut, match_channel_orders,
+                      grade_to_vertices)
+from ._reference import set_eeg_reference, set_bipolar_reference, add_reference_channels, compute_rank
+from ._fifio import (read_cov, write_cov, read_proj, write_proj, read_source_spaces, write_source_spaces,
+                     read_forward_solution, write_forward_solution)
+from .transforms import read_trans, write_trans, Transform
+from ._surface import (read_surface, write_surface, read_tri, read_talxfm, head_to_mni, head_to_mri,
+                       vertex_to_mni)
+from ._label_ops import (read_label, write_label, label_sign_flip, extract_label_time_course, labels_to_stc,
+                         grow_labels, random_parcellation, label_adjacency, morph_labels,
+                         spatial_tris_adjacency)
+from .simulation._labels import Label
+from ._stc_io import read_source_estimate, VectorSourceEstimate, MixedSourceEstimate, MixedVectorSourceEstimate
+from ._fwdutil import average_forward_solutions, pick_types_forward, sensitivity_map
+from .dipole import Dipole, DipoleFixed, read_dipole, fit_dipole, make_forward_dipole
+from .morph import SourceMorph, compute_source_morph, make_bem_model, make_bem_solution
+from .fieldmap import make_field_map
