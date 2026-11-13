@@ -606,14 +606,24 @@ class RidgeCV[D: Literal[int] = 1, CV = NoneType](_LinearRegressorMixin):
             self._best_score = np.array([bs])
         return self
 
-def _ridge_cv_search(X, y, alphas: np.ndarray[float, 1], cv, fit_intercept: bool, is_clf: bool):
+def _ridge_cv_search(X, y, alphas: np.ndarray[float, 1], cv, fit_intercept: bool, is_clf: Literal[bool]):
     """GridSearchCV(Ridge/RidgeClassifier, {'alpha': alphas}, cv) with the
     estimator's default score (r2 / accuracy). Returns (best_alpha, best_score)."""
-    from ..model_selection import check_cv
+    from ..model_selection import KFold, StratifiedKFold
     Xa = np.asarray(X, dtype=float)
     ya = np.asarray(y)
-    cvo = check_cv(cv, ya, classifier=is_clf)
-    folds = [(tr, te) for tr, te in cvo.split(Xa, ya)]
+    folds = List[Tuple[np.ndarray[int, 1], np.ndarray[int, 1]]]()
+    if isinstance(cv, int):
+        # check_cv: StratifiedKFold for classifiers with binary/multiclass y, else KFold
+        if is_clf:
+            for tr, te in StratifiedKFold(cv).split(Xa, ya):
+                folds.append((tr, te))
+        else:
+            for tr, te in KFold(cv).split(Xa, ya):
+                folds.append((tr, te))
+    else:
+        for tr, te in cv.split(Xa, ya):
+            folds.append((tr, te))
     best = 0
     best_score = -math.inf
     for ai in range(alphas.shape[0]):
