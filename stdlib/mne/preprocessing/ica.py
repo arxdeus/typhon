@@ -12,6 +12,7 @@ from .._containers import RawArray, EpochsArray
 from ..filter import filter_data
 from ._infomax import infomax
 from ._fastica import fastica_unmixing
+from ._picard import picard_unmixing
 
 def _exp_var_ncomp(var, n: float) -> Tuple[int, float]:
     cvar = np.cumsum(np.asarray(var, dtype=float))
@@ -95,6 +96,7 @@ class ICA:
     n_components: Optional[float]
     n_components_int: bool
     method: str
+    picard_fun: str
     random_state: Optional[int]
     max_iter: int
     fit_params: Dict[str, float]
@@ -116,9 +118,12 @@ class ICA:
 
     def __init__(self, n_components = None, *, noise_cov = None, random_state: Optional[int] = None,
                  method: str = "fastica", fit_params: Optional[Dict[str, float]] = None,
-                 max_iter = "auto", allow_ref_meg: bool = False, verbose = None):
-        if method not in ("fastica", "infomax", "extended-infomax"):
-            raise ValueError(f"Invalid value for the 'method' parameter. Allowed values are 'fastica', 'infomax', 'extended-infomax' (picard is not available), but got {method!r} instead.")
+                 max_iter = "auto", allow_ref_meg: bool = False, verbose = None,
+                 picard_fun: str = "tanh"):
+        if method not in ("fastica", "infomax", "extended-infomax", "picard"):
+            raise ValueError(f"Invalid value for the 'method' parameter. Allowed values are 'fastica', 'infomax', 'extended-infomax', 'picard', but got {method!r} instead.")
+        if picard_fun not in ("tanh", "exp", "cube"):
+            raise ValueError(f"picard_fun must be 'tanh', 'exp' or 'cube', got {picard_fun!r}")
         if noise_cov is not None:
             compile_error("ICA(noise_cov=...) is not supported in Typhon mne")
         self.n_components_int = True
@@ -134,6 +139,7 @@ class ICA:
                 raise ValueError("Selecting one component with n_components=1 is not supported")
             self.n_components = float(n_components)
         self.method = method
+        self.picard_fun = picard_fun
         self.random_state = random_state
         if isinstance(max_iter, str):
             if max_iter != "auto":
@@ -226,6 +232,26 @@ class ICA:
                                      self.fit_params.get("tol", 1e-4))
             self.unmixing_matrix_ = W
             self.n_iter_ = it
+        elif self.method == "picard":
+            seed = 0 if self.random_state is None else self.random_state.__val__()
+            fcode = 0
+            if self.picard_fun == "exp":
+                fcode = 1
+            elif self.picard_fun == "cube":
+                fcode = 2
+            ortho = self.fit_params.get("ortho", 1.0) != 0.0
+            ext = ortho
+            if "extended" in self.fit_params:
+                ext = self.fit_params["extended"] != 0.0
+            W, it = picard_unmixing(np.ascontiguousarray(sub.T), seed, fcode, ortho, ext,
+                                    int(self.fit_params.get("max_iter", float(self.max_iter))),
+                                    self.fit_params.get("tol", 1e-7),
+                                    int(self.fit_params.get("m", 7.0)),
+                                    int(self.fit_params.get("ls_tries", 10.0)),
+                                    self.fit_params.get("lambda_min", 0.01),
+                                    int(self.fit_params.get("fastica_it", 0.0)))
+            self.unmixing_matrix_ = W
+            self.n_iter_ = it + 1
         else:
             ext = self.method == "extended-infomax" or self.fit_params.get("extended", 0.0) != 0.0
             seed = 0 if self.random_state is None else self.random_state.__val__()
@@ -366,6 +392,55 @@ class ICA:
         d = proj @ d
         d = d + self.pca_mean_[:, None]
         return d * self.pre_whitener_
+
+    def get_explained_variance_ratio(self, inst, *, components = None, ch_type = None) -> Dict[str, float]:
+        if self.current_fit == "unfitted":
+            raise ValueError("ICA must be fitted first.")
+        allowed = ["mag", "grad", "planar1", "planar2", "eeg"]
+        pk = self._get_picks(inst.info)
+        types = List[str]()
+        if ch_type is None:
+            for i in range(len(pk)):
+                t = inst.info.ch_types[pk[i]]
+                if t not in types:
+                    types.append(t)
+        elif isinstance(ch_type, str):
+            types.append(ch_type)
+        else:
+            for t in ch_type:
+                types.append(str(t))
+        comps = List[int]()
+        if components is None:
+            for i in range(self.n_components_):
+                comps.append(i)
+        elif isinstance(components, int):
+            comps.append(components)
+        else:
+            for c in components:
+                comps.append(int(c))
+        for t in types:
+            if t not in allowed:
+                raise ValueError(f"You requested operation on the channel type \"{t}\", but only the following channel types are supported: mag, grad, planar1, planar2, eeg")
+        pa = np.array(pk)
+        data = np.empty((0, 0))
+        if isinstance(inst, RawArray):
+            data = inst._data[pa, :].copy()
+        else:
+            ne = inst._data.shape[0]
+            d3 = inst._data[:, pa, :]
+            data = np.ascontiguousarray(np.hstack([d3[i] for i in range(ne)]))
+        recon = self._pick_sources(data.copy(), comps, None, 0)
+        out = Dict[str, float]()
+        for t in types:
+            rows = List[int]()
+            for i in range(len(pk)):
+                if inst.info.ch_types[pk[i]] == t:
+                    rows.append(i)
+            ra = np.array(rows)
+            orig = data[ra, :]
+            diff = orig - recon[ra, :]
+            out[t] = 1.0 - float(np.mean(np.var(diff, axis=0))) / float(np.mean(np.var(orig, axis=0)))
+        return out
 
     def apply(self, inst, include = None, exclude = None, n_pca_components = None,
               start: Optional[int] = None, stop: Optional[int] = None, *, on_baseline: str = "warn",
@@ -532,7 +607,7 @@ class ICA:
         return labels, scores
 
     def copy(self):
-        n = ICA(None, random_state=self.random_state, method=self.method)
+        n = ICA(None, random_state=self.random_state, method=self.method, picard_fun=self.picard_fun)
         n.n_components = self.n_components
         n.n_components_int = self.n_components_int
         n.max_iter = self.max_iter
