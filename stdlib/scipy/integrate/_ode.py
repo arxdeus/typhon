@@ -11,7 +11,7 @@
 #                    Hairer codes differ in step-size control details).
 # Deviations: f_params/jac_params must be numeric (stored as floats, at most
 # 4) and f/jac must be plain functions (arity read statically);
-# set_solout and complex_ode are not supported; integrator options are
+# set_solout is not supported (complex_ode wraps the real solvers); integrator options are
 # explicit keyword arguments of set_integrator.
 
 import numpy as np
@@ -174,6 +174,10 @@ class ode[F, J]:
         jac = self.jac
         fw = lambda tt, yy: _call_fp(f, tt, yy, fp, n)
         jw = lambda tt, yy: _call_jp(jac, tt, yy, jp, n)
+        return self._integrate_fw(fw, jw, t, step, relax)
+
+    def _integrate_fw(self, fw, jw, t: float, step: bool = False, relax: bool = False) -> np.ndarray[float, 1]:
+        n = self._y.shape[0]
         if self.name == 'dopri5' or self.name == 'dop853':
             m = 1 if self.name == 'dopri5' else 2
             ms = float('inf') if self.max_step == 0.0 else self.max_step
@@ -224,3 +228,86 @@ class ode[F, J]:
         self._y = y
         self.t = tn
         return self._y
+
+# ----------------------------------------------------------------- complex_ode
+
+def _callc(f, t: float, y, p: List[float]):
+    k: Literal[int] = static.len(static.function.args(f))
+    if k <= 2:
+        return f(t, y)
+    elif k == 3:
+        return f(t, y, p[0])
+    elif k == 4:
+        return f(t, y, p[0], p[1])
+    elif k == 5:
+        return f(t, y, p[0], p[1], p[2])
+    else:
+        return f(t, y, p[0], p[1], p[2], p[3])
+
+def _to_cplx(y: np.ndarray[float, 1], n: int) -> np.ndarray[complex, 1]:
+    z = np.empty(n, dtype=complex)
+    for i in range(n):
+        z[i] = complex(y[2 * i], y[2 * i + 1])
+    return z
+
+def _cfun_real(f, t: float, y: np.ndarray[float, 1], p: List[float], n: int) -> np.ndarray[float, 1]:
+    # real view (re0, im0, re1, im1, ...) of f(t, complex y)
+    z = _to_cplx(y, n)
+    r = np.asarray(_callc(f, t, z, p)).astype(complex).reshape(n)
+    out = np.empty(2 * n)
+    for i in range(n):
+        out[2 * i] = r[i].real
+        out[2 * i + 1] = r[i].imag
+    return out
+
+def _cjac_real(jac, t: float, y: np.ndarray[float, 1], p: List[float], n: int) -> np.ndarray[float, 2]:
+    if jac is None:
+        return np.zeros((2 * n, 2 * n))
+    z = _to_cplx(y, n)
+    J = np.asarray(_callc(jac, t, z, p)).astype(complex).reshape(n, n)
+    out = np.zeros((2 * n, 2 * n))
+    for i in range(n):
+        for j in range(n):
+            out[2 * i, 2 * j] = J[i, j].real
+            out[2 * i, 2 * j + 1] = -J[i, j].imag
+            out[2 * i + 1, 2 * j] = J[i, j].imag
+            out[2 * i + 1, 2 * j + 1] = J[i, j].real
+    return out
+
+class complex_ode[F, J](ode[F, J]):
+    """ode for complex-valued f and y: the system is integrated as the
+    equivalent real system (re, im interleaved), like scipy's complex_ode."""
+    n_c: int
+
+    def __init__(self, f: F, jac: J = None):
+        super().__init__(f, jac)
+        self.n_c = 0
+
+    @property
+    def y(self):
+        return _to_cplx(self._y, self.n_c)
+
+    def set_initial_value(self, y, t: float = 0.0):
+        z = np.asarray(y).astype(complex).reshape(-1)
+        self.n_c = z.shape[0]
+        r = np.empty(2 * self.n_c)
+        for i in range(self.n_c):
+            r[2 * i] = z[i].real
+            r[2 * i + 1] = z[i].imag
+        if self.name == '':
+            self.set_integrator('lsoda')
+        self._y = r
+        self.t = float(t)
+        self._reset()
+        return self
+
+    def integrate(self, t: float, step: bool = False, relax: bool = False):
+        n = self.n_c
+        fp = self.f_params
+        jp = self.jac_params
+        f = self.f
+        jac = self.jac
+        fw = lambda tt, yy: _cfun_real(f, tt, yy, fp, n)
+        jw = lambda tt, yy: _cjac_real(jac, tt, yy, jp, n)
+        self._integrate_fw(fw, jw, t, step, relax)
+        return _to_cplx(self._y, n)

@@ -8,6 +8,9 @@ from _quadrature import trapezoid, simpson, cumulative_trapezoid, cumulative_sim
 from _tanhsinh import tanhsinh, nsum
 from _ivp import solve_ivp, OdeSolution, OdeResult
 from _odepack import odeint, ODEintWarning
-from _ode import ode
+from _ode import ode, complex_ode
+from _cubature import cubature, CubatureResult, CubatureRegion
+from _lebedev import lebedev_rule
+from _qmc_quad import qmc_quad, QMCQuadResult
 from _bvp import solve_bvp, BVPResult
 from _odesolver import OdeSolver, DenseOutput, RK23, RK45, DOP853, Radau, BDF, LSODA
