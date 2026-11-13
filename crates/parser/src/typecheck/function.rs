@@ -842,12 +842,20 @@ impl<'a> TypecheckVisitor<'a> {
             if let Some(pc) = parent_class {
                 let attrs = &self.cache.ast[s].attrs;
                 let fname = &self.cache.ast[s].kind.as_function().unwrap().name;
-                if ai == 0 && attrs.has(Attr::HasSelf) && attrs.has(Attr::ClassDeduce) && fname == "__init__" {
+                // Helper methods called from `__init__` before all deduced fields are known
+                // (e.g. `self.x = self._prep(..)`) must also be realizable with a partially
+                // deduced `self`.
+                if ai == 0 && attrs.has(Attr::HasSelf) && (attrs.has(Attr::ClassDeduce) && fname == "__init__" || !fname.starts_with("__")) {
                     let pname = types.class_name(pc).unwrap().to_string();
                     let deduce = self
                         .get_class_name(&pname)
                         .and_then(|c| c.ast)
                         .is_some_and(|a| self.cache.ast[a].attrs.has(Attr::ClassDeduce));
+                    if !fname.starts_with("__") {
+                        // Inherited helpers (defined in a non-deduced base) may receive a
+                        // subclass `self` whose deduced fields are still pass-through unbounds.
+                        self.cache.ast[s].attrs.set(Attr::AllowPassThrough);
+                    }
                     if deduce {
                         for u in types.get_unbounds(pc, true) {
                             self.cache.ast[s].attrs.set(Attr::AllowPassThrough);

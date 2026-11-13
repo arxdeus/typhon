@@ -1281,3 +1281,26 @@ print d._estimator_type, d.kind()  #: regressor regressor
 def lit(x: Literal[str]):
     return "lit:" + x
 print lit(c._estimator_type)  #: lit:classifier
+
+#%% deduce_fields_from_helper,barebones
+class Base:
+    def _prep(self, x: float):
+        return [x], x
+class A(Base):
+    def __init__(self, x: float):
+        P, s = self._prep(x)
+        self.points = P
+        self.s = s
+class B(Base):
+    def __init__(self, x: float):
+        P, s = self._prep(x)
+        self.points = P
+        self.other = [s]
+class C:
+    def _mk(self, x: float):
+        return [x]
+    def __init__(self, x: float):
+        self.v = self._mk(x)
+print A(2.0).points, A(2.0).s  #: [2.0] 2.0
+print B(3.0).other  #: [3.0]
+print C(1.5).v  #: [1.5]
