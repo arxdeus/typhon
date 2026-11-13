@@ -58,3 +58,36 @@ for k, v in E.items():
 assert "@@" not in src, src[src.index("@@"):src.index("@@") + 40]
 open(os.path.join(HERE, "test_decoding_rf.py"), "w").write(src)
 print("wrote test_decoding_rf.py with", len(E), "values")
+
+# ---- SSD (written to test_decoding_ssd.py)
+from mne.decoding import SSD
+E2 = {}
+n_t = 600
+tt = np.arange(n_t) / 200.0
+Xs = np.empty((4, 5, n_t))
+for e in range(4):
+    for c in range(5):
+        Xs[e, c] = (np.sin(2 * np.pi * 10.0 * tt + 0.3 * e) * (1.0 if c in (1, 3) else 0.1)
+                    + 0.6 * np.sin(2 * np.pi * (3.0 + c) * tt + c) + 0.4 * np.cos(2 * np.pi * (25.0 + 2 * c) * tt + e)
+                    + 0.2 * np.sin(0.9 * np.arange(n_t) * (c + 1) + e))
+info = mne.create_info(5, 200.0, "eeg")
+fs = dict(l_freq=9.0, h_freq=11.0, l_trans_bandwidth=1.0, h_trans_bandwidth=1.0)
+fn = dict(l_freq=7.0, h_freq=13.0, l_trans_bandwidth=1.0, h_trans_bandwidth=1.0)
+ssd = SSD(info, fs, fn)
+ssd.fit(Xs)
+src = ssd.transform(Xs)
+E2["ssd_ev"] = lst(ssd.evals_)
+E2["ssd_src"] = lst(np.abs(src[:2, :, ::41]))
+E2["ssd_pat"] = lst(np.sort(np.abs(ssd.patterns_), axis=1))
+E2["ssd_ratio"] = lst(ssd.get_spectral_ratio(src)[0])
+ssd2 = SSD(200.0, fs, fn, n_components=2, sort_by_spectral_ratio=False, reg=0.05, return_filtered=True)
+s2 = ssd2.fit_transform(Xs)
+E2["ssd2_ev"] = lst(ssd2.evals_)
+E2["ssd2_src"] = lst(np.abs(s2[:2, :, ::41]))
+E2["ssd2_app"] = lst(ssd2.apply(Xs)[:1, :, ::53])
+src2 = open(os.path.join(HERE, "templates", "test_decoding_ssd.tpl")).read()
+for k, v in E2.items():
+    src2 = src2.replace("@@" + k + "@@", v)
+assert "@@" not in src2
+open(os.path.join(HERE, "test_decoding_ssd.py"), "w").write(src2)
+print("wrote test_decoding_ssd.py")

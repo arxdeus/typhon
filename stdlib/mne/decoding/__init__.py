@@ -6,3 +6,4 @@ from .transformer import (Scaler, Vectorizer, PSDEstimator, FilterEstimator, Tem
 from .base import (LinearModel, get_coef, cross_val_multiscore, SlidingEstimator,
                    GeneralizingEstimator, EMS, compute_ems)
 from .receptive_field import ReceptiveField, TimeDelayingRidge
+from .ssd import SSD
