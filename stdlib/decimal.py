@@ -29,7 +29,35 @@ class Context:
         self.prec = prec
         self.rounding = rounding
 
+    def copy(self) -> Context:
+        return Context(self.prec, self.rounding)
+
 _CTX = Context()
+
+class localcontext:
+    saved_prec: int
+    saved_rounding: str
+    new_prec: int
+    new_rounding: str
+
+    def __init__(self, prec: int = -1, rounding: str = ""):
+        self.new_prec = prec
+        self.new_rounding = rounding
+        self.saved_prec = _CTX.prec
+        self.saved_rounding = _CTX.rounding
+
+    def __enter__(self) -> Context:
+        self.saved_prec = _CTX.prec
+        self.saved_rounding = _CTX.rounding
+        if self.new_prec > 0:
+            _CTX.prec = self.new_prec
+        if self.new_rounding != "":
+            _CTX.rounding = self.new_rounding
+        return _CTX
+
+    def __exit__(self):
+        _CTX.prec = self.saved_prec
+        _CTX.rounding = self.saved_rounding
 
 def getcontext() -> Context:
     return _CTX
