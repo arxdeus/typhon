@@ -1304,3 +1304,12 @@ class C:
 print A(2.0).points, A(2.0).s  #: [2.0] 2.0
 print B(3.0).other  #: [3.0]
 print C(1.5).v  #: [1.5]
+
+#%% forward_ref_string_and_param_annotations
+class FA:
+    def m(self) -> 'FB': return FB(1)
+    def n(self, b: FB) -> int: return b.v
+    def o(self, b: 'FB') -> int: return b.v + 1
+class FB:
+    def __init__(self, v: int): self.v = v
+print(FA().m().v, FA().n(FB(2)), FA().o(FB(2))) #: 1 2 3

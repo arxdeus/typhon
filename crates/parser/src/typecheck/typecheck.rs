@@ -262,6 +262,17 @@ impl<'a> TypecheckVisitor<'a> {
             self.cache.ast[ne].src = src;
             expr = ne;
         }
+        // String annotation (`x: 'B'`, PEP 484 forward reference): parse it as a type expression.
+        let fwd = self.cache.ast[expr].kind.as_string().and_then(|s| {
+            (s.strings.len() == 1 && s.strings[0].expr.is_none() && s.strings[0].prefix.is_empty())
+                .then(|| s.strings[0].value.clone())
+        });
+        if let Some(code) = fwd {
+            let src = self.cache.ast[expr].src;
+            if let Ok((pe, _)) = crate::peg::parse_expr(&mut self.cache.ast, &code, &src) {
+                expr = pe;
+            }
+        }
         let old = std::mem::replace(&mut self.ctx.borrow_mut().simple_types, simple);
         let r = self.transform(Some(expr));
         self.ctx.borrow_mut().simple_types = old;

@@ -873,9 +873,15 @@ impl<'a> TypecheckVisitor<'a> {
                 generics.push(self.extract_class_generic(arg_type, aj));
             } else {
                 let g = self.extract_class_generic(arg_type, aj);
-                let te = self.transform_type(p.ty, true)?.unwrap();
-                let t = self.extract_type_expr(te);
-                self.unify(g, t)?;
+                // Forward reference to a later class (`b: B` / `b: 'B'`): treat as generic.
+                match self.transform_type(p.ty, true) {
+                    Err(e) if e.to_string().contains("is not defined") => generics.push(g),
+                    r => {
+                        let te = r?.unwrap();
+                        let t = self.extract_type_expr(te);
+                        self.unify(g, t)?;
+                    }
+                }
             }
             aj += 1;
         }
