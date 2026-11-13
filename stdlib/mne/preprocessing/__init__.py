@@ -26,3 +26,6 @@ from ._ica_ext import ica_find_ecg_events, ica_find_eog_events, corrmap, get_sco
 from ._movement import annotate_movement, compute_average_dev_head_t
 from ._bridged import interpolate_bridged_electrodes
 from ._pca_obs import apply_pca_obs
+from ._fmri import GradientRemover, remove_fmri_gradient_artifact
+from ._realign import realign_raw
+from ._css import cortical_signal_suppression
