@@ -203,7 +203,7 @@ def t_lda_solvers(nc: Literal[int]):
 @test
 def t_lr_multi(nc: Literal[int]):
     X, y = data(60, 5, nc)
-    lr = LogisticRegression(max_iter=1000, C=0.5).fit(X, y)
+    lr = LogisticRegression(max_iter=1000, tol=1e-12, C=0.5).fit(X, y)
     assert close(lr.coef_, pick(nc, lrx_coef_2, lrx_coef_3), 1e-6, 1e-8)
     assert close(lr.predict_proba(X[:8]), pick(nc, lrx_proba_2, lrx_proba_3), 1e-6, 1e-9)
     assert close(np.sum(lr.predict_proba(X), axis=1), [1.0] * 60, 1e-14)

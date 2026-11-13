@@ -137,10 +137,27 @@ class _SagState:
                 csp[sample_itr - 1] = 0.0
         return 0
 
+class SagMemory:
+    """warm_start_mem of sklearn's sag_solver (kept across a regularization path)."""
+    sum_gradient: np.ndarray[float, 1]
+    intercept_sum_gradient: np.ndarray[float, 1]
+    gradient_memory: np.ndarray[float, 1]
+    seen: np.ndarray[bool, 1]
+    num_seen: int
+    has: bool
+    def __init__(self):
+        self.sum_gradient = np.zeros(0)
+        self.intercept_sum_gradient = np.zeros(0)
+        self.gradient_memory = np.zeros(0)
+        self.seen = np.zeros(0, dtype=bool)
+        self.num_seen = 0
+        self.has = False
+
 def sag_solver(X, y, sample_weight, loss: str, alpha: float, beta: float, max_iter: int,
                tol: float, random_state, coef_init: np.ndarray[float, 2],
                intercept_init: np.ndarray[float, 1], fit_intercept: bool,
-               is_saga: bool, max_squared_sum: float = -1.0):
+               is_saga: bool, max_squared_sum: float = -1.0, mem: Optional[SagMemory] = None,
+               seed: int = -1):
     """Runs sag64 in place on coef_init (n_features, n_classes) and
     intercept_init (n_classes,). y holds labels 0..K-1 for 'multinomial',
     {0,1} for 'log', targets for 'squared'. Returns n_iter."""
@@ -151,7 +168,7 @@ def sag_solver(X, y, sample_weight, loss: str, alpha: float, beta: float, max_it
     beta_scaled = beta / float(n_samples)
     n_classes = coef_init.shape[1]
     sw = np.asarray(sample_weight, dtype=float)
-    seedv = u32(max(_dataset_seed(random_state), 1))
+    seedv = u32(max(_dataset_seed(random_state), 1)) if seed < 0 else u32(max(seed, 1))
     if max_squared_sum < 0.0:
         max_squared_sum = 0.0
         for i in range(n_samples):
@@ -182,6 +199,17 @@ def sag_solver(X, y, sample_weight, loss: str, alpha: float, beta: float, max_it
     seen = Ptr[bool](n_samples)
     for i in range(n_samples):
         seen[i] = False
+    num_seen = 0
+    use_mem = mem is not None and mem.__val__().has
+    if use_mem:
+        m0 = mem.__val__()
+        for i in range(n_features * nc):
+            sum_gradient[i] = m0.sum_gradient[i]
+        for i in range(n_samples * nc):
+            gradient_memory[i] = m0.gradient_memory[i]
+        for i in range(n_samples):
+            seen[i] = m0.seen[i]
+        num_seen = m0.num_seen
     isg = Ptr[float](nc)
     prev = Ptr[float](n_features * nc)
     for i in range(n_features * nc):
@@ -192,12 +220,14 @@ def sag_solver(X, y, sample_weight, loss: str, alpha: float, beta: float, max_it
     st = _SagState(w, sum_gradient, n_samples, n_features, nc, prox)
     for k in range(nc):
         isg[k] = 0.0
+    if use_mem:
+        for k in range(nc):
+            isg[k] = mem.__val__().intercept_sum_gradient[k]
     cs = st.cumulative_sums
     csp = st.cumulative_sums_prox
     cs[0] = 0.0
     wscale_update = 1.0 - step_size * alpha_scaled
     wscale = 1.0
-    num_seen = 0
     status = 0
     xp = Xa.data
     n_iter = 0
@@ -299,4 +329,20 @@ def sag_solver(X, y, sample_weight, loss: str, alpha: float, beta: float, max_it
             coef_init[j, k] = w[j * nc + k]
     for k in range(nc):
         intercept_init[k] = intercept[k]
+    if mem is not None:
+        m1 = mem.__val__()
+        m1.sum_gradient = np.empty(n_features * nc)
+        for i in range(n_features * nc):
+            m1.sum_gradient[i] = sum_gradient[i]
+        m1.gradient_memory = np.empty(n_samples * nc)
+        for i in range(n_samples * nc):
+            m1.gradient_memory[i] = gradient_memory[i]
+        m1.seen = np.empty(n_samples, dtype=bool)
+        for i in range(n_samples):
+            m1.seen[i] = seen[i]
+        m1.intercept_sum_gradient = np.empty(nc)
+        for k in range(nc):
+            m1.intercept_sum_gradient[k] = isg[k]
+        m1.num_seen = num_seen
+        m1.has = True
     return n_iter

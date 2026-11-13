@@ -4,7 +4,12 @@ import numpy as np
 from .base import clone
 
 def _name_of(est: T, T: type) -> str:
-    return T.__name__.lower()
+    # generic estimators (e.g. LogisticRegression[CW]) report "Name[...]"
+    nm = T.__name__
+    b = nm.find("[")
+    if b >= 0:
+        nm = nm[:b]
+    return nm.lower()
 
 def _clone_steps(steps):
     if static.len(steps) == 0:

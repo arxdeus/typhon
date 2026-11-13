@@ -108,7 +108,7 @@ def t_models(nc: Literal[int]):
     # transform: SVD sign convention may differ per component, compare |.|
     assert close(np.abs(lda.transform(X[:4])), [abs(v) for v in (lda_tr_2 if nc == 2 else lda_tr_3)], 1e-10)
     # reference fitted with tol=1e-12 so L-BFGS reaches the optimum too
-    lr = LogisticRegression(max_iter=1000, random_state=0).fit(X, y)
+    lr = LogisticRegression(max_iter=1000, random_state=0, tol=1e-12).fit(X, y)
     assert close(lr.coef_, lr_coef_2 if nc == 2 else lr_coef_3, 1e-6, 1e-8)
     assert close(lr.intercept_, lr_int_2 if nc == 2 else lr_int_3, 1e-6, 1e-8)
     assert eqi(lr.predict(X), lr_pred_2 if nc == 2 else lr_pred_3)
@@ -158,7 +158,9 @@ def t_clone():
     lr = LogisticRegression(C=0.5, max_iter=7)
     c = clone(lr)
     assert c.C == 0.5 and c.max_iter == 7
-    c.set_params(C=2.0) if hasattr(c, "set_params") else None
+    if hasattr(c, "set_params"):
+        c.set_params(C=2.0)
+    assert c.C == 2.0 and lr.C == 0.5
     p = make_pipeline(StandardScaler(), lr)
     q = clone(p)
     assert q.steps[1][1].C == 0.5
