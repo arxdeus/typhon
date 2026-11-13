@@ -79,3 +79,4 @@ from ._survival import CensoredData, ecdf, ECDFResult, EmpiricalDistributionFunc
     LogRankResult, spearmanrho, bws_test, ppcc_max, wasserstein_distance_nd
 from ._quantile import quantile, estimated_cdf
 from ._multivariate2 import random_table, matrix_t, normal_inverse_gamma, unitary_group
+from ._levy_stable import levy_stable
