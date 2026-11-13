@@ -3,7 +3,7 @@
 from ._base import LinearRegression
 from ._ridge import Ridge, RidgeClassifier, RidgeCV, RidgeClassifierCV, ridge_regression
 from ._logistic import LogisticRegression, LogisticRegressionCV
-from ._bayes import BayesianRidge
+from ._bayes import BayesianRidge, ARDRegression
 from ._coordinate_descent import (ElasticNet, Lasso, MultiTaskElasticNet, MultiTaskLasso,
                                   LassoCV, ElasticNetCV, MultiTaskElasticNetCV,
                                   MultiTaskLassoCV, enet_path, lasso_path)
@@ -14,3 +14,6 @@ from ._omp import (OrthogonalMatchingPursuit, OrthogonalMatchingPursuitCV, ortho
 from ._stochastic_gradient import SGDClassifier, SGDRegressor, SGDOneClassSVM
 from ._perceptron import Perceptron
 from ._passive_aggressive import PassiveAggressiveClassifier, PassiveAggressiveRegressor
+from ._glm import (PoissonRegressor, GammaRegressor, TweedieRegressor, HuberRegressor,
+                   QuantileRegressor)
+from ._robust import RANSACRegressor, TheilSenRegressor
