@@ -68,3 +68,7 @@ from ._studentized_range import studentized_range
 from ._multicomp import tukey_hsd, dunnett, TukeyHSDResult, DunnettResult
 from ._exact2x2 import barnard_exact, boschloo_exact, BarnardExactResult, BoschlooExactResult
 from ._fitting import fit, goodness_of_fit, FitResult, GoodnessOfFitResult
+
+# --- scipy-stats-final ---
+from ._continuous_distns5 import kstwo, geninvgauss, genhyperbolic, jf_skew_t, landau, \
+    vonmises_line, dpareto_lognorm
