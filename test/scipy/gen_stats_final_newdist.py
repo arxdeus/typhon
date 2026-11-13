@@ -31,7 +31,7 @@ def case(name, ctor_src, X, pos=False, disc=False):
 N = st.Normal(mu=0.5, sigma=1.5)
 case('normal', "st.Normal(mu=0.5, sigma=1.5)", N)
 case('uniform', "st.Uniform(a=-1.0, b=3.0)", st.Uniform(a=-1., b=3.))
-case('logistic', "st.Logistic(mu=0.2, s=0.8)", st.Logistic(mu=0.2, s=0.8))
+case('logistic', "st.Logistic()", st.Logistic())
 case('binomial', "st.Binomial(n=10, p=0.3)", st.Binomial(n=10, p=0.3), disc=True)
 case('mixture', "st.Mixture([st.Normal(mu=-1.0, sigma=0.5), st.Uniform(a=0.0, b=2.0)], weights=[0.3, 0.7])",
      st.Mixture([st.Normal(mu=-1., sigma=.5), st.Uniform(a=0., b=2.)], weights=[.3, .7]))

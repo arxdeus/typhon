@@ -395,10 +395,9 @@ def Uniform(*, a = 0.0, b = 1.0):
         raise ValueError("Parameter `b` must be greater than `a`.")
     return Distribution(_UNIFORM, [float(a), float(b)], List[Distribution]())
 
-def Logistic(*, mu = 0.0, s = 1.0):
-    if not (float(s) > 0):
-        raise ValueError("Parameter `s` must be positive.")
-    return Distribution(_LOGISTIC, [float(mu), float(s)], List[Distribution]())
+def Logistic():
+    # the standard logistic distribution (scipy's Logistic accepts no parameters)
+    return Distribution(_LOGISTIC, [0.0, 1.0], List[Distribution]())
 
 def Binomial(*, n, p):
     if not (float(n) >= 0 and float(p) >= 0 and float(p) <= 1):
