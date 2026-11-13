@@ -18,3 +18,4 @@ from _rbfinterp import RBFInterpolator
 from _bsplines2 import make_lsq_spline, make_smoothing_spline, make_splrep, make_splprep, \
     generate_knots
 from _ndgriddata import LinearNDInterpolator, CloughTocher2DInterpolator, NearestNDInterpolator, griddata
+from _bpoly import BPoly
