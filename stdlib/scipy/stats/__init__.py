@@ -84,3 +84,4 @@ from ._covariance import Covariance
 from ._distribution import Normal, Uniform, Logistic, Binomial, Mixture, order_statistic, truncate, \
     make_distribution
 from ._distribution import abs, exp, log
+from ._sensitivity import sobol_indices, SobolResult
