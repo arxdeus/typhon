@@ -473,4 +473,43 @@ class KDTree:
                 counts[t] = c
             return counts.reshape(ra.shape)
 
+    def sparse_distance_matrix(self, other: KDTree, max_distance: float, p: float = 2.0,
+                               output_type: Literal[str] = 'dok_matrix'):
+        """Distance matrix with entries only for pairs within max_distance."""
+        self._check_p(p)
+        if self.m != other.m:
+            raise ValueError("KDTrees must have the same dimension")
+        rp = _pow(max_distance, p)
+        rows = List[int]()
+        cols = List[int]()
+        vals = List[float]()
+        for i in range(self.n):
+            o: List[int] = []
+            other._ball(self.data[i], rp, p, o)
+            o.sort()
+            for j in o:
+                rows.append(i)
+                cols.append(j)
+                vals.append(_root(_pdist1(self.data[i], other.data[j], p), p))
+        if output_type == 'dict':
+            d = Dict[Tuple[int, int], float]()
+            for k in range(len(rows)):
+                d[(rows[k], cols[k])] = vals[k]
+            return d
+        elif output_type == 'ndarray':
+            out = np.zeros((len(rows), 3))
+            for k in range(len(rows)):
+                out[k, 0] = float(rows[k])
+                out[k, 1] = float(cols[k])
+                out[k, 2] = vals[k]
+            return out
+        elif output_type == 'coo_matrix':
+            from scipy.sparse import coo_matrix
+            return coo_matrix((np.array(vals, dtype=float), (np.array(rows, dtype=int), np.array(cols, dtype=int))), shape=(self.n, other.n))
+        elif output_type == 'dok_matrix':
+            from scipy.sparse import coo_matrix
+            return coo_matrix((np.array(vals, dtype=float), (np.array(rows, dtype=int), np.array(cols, dtype=int))), shape=(self.n, other.n)).todok()
+        else:
+            compile_error("Invalid output type")
+
 cKDTree = KDTree
