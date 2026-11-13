@@ -85,3 +85,4 @@ from ._distribution import Normal, Uniform, Logistic, Binomial, Mixture, order_s
     make_distribution
 from ._distribution import abs, exp, log
 from ._sensitivity import sobol_indices, SobolResult
+from ._mgc import multiscale_graphcorr, MGCResult
