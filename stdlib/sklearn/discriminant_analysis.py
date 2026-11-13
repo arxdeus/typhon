@@ -265,5 +265,152 @@ class LinearDiscriminantAnalysis:
             E = np.exp(d - m)
             return E / np.sum(E, axis=1, keepdims=True)
 
+    def predict_log_proba(self, X):
+        pr = self.predict_proba(X)
+        return np.log(pr)
+
+    def score(self, X, y, sample_weight = None):
+        return _accuracy(y, self.predict(X))
+
+class QuadraticDiscriminantAnalysis:
+    """solver 'svd' (reg_param) or 'eigen' (shrinkage None / 'auto' / float)."""
+    solver: str
+    _shrink_kind: str
+    _shrink_value: float
+    priors: Optional[List[float]]
+    reg_param: float
+    store_covariance: bool
+    tol: float
+    classes_: np.ndarray[int, 1]
+    priors_: np.ndarray[float, 1]
+    means_: np.ndarray[float, 2]
+    scalings_: List[np.ndarray[float, 1]]
+    rotations_: List[np.ndarray[float, 2]]
+    covariance_: List[np.ndarray[float, 2]]
+
+    def __init__(self, *, solver: str = "svd", shrinkage = None,
+                 priors: Optional[List[float]] = None, reg_param: float = 0.0,
+                 store_covariance: bool = False, tol: float = 1e-4, covariance_estimator = None):
+        if solver != "svd" and solver != "eigen":
+            raise ValueError(f"unknown solver {solver}")
+        self._shrink_value = 0.0
+        if shrinkage is None:
+            self._shrink_kind = ""
+        elif isinstance(shrinkage, str):
+            self._shrink_kind = "auto"
+        else:
+            self._shrink_kind = "float"
+            self._shrink_value = float(shrinkage)
+        self.solver = solver
+        self.priors = priors
+        self.reg_param = reg_param
+        self.store_covariance = store_covariance
+        self.tol = tol
+        self.classes_ = np.empty(0, dtype=int)
+        self.priors_ = np.empty(0)
+        self.means_ = np.empty((0, 0))
+        self.scalings_ = []
+        self.rotations_ = []
+        self.covariance_ = []
+
+    def fit(self, X, y):
+        Xa = np.asarray(X, dtype=float)
+        ya = np.asarray(y, dtype=int)
+        n, p = Xa.shape
+        classes, cnt = np.unique(ya, return_counts=True)
+        nc = classes.shape[0]
+        if nc < 2:
+            raise ValueError(f"The number of classes has to be greater than one. Got {nc} class.")
+        self.classes_ = classes
+        if self.priors is None:
+            self.priors_ = cnt.astype(float) / float(n)
+        else:
+            self.priors_ = np.array(self.priors.__val__())
+        if self.solver == "svd" and self._shrink_kind != "":
+            raise NotImplementedError("shrinkage not supported with 'svd' solver.")
+        means = np.empty((nc, p))
+        self.scalings_ = []
+        self.rotations_ = []
+        self.covariance_ = []
+        for ci in range(nc):
+            rows = [i for i in range(n) if ya[i] == classes[ci]]
+            if len(rows) == 1:
+                raise ValueError(f"y has only 1 sample in class {classes[ci]}, covariance is ill defined.")
+            Xc = np.ascontiguousarray(Xa[np.array(rows)])
+            mc = Xc.mean(0)
+            means[ci] = mc
+            S = np.empty(0)
+            R = np.empty((0, 0))
+            C = np.empty((0, 0))
+            if self.solver == "svd":
+                _, Sv, Vt = np.linalg.svd(Xc - mc, full_matrices=False)
+                S = Sv ** 2 / float(Xc.shape[0])
+                S = (1 - self.reg_param) * S + self.reg_param
+                R = np.ascontiguousarray(Vt.T)
+                if self.store_covariance:
+                    C = S * Vt.T @ Vt
+            else:
+                C = _cov(Xc, self._shrink_kind, self._shrink_value)
+                sc, rot = sl.eigh(C)
+                order = np.argsort(sc)[::-1]
+                R = np.ascontiguousarray(rot[:, order])
+                S = sc[order]
+            rank = 0
+            for v in S:
+                if v > self.tol:
+                    rank += 1
+            if rank < p:
+                if self.solver == "svd" and Xc.shape[0] <= p:
+                    raise np.linalg.LinAlgError(f"The covariance matrix of class {classes[ci]} is not full rank. When using `solver='svd'` the number of samples in each class should be more than the number of features, but class {classes[ci]} has {Xc.shape[0]} samples and {p} features. Try using `solver='eigen'` and setting the parameter `shrinkage` for regularization.")
+                else:
+                    mp = "shrinkage" if self.solver == "eigen" else "reg_param"
+                    raise np.linalg.LinAlgError(f"The covariance matrix of class {classes[ci]} is not full rank. Increase the value of `{mp}` to reduce the collinearity.")
+            self.scalings_.append(S)
+            self.rotations_.append(R)
+            if self.store_covariance:
+                self.covariance_.append(C)
+        self.means_ = means
+        return self
+
+    def _decision_function(self, X):
+        Xa = np.asarray(X, dtype=float)
+        nc = self.classes_.shape[0]
+        n = Xa.shape[0]
+        out = np.empty((n, nc))
+        for i in range(nc):
+            R = self.rotations_[i]
+            S = self.scalings_[i]
+            Xm = Xa - self.means_[i]
+            X2 = np.dot(Xm, R * S ** (-0.5))
+            nrm = np.sum(X2 ** 2, axis=1)
+            u = float(np.sum(np.log(S)))
+            lp = float(np.log(self.priors_[i]))
+            for r in range(n):
+                out[r, i] = -0.5 * (nrm[r] + u) + lp
+        return out
+
+    def decision_function(self, X):
+        # DEVIATION: binary case returned as (n, 1)
+        s = self._decision_function(X)
+        if self.classes_.shape[0] == 2:
+            return np.ascontiguousarray(s[:, 1:2] - s[:, 0:1])
+        return s
+
+    def predict(self, X):
+        s = self._decision_function(X)
+        idx = np.argmax(s, axis=1)
+        out = np.empty(s.shape[0], dtype=int)
+        for i in range(s.shape[0]):
+            out[i] = self.classes_[idx[i]]
+        return out
+
+    def predict_log_proba(self, X):
+        s = self._decision_function(X)
+        ll = s - np.max(s, axis=1)[:, None]
+        return ll - np.log(np.sum(np.exp(ll), axis=1))[:, None]
+
+    def predict_proba(self, X):
+        return np.exp(self.predict_log_proba(X))
+
     def score(self, X, y, sample_weight = None):
         return _accuracy(y, self.predict(X))

@@ -162,3 +162,14 @@ class OAS(EmpiricalCovariance):
         self.shrinkage_ = s
         self._set_covariance(c)
         return self
+
+def log_likelihood(emp_cov, precision) -> float:
+    from ..decomposition._extmath import fast_logdet
+    p = precision.shape[0]
+    ll = -float(np.sum(emp_cov * precision)) + fast_logdet(precision)
+    ll -= float(p) * np.log(2 * np.pi)
+    ll /= 2.0
+    return ll
+
+from ._robust_covariance import MinCovDet, EllipticEnvelope, fast_mcd
+from ._graph_lasso import GraphicalLasso, GraphicalLassoCV, graphical_lasso, graphical_lasso_path
