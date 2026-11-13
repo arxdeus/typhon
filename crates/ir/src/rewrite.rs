@@ -7,6 +7,11 @@ use crate::module::Module;
 /// returns the replacement for a value, if any.
 pub trait RewriteRule {
     fn apply(&mut self, m: &mut Module, v: ValueId) -> Option<ValueId>;
+    /// Unmangled callee name this rule requires (`apply` returns `None` for any other
+    /// value); lets the rewriter skip it without calling `apply`.
+    fn magic(&self) -> Option<&str> {
+        None
+    }
 }
 
 impl<F: FnMut(&mut Module, ValueId) -> Option<ValueId>> RewriteRule for F {
@@ -34,10 +39,17 @@ impl Rewriter {
     /// `rewrite(v)`: applies every rule in turn; replaces `v` with the final result.
     pub fn rewrite(&mut self, m: &mut Module, v: ValueId) {
         let mut result = v;
+        let mut name = callee_name(m, result);
         for rule in self.rules.values_mut() {
+            if let Some(want) = rule.magic()
+                && name.as_deref() != Some(want)
+            {
+                continue;
+            }
             if let Some(rep) = rule.apply(m, result) {
                 self.num_replacements += 1;
                 result = rep;
+                name = callee_name(m, result);
             }
         }
         if v != result {
@@ -50,4 +62,11 @@ impl Rewriter {
     pub fn reset(&mut self) {
         self.num_replacements = 0;
     }
+}
+
+/// Unmangled name of the function called by `v` (`None` if `v` is not a direct call).
+fn callee_name(m: &Module, v: ValueId) -> Option<String> {
+    let call = m.as_call_instr(v)?;
+    let f = crate::util::irtools::get_func(m, call.callee)?;
+    Some(m.func(f)?.unmangled_name.clone())
 }

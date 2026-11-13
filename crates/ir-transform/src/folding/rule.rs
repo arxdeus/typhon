@@ -89,6 +89,9 @@ impl<C: FoldConst> SingleConstantCommutativeRule<C> {
 }
 
 impl<C: FoldConst> RewriteRule for SingleConstantCommutativeRule<C> {
+    fn magic(&self) -> Option<&str> {
+        Some(&self.magic)
+    }
     fn apply(&mut self, m: &mut Module, v: ValueId) -> Option<ValueId> {
         let t = Some(self.ty);
         if !is_call_of_types(m, v, &self.magic, &[t, t], t, true) {
@@ -131,6 +134,9 @@ impl<C: FoldConst, O: FoldConst> DoubleConstantBinaryRule<C, O> {
 }
 
 impl<C: FoldConst, O: FoldConst> RewriteRule for DoubleConstantBinaryRule<C, O> {
+    fn magic(&self) -> Option<&str> {
+        Some(&self.magic)
+    }
     fn apply(&mut self, m: &mut Module, v: ValueId) -> Option<ValueId> {
         if let Some(zero) = self.exclude_rhs_zero {
             let args = call_args(m, v);
@@ -165,6 +171,9 @@ impl<C: FoldConst, O: FoldConst> SingleConstantUnaryRule<C, O> {
 }
 
 impl<C: FoldConst, O: FoldConst> RewriteRule for SingleConstantUnaryRule<C, O> {
+    fn magic(&self) -> Option<&str> {
+        Some(&self.magic)
+    }
     fn apply(&mut self, m: &mut Module, v: ValueId) -> Option<ValueId> {
         if !is_call_of_types(m, v, &self.magic, &[Some(self.input_type)], Some(self.result_type), true) {
             return None;
@@ -190,6 +199,9 @@ impl UnaryRule {
 }
 
 impl RewriteRule for UnaryRule {
+    fn magic(&self) -> Option<&str> {
+        Some(&self.magic)
+    }
     fn apply(&mut self, m: &mut Module, v: ValueId) -> Option<ValueId> {
         let t = Some(self.input_type);
         if !is_call_of_types(m, v, &self.magic, &[t], t, true) {
@@ -213,6 +225,9 @@ impl NoOpRule {
 }
 
 impl RewriteRule for NoOpRule {
+    fn magic(&self) -> Option<&str> {
+        Some(&self.magic)
+    }
     fn apply(&mut self, m: &mut Module, v: ValueId) -> Option<ValueId> {
         let t = Some(self.input_type);
         if !is_call_of_types(m, v, &self.magic, &[t], t, true) {
@@ -235,6 +250,9 @@ impl DoubleApplicationNoOpRule {
 }
 
 impl RewriteRule for DoubleApplicationNoOpRule {
+    fn magic(&self) -> Option<&str> {
+        Some(&self.magic)
+    }
     fn apply(&mut self, m: &mut Module, v: ValueId) -> Option<ValueId> {
         let t = Some(self.input_type);
         if !is_call_of_types(m, v, &self.magic, &[t], t, true) {

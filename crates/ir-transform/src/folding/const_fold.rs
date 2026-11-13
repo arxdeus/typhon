@@ -46,6 +46,9 @@ struct IntFloatBinaryRule<O: FoldConst> {
 }
 
 impl<O: FoldConst> RewriteRule for IntFloatBinaryRule<O> {
+    fn magic(&self) -> Option<&str> {
+        Some(&self.magic)
+    }
     fn apply(&mut self, m: &mut Module, v: ValueId) -> Option<ValueId> {
         if !is_call_of(m, v, &self.magic, 2, None, true) {
             return None;
