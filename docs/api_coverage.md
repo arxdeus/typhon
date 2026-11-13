@@ -7,106 +7,105 @@ Method: public names via `dir()` (submodules excluded); Typhon names = union of 
 
 | module | implemented/total | pct |
 |---|---|---|
-| numpy | 389/477 | 81% |
-| numpy.linalg | 27/33 | 81% |
+| numpy | 445/477 | 93% |
+| numpy.linalg | 32/33 | 96% |
 | numpy.fft | 18/19 | 94% |
 | numpy.random | 61/63 | 96% |
 | numpy.polynomial | 6/8 | 75% |
-| numpy.ma | 120/225 | 53% |
-| numpy.testing | 10/50 | 20% |
+| numpy.ma | 214/225 | 95% |
+| numpy.testing | 42/50 | 84% |
 | numpy.lib.stride_tricks | 2/2 | 100% |
-| numpy.strings | 0/46 | 0% (no port) |
-| numpy.char | 0/65 | 0% (no port) |
-| numpy.ndarray methods | 46/70 | 65% |
-| numpy.random.Generator methods | 1/45 | 2% |
+| numpy.strings | 42/46 | 91% |
+| numpy.char | 48/65 | 73% |
+| numpy.ndarray methods | 61/70 | 87% |
+| numpy.random.Generator methods | 44/45 | 97% |
 | scipy.cluster.hierarchy | 29/33 | 87% |
 | scipy.cluster.vq | 5/6 | 83% |
-| scipy.fft | 20/42 | 47% |
-| scipy.integrate | 18/34 | 52% |
-| scipy.interpolate | 16/58 | 27% |
-| scipy.linalg | 32/99 | 32% |
+| scipy.fft | 37/42 | 88% |
+| scipy.integrate | 19/34 | 55% |
+| scipy.interpolate | 40/58 | 68% |
+| scipy.linalg | 88/99 | 88% |
 | scipy.ndimage | 69/76 | 90% |
-| scipy.optimize | 39/72 | 54% |
-| scipy.signal | 73/159 | 45% |
-| scipy.signal.windows | 18/26 | 69% |
+| scipy.optimize | 67/72 | 93% |
+| scipy.signal | 142/159 | 89% |
+| scipy.signal.windows | 26/26 | 100% |
 | scipy.sparse | 42/54 | 77% |
 | scipy.sparse.linalg | 35/39 | 89% |
 | scipy.sparse.csgraph | 26/27 | 96% |
-| scipy.spatial | 5/19 | 26% |
-| scipy.spatial.distance | 21/34 | 61% |
-| scipy.special | 53/359 | 14% |
-| scipy.stats | 26/305 | 8% |
-| scipy.stats.qmc | 0/11 | 0% (no port) |
-| scipy.stats.contingency | 0/11 | 0% (no port) |
-| scipy.stats continuous distributions | 5/109 | 4% |
-| scipy.stats discrete distributions | 0/21 | 0% |
-| scipy.stats rv_continuous methods | 13/24 | 54% |
-| sklearn.calibration | 0/46 | 0% (no port) |
+| scipy.spatial | 13/19 | 68% |
+| scipy.spatial.distance | 27/34 | 79% |
+| scipy.special | 234/359 | 65% |
+| scipy.stats | 204/305 | 66% |
+| scipy.stats.qmc | 6/11 | 54% |
+| scipy.stats.contingency | 8/11 | 72% |
+| scipy.stats continuous distributions | 77/109 | 70% |
+| scipy.stats discrete distributions | 18/21 | 85% |
+| scipy.stats rv_continuous methods | 22/24 | 91% |
+| sklearn.calibration | 4/46 | 8% |
 | sklearn.callback | 0/8 | 0% (no port) |
-| sklearn.cluster | 11/27 | 40% |
-| sklearn.covariance | 9/16 | 56% |
-| sklearn.cross_decomposition | 0/4 | 0% (no port) |
-| sklearn.datasets | 0/31 | 0% (no port) |
+| sklearn.cluster | 27/27 | 100% |
+| sklearn.covariance | 16/16 | 100% |
+| sklearn.cross_decomposition | 4/4 | 100% |
+| sklearn.datasets | 25/31 | 80% |
 | sklearn.decomposition | 8/20 | 40% |
-| sklearn.dummy | 0/16 | 0% (no port) |
-| sklearn.ensemble | 13/19 | 68% |
+| sklearn.dummy | 3/16 | 18% |
+| sklearn.ensemble | 17/19 | 89% |
 | sklearn.experimental | 0/0 | 0% (no port) |
 | sklearn.externals | 0/0 | 0% (no port) |
-| sklearn.feature_extraction | 0/4 | 0% (no port) |
+| sklearn.feature_extraction | 4/4 | 100% |
 | sklearn.feature_selection | 18/19 | 94% |
 | sklearn.frozen | 0/1 | 0% (no port) |
-| sklearn.gaussian_process | 0/2 | 0% (no port) |
-| sklearn.inspection | 0/4 | 0% (no port) |
-| sklearn.isotonic | 0/16 | 0% (no port) |
-| sklearn.kernel_approximation | 0/22 | 0% (no port) |
-| sklearn.kernel_ridge | 0/11 | 0% (no port) |
-| sklearn.linear_model | 2/44 | 4% |
+| sklearn.gaussian_process | 2/2 | 100% |
+| sklearn.inspection | 2/4 | 50% |
+| sklearn.isotonic | 3/16 | 18% |
+| sklearn.kernel_approximation | 6/22 | 27% |
+| sklearn.kernel_ridge | 1/11 | 9% |
+| sklearn.linear_model | 44/44 | 100% |
 | sklearn.manifold | 7/10 | 70% |
-| sklearn.metrics | 20/85 | 23% |
+| sklearn.metrics | 77/85 | 90% |
 | sklearn.mixture | 2/2 | 100% |
-| sklearn.model_selection | 8/33 | 24% |
-| sklearn.multiclass | 0/27 | 0% (no port) |
-| sklearn.multioutput | 0/28 | 0% (no port) |
+| sklearn.model_selection | 27/33 | 81% |
+| sklearn.multiclass | 6/27 | 22% |
+| sklearn.multioutput | 6/28 | 21% |
 | sklearn.naive_bayes | 5/23 | 21% |
 | sklearn.neighbors | 7/18 | 38% |
 | sklearn.neural_network | 0/3 | 0% (no port) |
-| sklearn.pipeline | 3/30 | 10% |
-| sklearn.preprocessing | 4/29 | 13% |
-| sklearn.random_projection | 0/21 | 0% (no port) |
-| sklearn.semi_supervised | 0/3 | 0% (no port) |
-| sklearn.svm | 1/8 | 12% |
+| sklearn.pipeline | 5/30 | 16% |
+| sklearn.preprocessing | 29/29 | 100% |
+| sklearn.random_projection | 4/21 | 19% |
+| sklearn.semi_supervised | 3/3 | 100% |
+| sklearn.svm | 8/8 | 100% |
 | sklearn.tree | 6/8 | 75% |
-| sklearn.discriminant_analysis | 1/26 | 3% |
+| sklearn.discriminant_analysis | 2/26 | 7% |
 | sklearn.impute | 3/3 | 100% |
-| sklearn.compose | 0/4 | 0% (no port) |
-| sklearn.utils | 0/31 | 0% |
-| sklearn.utils.validation | 0/33 | 0% (no port) |
-| sklearn.utils.extmath | 0/28 | 0% (no port) |
-| sklearn.utils.sparsefuncs | 0/16 | 0% (no port) |
-| sklearn.utils.multiclass | 0/13 | 0% (no port) |
-| sklearn.utils.class_weight | 0/7 | 0% (no port) |
-| sklearn.base | 5/36 | 13% |
-| mne | 9/177 | 5% |
-| mne.io | 1/49 | 2% |
-| mne.epochs | 6/85 | 7% |
-| mne.event | 0/29 | 0% |
+| sklearn.compose | 3/4 | 75% |
+| sklearn.utils | 19/31 | 61% |
+| sklearn.utils.validation | 14/33 | 42% |
+| sklearn.utils.extmath | 15/28 | 53% |
+| sklearn.utils.sparsefuncs | 8/16 | 50% |
+| sklearn.utils.multiclass | 5/13 | 38% |
+| sklearn.utils.class_weight | 2/7 | 28% |
+| sklearn.base | 17/36 | 47% |
+| mne | 34/177 | 19% |
+| mne.io | 8/49 | 16% |
+| mne.epochs | 7/85 | 8% |
+| mne.event | 9/29 | 31% |
 | mne.filter | 7/20 | 35% |
-| mne.time_frequency | 5/41 | 12% |
-| mne.decoding | 1/28 | 3% |
-| mne.preprocessing | 8/45 | 17% |
-| mne.stats | 0/17 | 0% |
-| mne.channels | 0/34 | 0% |
+| mne.time_frequency | 27/41 | 65% |
+| mne.decoding | 17/28 | 60% |
+| mne.preprocessing | 11/45 | 24% |
+| mne.stats | 15/17 | 88% |
+| mne.channels | 6/34 | 17% |
 | mne.minimum_norm | 0/21 | 0% |
 | mne.beamformer | 0/15 | 0% |
 
 ## Missing names per module
 
-### numpy: 389/477
-**Missing (84)**: False_, ScalarType, True_, array2string, array_repr, array_str, asmatrix, astype, base_repr, binary_repr, bitwise_count, bitwise_invert, bitwise_left_shift, bitwise_not, bitwise_right_shift, bmat, bool, bytes_, can_cast, character, common_type, complex64, complexfloating, concat, cumulative_prod, divmod, fix, flexible, float16, float32, float_power, floating, from_dlpack, fromregex, generic, get_include, get_printoptions, half, histogram2d, histogramdd, index_exp, inexact, integer, isdtype, issubdtype, little_endian, long, matrix, matvec, mgrid, min_scalar_type, mintypecode, nditer, nested_iters, number, object_, ogrid, permute_dims, poly1d, printoptions, promote_types, recarray, record, result_type, rollaxis, s_, savez, savez_compressed, sctypeDict, set_printoptions, signedinteger, str_, typecodes, typename, ulong, unique_all, unique_counts, unique_inverse, unique_values, unsignedinteger, unstack, vecdot, vecmat, void
+### numpy: 445/477
+**Missing (28)**: False_, ScalarType, True_, asmatrix, bmat, bool, bytes_, complex64, float16, float32, from_dlpack, fromregex, get_include, half, long, matrix, nditer, nested_iters, object_, printoptions, recarray, record, savez, savez_compressed, sctypeDict, str_, ulong, void
 *Low priority (4)*: info, show_config, show_runtime, test
 
-### numpy.linalg: 27/33
-**Missing (5)**: cross, diagonal, matrix_norm, vecdot, vector_norm
+### numpy.linalg: 32/33
 *Low priority (1)*: test
 
 ### numpy.fft: 18/19
@@ -120,28 +119,28 @@ Method: public names via `dir()` (submodules excluded); Typhon names = union of 
 **Missing (1)**: set_default_printstyle
 *Low priority (1)*: test
 
-### numpy.ma: 120/225
-**Missing (100)**: MaskType, allclose, allequal, amax, amin, angle, anom, anomalies, append, apply_along_axis, apply_over_axes, arange, arccosh, arcsinh, arctanh, argsort, around, atleast_1d, atleast_2d, atleast_3d, bitwise_and, bitwise_or, bitwise_xor, bool_, choose, clip, column_stack, common_fill_value, compress, compress_nd, conjugate, convolve, copy, correlate, cumprod, diag, diagflat, diff, dstack, ediff1d, empty, empty_like, expand_dims, fabs, flatten_mask, flatten_structured_array, fmod, frombuffer, fromflex, fromfunction, harden_mask, hsplit, identity, ids, indices, inner, innerproduct, intersect1d, is_mask, isin, left_shift, logical_xor, make_mask_descr, masked_all, masked_all_like, masked_object, masked_print_option, masked_singleton, maximum_fill_value, minimum_fill_value, mr_, mvoid, ndenumerate, ndim, nonzero, notmasked_contiguous, ones, ones_like, polyfit, put, putmask, repeat, resize, right_shift, round, set_fill_value, setdiff1d, setxor1d, shape, size, soften_mask, squeeze, swapaxes, take, trace, union1d, unique, vander, zeros, zeros_like
+### numpy.ma: 214/225
+**Missing (6)**: append, flatten_structured_array, fromflex, masked_print_option, mr_, mvoid
 *Low priority (5)*: alltrue, in1d, round_, sometrue, test
 
-### numpy.testing: 10/50
-**Missing (39)**: BLAS_SUPPORTS_FPE, HAS_LAPACK64, HAS_REFCOUNT, IS_64BIT, IS_EDITABLE, IS_INSTALLED, IS_MUSL, IS_PYPY, IS_PYSTON, IS_WASM, IgnoreException, KnownFailureException, NOGIL_BUILD, NUMPY_ROOT, SkipTest, TestCase, assert_approx_equal, assert_array_almost_equal_nulp, assert_array_compare, assert_no_gc_cycles, assert_no_warnings, assert_raises_regex, assert_warns, break_cycles, build_err_msg, check_support_sve, clear_and_catch_warnings, decorate_methods, jiffies, measure, memusage, print_assert_equal, run_threaded, rundocs, runstring, suppress_warnings, tempdir, temppath, verbose
+### numpy.testing: 42/50
+**Missing (7)**: NUMPY_ROOT, TestCase, check_support_sve, rundocs, runstring, tempdir, temppath
 *Low priority (1)*: test
 
 ### numpy.lib.stride_tricks: 2/2
 Complete.
 
-### numpy.strings: 0/46 (no port at all)
-**Missing (46)**: add, capitalize, center, count, decode, encode, endswith, equal, expandtabs, find, greater, greater_equal, index, isalnum, isalpha, isdecimal, isdigit, islower, isnumeric, isspace, istitle, isupper, less, less_equal, ljust, lower, lstrip, mod, multiply, not_equal, partition, replace, rfind, rindex, rjust, rpartition, rstrip, slice, startswith, str_len, strip, swapcase, title, translate, upper, zfill
+### numpy.strings: 42/46
+**Missing (4)**: decode, encode, mod, translate
 
-### numpy.char: 0/65 (no port at all)
-**Missing (65)**: add, array, array_function_dispatch, asarray, asnarray, bytes_, capitalize, center, character, chararray, compare_chararrays, count, decode, encode, endswith, equal, expandtabs, find, greater, greater_equal, index, isalnum, isalpha, isdecimal, isdigit, islower, isnumeric, isspace, istitle, isupper, join, less, less_equal, ljust, lower, lstrip, mod, multiply, narray, ndarray, not_equal, partition, replace, rfind, rindex, rjust, rpartition, rsplit, rstrip, set_module, slice, split, splitlines, startswith, str_, str_len, strings_multiply, strings_partition, strings_rpartition, strip, swapcase, title, translate, upper, zfill
+### numpy.char: 48/65
+**Missing (17)**: array_function_dispatch, asnarray, bytes_, character, chararray, decode, encode, mod, narray, ndarray, set_module, slice, str_, strings_multiply, strings_partition, strings_rpartition, translate
 
-### numpy.ndarray methods: 46/70
-**Missing (24)**: .base, .choose, .clip, .compress, .conj, .conjugate, .ctypes, .device, .diagonal, .dump, .dumps, .getfield, .imag, .nonzero, .put, .real, .repeat, .round, .searchsorted, .setfield, .setflags, .take, .to_device, .tofile
+### numpy.ndarray methods: 61/70
+**Missing (9)**: .base, .ctypes, .device, .dump, .dumps, .getfield, .setfield, .setflags, .to_device
 
-### numpy.random.Generator methods: 1/45
-**Missing (44)**: .beta, .binomial, .bit_generator, .bytes, .chisquare, .choice, .dirichlet, .exponential, .f, .gamma, .geometric, .gumbel, .hypergeometric, .integers, .laplace, .logistic, .lognormal, .logseries, .multinomial, .multivariate_hypergeometric, .multivariate_normal, .negative_binomial, .noncentral_chisquare, .noncentral_f, .normal, .pareto, .permutation, .permuted, .poisson, .power, .random, .rayleigh, .shuffle, .standard_cauchy, .standard_exponential, .standard_gamma, .standard_normal, .standard_t, .triangular, .uniform, .vonmises, .wald, .weibull, .zipf
+### numpy.random.Generator methods: 44/45
+**Missing (1)**: .bit_generator
 
 ### scipy.cluster.hierarchy: 29/33
 **Missing (4)**: ClusterWarning, DisjointSet, from_mlab_linkage, to_mlab_linkage
@@ -149,36 +148,36 @@ Complete.
 ### scipy.cluster.vq: 5/6
 **Missing (1)**: py_vq
 
-### scipy.fft: 20/42
-**Missing (21)**: dct, dctn, dst, dstn, fht, fhtoffset, get_workers, hfft2, hfftn, idct, idctn, idst, idstn, ifht, ihfft2, ihfftn, register_backend, set_backend, set_global_backend, set_workers, skip_backend
+### scipy.fft: 37/42
+**Missing (4)**: register_backend, set_backend, set_global_backend, skip_backend
 *Low priority (1)*: test
 
-### scipy.integrate: 18/34
-**Missing (15)**: BDF, DOP853, DenseOutput, LSODA, OdeSolver, RK23, RK45, Radau, complex_ode, cubature, lebedev_rule, nsum, qmc_quad, solve_bvp, tanhsinh
+### scipy.integrate: 19/34
+**Missing (14)**: BDF, DOP853, DenseOutput, LSODA, OdeSolver, RK23, RK45, Radau, complex_ode, cubature, lebedev_rule, nsum, qmc_quad, tanhsinh
 *Low priority (1)*: test
 
-### scipy.interpolate: 16/58
-**Missing (41)**: AAA, BPoly, BarycentricInterpolator, BivariateSpline, CloughTocher2DInterpolator, FloaterHormannInterpolator, InterpolatedUnivariateSpline, KroghInterpolator, LSQBivariateSpline, LSQSphereBivariateSpline, LSQUnivariateSpline, LinearNDInterpolator, NdBSpline, NdPPoly, NearestNDInterpolator, RBFInterpolator, Rbf, RectBivariateSpline, RectSphereBivariateSpline, SmoothBivariateSpline, SmoothSphereBivariateSpline, UnivariateSpline, approximate_taylor_polynomial, barycentric_interpolate, bisplev, bisplrep, generate_knots, griddata, insert, interp2d, krogh_interpolate, lagrange, make_lsq_spline, make_smoothing_spline, make_splprep, make_splrep, pade, pchip, spalde, splprep, sproot
+### scipy.interpolate: 40/58
+**Missing (17)**: AAA, BPoly, BivariateSpline, FloaterHormannInterpolator, LSQBivariateSpline, LSQSphereBivariateSpline, NdBSpline, NdPPoly, Rbf, RectBivariateSpline, RectSphereBivariateSpline, SmoothBivariateSpline, SmoothSphereBivariateSpline, bisplev, bisplrep, interp2d, pchip
 *Low priority (1)*: test
 
-### scipy.linalg: 32/99
-**Missing (66)**: LinAlgWarning, bandwidth, cdf2rdf, cho_solve_banded, cholesky_banded, clarkson_woodruff_transform, companion, convolution_matrix, coshm, cosm, cossin, dft, diagsvd, eig_banded, eigh_tridiagonal, eigvals_banded, eigvalsh_tridiagonal, expm_cond, expm_frechet, fiedler, fiedler_companion, find_best_blas_type, funm, get_blas_funcs, get_lapack_funcs, hadamard, helmert, hessenberg, hilbert, invhilbert, invpascal, ishermitian, issymmetric, khatri_rao, ldl, leslie, matmul_toeplitz, matrix_balance, ordqz, orthogonal_procrustes, pascal, polar, qr_delete, qr_insert, qr_multiply, qr_update, qz, rq, rsf2csf, schur, signm, sinhm, sinm, solve_banded, solve_circulant, solve_continuous_are, solve_continuous_lyapunov, solve_discrete_are, solve_discrete_lyapunov, solve_lyapunov, solve_sylvester, solve_toeplitz, solveh_banded, subspace_angles, tanhm, tanm
+### scipy.linalg: 88/99
+**Missing (10)**: cdf2rdf, clarkson_woodruff_transform, cossin, find_best_blas_type, get_blas_funcs, get_lapack_funcs, qr_delete, qr_insert, qr_multiply, qr_update
 *Low priority (1)*: test
 
 ### scipy.ndimage: 69/76
 **Missing (6)**: fourier_ellipsoid, generic_gradient_magnitude, generic_laplace, value_indices, vectorized_filter, watershed_ift
 *Low priority (1)*: test
 
-### scipy.optimize: 39/72
-**Missing (32)**: BroydenFirst, InverseJacobian, KrylovJacobian, LbfgsInvHessProduct, NoConvergence, anderson, broyden1, broyden2, diagbroyden, excitingmixing, fixed_point, fmin, fmin_bfgs, fmin_cg, fmin_cobyla, fmin_l_bfgs_b, fmin_ncg, fmin_powell, fmin_slsqp, fmin_tnc, isotonic_regression, leastsq, line_search, linearmixing, linprog_verbose_callback, lsq_linear, newton_krylov, nnls, quadratic_assignment, rosen_hess_prod, shgo, toms748
+### scipy.optimize: 67/72
+**Missing (4)**: InverseJacobian, LbfgsInvHessProduct, linprog_verbose_callback, quadratic_assignment
 *Low priority (1)*: test
 
-### scipy.signal: 73/159
-**Missing (85)**: BadCoefficients, CZT, ShortTimeFFT, StateSpace, TransferFunction, ZerosPolesGain, ZoomFFT, abcd_normalize, band_stop_obj, bilinear, bode, cheb2ord, chirp, choose_conv_method, closest_STFT_dual_window, cont2discrete, convolve2d, correlate2d, correlation_lags, cspline1d, cspline1d_eval, cspline2d, czt, czt_points, dbode, deconvolve, dfreqresp, dimpulse, dlsim, dlti, dstep, envelope, find_peaks_cwt, findfreqs, firls, firwin_2d, freqresp, freqs, freqs_zpk, gammatone, gauss_spline, gausspulse, hilbert2, iircomb, iirdesign, impulse, invres, invresz, lfiltic, lombscargle, lp2bp, lp2bs, lp2hp, lp2lp, lsim, lti, max_len_seq, medfilt2d, minimum_phase, order_filter, place_poles, qspline1d, qspline1d_eval, qspline2d, remez, residue, residuez, sawtooth, sepfir2d, spline_filter, square, ss2tf, ss2zpk, step, sweep_poly, symiirorder1, symiirorder2, tf2ss, unique_roots, unit_impulse, vectorstrength, whittaker_henderson, wiener, zoom_fft, zpk2ss
+### scipy.signal: 142/159
+**Missing (16)**: BadCoefficients, ShortTimeFFT, StateSpace, TransferFunction, ZerosPolesGain, band_stop_obj, closest_STFT_dual_window, convolve2d, correlate2d, envelope, find_peaks_cwt, firwin_2d, gammatone, max_len_seq, place_poles, whittaker_henderson
 *Low priority (1)*: test
 
-### scipy.signal.windows: 18/26
-**Missing (8)**: barthann, bohman, chebwin, general_gaussian, kaiser_bessel_derived, lanczos, parzen, taylor
+### scipy.signal.windows: 26/26
+Complete.
 
 ### scipy.sparse: 42/54
 **Missing (12)**: SparseEfficiencyWarning, SparseWarning, expand_dims, get_index_dtype, load_npz, matrix_transpose, permute_dims, safely_cast_index_arrays, save_npz, sparray, spmatrix, swapaxes
@@ -190,62 +189,62 @@ Complete.
 ### scipy.sparse.csgraph: 26/27
 *Low priority (1)*: test
 
-### scipy.spatial: 5/19
-**Missing (10)**: ConvexHull, Delaunay, HalfspaceIntersection, QhullError, Rectangle, SphericalVoronoi, Voronoi, geometric_slerp, procrustes, tsearch
+### scipy.spatial: 13/19
+**Missing (2)**: Rectangle, SphericalVoronoi
 *Low priority (4)*: convex_hull_plot_2d, delaunay_plot_2d, test, voronoi_plot_2d
 
-### scipy.spatial.distance: 21/34
-**Missing (13)**: CDistMetricWrapper, Callable, MetricInfo, PDistMetricWrapper, directed_hausdorff, jensenshannon, norm, partial, rel_entr, rogerstanimoto, russellrao, sokalsneath, yule
+### scipy.spatial.distance: 27/34
+**Missing (7)**: CDistMetricWrapper, Callable, MetricInfo, PDistMetricWrapper, norm, partial, rel_entr
 
-### scipy.special: 53/359
-**Missing (305)**: SpecialFunctionError, SpecialFunctionWarning, agm, ai_zeros, airy, airye, assoc_laguerre, assoc_legendre_p, assoc_legendre_p_all, bdtrc, bdtri, bdtrik, bdtrin, bei, bei_zeros, beip, beip_zeros, ber, ber_zeros, bernoulli, berp, berp_zeros, besselpoly, betainccinv, bi_zeros, binom, boxcox1p, btdtria, btdtrib, c_roots, cbrt, cg_roots, chdtriv, chebyc, chebys, chebyt, chebyu, chndtr, chndtridf, chndtrinc, chndtrix, cosdg, cosm1, cotdg, dawsn, diric, ellip_harm, ellip_harm_2, ellip_normal, ellipe, ellipeinc, ellipj, ellipk, ellipkinc, ellipkm1, elliprc, elliprd, elliprf, elliprg, elliprj, erf_zeros, erfi, errstate, euler, eval_chebyc, eval_chebys, eval_chebyt, eval_chebyu, eval_gegenbauer, eval_genlaguerre, eval_hermite, eval_hermitenorm, eval_jacobi, eval_laguerre, eval_legendre, eval_sh_chebyt, eval_sh_chebyu, eval_sh_jacobi, eval_sh_legendre, exp1, exp10, exp2, expi, expn, exprel, factorial2, factorialk, fdtridfd, fresnel, fresnel_zeros, fresnelc_zeros, fresnels_zeros, gdtr, gdtrc, gdtria, gdtrib, gdtrix, gegenbauer, genlaguerre, geterr, h1vp, h2vp, h_roots, hankel1, hankel1e, hankel2, hankel2e, he_roots, hermite, hermitenorm, huber, hyp0f1, hyp1f1, hyp2f1, hyperu, inv_boxcox, inv_boxcox1p, it2i0k0, it2j0y0, it2struve0, itairy, iti0k0, itj0y0, itmodstruve0, itstruve0, iv, ive, ivp, j0, j1, j_roots, jacobi, jn, jn_zeros, jnjnp_zeros, jnp_zeros, jnyn_zeros, js_roots, jv, jve, jvp, k0, k0e, k1, k1e, kei, kei_zeros, keip, keip_zeros, kelvin, kelvin_zeros, ker, ker_zeros, kerp, kerp_zeros, kn, kolmogi, kolmogorov, kv, kve, kvp, l_roots, la_roots, laguerre, lambertw, legendre, legendre_p, legendre_p_all, lmbda, log_wright_bessel, lpmv, lqmn, lqn, mathieu_a, mathieu_b, mathieu_cem, mathieu_even_coef, mathieu_modcem1, mathieu_modcem2, mathieu_modsem1, mathieu_modsem2, mathieu_odd_coef, mathieu_sem, modfresnelm, modfresnelp, modstruve, multigammaln, nbdtr, nbdtrc, nbdtri, nbdtrik, nbdtrin, ncfdtr, ncfdtri, ncfdtridfd, ncfdtridfn, ncfdtrinc, nctdtr, nctdtridf, nctdtrinc, nctdtrit, ndtri_exp, nrdtrimn, nrdtrisd, obl_ang1, obl_ang1_cv, obl_cv, obl_cv_seq, obl_rad1, obl_rad1_cv, obl_rad2, obl_rad2_cv, owens_t, p_roots, pbdn_seq, pbdv, pbdv_seq, pbvv, pbvv_seq, pbwa, pdtr, pdtrc, pdtri, pdtrik, poch, polygamma, powm1, pro_ang1, pro_ang1_cv, pro_cv, pro_cv_seq, pro_rad1, pro_rad1_cv, pro_rad2, pro_rad2_cv, ps_roots, pseudo_huber, radian, rgamma, riccati_jn, riccati_yn, roots_chebyc, roots_chebys, roots_chebyt, roots_chebyu, roots_gegenbauer, roots_genlaguerre, roots_hermite, roots_hermitenorm, roots_jacobi, roots_laguerre, roots_legendre, roots_sh_chebyt, roots_sh_chebyu, roots_sh_jacobi, roots_sh_legendre, round, s_roots, seterr, sh_chebyt, sh_chebyu, sh_jacobi, sh_legendre, shichi, sici, sinc, sindg, smirnov, smirnovi, softplus, spence, sph_harm_y, sph_harm_y_all, sph_legendre_p, sph_legendre_p_all, spherical_in, spherical_jn, spherical_kn, spherical_yn, stdtridf, stirling2, struve, t_roots, tandg, tklmbda, ts_roots, u_roots, us_roots, voigt_profile, wofz, wright_bessel, wrightomega, y0, y0_zeros, y1, y1_zeros, y1p_zeros, yn, yn_zeros, ynp_zeros, yv, yve, yvp, zeta, zetac
+### scipy.special: 234/359
+**Missing (124)**: SpecialFunctionError, SpecialFunctionWarning, ai_zeros, airye, assoc_laguerre, bernoulli, besselpoly, bi_zeros, c_roots, cg_roots, chebyc, chebys, chebyt, chebyu, chndtridf, chndtrinc, diric, ellip_harm, ellip_harm_2, ellip_normal, erf_zeros, errstate, euler, exprel, factorial2, factorialk, fresnel_zeros, fresnelc_zeros, fresnels_zeros, gegenbauer, genlaguerre, geterr, h1vp, h2vp, h_roots, hankel1, hankel1e, hankel2, hankel2e, he_roots, hermite, hermitenorm, it2i0k0, it2j0y0, it2struve0, itairy, iti0k0, itj0y0, itmodstruve0, itstruve0, ivp, j_roots, jacobi, jnjnp_zeros, js_roots, jvp, kvp, l_roots, la_roots, laguerre, legendre, lmbda, log_wright_bessel, lqmn, lqn, mathieu_a, mathieu_b, mathieu_cem, mathieu_even_coef, mathieu_modcem1, mathieu_modcem2, mathieu_modsem1, mathieu_modsem2, mathieu_odd_coef, mathieu_sem, modfresnelm, modfresnelp, ncfdtridfd, ncfdtridfn, ncfdtrinc, nctdtridf, nctdtrinc, nrdtrimn, nrdtrisd, obl_ang1, obl_ang1_cv, obl_cv, obl_cv_seq, obl_rad1, obl_rad1_cv, obl_rad2, obl_rad2_cv, pbdn_seq, pbdv_seq, pbvv_seq, powm1, pro_ang1, pro_ang1_cv, pro_cv, pro_cv_seq, pro_rad1, pro_rad1_cv, pro_rad2, pro_rad2_cv, ps_roots, riccati_jn, riccati_yn, s_roots, seterr, sh_chebyt, sh_chebyu, sh_jacobi, sh_legendre, sinc, stirling2, t_roots, ts_roots, u_roots, us_roots, wright_bessel, y0_zeros, y1_zeros, y1p_zeros, yvp
 *Low priority (1)*: test
 
-### scipy.stats: 26/305
-**Missing (274)**: Binomial, BootstrapMethod, CensoredData, ConstantInputWarning, Covariance, DegenerateDataWarning, FitError, Logistic, Mixture, MonteCarloMethod, NearConstantInputWarning, Normal, PermutationMethod, Uniform, abs, alexandergovern, alpha, anderson, anderson_ksamp, anglit, ansari, arcsine, argus, barnard_exact, bartlett, bayes_mvs, bernoulli, beta, betabinom, betanbinom, betaprime, binned_statistic, binned_statistic_2d, binned_statistic_dd, binom, binomtest, boltzmann, bootstrap, boschloo_exact, boxcox, boxcox_llf, boxcox_normmax, bradford, brunnermunzel, burr, burr12, bws_test, cauchy, chatterjeexi, chi, chisquare, circmean, circstd, circvar, combine_pvalues, cosine, cramervonmises, cramervonmises_2samp, crystalball, cumfreq, dgamma, differential_entropy, directional_stats, dirichlet, dirichlet_multinomial, dlaplace, dpareto_lognorm, dunnett, dweibull, ecdf, energy_distance, entropy, epps_singleton_2samp, erlang, estimated_cdf, exp, expectile, expon, exponnorm, exponpow, exponweib, false_discovery_control, fatiguelife, fisher_exact, fisk, fit, fligner, foldcauchy, foldnorm, friedmanchisquare, gamma, gausshyper, gaussian_kde, genexpon, genextreme, gengamma, genhalflogistic, genhyperbolic, geninvgauss, genlogistic, gennorm, genpareto, geom, gibrat, gmean, gompertz, goodness_of_fit, gstd, gumbel_l, gumbel_r, gzscore, halfcauchy, halfgennorm, halflogistic, halfnorm, hmean, hypergeom, hypsecant, invgamma, invgauss, invweibull, invwishart, iqr, irwinhall, jarque_bera, jf_skew_t, johnsonsb, johnsonsu, kappa3, kappa4, kendalltau, ks_1samp, ks_2samp, ksone, kstat, kstatvar, kstest, kstwo, kstwobign, kurtosistest, landau, laplace, laplace_asymmetric, levene, levy, levy_l, levy_stable, lmoment, log, loggamma, logistic, loglaplace, lognorm, logrank, logser, loguniform, lomax, make_distribution, matrix_normal, matrix_t, maxwell, median_abs_deviation, median_test, mielke, mode, monte_carlo_test, mood, moyal, multinomial, multiscale_graphcorr, multivariate_hypergeom, multivariate_normal, multivariate_t, mvsdist, nakagami, nbinom, ncf, nchypergeom_fisher, nchypergeom_wallenius, nct, ncx2, nhypergeom, normal_inverse_gamma, normaltest, norminvgauss, obrientransform, order_statistic, ortho_group, page_trend_test, pareto, pearson3, percentileofscore, permutation_test, planck, pmean, pointbiserialr, poisson, poisson_binom, poisson_means_test, power, power_divergence, powerlaw, powerlognorm, powernorm, ppcc_max, quantile, quantile_test, randint, random_correlation, random_table, ranksums, rayleigh, rdist, recipinvgauss, reciprocal, rel_breitwigner, relfreq, rice, rv_discrete, rv_histogram, scoreatpercentile, semicircular, shapiro, siegelslopes, sigmaclip, skellam, skewcauchy, skewnorm, skewtest, sobol_indices, somersd, spearmanrho, special_ortho_group, studentized_range, theilslopes, tmax, tmean, tmin, trapezoid, triang, trim1, trim_mean, trimboth, truncate, truncexpon, truncnorm, truncpareto, truncweibull_min, tsem, tstd, ttest_ind_from_stats, tukey_hsd, tukeylambda, tvar, uniform_direction, unitary_group, variation, vonmises, vonmises_fisher, vonmises_line, wald, wasserstein_distance, wasserstein_distance_nd, weibull_max, weibull_min, weightedtau, wishart, wrapcauchy, yeojohnson, yeojohnson_llf, yeojohnson_normmax, yulesimon, zipf, zipfian
+### scipy.stats: 204/305
+**Missing (96)**: Binomial, BootstrapMethod, CensoredData, ConstantInputWarning, Covariance, DegenerateDataWarning, FitError, Logistic, Mixture, MonteCarloMethod, NearConstantInputWarning, Normal, PermutationMethod, Uniform, abs, argus, barnard_exact, bayes_mvs, bootstrap, boschloo_exact, bws_test, chatterjeexi, crystalball, directional_stats, dirichlet_multinomial, dpareto_lognorm, dunnett, ecdf, estimated_cdf, exp, expectile, exponpow, gausshyper, genexpon, gengamma, genhalflogistic, genhyperbolic, geninvgauss, goodness_of_fit, gstd, gzscore, halfgennorm, halflogistic, invweibull, irwinhall, jf_skew_t, kappa4, ksone, kstat, kstatvar, kstwo, kstwobign, landau, laplace_asymmetric, levy_stable, lmoment, log, logrank, make_distribution, matrix_t, monte_carlo_test, multiscale_graphcorr, multivariate_hypergeom, mvsdist, nchypergeom_fisher, nchypergeom_wallenius, normal_inverse_gamma, norminvgauss, obrientransform, order_statistic, permutation_test, poisson_binom, power, powerlognorm, powernorm, ppcc_max, quantile, quantile_test, random_table, rel_breitwigner, sigmaclip, skewcauchy, sobol_indices, spearmanrho, studentized_range, trapezoid, truncate, truncpareto, truncweibull_min, tukey_hsd, tukeylambda, uniform_direction, unitary_group, vonmises_fisher, vonmises_line, wasserstein_distance_nd
 *Low priority (5)*: boxcox_normplot, ppcc_plot, probplot, test, yeojohnson_normplot
 
-### scipy.stats.qmc: 0/11 (no port at all)
-**Missing (11)**: Halton, LatinHypercube, MultinomialQMC, MultivariateNormalQMC, PoissonDisk, QMCEngine, Sobol, discrepancy, geometric_discrepancy, scale, update_discrepancy
+### scipy.stats.qmc: 6/11
+**Missing (5)**: MultinomialQMC, MultivariateNormalQMC, PoissonDisk, QMCEngine, geometric_discrepancy
 
-### scipy.stats.contingency: 0/11 (no port at all)
-**Missing (11)**: Chi2ContingencyResult, association, chi2_contingency, crosstab, expected_freq, margins, odds_ratio, power_divergence, reduce, relative_risk, xp_capabilities
+### scipy.stats.contingency: 8/11
+**Missing (3)**: power_divergence, reduce, xp_capabilities
 
-### scipy.stats continuous distributions: 5/109
-**Missing (104)**: ksone, kstwo, kstwobign, alpha, anglit, arcsine, beta, betaprime, bradford, burr, burr12, fisk, cauchy, chi, cosine, dgamma, dpareto_lognorm, dweibull, expon, exponnorm, exponweib, exponpow, fatiguelife, foldcauchy, foldnorm, weibull_min, truncweibull_min, weibull_max, genlogistic, genpareto, genexpon, genextreme, gamma, erlang, gengamma, genhalflogistic, genhyperbolic, gompertz, gumbel_r, gumbel_l, halfcauchy, halflogistic, halfnorm, hypsecant, gausshyper, invgamma, invgauss, geninvgauss, norminvgauss, invweibull, jf_skew_t, johnsonsb, johnsonsu, landau, laplace, laplace_asymmetric, levy, levy_l, logistic, loggamma, loglaplace, lognorm, gibrat, maxwell, mielke, kappa4, kappa3, moyal, nakagami, ncx2, ncf, nct, pareto, lomax, pearson3, powerlaw, powerlognorm, powernorm, rdist, rayleigh, loguniform, reciprocal, rice, irwinhall, recipinvgauss, semicircular, skewcauchy, skewnorm, trapezoid, triang, truncexpon, truncnorm, truncpareto, tukeylambda, vonmises, vonmises_line, wald, wrapcauchy, gennorm, halfgennorm, crystalball, argus, studentized_range, rel_breitwigner
+### scipy.stats continuous distributions: 77/109
+**Missing (32)**: ksone, kstwo, kstwobign, dpareto_lognorm, exponpow, truncweibull_min, genexpon, gengamma, genhalflogistic, genhyperbolic, halflogistic, gausshyper, geninvgauss, norminvgauss, invweibull, jf_skew_t, landau, laplace_asymmetric, kappa4, powerlognorm, powernorm, irwinhall, skewcauchy, trapezoid, truncpareto, tukeylambda, vonmises_line, halfgennorm, crystalball, argus, studentized_range, rel_breitwigner
 
-### scipy.stats discrete distributions: 0/21
-**Missing (21)**: binom, bernoulli, betabinom, nbinom, betanbinom, geom, hypergeom, nhypergeom, logser, poisson, planck, boltzmann, randint, zipf, zipfian, dlaplace, poisson_binom, skellam, yulesimon, nchypergeom_fisher, nchypergeom_wallenius
+### scipy.stats discrete distributions: 18/21
+**Missing (3)**: poisson_binom, nchypergeom_fisher, nchypergeom_wallenius
 
-### scipy.stats rv_continuous methods: 13/24
-**Missing (11)**: .entropy, .expect, .fit, .fit_loc_scale, .freeze, .moment, .nnlf, .random_state, .rvs, .stats, .support
+### scipy.stats rv_continuous methods: 22/24
+**Missing (2)**: .fit_loc_scale, .random_state
 
-### sklearn.calibration: 0/46 (no port at all)
-**Missing (46)**: BaseEstimator, CalibratedClassifierCV, CalibrationDisplay, ClassifierMixin, FrozenEstimator, HalfBinomialLoss, HalfMultinomialLoss, HalfMultinomialLossArrayAPI, HasMethods, Integral, Interval, IsotonicRegression, LabelEncoder, LeaveOneOut, LinearSVC, MetaEstimatorMixin, MetadataRouter, MethodMapping, Parallel, Real, RegressorMixin, StrOptions, calibration_curve, check_array, check_classification_targets, check_consistent_length, check_cv, check_is_fitted, clone, column_or_1d, cross_val_predict, delayed, expit, get_namespace, get_namespace_and_device, get_tags, indexable, label_binarize, log, minimize, minimize_scalar, move_to, process_routing, signature, softmax, validate_params
+### sklearn.calibration: 4/46
+**Missing (42)**: BaseEstimator, CalibrationDisplay, ClassifierMixin, FrozenEstimator, HalfBinomialLoss, HalfMultinomialLoss, HalfMultinomialLossArrayAPI, HasMethods, Integral, Interval, LabelEncoder, LeaveOneOut, LinearSVC, MetaEstimatorMixin, MetadataRouter, MethodMapping, Parallel, Real, RegressorMixin, StrOptions, check_array, check_classification_targets, check_consistent_length, check_cv, check_is_fitted, column_or_1d, cross_val_predict, delayed, expit, get_namespace, get_namespace_and_device, get_tags, indexable, label_binarize, log, minimize, minimize_scalar, move_to, process_routing, signature, softmax, validate_params
 
 ### sklearn.callback: 0/8 (no port at all)
 **Missing (8)**: AutoPropagatedCallback, CallbackContext, CallbackSupportMixin, FitCallback, ProgressBar, ScoringMonitor, ScoringMonitorLog, with_callbacks
 
-### sklearn.cluster: 11/27
-**Missing (16)**: Birch, BisectingKMeans, FeatureAgglomeration, HDBSCAN, OPTICS, SpectralBiclustering, SpectralCoclustering, affinity_propagation, cluster_optics_dbscan, cluster_optics_xi, compute_optics_graph, k_means, linkage_tree, mean_shift, spectral_clustering, ward_tree
+### sklearn.cluster: 27/27
+Complete.
 
-### sklearn.covariance: 9/16
-**Missing (7)**: EllipticEnvelope, GraphicalLasso, GraphicalLassoCV, MinCovDet, fast_mcd, graphical_lasso, log_likelihood
+### sklearn.covariance: 16/16
+Complete.
 
-### sklearn.cross_decomposition: 0/4 (no port at all)
-**Missing (4)**: CCA, PLSCanonical, PLSRegression, PLSSVD
+### sklearn.cross_decomposition: 4/4
+Complete.
 
-### sklearn.datasets: 0/31 (no port at all)
-**Missing (31)**: load_breast_cancer, load_diabetes, load_digits, load_files, load_iris, load_linnerud, load_sample_image, load_sample_images, load_svmlight_file, load_svmlight_files, load_wine, make_biclusters, make_blobs, make_checkerboard, make_circles, make_classification, make_friedman1, make_friedman2, make_friedman3, make_gaussian_quantiles, make_hastie_10_2, make_low_rank_matrix, make_moons, make_multilabel_classification, make_regression, make_s_curve, make_sparse_coded_signal, make_sparse_spd_matrix, make_sparse_uncorrelated, make_spd_matrix, make_swiss_roll
+### sklearn.datasets: 25/31
+**Missing (6)**: load_files, load_linnerud, load_sample_image, load_sample_images, load_svmlight_file, load_svmlight_files
 
 ### sklearn.decomposition: 8/20
 **Missing (12)**: DictionaryLearning, LatentDirichletAllocation, MiniBatchDictionaryLearning, MiniBatchNMF, MiniBatchSparsePCA, SparseCoder, SparsePCA, dict_learning, dict_learning_online, fastica, non_negative_factorization, sparse_encode
 
-### sklearn.dummy: 0/16 (no port at all)
-**Missing (16)**: BaseEstimator, ClassifierMixin, DummyClassifier, DummyRegressor, Integral, Interval, MultiOutputMixin, Real, RegressorMixin, StrOptions, check_array, check_consistent_length, check_is_fitted, check_random_state, class_distribution, validate_data
+### sklearn.dummy: 3/16
+**Missing (13)**: BaseEstimator, ClassifierMixin, Integral, Interval, MultiOutputMixin, Real, RegressorMixin, StrOptions, check_array, check_consistent_length, check_is_fitted, class_distribution, validate_data
 
-### sklearn.ensemble: 13/19
-**Missing (6)**: BaseEnsemble, HistGradientBoostingClassifier, HistGradientBoostingRegressor, RandomTreesEmbedding, StackingClassifier, StackingRegressor
+### sklearn.ensemble: 17/19
+**Missing (2)**: BaseEnsemble, RandomTreesEmbedding
 
 ### sklearn.experimental: 0/0 (no port at all)
 Complete.
@@ -253,8 +252,8 @@ Complete.
 ### sklearn.externals: 0/0 (no port at all)
 Complete.
 
-### sklearn.feature_extraction: 0/4 (no port at all)
-**Missing (4)**: DictVectorizer, FeatureHasher, grid_to_graph, img_to_graph
+### sklearn.feature_extraction: 4/4
+Complete.
 
 ### sklearn.feature_selection: 18/19
 **Missing (1)**: SelectorMixin
@@ -262,41 +261,41 @@ Complete.
 ### sklearn.frozen: 0/1 (no port at all)
 **Missing (1)**: FrozenEstimator
 
-### sklearn.gaussian_process: 0/2 (no port at all)
-**Missing (2)**: GaussianProcessClassifier, GaussianProcessRegressor
+### sklearn.gaussian_process: 2/2
+Complete.
 
-### sklearn.inspection: 0/4 (no port at all)
-**Missing (4)**: DecisionBoundaryDisplay, PartialDependenceDisplay, partial_dependence, permutation_importance
+### sklearn.inspection: 2/4
+**Missing (2)**: DecisionBoundaryDisplay, PartialDependenceDisplay
 
-### sklearn.isotonic: 0/16 (no port at all)
-**Missing (16)**: BaseEstimator, Interval, IsotonicRegression, Real, RegressorMixin, StrOptions, TransformerMixin, check_array, check_consistent_length, check_increasing, check_is_fitted, isotonic_regression, parse_version, sp_base_version, spearmanr, validate_params
+### sklearn.isotonic: 3/16
+**Missing (13)**: BaseEstimator, Interval, Real, RegressorMixin, StrOptions, TransformerMixin, check_array, check_consistent_length, check_is_fitted, parse_version, sp_base_version, spearmanr, validate_params
 
-### sklearn.kernel_approximation: 0/22 (no port at all)
-**Missing (22)**: AdditiveChi2Sampler, BaseEstimator, ClassNamePrefixFeaturesOutMixin, Integral, Interval, KERNEL_PARAMS, Nystroem, PAIRWISE_KERNEL_FUNCTIONS, PolynomialCountSketch, RBFSampler, Real, SkewedChi2Sampler, StrOptions, TransformerMixin, check_is_fitted, check_random_state, fft, get_namespace_and_device, ifft, pairwise_kernels, safe_sparse_dot, validate_data
+### sklearn.kernel_approximation: 6/22
+**Missing (16)**: BaseEstimator, ClassNamePrefixFeaturesOutMixin, Integral, Interval, KERNEL_PARAMS, PAIRWISE_KERNEL_FUNCTIONS, Real, StrOptions, TransformerMixin, check_is_fitted, fft, get_namespace_and_device, ifft, pairwise_kernels, safe_sparse_dot, validate_data
 
-### sklearn.kernel_ridge: 0/11 (no port at all)
-**Missing (11)**: BaseEstimator, Interval, KernelRidge, MultiOutputMixin, PAIRWISE_KERNEL_FUNCTIONS, Real, RegressorMixin, StrOptions, check_is_fitted, pairwise_kernels, validate_data
+### sklearn.kernel_ridge: 1/11
+**Missing (10)**: BaseEstimator, Interval, MultiOutputMixin, PAIRWISE_KERNEL_FUNCTIONS, Real, RegressorMixin, StrOptions, check_is_fitted, pairwise_kernels, validate_data
 
-### sklearn.linear_model: 2/44
-**Missing (42)**: ARDRegression, ElasticNet, ElasticNetCV, GammaRegressor, HuberRegressor, Lars, LarsCV, Lasso, LassoCV, LassoLars, LassoLarsCV, LassoLarsIC, LinearRegression, LogisticRegressionCV, MultiTaskElasticNet, MultiTaskElasticNetCV, MultiTaskLasso, MultiTaskLassoCV, OrthogonalMatchingPursuit, OrthogonalMatchingPursuitCV, PassiveAggressiveClassifier, PassiveAggressiveRegressor, Perceptron, PoissonRegressor, QuantileRegressor, RANSACRegressor, Ridge, RidgeCV, RidgeClassifier, RidgeClassifierCV, SGDClassifier, SGDOneClassSVM, SGDRegressor, TheilSenRegressor, TweedieRegressor, enet_path, lars_path, lars_path_gram, lasso_path, orthogonal_mp, orthogonal_mp_gram, ridge_regression
+### sklearn.linear_model: 44/44
+Complete.
 
 ### sklearn.manifold: 7/10
 **Missing (3)**: locally_linear_embedding, smacof, spectral_embedding
 
-### sklearn.metrics: 20/85
-**Missing (65)**: ConfusionMatrixDisplay, DetCurveDisplay, DistanceMetric, PrecisionRecallDisplay, PredictionErrorDisplay, RocCurveDisplay, auc, average_precision_score, brier_score_loss, check_scoring, class_likelihood_ratios, classification_report, cohen_kappa_score, confusion_matrix_at_thresholds, consensus_score, coverage_error, d2_absolute_error_score, d2_brier_score, d2_log_loss_score, d2_pinball_score, d2_tweedie_score, dcg_score, det_curve, euclidean_distances, explained_variance_score, fbeta_score, get_scorer, get_scorer_names, hamming_loss, hinge_loss, jaccard_score, label_ranking_average_precision_score, label_ranking_loss, log_loss, make_scorer, matthews_corrcoef, max_error, mean_absolute_error, mean_absolute_percentage_error, mean_gamma_deviance, mean_pinball_loss, mean_poisson_deviance, mean_squared_error, mean_squared_log_error, mean_tweedie_deviance, median_absolute_error, metric_at_thresholds, multilabel_confusion_matrix, nan_euclidean_distances, ndcg_score, pairwise_distances, pairwise_distances_argmin, pairwise_distances_argmin_min, pairwise_distances_chunked, pairwise_kernels, precision_recall_curve, precision_recall_fscore_support, precision_score, r2_score, recall_score, roc_curve, root_mean_squared_error, root_mean_squared_log_error, top_k_accuracy_score, zero_one_loss
+### sklearn.metrics: 77/85
+**Missing (8)**: ConfusionMatrixDisplay, DetCurveDisplay, DistanceMetric, PrecisionRecallDisplay, PredictionErrorDisplay, RocCurveDisplay, consensus_score, metric_at_thresholds
 
 ### sklearn.mixture: 2/2
 Complete.
 
-### sklearn.model_selection: 8/33
-**Missing (25)**: BaseCrossValidator, BaseShuffleSplit, FixedThresholdClassifier, GroupKFold, GroupShuffleSplit, LearningCurveDisplay, LeaveOneGroupOut, LeaveOneOut, LeavePGroupsOut, LeavePOut, ParameterSampler, PredefinedSplit, RandomizedSearchCV, RepeatedKFold, RepeatedStratifiedKFold, ShuffleSplit, StratifiedGroupKFold, StratifiedShuffleSplit, TimeSeriesSplit, TunedThresholdClassifierCV, ValidationCurveDisplay, cross_validate, learning_curve, permutation_test_score, validation_curve
+### sklearn.model_selection: 27/33
+**Missing (6)**: BaseCrossValidator, BaseShuffleSplit, FixedThresholdClassifier, LearningCurveDisplay, TunedThresholdClassifierCV, ValidationCurveDisplay
 
-### sklearn.multiclass: 0/27 (no port at all)
-**Missing (27)**: BaseEstimator, ClassifierMixin, HasMethods, Integral, Interval, LabelBinarizer, MetaEstimatorMixin, MetadataRouter, MethodMapping, MultiOutputMixin, OneVsOneClassifier, OneVsRestClassifier, OutputCodeClassifier, Parallel, Real, available_if, check_classification_targets, check_is_fitted, check_random_state, clone, delayed, get_tags, is_classifier, is_regressor, pairwise_distances_argmin, process_routing, validate_data
+### sklearn.multiclass: 6/27
+**Missing (21)**: BaseEstimator, ClassifierMixin, HasMethods, Integral, Interval, LabelBinarizer, MetaEstimatorMixin, MetadataRouter, MethodMapping, MultiOutputMixin, Parallel, Real, available_if, check_classification_targets, check_is_fitted, delayed, get_tags, is_classifier, pairwise_distances_argmin, process_routing, validate_data
 
-### sklearn.multioutput: 0/28 (no port at all)
-**Missing (28)**: ABCMeta, BaseEstimator, ClassifierChain, ClassifierMixin, HasMethods, Integral, MetaEstimatorMixin, MetadataRouter, MethodMapping, MultiOutputClassifier, MultiOutputRegressor, Parallel, RegressorChain, RegressorMixin, StrOptions, abstractmethod, available_if, check_classification_targets, check_is_fitted, check_random_state, clone, cross_val_predict, delayed, get_tags, has_fit_parameter, is_classifier, process_routing, validate_data
+### sklearn.multioutput: 6/28
+**Missing (22)**: ABCMeta, BaseEstimator, ClassifierMixin, HasMethods, Integral, MetaEstimatorMixin, MetadataRouter, MethodMapping, Parallel, RegressorMixin, StrOptions, abstractmethod, available_if, check_classification_targets, check_is_fitted, cross_val_predict, delayed, get_tags, has_fit_parameter, is_classifier, process_routing, validate_data
 
 ### sklearn.naive_bayes: 5/23
 **Missing (18)**: ABCMeta, BaseEstimator, ClassifierMixin, Integral, Interval, LabelBinarizer, Real, abstractmethod, binarize, check_is_fitted, check_non_negative, get_namespace, get_namespace_and_device, label_binarize, move_to, safe_sparse_dot, size, validate_data
@@ -307,119 +306,90 @@ Complete.
 ### sklearn.neural_network: 0/3 (no port at all)
 **Missing (3)**: BernoulliRBM, MLPClassifier, MLPRegressor
 
-### sklearn.pipeline: 3/30
-**Missing (27)**: Bunch, CallbackSupportMixin, Counter, FeatureUnion, FunctionTransformer, HasMethods, Hidden, MetadataRouter, MethodMapping, NotFittedError, Parallel, TransformerMixin, available_if, chain, check_is_fitted, check_memory, copy, deepcopy, defaultdict, delayed, get_namespace, get_namespace_and_device, get_routing_for_object, get_tags, islice, make_union, process_routing
+### sklearn.pipeline: 5/30
+**Missing (25)**: Bunch, CallbackSupportMixin, Counter, FunctionTransformer, HasMethods, Hidden, MetadataRouter, MethodMapping, NotFittedError, Parallel, TransformerMixin, available_if, chain, check_is_fitted, check_memory, copy, deepcopy, defaultdict, delayed, get_namespace, get_namespace_and_device, get_routing_for_object, get_tags, islice, process_routing
 
-### sklearn.preprocessing: 4/29
-**Missing (25)**: Binarizer, KBinsDiscretizer, KernelCenterer, LabelBinarizer, LabelEncoder, MaxAbsScaler, MultiLabelBinarizer, Normalizer, OneHotEncoder, OrdinalEncoder, PolynomialFeatures, PowerTransformer, QuantileTransformer, SplineTransformer, TargetEncoder, add_dummy_feature, binarize, label_binarize, maxabs_scale, minmax_scale, normalize, power_transform, quantile_transform, robust_scale, scale
+### sklearn.preprocessing: 29/29
+Complete.
 
-### sklearn.random_projection: 0/21 (no port at all)
-**Missing (21)**: ABCMeta, BaseEstimator, BaseRandomProjection, ClassNamePrefixFeaturesOutMixin, DataDimensionalityWarning, GaussianRandomProjection, Integral, Interval, Real, SparseRandomProjection, StrOptions, TransformerMixin, abstractmethod, check_array, check_is_fitted, check_random_state, johnson_lindenstrauss_min_dim, safe_sparse_dot, sample_without_replacement, validate_data, validate_params
+### sklearn.random_projection: 4/21
+**Missing (17)**: ABCMeta, BaseEstimator, BaseRandomProjection, ClassNamePrefixFeaturesOutMixin, DataDimensionalityWarning, Integral, Interval, Real, StrOptions, TransformerMixin, abstractmethod, check_array, check_is_fitted, safe_sparse_dot, sample_without_replacement, validate_data, validate_params
 
-### sklearn.semi_supervised: 0/3 (no port at all)
-**Missing (3)**: LabelPropagation, LabelSpreading, SelfTrainingClassifier
+### sklearn.semi_supervised: 3/3
+Complete.
 
-### sklearn.svm: 1/8
-**Missing (7)**: LinearSVC, LinearSVR, NuSVC, NuSVR, OneClassSVM, SVR, l1_min_c
+### sklearn.svm: 8/8
+Complete.
 
 ### sklearn.tree: 6/8
 *Low priority (2)*: export_graphviz, plot_tree
 
-### sklearn.discriminant_analysis: 1/26
-**Missing (25)**: BaseEstimator, ClassNamePrefixFeaturesOutMixin, ClassifierMixin, DiscriminantAnalysisPredictionMixin, HasMethods, Integral, Interval, LinearClassifierMixin, QuadraticDiscriminantAnalysis, Real, StandardScaler, StrOptions, TransformerMixin, check_classification_targets, check_is_fitted, check_same_namespace, device, empirical_covariance, get_namespace, ledoit_wolf, shrunk_covariance, size, softmax, unique_labels, validate_data
+### sklearn.discriminant_analysis: 2/26
+**Missing (24)**: BaseEstimator, ClassNamePrefixFeaturesOutMixin, ClassifierMixin, DiscriminantAnalysisPredictionMixin, HasMethods, Integral, Interval, LinearClassifierMixin, Real, StandardScaler, StrOptions, TransformerMixin, check_classification_targets, check_is_fitted, check_same_namespace, device, empirical_covariance, get_namespace, ledoit_wolf, shrunk_covariance, size, softmax, unique_labels, validate_data
 
 ### sklearn.impute: 3/3
 Complete.
 
-### sklearn.compose: 0/4 (no port at all)
-**Missing (4)**: ColumnTransformer, TransformedTargetRegressor, make_column_selector, make_column_transformer
+### sklearn.compose: 3/4
+**Missing (1)**: make_column_selector
 
-### sklearn.utils: 0/31
-**Missing (30)**: Bunch, ClassifierTags, DataConversionWarning, InputTags, RegressorTags, Tags, TargetTags, TransformerTags, all_estimators, as_float_array, assert_all_finite, check_X_y, check_array, check_consistent_length, check_random_state, check_scalar, check_symmetric, column_or_1d, compute_class_weight, compute_sample_weight, estimator_html_repr, gen_batches, gen_even_slices, get_tags, indexable, murmurhash3_32, resample, safe_mask, safe_sqr, shuffle
+### sklearn.utils: 19/31
+**Missing (11)**: ClassifierTags, DataConversionWarning, InputTags, RegressorTags, Tags, TargetTags, TransformerTags, all_estimators, estimator_html_repr, get_tags, safe_mask
 *Low priority (1)*: deprecated
 
-### sklearn.utils.validation: 0/33 (no port at all)
-**Missing (33)**: ComplexWarning, DataConversionWarning, FLOAT_DTYPES, FiniteStatus, NotFittedError, Parameter, PositiveSpectrumWarning, Sequence, as_float_array, assert_all_finite, check_X_y, check_array, check_consistent_length, check_is_fitted, check_memory, check_non_negative, check_random_state, check_scalar, check_symmetric, column_or_1d, cy_isfinite, get_namespace, get_namespace_and_device, get_tags, has_fit_parameter, indexable, is_pandas_df_or_series, isclass, move_to, reduce, signature, validate_data, wraps
+### sklearn.utils.validation: 14/33
+**Missing (19)**: ComplexWarning, DataConversionWarning, FLOAT_DTYPES, FiniteStatus, Parameter, PositiveSpectrumWarning, Sequence, check_memory, cy_isfinite, get_namespace, get_namespace_and_device, get_tags, is_pandas_df_or_series, isclass, move_to, reduce, signature, validate_data, wraps
 
-### sklearn.utils.extmath: 0/28 (no port at all)
-**Missing (27)**: Integral, Interval, StrOptions, cartesian, check_array, check_random_state, csr_row_norms, density, device, fast_logdet, get_namespace, get_namespace_and_device, make_nonnegative, nullcontext, partial, randomized_range_finder, randomized_svd, row_norms, safe_sparse_dot, safe_sqr, softmax, sparse_matmul_to_dense, squared_norm, stable_cumsum, svd_flip, validate_params, weighted_mode
+### sklearn.utils.extmath: 15/28
+**Missing (12)**: Integral, Interval, StrOptions, check_array, csr_row_norms, device, get_namespace, get_namespace_and_device, nullcontext, partial, sparse_matmul_to_dense, validate_params
 *Low priority (1)*: deprecated
 
-### sklearn.utils.sparsefuncs: 0/16 (no port at all)
-**Missing (16)**: LinearOperator, count_nonzero, csc_median_axis_0, csr_matmul_csr_to_dense, incr_mean_variance_axis, inplace_column_scale, inplace_csr_column_scale, inplace_csr_row_scale, inplace_row_scale, inplace_swap_column, inplace_swap_row, inplace_swap_row_csc, inplace_swap_row_csr, mean_variance_axis, min_max_axis, sparse_matmul_to_dense
+### sklearn.utils.sparsefuncs: 8/16
+**Missing (8)**: LinearOperator, csr_matmul_csr_to_dense, incr_mean_variance_axis, inplace_swap_column, inplace_swap_row, inplace_swap_row_csc, inplace_swap_row_csr, sparse_matmul_to_dense
 
-### sklearn.utils.multiclass: 0/13 (no port at all)
-**Missing (12)**: Sequence, attach_unique, cached_unique, chain, check_array, check_classification_targets, class_distribution, get_namespace, is_multilabel, issparse, type_of_target, unique_labels
+### sklearn.utils.multiclass: 5/13
+**Missing (7)**: Sequence, attach_unique, cached_unique, chain, check_array, get_namespace, issparse
 *Low priority (1)*: VisibleDeprecationWarning
 
-### sklearn.utils.class_weight: 0/7 (no port at all)
-**Missing (7)**: StrOptions, compute_class_weight, compute_sample_weight, get_namespace_and_device, move_to, size, validate_params
+### sklearn.utils.class_weight: 2/7
+**Missing (5)**: StrOptions, get_namespace_and_device, move_to, size, validate_params
 
-### sklearn.base: 5/36
-**Missing (31)**: AttrsDict, BiclusterMixin, ClassNamePrefixFeaturesOutMixin, ClassifierTags, ClusterMixin, DensityMixin, InconsistentVersionWarning, MetaEstimatorMixin, MultiOutputMixin, OneToOneFeatureMixin, OutlierMixin, ParamsDict, RegressorMixin, RegressorTags, ReprHTMLMixin, Tags, TargetTags, TransformerTags, check_array, check_is_fitted, config_context, defaultdict, estimator_html_repr, get_config, get_tags, is_clusterer, is_outlier_detector, is_pandas_na, is_regressor, is_scalar_nan, validate_parameter_constraints
+### sklearn.base: 17/36
+**Missing (19)**: AttrsDict, ClassifierTags, InconsistentVersionWarning, ParamsDict, RegressorTags, ReprHTMLMixin, Tags, TargetTags, TransformerTags, check_array, check_is_fitted, config_context, defaultdict, estimator_html_repr, get_config, get_tags, is_pandas_na, is_scalar_nan, validate_parameter_constraints
 
-### mne: 9/177
-**Missing (168)**: AcqParserFIF, BaseEpochs, BiHemiLabel, Covariance, Dipole, DipoleFixed, Epochs, EvokedArray, Forward, HEDAnnotations, Label, MixedSourceEstimate, MixedVectorSourceEstimate, Projection, Report, SourceEstimate, SourceMorph, SourceSpaces, Transform, VectorSourceEstimate, VolSourceEstimate, VolVectorSourceEstimate, add_reference_channels, add_source_space_distances, annotations_from_events, apply_forward, apply_forward_raw, average_forward_solutions, channel_indices_by_type, channel_type, combine_evoked, compute_covariance, compute_proj_epochs, compute_proj_evoked, compute_proj_raw, compute_rank, compute_raw_covariance, compute_source_morph, concatenate_epochs, concatenate_events, concatenate_raws, convert_forward_solution, count_annotations, count_events, create_default_subject, decimate_surface, dig_mri_distances, equalize_channels, extract_label_time_course, find_events, find_layout, find_stim_steps, fit_dipole, get_config, get_config_path, get_head_surf, get_meg_helmet_surf, get_montage_volume_labels, get_volume_labels_from_aseg, get_volume_labels_from_src, grade_to_tris, grade_to_vertices, grand_average, grow_labels, head_to_mni, head_to_mri, label_adjacency, label_sign_flip, labels_to_stc, make_ad_hoc_cov, make_bem_model, make_bem_solution, make_field_map, make_fixed_length_epochs, make_fixed_length_events, make_forward_dipole, make_forward_solution, make_sphere_model, match_channel_orders, merge_events, morph_labels, morph_source_spaces, open_docs, open_report, parse_config, pick_channels, pick_channels_cov, pick_channels_forward, pick_channels_regexp, pick_events, pick_info, pick_types_forward, random_parcellation, read_annotations, read_bem_solution, read_bem_surfaces, read_cov, read_dipole, read_epochs, read_epochs_eeglab, read_epochs_fieldtrip, read_epochs_kit, read_events, read_evoked_besa, read_evoked_fieldtrip, read_evokeds, read_evokeds_mff, read_forward_solution, read_freesurfer_lut, read_label, read_labels_from_annot, read_lta, read_morph_map, read_proj, read_reject_parameters, read_source_estimate, read_source_morph, read_source_spaces, read_surface, read_talxfm, read_trans, read_tri, read_vectorview_selection, rename_channels, scale_bem, scale_labels, scale_mri, scale_source_space, sensitivity_map, set_bipolar_reference, set_cache_dir, set_eeg_reference, set_log_file, set_memmap_min_size, setup_source_space, setup_volume_source_space, spatial_dist_adjacency, spatial_inter_hemi_adjacency, spatial_src_adjacency, spatial_tris_adjacency, spatio_temporal_dist_adjacency, spatio_temporal_src_adjacency, spatio_temporal_tris_adjacency, split_label, stc_near_sensors, stc_to_label, sys_info, transform_surface_to, use_coil_def, use_log_level, verbose, vertex_to_mni, volume_label_adjacency, what, whiten_evoked, write_bem_solution, write_bem_surfaces, write_cov, write_events, write_evokeds, write_forward_solution, write_head_bem, write_label, write_labels_to_annot, write_proj, write_source_spaces, write_surface, write_trans
+### mne: 34/177
+**Missing (143)**: AcqParserFIF, BaseEpochs, BiHemiLabel, Covariance, Dipole, DipoleFixed, Forward, HEDAnnotations, Label, MixedSourceEstimate, MixedVectorSourceEstimate, Report, SourceEstimate, SourceMorph, SourceSpaces, Transform, VectorSourceEstimate, VolSourceEstimate, VolVectorSourceEstimate, add_reference_channels, add_source_space_distances, annotations_from_events, apply_forward, apply_forward_raw, average_forward_solutions, compute_covariance, compute_rank, compute_raw_covariance, compute_source_morph, concatenate_epochs, convert_forward_solution, count_annotations, count_events, create_default_subject, decimate_surface, dig_mri_distances, extract_label_time_course, find_layout, fit_dipole, get_config, get_config_path, get_head_surf, get_meg_helmet_surf, get_montage_volume_labels, get_volume_labels_from_aseg, get_volume_labels_from_src, grade_to_tris, grade_to_vertices, grand_average, grow_labels, head_to_mni, head_to_mri, label_adjacency, label_sign_flip, labels_to_stc, make_ad_hoc_cov, make_bem_model, make_bem_solution, make_field_map, make_fixed_length_epochs, make_forward_dipole, make_forward_solution, make_sphere_model, match_channel_orders, morph_labels, morph_source_spaces, open_docs, open_report, parse_config, pick_channels_cov, pick_channels_forward, pick_types_forward, random_parcellation, read_annotations, read_bem_solution, read_bem_surfaces, read_cov, read_dipole, read_epochs_eeglab, read_epochs_fieldtrip, read_epochs_kit, read_evoked_besa, read_evoked_fieldtrip, read_evokeds_mff, read_forward_solution, read_freesurfer_lut, read_label, read_labels_from_annot, read_lta, read_morph_map, read_proj, read_reject_parameters, read_source_estimate, read_source_morph, read_source_spaces, read_surface, read_talxfm, read_trans, read_tri, read_vectorview_selection, rename_channels, scale_bem, scale_labels, scale_mri, scale_source_space, sensitivity_map, set_bipolar_reference, set_cache_dir, set_eeg_reference, set_log_file, set_memmap_min_size, setup_source_space, setup_volume_source_space, spatial_dist_adjacency, spatial_inter_hemi_adjacency, spatial_src_adjacency, spatial_tris_adjacency, spatio_temporal_dist_adjacency, spatio_temporal_src_adjacency, spatio_temporal_tris_adjacency, split_label, stc_near_sensors, stc_to_label, sys_info, transform_surface_to, use_coil_def, use_log_level, verbose, vertex_to_mni, volume_label_adjacency, what, whiten_evoked, write_bem_solution, write_bem_surfaces, write_cov, write_forward_solution, write_head_bem, write_label, write_labels_to_annot, write_proj, write_source_spaces, write_surface, write_trans
 
-### mne.io: 1/49
-**Missing (47)**: BaseRaw, Raw, anonymize_info, concatenate_raws, get_channel_type_constants, match_channel_orders, read_epochs_eeglab, read_epochs_fieldtrip, read_epochs_kit, read_evoked_besa, read_evoked_fieldtrip, read_evokeds_mff, read_fiducials, read_info, read_raw, read_raw_ant, read_raw_artemis123, read_raw_bci2k, read_raw_bdf, read_raw_boxy, read_raw_brainvision, read_raw_bti, read_raw_cnt, read_raw_ctf, read_raw_curry, read_raw_edf, read_raw_eeglab, read_raw_egi, read_raw_eximia, read_raw_eyelink, read_raw_fieldtrip, read_raw_fif, read_raw_fil, read_raw_gdf, read_raw_hitachi, read_raw_kit, read_raw_mef, read_raw_nedf, read_raw_neuralynx, read_raw_nicolet, read_raw_nihon, read_raw_nirx, read_raw_nsx, read_raw_persyst, read_raw_snirf, write_fiducials, write_info
+### mne.io: 8/49
+**Missing (40)**: BaseRaw, Raw, anonymize_info, get_channel_type_constants, match_channel_orders, read_epochs_eeglab, read_epochs_fieldtrip, read_epochs_kit, read_evoked_besa, read_evoked_fieldtrip, read_evokeds_mff, read_fiducials, read_raw, read_raw_ant, read_raw_artemis123, read_raw_bci2k, read_raw_boxy, read_raw_bti, read_raw_cnt, read_raw_ctf, read_raw_curry, read_raw_egi, read_raw_eximia, read_raw_eyelink, read_raw_fieldtrip, read_raw_fil, read_raw_gdf, read_raw_hitachi, read_raw_kit, read_raw_mef, read_raw_nedf, read_raw_neuralynx, read_raw_nicolet, read_raw_nihon, read_raw_nirx, read_raw_nsx, read_raw_persyst, read_raw_snirf, write_fiducials, write_info
 *Low priority (1)*: show_fiff
 
-### mne.epochs: 6/85
-**Missing (79)**: BaseEpochs, Callable, Color, ConductorModel, ContainsMixin, Counter, EpochAnnotationsMixin, Epochs, EpochsFIF, EvokedArray, ExtendedTimeMixin, FIFF, FileLike, FilterMixin, GetEpochsMixin, INT32_MAX, InterpolationMixin, Iterable, Iterator, Literal, Path, ProjMixin, RandomState, ReferenceMixin, Self, SetChannelsMixin, SizeMixin, SpectrumMixin, TYPE_CHECKING, UpdateChannelsMixin, average_movements, bootstrap, channel_indices_by_type, channel_type, check_fname, check_random_state, combine_event_ids, concatenate_epochs, copy_function_doc_to_method_doc, deepcopy, detrend, dir_tree_find, end_block, equalize_epoch_counts, fiff_open, fill_doc, getfullargspec, legacy, logger, make_fixed_length_epochs, make_fixed_length_events, make_metadata, match_event_names, object_size, parallel_func, partial, pick_channels, pick_info, read_epochs, read_meas_info, read_tag, repr_html, rescale, rng_uniform, setup_proj, sizeof_fmt, start_and_end_file, start_block, verbose, warn, write_complex_double_matrix, write_complex_float_matrix, write_double_matrix, write_float, write_float_matrix, write_id, write_int, write_meas_info, write_string
+### mne.epochs: 7/85
+**Missing (78)**: Annotations, BaseEpochs, Callable, Color, ConductorModel, ContainsMixin, Counter, EpochAnnotationsMixin, EpochsFIF, EpochsSpectrum, ExtendedTimeMixin, FIFF, FileLike, FilterMixin, GetEpochsMixin, INT32_MAX, InterpolationMixin, Iterable, Iterator, Literal, Path, ProjMixin, RandomState, ReferenceMixin, Self, SetChannelsMixin, SizeMixin, SpectrumMixin, TYPE_CHECKING, UpdateChannelsMixin, average_movements, bootstrap, channel_indices_by_type, channel_type, check_fname, check_random_state, combine_event_ids, concatenate_epochs, copy_function_doc_to_method_doc, deepcopy, detrend, dir_tree_find, end_block, equalize_epoch_counts, events_from_annotations, fiff_open, fill_doc, getfullargspec, legacy, logger, make_fixed_length_epochs, make_fixed_length_events, make_metadata, match_event_names, object_size, parallel_func, partial, pick_channels, pick_info, read_tag, repr_html, rescale, rng_uniform, setup_proj, sizeof_fmt, start_and_end_file, start_block, verbose, warn, write_complex_double_matrix, write_complex_float_matrix, write_double_matrix, write_float, write_float_matrix, write_id, write_int, write_meas_info, write_string
 
-### mne.event: 0/29
-**Missing (29)**: AcqParserFIF, FIFF, Path, Sequence, check_fname, concatenate_events, count_events, define_target_events, dir_tree_find, end_block, fiff_open, fill_doc, find_events, find_stim_steps, logger, make_fixed_length_events, match_event_names, merge_events, pick_channels, pick_events, read_events, read_tag, shift_time_events, start_and_end_file, start_block, verbose, warn, write_events, write_int
+### mne.event: 9/29
+**Missing (20)**: AcqParserFIF, FIFF, Path, Sequence, check_fname, count_events, define_target_events, dir_tree_find, end_block, fiff_open, fill_doc, logger, match_event_names, pick_channels, read_tag, start_and_end_file, start_block, verbose, warn, write_int
 
 ### mne.filter: 7/20
 **Missing (13)**: Counter, FilterMixin, deepcopy, design_mne_c_filter, detrend, gcd, logger, lru_cache, parallel_func, partial, sum_squared, verbose, warn
 
-### mne.time_frequency: 5/41
-**Missing (36)**: AverageTFR, AverageTFRArray, BaseTFR, CrossSpectralDensity, EpochsSpectrumArray, EpochsTFR, EpochsTFRArray, RawTFR, RawTFRArray, SpectrumArray, combine_spectrum, combine_tfr, csd_array_fourier, csd_array_morlet, csd_array_multitaper, csd_fourier, csd_morlet, csd_multitaper, csd_tfr, fit_iir_model_raw, fwhm, istft, morlet, pick_channels_csd, read_csd, read_spectrum, read_tfrs, stft, stftfreq, tfr_array_morlet, tfr_array_multitaper, tfr_array_stockwell, tfr_morlet, tfr_multitaper, tfr_stockwell, write_tfrs
+### mne.time_frequency: 27/41
+**Missing (14)**: BaseTFR, EpochsSpectrumArray, RawTFR, RawTFRArray, SpectrumArray, combine_spectrum, combine_tfr, csd_tfr, fit_iir_model_raw, pick_channels_csd, read_csd, read_spectrum, read_tfrs, write_tfrs
 
-### mne.decoding: 1/28
-**Missing (27)**: BaseEstimator, EMS, FilterEstimator, GeneralizingEstimator, LinearModel, PSDEstimator, ReceptiveField, SPoC, SSD, Scaler, SlidingEstimator, SpatialFilter, TemporalFilter, TimeDelayingRidge, TimeFrequency, TransformerMixin, UnsupervisedSpatialFilter, Vectorizer, XdawnTransformer, compute_ems, cross_val_multiscore, get_coef, get_spatial_filter_from_estimator, read_csp, read_spoc, read_ssd, read_xdawn_transformer
+### mne.decoding: 17/28
+**Missing (11)**: BaseEstimator, SSD, SpatialFilter, TimeFrequency, TransformerMixin, XdawnTransformer, get_spatial_filter_from_estimator, read_csp, read_spoc, read_ssd, read_xdawn_transformer
 
-### mne.preprocessing: 8/45
-**Missing (37)**: GradientRemover, Xdawn, annotate_amplitude, annotate_break, annotate_movement, annotate_nan, apply_pca_obs, compute_average_dev_head_t, compute_bridged_electrodes, compute_current_source_density, compute_fine_calibration, compute_maxwell_basis, compute_proj_ecg, compute_proj_eog, compute_proj_hfc, corrmap, cortical_signal_suppression, create_ecg_epochs, create_eog_epochs, equalize_bads, find_bad_channels_lof, find_bad_channels_maxwell, fix_stim_artifact, get_score_funcs, ica_find_ecg_events, ica_find_eog_events, interpolate_bridged_electrodes, maxwell_filter, maxwell_filter_prepare_emptyroom, oversampled_temporal_projection, read_eog_regression, read_fine_calibration, read_ica, read_ica_eeglab, realign_raw, remove_fmri_gradient_artifact, write_fine_calibration
+### mne.preprocessing: 11/45
+**Missing (34)**: GradientRemover, annotate_amplitude, annotate_break, annotate_movement, annotate_nan, apply_pca_obs, compute_average_dev_head_t, compute_bridged_electrodes, compute_current_source_density, compute_fine_calibration, compute_maxwell_basis, compute_proj_ecg, compute_proj_eog, compute_proj_hfc, corrmap, cortical_signal_suppression, equalize_bads, find_bad_channels_lof, find_bad_channels_maxwell, fix_stim_artifact, get_score_funcs, ica_find_ecg_events, ica_find_eog_events, interpolate_bridged_electrodes, maxwell_filter, maxwell_filter_prepare_emptyroom, oversampled_temporal_projection, read_eog_regression, read_fine_calibration, read_ica, read_ica_eeglab, realign_raw, remove_fmri_gradient_artifact, write_fine_calibration
 
-### mne.stats: 0/17
-**Missing (17)**: bonferroni_correction, bootstrap_confidence_interval, combine_adjacency, f_mway_rm, f_oneway, f_threshold_mway_rm, fdr_correction, linear_regression, linear_regression_raw, permutation_cluster_1samp_test, permutation_cluster_test, permutation_t_test, spatio_temporal_cluster_1samp_test, spatio_temporal_cluster_test, summarize_clusters_stc, ttest_1samp_no_p, ttest_ind_no_p
+### mne.stats: 15/17
+**Missing (2)**: linear_regression_raw, summarize_clusters_stc
 
-### mne.channels: 0/34
-**Missing (34)**: DigMontage, Layout, combine_channels, compute_dev_head_t, compute_native_head_t, equalize_channels, find_ch_adjacency, find_layout, fix_mag_coil_types, generate_2d_layout, get_builtin_ch_adjacencies, get_builtin_montages, make_1020_channel_selections, make_dig_montage, make_eeg_layout, make_grid_layout, make_standard_montage, read_ch_adjacency, read_custom_montage, read_dig_captrak, read_dig_curry, read_dig_dat, read_dig_egi, read_dig_fif, read_dig_hpts, read_dig_localite, read_dig_polhemus_isotrak, read_layout, read_meg_canonical_info, read_polhemus_fastscan, read_vectorview_selection, rename_channels, transform_to_head, unify_bad_channels
+### mne.channels: 6/34
+**Missing (28)**: Layout, combine_channels, compute_dev_head_t, compute_native_head_t, find_layout, fix_mag_coil_types, generate_2d_layout, get_builtin_ch_adjacencies, get_builtin_montages, make_1020_channel_selections, make_eeg_layout, make_grid_layout, read_custom_montage, read_dig_captrak, read_dig_curry, read_dig_dat, read_dig_egi, read_dig_fif, read_dig_hpts, read_dig_localite, read_dig_polhemus_isotrak, read_layout, read_meg_canonical_info, read_polhemus_fastscan, read_vectorview_selection, rename_channels, transform_to_head, unify_bad_channels
 
 ### mne.minimum_norm: 0/21
 **Missing (21)**: INVERSE_METHODS, InverseOperator, apply_inverse, apply_inverse_cov, apply_inverse_epochs, apply_inverse_raw, apply_inverse_tfr_epochs, compute_rank_inverse, compute_source_psd, compute_source_psd_epochs, estimate_snr, get_cross_talk, get_point_spread, make_inverse_operator, make_inverse_resolution_matrix, prepare_inverse_operator, read_inverse_operator, resolution_metrics, source_band_induced_power, source_induced_power, write_inverse_operator
 
 ### mne.beamformer: 0/15
 **Missing (15)**: Beamformer, apply_dics, apply_dics_csd, apply_dics_epochs, apply_dics_tfr_epochs, apply_lcmv, apply_lcmv_cov, apply_lcmv_epochs, apply_lcmv_raw, make_dics, make_lcmv, make_lcmv_resolution_matrix, rap_music, read_beamformer, trap_music
-
-## Next waves (ranked by value for scientific / ML / EEG code)
-
-Sizes are rough LOC of the real library's pure Python plus C/Cython/Fortran kernels. Notes: sklearn.svm, linear_model etc. exist only as one or two estimators each.
-
-| # | Chunk | Est. size | Depends on |
-|---|---|---|---|
-| 1 | sklearn.linear_model: LinearRegression, Ridge(CV), Lasso/ElasticNet (coordinate descent), SGDClassifier/Regressor, Perceptron, LogisticRegressionCV, LARS/OMP | ~12k py + 2.5k Cython (cd_fast, sgd_fast, sag) | numpy.linalg, scipy.linalg, utils.extmath, metrics |
-| 2 | sklearn.metrics (classification, regression, ranking roc/pr, confusion, pairwise, cluster scores) | ~9k py + 1k Cython | utils.multiclass, utils.validation, scipy.spatial.distance |
-| 3 | sklearn.utils core (validation, extmath, multiclass, class_weight, sparsefuncs, shuffle/resample, check_array) and base mixins | ~6k py | numpy, scipy.sparse; blocks almost everything else |
-| 4 | scipy.stats distributions (norm, t, chi2, gamma, beta, etc. with pdf/cdf/ppf/rvs/fit) plus 109 continuous and 21 discrete | ~15k py | scipy.special (item 5), scipy.optimize, numpy.random |
-| 5 | scipy.special (gamma family, beta, erf family, bessel, ellip, hyper, orthogonal polys, ufunc-style kernels) | ~3k py + ~60k C/C++/Fortran | none; blocks stats |
-| 6 | scipy.stats tests and descriptive stats (ttest_*, mannwhitneyu, wilcoxon, pearsonr, spearmanr, kruskal, anderson, shapiro, bootstrap, permutation_test, multitest, contingency, qmc) | ~20k py | item 4 |
-| 7 | sklearn.model_selection (KFold family, GridSearchCV, RandomizedSearch, cross_val_*, learning/validation curves) and pipeline (make_pipeline, FeatureUnion), compose (ColumnTransformer) | ~8k py | utils, metrics, joblib |
-| 8 | sklearn.preprocessing (StandardScaler variants, MinMax, OneHot, Ordinal, PolynomialFeatures, Spline, KBins, Quantile, Power, LabelEncoder) | ~7k py | utils |
-| 9 | sklearn.svm full (SVR, NuSVC, OneClassSVM, LinearSVC via liblinear) | ~1.5k py + ~8k C++ (libsvm, liblinear) | existing SVC port, utils |
-| 10 | mne core data model: io (read_raw_fif/edf/bdf/brainvision/eeglab, RawArray), Raw/Evoked, events (find_events, make_fixed_length_events), Epochs | ~25k py | numpy, scipy.signal, mne.filter, h5/pickle-free fif parser |
-| 11 | mne.channels (montages, make_standard_montage, find_layout, interpolation) and mne.stats (cluster_level, permutation_t_test, fdr) | ~8k py | mne core, scipy.spatial, scipy.sparse.csgraph |
-| 12 | mne.time_frequency (psd_array_welch/multitaper, tfr_morlet/multitaper, csd) | ~6k py | scipy.signal windows incl. dpss, scipy.fft |
-| 13 | mne.preprocessing (ICA with fastica/infomax/picard, Xdawn, SSP, maxwell filter excluded, annotate_*) and mne.decoding (CSP, SPoC, Scaler, Vectorizer, SlidingEstimator, GeneralizingEstimator) | ~10k py | sklearn base, decomposition, mne Epochs |
-| 14 | scipy.interpolate (splines BSpline/make_interp_spline, RBF, griddata, PPoly, CubicSpline, NDInterpolator) | ~12k py + 4k C | scipy.linalg banded solvers, scipy.spatial (cKDTree, Delaunay) |
-| 15 | scipy.linalg remaining (expm/logm/sqrtm, schur, qz, ldl, solve_* banded/triangular, matrix funcs, lapack/blas wrappers, orthogonal_procrustes, special matrices) | ~12k py + LAPACK wrappers | numpy.linalg |
-| 16 | scipy.spatial (cKDTree/KDTree, ConvexHull, Delaunay, Voronoi via qhull, Rotation, procrustes, distance leftovers) | ~5k py + ~10k C++ | scipy.special optional |
-| 17 | scipy.signal remaining (filter design: cheby/ellip/bessel, firwin2, remez, sos tools, spectral (welch/csd/stft/spectrogram), wavelets, peak finding, lti systems) | ~15k py + 3k C | scipy.special (ellip), scipy.linalg |
-| 18 | scipy.optimize remaining (least_squares TRF/dogbox/lm, root, linprog, milp, curve_fit, global optimizers: differential_evolution, basinhopping, dual_annealing, shgo) | ~25k py + MINPACK/HiGHS externals | scipy.linalg, sparse.linalg |
-| 19 | sklearn simple estimators in zero-coverage packages: dummy, calibration, kernel_ridge, kernel_approximation, random_projection, isotonic, multiclass, multioutput, cross_decomposition (PLS/CCA), gaussian_process, neural_network (MLP), semi_supervised, feature_extraction | ~15k py combined | items 1 to 3 |
-| 20 | numpy gaps: Generator methods (only 1/45 matched at name level, so check this is a class-method scan artifact), numpy.strings/char, numpy.testing, ma remainder | ~8k py | none |
-
-Caveat: "implemented" is name-level only (def/class/assignment/import present in the matching stdlib directory). It does not check signatures, dtype coverage, or numerical equivalence. numpy.random.Generator methods are counted via `.name` entries, which require the class defined with that method inside the numpy/random tree.
