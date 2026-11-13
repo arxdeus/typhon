@@ -158,6 +158,28 @@ def _ras_to_neuromag(nasion64, lpa64, rpa64) -> np.ndarray[float, 2]:
     return np.dot(rot, tr)
 
 
+class ProjData:
+    """Mapping view of Projection['data'] (mne's dict with data/col_names/nrow/ncol)."""
+    data: np.ndarray[float, 2]
+    col_names: List[str]
+
+    def __init__(self, data: np.ndarray[float, 2], col_names: List[str]):
+        self.data = data
+        self.col_names = col_names
+
+    def __getitem__(self, key: Literal[str]):
+        if key == "data":
+            return self.data
+        elif key == "col_names":
+            return self.col_names
+        elif key == "nrow":
+            return self.data.shape[0]
+        elif key == "ncol":
+            return self.data.shape[1]
+        else:
+            compile_error("unsupported Projection data key")
+
+
 class Projection:
     """SSP projection item (mne.Projection): vectors in rows of data over col_names."""
     desc: str
@@ -189,6 +211,8 @@ class Projection:
             return self.kind
         elif key == "explained_var":
             return self.explained_var
+        elif key == "data":
+            return ProjData(self.data, self.col_names)
         else:
             compile_error("unsupported Projection key")
 

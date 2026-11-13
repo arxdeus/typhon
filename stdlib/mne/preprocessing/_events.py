@@ -143,8 +143,8 @@ def _type_idx(info: Info, kind: str, ch_name) -> List[int]:
         for i in range(info.nchan):
             if info.ch_types[i] == kind and info.ch_names[i] not in info.bads:
                 out.append(i)
-    elif isinstance(ch_name, str):
-        for c in ch_name.split(","):
+    elif isinstance(ch_name, str) or isinstance(ch_name, Optional[str]):
+        for c in str(ch_name).split(","):
             if c not in info.ch_names:
                 raise ValueError(f"The specified channel cannot be found: {c}")
             out.append(info.ch_names.index(c))
