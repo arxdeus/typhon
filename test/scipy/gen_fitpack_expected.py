@@ -1,7 +1,7 @@
 # Generates test/scipy/test_fitpack.py from the reference scipy 1.18.1.
 import numpy as np, scipy.interpolate as I
 from _gen_common import Gen
-setup = ['x = np.linspace(0.0, 10.0, 40)', 'y = np.sin(x) + 0.1 * np.cos(7.3 * x)', 'w = 1.0 + 0.5 * np.cos(x)',
+setup = ['gx = np.linspace(0.0, 4.0, 9)', 'gy = np.linspace(-1.0, 2.0, 7)', 'Z = np.sin(gx).reshape((-1, 1)) * np.cos(gy).reshape((1, -1)) + 0.05 * np.cos(np.arange(63.0) ** 1.3).reshape(9, 7)', 'xq = np.array([0.3, 1.7, 3.9])', 'yq = np.array([-0.5, 0.2, 1.9])', 'x = np.linspace(0.0, 10.0, 40)', 'y = np.sin(x) + 0.1 * np.cos(7.3 * x)', 'w = 1.0 + 0.5 * np.cos(x)',
          'xe = np.linspace(-0.5, 10.5, 23)',
          'P = np.array([np.cos(x / 3.0), np.sin(x / 2.0), x / 10.0])',
          'x2 = np.array([0.0, 0.3, 0.9, 1.0, 1.8, 2.5, 2.6, 3.9, 4.4, 5.0, 6.1, 6.2, 7.7, 8.0, 9.9])',
@@ -39,4 +39,13 @@ g.raw('    tcku = I.splprep(P[:2], u=x, s=0.2, k=2)'); ns['tcku'] = I.splprep(ns
 g.E('tcku[0][0]'); g.E('tcku[0][1][1]'); g.E('tcku[1]')
 g.raw('    tcku = I.splprep(P, w=w, s=0.3)'); ns['tcku'] = I.splprep(ns['P'], w=ns['w'], s=0.3)
 g.E('tcku[0][0]'); g.E('tcku[0][1][1]')
+g.test('test_rect_bivariate')
+for args in ['s=0.0', 's=0.01', 's=0.1', 's=2.0', 's=0.01, kx=2, ky=4', 's=0.3, kx=1, ky=5', 's=0.002, kx=5, ky=2']:
+    g.raw(f'    r = I.RectBivariateSpline(gx, gy, Z, {args})'); ns['r'] = eval(f'I.RectBivariateSpline(gx, gy, Z, {args})', ns)
+    g.E('r.get_knots()[0]'); g.E('r.get_knots()[1]'); g.E('r.get_coeffs()'); g.E('[r.get_residual()]', tol=1e-8)
+g.raw('    r = I.RectBivariateSpline(gx, gy, Z, s=0.05)'); ns['r'] = I.RectBivariateSpline(ns['gx'], ns['gy'], ns['Z'], s=0.05)
+g.E('r(xq, yq)'); g.E('r(xq, yq, dx=1)'); g.E('r(xq, yq, dy=2)'); g.E('r.ev(xq, yq)'); g.E('r.ev(xq, yq, dx=1, dy=1)')
+g.E('[r.integral(0.2, 3.1, -0.4, 1.5)]'); g.E('r.partial_derivative(1, 0)(xq, yq)')
+g.E('I.bisplev(xq, yq, (r.get_knots()[0], r.get_knots()[1], r.get_coeffs(), 3, 3))')
+g.E('I.bisplev(xq, yq, (r.get_knots()[0], r.get_knots()[1], r.get_coeffs(), 3, 3), dx=1, dy=2)')
 g.write('test/scipy/test_fitpack.py', 'gen_fitpack_expected.py', ['import numpy as np', 'import scipy.interpolate as I'], setup)
