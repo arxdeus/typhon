@@ -662,3 +662,201 @@ def _big(digits: str) -> Int[512]:
 
 def D(s: str) -> Decimal:
     return Decimal._parse(s)
+
+# ---- transcendental functions (correctly rounded via guard digits + Ziv-style retry) ----
+
+def _scaled(d: Decimal, digits: int) -> Int[512]:
+    # d * 10**digits as integer (truncated)
+    e = d._exp + digits
+    if e >= 0:
+        return d._coef * _p10(e)
+    return d._coef // _p10(-e)
+
+def _ln_fixed(x: Int[512], scale: int) -> Int[512]:
+    # ln(x / 10**scale) * 10**scale, x > 0. Reduce to [0.5, 2) by powers of 2? Use atanh series on m=(y-1)/(y+1).
+    one = _p10(scale)
+    k = 0
+    # bring x into [1, 10) * 10**k to use ln(10) multiples
+    ln10 = _ln10_fixed(scale)
+    while x >= one * Int[512](10):
+        x = x // Int[512](10)
+        k += 1
+    while x < one:
+        x = x * Int[512](10)
+        k -= 1
+    # now x in [1,10); reduce further by sqrt-free halving: divide by 2 until < 1.5
+    twos = 0
+    two = Int[512](2)
+    while x >= one + one // two:
+        x = x // two
+        twos += 1
+    ln2 = _ln2_fixed(scale)
+    # atanh series: ln(y) = 2 * sum m^(2i+1)/(2i+1), m=(y-1)/(y+1)
+    m = (x - one) * one // (x + one)
+    msign = False
+    if m < Int[512](0):
+        # x < one: use |m| = (one - x) / (one + x)
+        m = (one - x) * one // (x + one)
+        msign = True
+    m2 = m * m // one
+    term = m
+    s = Int[512](0)
+    i = 1
+    while term != Int[512](0):
+        s += term // Int[512](i)
+        term = term * m2 // one
+        i += 2
+    if msign:
+        s = -s
+    r = s * two + Int[512](twos) * ln2 + Int[512](k) * ln10
+    return r
+
+def _atanh_inv(n: int, scale: int) -> Int[512]:
+    # atanh(1/n) * 10**scale
+    one = _p10(scale)
+    x = one // Int[512](n)
+    n2 = Int[512](n * n)
+    s = Int[512](0)
+    i = 1
+    while x != Int[512](0):
+        s += x // Int[512](i)
+        x = x // n2
+        i += 2
+    return s
+
+def _ln2_fixed(scale: int) -> Int[512]:
+    # ln2 = 2*atanh(1/3)
+    return _atanh_inv(3, scale) * Int[512](2)
+
+def _ln10_fixed(scale: int) -> Int[512]:
+    # ln10 = 3 ln2 + ln(1.25) ; ln(1.25) = 2*atanh(1/9)
+    return _ln2_fixed(scale) * Int[512](3) + _atanh_inv(9, scale) * Int[512](2)
+
+def _exp_fixed(x: Int[512], scale: int, neg: bool) -> Int[512]:
+    # exp(+-x/10**scale) * 10**scale ; reduce argument by halving k times then squaring
+    one = _p10(scale)
+    k = 0
+    while x > one // Int[512](8):
+        x = x // Int[512](2)
+        k += 1
+    s = one
+    term = one
+    i = 1
+    while term != Int[512](0):
+        term = term * x // one // Int[512](i)
+        s += term
+        i += 1
+    for _ in range(k):
+        s = s * s // one
+    if neg:
+        return one * one // s
+    return s
+
+def _round_to_prec(sign: int, num: Int[512], scale: int) -> Decimal:
+    r = _round_coef(sign, num, -scale, _CTX.prec, _CTX.rounding)
+    return Decimal(sign, r[0], r[1])
+
+def _trailing_trim(d: Decimal, ideal: int) -> Decimal:
+    c = d._coef
+    e = d._exp
+    while e < ideal and c % Int[512](10) == Int[512](0) and c != Int[512](0):
+        c = c // Int[512](10)
+        e += 1
+    return Decimal(d._sign, c, e)
+
+def _dec_ln(x: Decimal) -> Decimal:
+    if x._special == 2:
+        return x
+    if x._sign == 1 and not x.is_zero():
+        raise InvalidOperation("[<class 'decimal.InvalidOperation'>]")
+    if x.is_zero():
+        return Decimal(1, Int[512](0), 0, 1)
+    if x._special == 1:
+        return x
+    if x._coef == Int[512](1) and x._exp == 0:
+        return Decimal(0, Int[512](0), 0)
+    p = _CTX.prec
+    guard = 6
+    for _ in range(4):
+        scale = p + guard + 4 + (len(str(abs(x.adjusted()))) if x.adjusted() != 0 else 0)
+        # x = coef * 10**exp ; ln x = ln(coef/10**(nd-1)) + (adjusted)*ln10
+        nd = _ndigits(x._coef)
+        xs = x._coef * _p10(scale) // _p10(nd - 1)
+        r = _ln_fixed(xs, scale) + Int[512](x.adjusted()) * _ln10_fixed(scale)
+        sign = 0
+        if r < Int[512](0):
+            sign = 1
+            r = -r
+        # check rounding stability: evaluate at precision p with +-error band
+        err = Int[512](10) ** 3
+        lo = _round_to_prec(sign, r - err if r > err else Int[512](0), scale)
+        hi = _round_to_prec(sign, r + err, scale)
+        if lo._coef == hi._coef and lo._exp == hi._exp:
+            res = _round_to_prec(sign, r, scale)
+            return res
+        guard += 6
+    return _round_to_prec(sign, r, scale)
+
+def _dec_exp(x: Decimal) -> Decimal:
+    if x._special == 2:
+        return x
+    if x._special == 1:
+        if x._sign == 1:
+            return Decimal(0, Int[512](0), 0)
+        return x
+    if x.is_zero():
+        return Decimal(0, Int[512](1), 0)
+    p = _CTX.prec
+    guard = 6
+    for _ in range(4):
+        adj = x.adjusted()
+        extra = adj + 1 if adj >= 0 else 0
+        scale = p + guard + 4 + extra
+        xs = _scaled(x, scale)
+        if xs < Int[512](0):
+            xs = -xs
+        r = _exp_fixed(xs, scale, x._sign == 1)
+        err = Int[512](10) ** 3
+        lo = _round_to_prec(0, r - err, scale)
+        hi = _round_to_prec(0, r + err, scale)
+        if lo._coef == hi._coef and lo._exp == hi._exp:
+            return _round_to_prec(0, r, scale)
+        guard += 6
+    return _round_to_prec(0, r, scale)
+
+def _dec_log10(x: Decimal) -> Decimal:
+    if x._special == 2:
+        return x
+    if x._sign == 1 and not x.is_zero():
+        raise InvalidOperation("[<class 'decimal.InvalidOperation'>]")
+    if x.is_zero():
+        return Decimal(1, Int[512](0), 0, 1)
+    if x._special == 1:
+        return x
+    # exact power of ten
+    c = x._coef
+    e = x._exp
+    while c % Int[512](10) == Int[512](0):
+        c = c // Int[512](10)
+        e += 1
+    if c == Int[512](1):
+        v = Decimal._from_int(e)
+        return v._fix()
+    saved = _CTX.prec
+    _CTX.prec = saved + 8
+    l = _dec_ln(x)
+    t = _dec_ln(Decimal(0, Int[512](10), 0))
+    q = l.__truediv__(t)
+    _CTX.prec = saved
+    return q._fix()
+
+@extend
+class Decimal:
+    def ln(self) -> Decimal:
+        return _dec_ln(self)
+
+    def exp(self) -> Decimal:
+        return _dec_exp(self)
+
+    def log10(self) -> Decimal:
+        return _dec_log10(self)

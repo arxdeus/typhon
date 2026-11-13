@@ -34,3 +34,15 @@ def test_round_sqrt():
 
 test_basic()
 test_round_sqrt()
+
+@test
+def test_transcendental():
+    assert str(Decimal("2").ln()) == "0.6931471805599453094172321215"
+    assert str(Decimal("1").exp()) == "2.718281828459045235360287471"
+    assert str(Decimal("-1.5").exp()) == "0.2231301601484298289332804708"
+    assert str(Decimal("100").log10()) == "2"
+    assert str(Decimal("2").log10()) == "0.3010299956639811952137388947"
+    assert str(Decimal("0.001").log10()) == "-3"
+    assert str(Decimal("10").ln()) == "2.302585092994045684017991455"
+
+test_transcendental()
