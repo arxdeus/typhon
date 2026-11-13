@@ -34,7 +34,9 @@ test/bci/lib/ort/build.sh <preprocessing.py> <ort_root> <out> [typhon args]   # 
 * iOS: link the `onnxruntime-c` xcframework: pass `<ort_root>` with `lib/` containing it, plus the iOS target args; ORT is resolved through the link (`from C import OrtGetApiBase`).
 * Android: `build.sh ... - libbci_model.so <android target args>`: no link dependency, `dlopen("libonnxruntime.so")` at first use (put it into `jniLibs/<abi>/` from the `onnxruntime-android` AAR).
 
-Requires ORT API version 31 (1.31.x); an older runtime gives `-1` from `bci_create`.
+Requests ORT API version 30 (ORT >= 1.30); an older runtime gives `-1` from `bci_create`.
+
+Mobile (validated by the mobile lane): Android arm64 emulator (ORT 1.31.1, dlopen) and iOS simulator (ORT 1.30.0 pod, linked): features max abs diff 7.1e-15, labels 0/60 mismatches vs Python; 1 trial 519 us (Android), 637 us (iOS).
 
 ## Results (macOS arm64, ORT 1.31.1)
 

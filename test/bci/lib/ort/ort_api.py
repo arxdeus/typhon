@@ -2,7 +2,8 @@
 # Slot indices = field order in onnxruntime_c_api.h (append-only), see docs/onnx.md.
 from internal.dlopen import dlopen, dlsym
 
-ORT_API_VERSION = 31
+# 30: all slots used here exist since then; works with ORT 1.30 (iOS pod) and 1.31
+ORT_API_VERSION = 30
 I_GetErrorMessage = 2
 I_CreateEnv = 3
 I_CreateSession = 7
@@ -42,7 +43,7 @@ def ort_api() -> cobj:
         base = OrtGetApiBase()
     _api = Function[[u32], cobj](Ptr[cobj](base)[0])(u32(ORT_API_VERSION))
     if _api == cobj():
-        raise RuntimeError("onnxruntime is older than API version 31")
+        raise RuntimeError("onnxruntime is older than API version 30")
     return _api
 
 def fn(a: cobj, i: int) -> cobj:
