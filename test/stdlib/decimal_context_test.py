@@ -13,5 +13,5 @@ def test_decimal_context():
     assert str(x.quantize(q, ROUND_CEILING)) == "2.68"
     assert str(x.quantize(q, ROUND_FLOOR)) == "2.67"
     assert str(Decimal("-2.675").quantize(q, ROUND_FLOOR)) == "-2.68"
-    assert str(Decimal("2.601").quantize(q, ROUND_05UP)) == "2.60"
+    assert str(Decimal("2.601").quantize(q, ROUND_05UP)) == "2.61"
 test_decimal_context()
