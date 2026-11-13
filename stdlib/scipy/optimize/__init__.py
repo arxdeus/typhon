@@ -220,3 +220,4 @@ from ._brute import brute, show_options
 from ._linprog import linprog, milp, LinprogResult
 from ._shgo import shgo, ShgoResult
 from ._qap import quadratic_assignment, QAPResult
+from ._elementwise import find_root, find_minimum, bracket_root, bracket_minimum
