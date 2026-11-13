@@ -192,6 +192,11 @@ pub const SCIPY: &[&str] = &[
     "sklearn/test_balltree_kdtree.py", "sklearn/test_neighbors2.py", "sklearn/test_decomposition2.py",
     "sklearn/test_lda_nmf.py", "sklearn/test_manifold2.py", "sklearn/test_tree_export.py",
     "mne/test_filter_more.py",
+    "pyriemann/test_ajd.py", "pyriemann/test_estimation.py", "pyriemann/test_estimators2.py",
+    "pyriemann/test_mest.py", "pyriemann/test_covx.py", "pyriemann/test_spectral.py",
+    "pyriemann/test_spatial.py", "pyriemann/test_classif.py", "pyriemann/test_means2.py",
+    "pyriemann/test_misc.py", "pandas/test_ewm.py", "pandas/test_stats2.py",
+    "pandas/test_groupby2.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
