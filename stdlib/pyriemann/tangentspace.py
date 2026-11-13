@@ -63,3 +63,43 @@ class TangentSpace:
         X = np.asarray(X, dtype=float)
         self._check_reference_points(X)
         return untangent_space(X, self.reference_, metric=self.metric)
+
+class FGDA:
+    metric: str
+    tsupdate: bool
+    _ts: TangentSpace
+    _W: np.ndarray[float, 2]
+
+    def __init__(self, metric: str = "riemann", tsupdate: bool = False):
+        self.metric = metric
+        self.tsupdate = tsupdate
+        self._ts = TangentSpace(metric, tsupdate)
+        self._W = np.empty((0, 0))
+
+    def _fit_lda(self, X, y, sample_weight = None):
+        from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+        y = np.asarray(y, dtype=int)
+        classes = np.unique(y)
+        lda = LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto",
+                                         n_components=classes.shape[0] - 1)
+        ts = self._ts.fit_transform(X, sample_weight=sample_weight)
+        lda.fit(ts, y)
+        W = lda.coef_.copy()
+        self._W = W.T @ np.linalg.pinv(W @ W.T) @ W
+        return ts
+
+    def _retro_project(self, ts):
+        return self._ts.inverse_transform(ts @ self._W)
+
+    def fit(self, X, y = None, sample_weight = None):
+        self._ts = TangentSpace(self.metric, self.tsupdate)
+        self._fit_lda(X, y, sample_weight=sample_weight)
+        return self
+
+    def transform(self, X):
+        return self._retro_project(self._ts.transform(X))
+
+    def fit_transform(self, X, y = None, sample_weight = None):
+        self._ts = TangentSpace(self.metric, self.tsupdate)
+        ts = self._fit_lda(X, y, sample_weight=sample_weight)
+        return self._retro_project(ts)
