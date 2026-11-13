@@ -51,7 +51,7 @@ def _hermite(xa, y2, s2, tsh, ax: int, ext: int):
     p.axis = ax
     return p
 
-def CubicHermiteSpline(x, y, dydx, axis: int = 0, extrapolate = None):
+def _CubicHermiteSpline(x, y, dydx, axis: int = 0, extrapolate = None):
     xa, y2, tsh, ax = _prepare(x, y, axis)
     d = np.asarray(dydx, dtype=float)
     if d.shape != np.asarray(y).shape:
@@ -70,7 +70,7 @@ def _pchip_edge(h0: float, h1: float, m0: float, m1: float) -> float:
         return 3.0 * m0
     return d
 
-def PchipInterpolator(x, y, axis: int = 0, extrapolate = None):
+def _PchipInterpolator(x, y, axis: int = 0, extrapolate = None):
     xa, y2, tsh, ax = _prepare(x, y, axis)
     n = xa.size
     R = y2.shape[1]
@@ -95,12 +95,12 @@ def PchipInterpolator(x, y, axis: int = 0, extrapolate = None):
     return _hermite(xa, y2, dk, tsh, ax, _ext_mode(extrapolate, 1))
 
 def pchip_interpolate(xi, yi, x, der: int = 0, axis: int = 0):
-    P = PchipInterpolator(xi, yi, axis=axis)
+    P = _PchipInterpolator(xi, yi, axis=axis)
     if der == 0:
         return P(x)
     return P.derivative(der)(x)
 
-def Akima1DInterpolator(x, y, axis: int = 0, method: str = "akima", extrapolate = None):
+def _Akima1DInterpolator(x, y, axis: int = 0, method: str = "akima", extrapolate = None):
     if method != "akima" and method != "makima":
         raise NotImplementedError(f"`method`={method} is unsupported.")
     xa, y2, tsh, ax = _prepare(x, y, axis)
@@ -173,7 +173,7 @@ def _bc_parse(bc, R: int):
             raise ValueError("The specified derivative order must be 1 or 2.")
         return order, _vals(bc[1], R)
 
-def CubicSpline(x, y, axis: int = 0, bc_type = 'not-a-knot', extrapolate = None):
+def _CubicSpline(x, y, axis: int = 0, bc_type = 'not-a-knot', extrapolate = None):
     xa, y2, tsh, ax = _prepare(x, y, axis)
     n = xa.size
     R = y2.shape[1]
@@ -319,3 +319,46 @@ def _periodic_slopes(xa, dx: List[float], slope, n: int, R: int):
         s[n - 2, j] = s_m1
         s[n - 1, j] = s[0, j]
     return s
+
+# PPoly subclasses (scipy class hierarchy); fitted through the factory
+# kernels above, then initialised as PPoly with the computed coefficients.
+
+class CubicHermiteSpline(PPoly):
+    def __init__(self, x, y, dydx, axis: int = 0, extrapolate = None):
+        pp = _CubicHermiteSpline(x, y, dydx, axis, extrapolate)
+        self.c = pp.c
+        self.x = pp.x
+        self.tsh = pp.tsh
+        self._c3 = pp._c3
+        self._ext = pp._ext
+        self.axis = pp.axis
+
+class PchipInterpolator(CubicHermiteSpline):
+    def __init__(self, x, y, axis: int = 0, extrapolate = None):
+        pp = _PchipInterpolator(x, y, axis, extrapolate)
+        self.c = pp.c
+        self.x = pp.x
+        self.tsh = pp.tsh
+        self._c3 = pp._c3
+        self._ext = pp._ext
+        self.axis = pp.axis
+
+class Akima1DInterpolator(CubicHermiteSpline):
+    def __init__(self, x, y, axis: int = 0, method: str = "akima", extrapolate = None):
+        pp = _Akima1DInterpolator(x, y, axis, method, extrapolate)
+        self.c = pp.c
+        self.x = pp.x
+        self.tsh = pp.tsh
+        self._c3 = pp._c3
+        self._ext = pp._ext
+        self.axis = pp.axis
+
+class CubicSpline(CubicHermiteSpline):
+    def __init__(self, x, y, axis: int = 0, bc_type = 'not-a-knot', extrapolate = None):
+        pp = _CubicSpline(x, y, axis, bc_type, extrapolate)
+        self.c = pp.c
+        self.x = pp.x
+        self.tsh = pp.tsh
+        self._c3 = pp._c3
+        self._ext = pp._ext
+        self.axis = pp.axis

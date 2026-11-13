@@ -1,8 +1,8 @@
 # Ported from scipy 1.18.1 (BSD-3-Clause)
 #
-# Native Typhon implementation of a scipy.interpolate subset.  The spline
-# classes CubicSpline, PchipInterpolator, Akima1DInterpolator and
-# CubicHermiteSpline are factory functions returning PPoly objects.
+# Native Typhon implementation of scipy.interpolate.  CubicSpline,
+# PchipInterpolator, Akima1DInterpolator and CubicHermiteSpline are PPoly
+# subclasses as in scipy.
 
 from _ppoly import PPoly
 from _cubic import CubicHermiteSpline, PchipInterpolator, pchip_interpolate, \
