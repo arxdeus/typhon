@@ -25,3 +25,4 @@ from _ndppoly import NdPPoly
 pchip = PchipInterpolator
 BivariateSpline = RectBivariateSpline
 from _bary_rational import AAA, FloaterHormannInterpolator
+from _ndbspline import NdBSpline
