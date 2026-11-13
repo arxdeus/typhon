@@ -136,6 +136,15 @@ pub const SCIPY: &[&str] = &[
     "mne/test_ica.py", "mne/test_ica_bads.py", "mne/test_preprocessing.py", "mne/test_ctps.py",
     "mne/test_xdawn.py", "sklearn/test_cluster_more.py", "sklearn/test_cluster_struct.py",
     "sklearn/test_cluster_density.py", "sklearn/test_birch.py",
+    "scipy/test_integrate.py", "scipy/test_integrate_quad.py", "scipy/test_integrate_ivp.py",
+    "scipy/test_integrate_stiff.py", "scipy/test_integrate_odeint.py",
+    "scipy/test_optimize_constrained.py", "scipy/test_optimize_constrained2.py",
+    "scipy/test_optimize_local2.py", "scipy/test_optimize_local3.py",
+    "sklearn/test_histgb.py", "sklearn/test_ensemble2.py", "sklearn/test_stacking_clf.py",
+    "sklearn/test_inspection.py", "mne/test_channels.py",
+    "scipy/test_special_misc.py", "scipy/test_special_misc2.py", "scipy/test_special_bessel.py",
+    "scipy/test_special_gamma_hyp.py", "scipy/test_special_orth_ellip.py",
+    "scipy/test_special_cdfs.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
