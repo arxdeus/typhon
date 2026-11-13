@@ -86,7 +86,13 @@ def sensitivity_map(fwd: Forward, projs = None, ch_type: str = "grad", mode: str
         raise ValueError(f"mode must be one of free, fixed, ratio, radiality, angle, remaining, dampening, got {mode}")
     if is_fixed_orient(fwd, True):
         raise ValueError("fwd should must be computed with free orientation")
-    f2 = pick_types_forward(fwd, meg=(False if ch_type == "eeg" else ch_type), eeg=(ch_type == "eeg"), exclude=exclude)
+    # separate calls: a `False if .. else ch_type` ternary unifies to bool
+    # and would select every MEG channel instead of ch_type only
+    f2 = fwd
+    if ch_type == "eeg":
+        f2 = pick_types_forward(fwd, meg=False, eeg=True, exclude=exclude)
+    else:
+        f2 = pick_types_forward(fwd, meg=ch_type, eeg=False, exclude=exclude)
     f2 = convert_forward_solution(f2, surf_ori=True, force_fixed=False, copy=False)
     gain = f2.sol
     pr = List[Projection]()
