@@ -75,6 +75,7 @@ pub const STDLIB: &[&str] = &[
     "stdlib/functools_more_test.py", "stdlib/zlib_deflate_test.py", "stdlib/decimal_test.py",
     "stdlib/ipaddress_test.py", "stdlib/calendar_test.py",
     "stdlib/array_test.py", "stdlib/collections_more_test.py", "stdlib/statistics_more_test.py",
+    "stdlib/zlib_identical_test.py",
 ];
 
 pub const CNUMERICS: &[&str] = &[
@@ -208,6 +209,16 @@ pub const SCIPY: &[&str] = &[
     "scipy/test_stats_exact2x2.py", "scipy/test_stats_fit.py", "scipy/test_stats_multicomp.py",
     "scipy/test_stats_qmc2.py",
     "scipy/test_special_mathieu.py", "scipy/test_special_wright.py", "scipy/test_special_ellip_harm.py",
+    "scipy/test_integrate_odesolver.py", "scipy/test_integrate_tanhsinh.py", "scipy/test_linalg_cossin.py",
+    "scipy/test_optimize_elementwise.py", "scipy/test_optimize_qap.py", "scipy/test_signal_placepoles.py",
+    "scipy/test_signal_stfft.py", "scipy/test_sparse_names.py",
+    "sklearn/test_final_chain.py", "sklearn/test_final_metrics.py", "sklearn/test_final_metrics2.py",
+    "sklearn/test_final_nb.py", "sklearn/test_final_svm.py", "sklearn/test_final_threshold.py",
+    "sklearn/test_final_utils.py",
+    "mne/test_decoding_tf.py", "mne/test_decoding_xdawn.py", "mne/test_dig_readers.py",
+    "mne/test_epochs_utils.py", "mne/test_io_gdf.py", "mne/test_io_misc.py", "mne/test_io_read_raw.py",
+    "mne/test_layout.py", "mne/test_tf_more.py",
+    "pandas/test_dt.py", "pandas/test_multi.py", "pandas/test_ops3.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
