@@ -7,3 +7,4 @@ from .base import (LinearModel, get_coef, cross_val_multiscore, SlidingEstimator
                    GeneralizingEstimator, EMS, compute_ems)
 from .receptive_field import ReceptiveField, TimeDelayingRidge
 from .ssd import SSD
+from .xdawn import XdawnTransformer, SpatialFilter, get_spatial_filter_from_estimator, TimeFrequency
