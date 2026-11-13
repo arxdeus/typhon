@@ -184,6 +184,16 @@ class SequenceMatcher:
             groups.append(group)
         return groups
 
+    def quick_ratio(self) -> float:
+        return _quick_ratio_of(self)
+
+    def real_quick_ratio(self) -> float:
+        la = len(self.a)
+        lb = len(self.b)
+        if la + lb == 0:
+            return 1.0
+        return 2.0 * min(la, lb) / (la + lb)
+
     def ratio(self) -> float:
         matches = 0
         for blk in self.get_matching_blocks():
@@ -193,13 +203,30 @@ class SequenceMatcher:
             return 1.0
         return 2.0 * matches / length
 
+def _quick_ratio_of(sm: SequenceMatcher) -> float:
+    la = len(sm.a)
+    lb = len(sm.b)
+    if la + lb == 0:
+        return 1.0
+    avail: Dict[str, int] = {}
+    matches = 0
+    for e in sm.b:
+        avail[e] = avail.get(e, 0) + 1
+    used: Dict[str, int] = {}
+    for e in sm.a:
+        u = used.get(e, 0)
+        if u < avail.get(e, 0):
+            matches += 1
+        used[e] = u + 1
+    return 2.0 * matches / (la + lb)
+
 def get_close_matches(word: str, possibilities: List[str], n: int = 3, cutoff: float = 0.6) -> List[str]:
     if n <= 0:
         raise ValueError("n must be > 0: " + str(n))
     scored: List[Tuple[float, str]] = []
     for x in possibilities:
         s = SequenceMatcher(x, word)
-        if s.ratio() >= cutoff:
+        if s.real_quick_ratio() >= cutoff and s.quick_ratio() >= cutoff and s.ratio() >= cutoff:
             scored.append((s.ratio(), x))
     scored.sort(reverse=True)
     out: List[str] = []
@@ -261,4 +288,58 @@ def ndiff(a: List[str], b: List[str]) -> List[str]:
             if tag == "replace" or tag == "insert":
                 for line in b[j1:j2]:
                     out.append("+ " + line)
+    return out
+
+def _format_range_context(start: int, stop: int) -> str:
+    beginning = start + 1
+    length = stop - start
+    if length == 0:
+        beginning -= 1
+    if length <= 1:
+        return str(beginning)
+    return str(beginning) + "," + str(beginning + length - 1)
+
+def _ctx_prefix(tag: str) -> str:
+    if tag == "insert":
+        return "+ "
+    if tag == "delete":
+        return "- "
+    if tag == "replace":
+        return "! "
+    return "  "
+
+def context_diff(a: List[str], b: List[str], fromfile: str = "", tofile: str = "",
+                 fromfiledate: str = "", tofiledate: str = "", n: int = 3,
+                 lineterm: str = "\n") -> List[str]:
+    out: List[str] = []
+    started = False
+    for group in SequenceMatcher(a, b).get_grouped_opcodes(n):
+        if not started:
+            started = True
+            fd = "\t" + fromfiledate if fromfiledate != "" else ""
+            td = "\t" + tofiledate if tofiledate != "" else ""
+            out.append("*** " + fromfile + fd + lineterm)
+            out.append("--- " + tofile + td + lineterm)
+        first = group[0]
+        last = group[-1]
+        out.append("***************" + lineterm)
+        out.append("*** " + _format_range_context(first[1], last[2]) + " ****" + lineterm)
+        has_from = False
+        has_to = False
+        for g in group:
+            if g[0] == "replace" or g[0] == "delete":
+                has_from = True
+            if g[0] == "replace" or g[0] == "insert":
+                has_to = True
+        if has_from:
+            for g in group:
+                if g[0] != "insert":
+                    for line in a[g[1]:g[2]]:
+                        out.append(_ctx_prefix(g[0]) + line)
+        out.append("--- " + _format_range_context(first[3], last[4]) + " ----" + lineterm)
+        if has_to:
+            for g in group:
+                if g[0] != "delete":
+                    for line in b[g[3]:g[4]]:
+                        out.append(_ctx_prefix(g[0]) + line)
     return out
