@@ -1057,6 +1057,9 @@ def ravel(a, order: str = 'C'):
 def ascontiguousarray(a, dtype: type = NoneType):
     return asarray(a, dtype=dtype, order='C')
 
+def copy(a, order: str = 'K', subok: bool = False):
+    return asarray(a).copy()
+
 def asfortranarray(a, dtype: type = NoneType):
     return asarray(a, dtype=dtype, order='F')
 

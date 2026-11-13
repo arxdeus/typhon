@@ -46,6 +46,20 @@ def set_log_level(verbose = None, return_old_level: bool = False, add_frames = N
     return None
 
 
+class use_log_level:
+    """Context manager (mne.use_log_level); logging is a no-op in Typhon."""
+    level: str
+
+    def __init__(self, level = None, add_frames = None):
+        self.level = "" if level is None else str(level)
+
+    def __enter__(self):
+        return None
+
+    def __exit__(self):
+        pass
+
+
 def pick_types(info: Info, meg = False, eeg: bool = False, stim: bool = False,
                eog: bool = False, ecg: bool = False, emg: bool = False, misc: bool = False,
                exclude = "bads"):

@@ -290,7 +290,7 @@ class FilterEstimator:
         return self.fit(epochs_data, y).transform(epochs_data)
 
 
-class TemporalFilter:
+class TemporalFilter[P = NoneType]:
     """Estimator to filter data array along the last dimension (mne, FIR)."""
     l_freq: Optional[float]
     h_freq: Optional[float]
@@ -300,13 +300,17 @@ class TemporalFilter:
     h_trans_bandwidth: str
     fir_window: str
     fir_design: str
+    method: str
+    iir_params: P
 
     def __init__(self, l_freq = None, h_freq = None, sfreq: float = 1.0,
                  filter_length: str = "auto", l_trans_bandwidth: str = "auto",
                  h_trans_bandwidth: str = "auto", n_jobs = None, method: str = "fir",
-                 iir_params = None, fir_window: str = "hamming", fir_design: str = "firwin"):
-        if method != "fir":
-            raise ValueError("TemporalFilter: only method='fir' is supported")
+                 iir_params: P = None, fir_window: str = "hamming", fir_design: str = "firwin"):
+        if method != "fir" and method != "iir":
+            raise ValueError("TemporalFilter: method must be 'fir' or 'iir'")
+        self.method = method
+        self.iir_params = iir_params
         self.l_freq = _of(l_freq)
         self.h_freq = _of(h_freq)
         self.sfreq = sfreq
@@ -322,6 +326,11 @@ class TemporalFilter:
     def transform(self, X):
         a = np.asarray(X, dtype=float)
         X2 = np.ascontiguousarray(a).reshape((-1, a.shape[a.ndim - 1]))
+        if self.method == "iir":
+            from mne.filter import filter_data
+            o2 = filter_data(X2, self.sfreq, self.l_freq, self.h_freq, method="iir",
+                             iir_params=self.iir_params, copy=True)
+            return o2.reshape(a.shape)
         out = _filt(X2, self.sfreq, self.l_freq, self.h_freq, list(range(X2.shape[0])),
                     self.filter_length, self.l_trans_bandwidth, self.h_trans_bandwidth,
                     self.fir_window, self.fir_design)
