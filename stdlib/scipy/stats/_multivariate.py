@@ -13,6 +13,7 @@ from ._distn_infrastructure import check_random_state, _npsum, NAN, INF
 from C import asin(float) -> float
 from C import sin(float) -> float
 from C import fmod(float, float) -> float
+from C import atan2(float, float) -> float
 
 _LOG_2PI = 1.8378770664093453
 _LOG_2 = 0.6931471805599453
@@ -1312,3 +1313,326 @@ class random_correlation_gen:
         return m
 
 random_correlation = random_correlation_gen()
+
+# ------------------------------------------------------ uniform_direction
+
+def _sample_uniform_direction(dim: int, n: int, rs) -> np.ndarray[float, 2]:
+    s = rs.standard_normal((n, dim))
+    for i in range(n):
+        nrm = float(np.linalg.norm(s[i]))
+        for j in range(dim):
+            s[i, j] /= nrm
+    return s
+
+class uniform_direction_frozen:
+    dim: int
+    def __init__(self, dim: int, seed = None):
+        if dim < 1:
+            raise ValueError("Dimension of vector must be specified, and must be an "
+                             "integer greater than 0.")
+        self.dim = dim
+    def rvs(self, size = None, random_state = None):
+        rs = check_random_state(random_state)
+        if size is None:
+            return _sample_uniform_direction(self.dim, 1, rs)[0].copy()
+        else:
+            n = int(size)
+            return _sample_uniform_direction(self.dim, n, rs)
+
+class uniform_direction_gen:
+    def __call__(self, dim: int, seed = None):
+        return uniform_direction_frozen(dim, seed)
+    def rvs(self, dim: int, size = None, random_state = None):
+        return uniform_direction_frozen(dim).rvs(size, random_state)
+
+uniform_direction = uniform_direction_gen()
+
+# -------------------------------------------------- dirichlet_multinomial
+
+class dirichlet_multinomial_frozen:
+    alpha: np.ndarray[float, 1]
+    n: int
+    def __init__(self, alpha, n, seed = None):
+        self.alpha = np.asarray(alpha).astype(float).ravel()
+        if (self.alpha <= 0).any():
+            raise ValueError("`alpha` must contain only positive values.")
+        nf = float(n)
+        if nf < 0 or nf != K.floor(nf):
+            raise ValueError("`n` must be a non-negative integer.")
+        self.n = int(nf)
+    def logpmf(self, x) -> float:
+        a = self.alpha
+        xa = np.asarray(x).astype(float).ravel()
+        if (xa < 0).any() or (xa != np.floor(xa)).any():
+            raise ValueError("`x` must contain only non-negative integers.")
+        Sa = float(np.sum(a))
+        n = float(self.n)
+        out = K.gammaln(Sa) + K.gammaln(n + 1) - K.gammaln(n + Sa)
+        v = np.empty(a.size, dtype=float)
+        for i in range(a.size):
+            v[i] = K.gammaln(xa[i] + a[i]) - (K.gammaln(a[i]) + K.gammaln(xa[i] + 1))
+        out += float(np.sum(v))
+        if float(np.sum(xa)) != n:
+            return -INF
+        return out
+    def pmf(self, x) -> float:
+        return K.exp(self.logpmf(x))
+    def mean(self):
+        Sa = float(np.sum(self.alpha))
+        return self.n * self.alpha / Sa
+    def var(self):
+        a = self.alpha
+        Sa = float(np.sum(a))
+        n = float(self.n)
+        return n * a / Sa * (1 - a / Sa) * (n + Sa) / (1 + Sa)
+    def cov(self):
+        a = self.alpha
+        Sa = float(np.sum(a))
+        n = float(self.n)
+        var = self.var()
+        k = a.size
+        out = np.empty((k, k), dtype=float)
+        for i in range(k):
+            for j in range(k):
+                out[i, j] = -n * (a[i] * a[j]) / Sa ** 2 * (n + Sa) / (1 + Sa)
+            out[i, i] = var[i]
+        return out
+
+class dirichlet_multinomial_gen:
+    def __call__(self, alpha, n, seed = None):
+        return dirichlet_multinomial_frozen(alpha, n, seed)
+    def logpmf(self, x, alpha, n) -> float: return dirichlet_multinomial_frozen(alpha, n).logpmf(x)
+    def pmf(self, x, alpha, n) -> float: return dirichlet_multinomial_frozen(alpha, n).pmf(x)
+    def mean(self, alpha, n): return dirichlet_multinomial_frozen(alpha, n).mean()
+    def var(self, alpha, n): return dirichlet_multinomial_frozen(alpha, n).var()
+    def cov(self, alpha, n): return dirichlet_multinomial_frozen(alpha, n).cov()
+
+dirichlet_multinomial = dirichlet_multinomial_gen()
+
+# -------------------------------------------------------- vonmises_fisher
+
+import scipy.special._bessel as _B
+
+def _vmf_log_norm(dim: int, kappa: float) -> float:
+    halfdim = 0.5 * dim
+    return (0.5 * (dim - 2) * K.log(kappa) - halfdim * _LOG_2PI
+            - K.log(_B.ive(halfdim - 1, kappa)) - kappa)
+
+class vonmises_fisher_frozen:
+    dim: int
+    mu: np.ndarray[float, 1]
+    kappa: float
+    def __init__(self, mu, kappa = 1.0, seed = None):
+        m = np.asarray(mu).astype(float)
+        if m.ndim > 1:
+            raise ValueError("'mu' must have one-dimensional shape.")
+        self.mu = m.ravel()
+        if not np.allclose(np.linalg.norm(self.mu), 1.):
+            raise ValueError("'mu' must be a unit vector of norm 1.")
+        if not self.mu.size > 1:
+            raise ValueError("'mu' must have at least two entries.")
+        k = float(kappa)
+        if k < 0:
+            raise ValueError("'kappa' must be a positive scalar.")
+        if k == 0.:
+            raise ValueError("For 'kappa=0' the von Mises-Fisher distribution "
+                             "becomes the uniform distribution on the sphere "
+                             "surface. Consider using "
+                             "'scipy.stats.uniform_direction' instead.")
+        self.kappa = k
+        self.dim = self.mu.size
+    def logpdf(self, x):
+        X = np.asarray(x).astype(float)
+        X2 = X.reshape(-1, self.dim)
+        out = np.empty(X2.shape[0], dtype=float)
+        lnf = _vmf_log_norm(self.dim, self.kappa)
+        for i in range(X2.shape[0]):
+            out[i] = lnf + self.kappa * float(np.dot(self.mu, X2[i]))
+        if X.ndim <= 1:
+            return out[0]
+        return out.reshape(X.shape[:-1])
+    def pdf(self, x):
+        return np.exp(self.logpdf(x))
+    def entropy(self) -> float:
+        halfdim = 0.5 * self.dim
+        return (-_vmf_log_norm(self.dim, self.kappa)
+                - self.kappa * _B.ive(halfdim, self.kappa) / _B.ive(halfdim - 1, self.kappa))
+    def _rotate(self, samples: np.ndarray[float, 2]) -> np.ndarray[float, 2]:
+        dim = self.dim
+        embedded = np.zeros((dim, dim))
+        for j in range(dim):
+            embedded[0, j] = self.mu[j]
+        rot, _ = np.linalg.qr(embedded.T.copy())
+        first = rot[:, 0].copy()
+        rotsign = 1.0 if np.allclose(first, self.mu) else -1.0
+        return (samples @ rot.T) * rotsign
+    def rvs(self, size: Literal[int] = 1, random_state = None):
+        rs = check_random_state(random_state)
+        dim = self.dim
+        kappa = self.kappa
+        n = size
+        if dim == 2:
+            mean_angle = atan2(self.mu[1], self.mu[0])
+            ang = rs.vonmises(mean_angle, kappa, size=n)
+            out = np.empty((n, 2), dtype=float)
+            for i in range(n):
+                out[i, 0] = K.cos(ang[i])
+                out[i, 1] = K.sin(ang[i])
+            if size == 1:
+                return out[0].copy()
+            else:
+                return out
+        samples = np.empty((n, dim), dtype=float)
+        if dim == 3:
+            xs = rs.random(n)
+            for i in range(n):
+                xs[i] = 1. + K.log(xs[i] + (1. - xs[i]) * K.exp(-2 * kappa)) / kappa
+            uc = _sample_uniform_direction(2, n, rs)
+            for i in range(n):
+                t = K.sqrt(1. - xs[i] * xs[i])
+                samples[i, 0] = xs[i]
+                samples[i, 1] = t * uc[i, 0]
+                samples[i, 2] = t * uc[i, 1]
+        else:
+            dm1 = float(dim - 1)
+            sq = K.sqrt(4 * kappa ** 2. + dm1 ** 2)
+            env = (-2 * kappa + sq) / dm1
+            if env == 0:
+                env = dm1 / 4 * kappa ** -1. - dm1 ** 3 / 64 * kappa ** -3.
+            node = (1. - env) / (1. + env)
+            corr = kappa * node + dm1 * (K.log(4.0) + K.log(env) - 2 * K.log1p(env))
+            xs = np.zeros(n)
+            na = 0
+            halfdim = 0.5 * dm1
+            while na < n:
+                m = n - na
+                sb = rs.beta(halfdim, halfdim, size=m)
+                cx = (1 - (1 + env) * sb) / (1 - (1 - env) * sb)
+                at = rs.random(m)
+                for i in range(m):
+                    crit = (kappa * cx[i] + dm1 * (K.log((1 + env - cx[i] + cx[i] * env) / (1 + env)))
+                            - corr) > K.log(at[i])
+                    if crit:
+                        xs[na] = cx[i]
+                        na += 1
+            rest = _sample_uniform_direction(dim - 1, na, rs)
+            for i in range(n):
+                t = K.sqrt(1 - xs[i] ** 2)
+                samples[i, 0] = xs[i]
+                for j in range(dim - 1):
+                    samples[i, j + 1] = t * rest[i, j]
+        out = self._rotate(samples)
+        if size == 1:
+            return out[0].copy()
+        else:
+            return out
+
+class vonmises_fisher_gen:
+    def __call__(self, mu, kappa = 1.0, seed = None):
+        return vonmises_fisher_frozen(mu, kappa, seed)
+    def logpdf(self, x, mu, kappa = 1.0): return vonmises_fisher_frozen(mu, kappa).logpdf(x)
+    def pdf(self, x, mu, kappa = 1.0): return vonmises_fisher_frozen(mu, kappa).pdf(x)
+    def entropy(self, mu, kappa = 1.0) -> float: return vonmises_fisher_frozen(mu, kappa).entropy()
+    def rvs(self, mu, kappa = 1.0, size: Literal[int] = 1, random_state = None):
+        return vonmises_fisher_frozen(mu, kappa).rvs(size, random_state)
+
+vonmises_fisher = vonmises_fisher_gen()
+
+# ------------------------------------------------- multivariate_hypergeom
+
+class multivariate_hypergeom_frozen:
+    m: np.ndarray[int, 1]
+    n: int
+    M: int
+    bad: bool
+    def __init__(self, m, n, seed = None):
+        self.m = np.asarray(m).astype(int).ravel()
+        self.n = int(n)
+        self.M = int(np.sum(self.m))
+        self.bad = bool((self.m < 0).any()) or self.n < 0 or self.n > self.M
+    def logpmf(self, x) -> float:
+        xa = np.asarray(x).astype(int).ravel()
+        if xa.size != self.m.size:
+            raise ValueError("Size of each quantile must be size of 'm'")
+        if self.bad:
+            return NAN
+        tot = 0
+        for i in range(xa.size):
+            if xa[i] < 0 or xa[i] > self.m[i]:
+                return -INF
+            tot += xa[i]
+        if tot != self.n:
+            return -INF
+        num = np.empty(xa.size, dtype=float)
+        for i in range(xa.size):
+            mi = float(self.m[i])
+            xi = float(xa[i])
+            num[i] = K.betaln(mi + 1, 1) - K.betaln(xi + 1, mi - xi + 1)
+        Mf = float(self.M)
+        nf = float(self.n)
+        den = K.betaln(Mf + 1, 1) - K.betaln(nf + 1, Mf - nf + 1)
+        return float(np.sum(num)) - den
+    def pmf(self, x) -> float:
+        return K.exp(self.logpmf(x))
+    def mean(self):
+        Mf = float(self.M)
+        return self.n * (self.m / Mf)
+    def var(self):
+        Mf = float(self.M)
+        mf = self.m.astype(float)
+        return self.n * mf / Mf * (Mf - mf) / Mf * (Mf - self.n) / (Mf - 1)
+    def cov(self):
+        Mf = float(self.M)
+        nf = float(self.n)
+        mf = self.m.astype(float)
+        k = mf.size
+        out = np.empty((k, k), dtype=float)
+        for i in range(k):
+            for j in range(k):
+                out[i, j] = -nf * (Mf - nf) / (Mf - 1) * (mf[i] * mf[j]) / (Mf ** 2)
+            out[i, i] = (nf * (Mf - nf) * mf[i] * (Mf - mf[i])) / (Mf - 1) / (Mf ** 2)
+        return out
+    def rvs(self, size = None, random_state = None):
+        rs = check_random_state(random_state)
+        k = self.m.size
+        if size is None:
+            out = np.empty(k, dtype=int)
+            rem = self.M
+            n = self.n
+            for c in range(k - 1):
+                rem = rem - self.m[c]
+                n0 = 1 if n == 0 else 0
+                v = (1 - n0) * int(rs.hypergeometric(int(self.m[c]), rem + n0, n + n0))
+                out[c] = v
+                n = n - v
+            out[k - 1] = n
+            return out.reshape(1, k)
+        else:
+            cnt = int(size)
+            out = np.empty((cnt, k), dtype=int)
+            rem = self.M
+            nv = np.full(cnt, self.n, dtype=int)
+            for c in range(k - 1):
+                rem = rem - self.m[c]
+                n0 = (nv == 0).astype(int)
+                hv = rs.hypergeometric(np.full(cnt, int(self.m[c]), dtype=int), rem + n0, nv + n0,
+                                       size=cnt)
+                for i in range(cnt):
+                    out[i, c] = (1 - n0[i]) * hv[i]
+                    nv[i] = nv[i] - out[i, c]
+            for i in range(cnt):
+                out[i, k - 1] = nv[i]
+            return out
+
+class multivariate_hypergeom_gen:
+    def __call__(self, m, n, seed = None):
+        return multivariate_hypergeom_frozen(m, n, seed)
+    def logpmf(self, x, m, n) -> float: return multivariate_hypergeom_frozen(m, n).logpmf(x)
+    def pmf(self, x, m, n) -> float: return multivariate_hypergeom_frozen(m, n).pmf(x)
+    def mean(self, m, n): return multivariate_hypergeom_frozen(m, n).mean()
+    def var(self, m, n): return multivariate_hypergeom_frozen(m, n).var()
+    def cov(self, m, n): return multivariate_hypergeom_frozen(m, n).cov()
+    def rvs(self, m, n, size = None, random_state = None):
+        return multivariate_hypergeom_frozen(m, n).rvs(size, random_state)
+
+multivariate_hypergeom = multivariate_hypergeom_gen()

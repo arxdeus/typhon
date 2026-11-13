@@ -31,7 +31,8 @@ from ._discrete_distns import binom, bernoulli, betabinom, nbinom, betanbinom, \
     zipf, zipfian, dlaplace, skellam, yulesimon
 from ._multivariate import multivariate_normal, multivariate_t, dirichlet, \
     multinomial, wishart, invwishart, matrix_normal, ortho_group, \
-    special_ortho_group, random_correlation
+    special_ortho_group, random_correlation, uniform_direction, \
+    dirichlet_multinomial, vonmises_fisher, multivariate_hypergeom
 
 # --- tests / descriptive (lane scipy-stats-tests) ---
 from ._descriptive import gmean, hmean, pmean, mode, tmean, tvar, tstd, tsem, \

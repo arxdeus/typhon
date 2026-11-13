@@ -53,5 +53,24 @@ if float(np.max(np.abs(rc - rc_ref))) > 1e-14:
     print('rcorr', rc, rc_ref)
     ok = False
 
+ok &= close('ud', '', st.uniform_direction.rvs(4, size=2, random_state=np.random.RandomState(5)).ravel().tolist(), [0.1761200432319874, -0.1320698895419077, 0.970264861704819, -0.10062491137526383, 0.05703743619227854, 0.8234722762143875, -0.4731352999807853, -0.3078686880652201], 1e-13)
+al = np.array([1.5, 2.0, 0.7])
+ok &= close('dm_pmf', '', [float(st.dirichlet_multinomial.pmf([3, 2, 5], al, 10))], [0.008194660293967147], 1e-13)
+ok &= close('dm_mean', '', st.dirichlet_multinomial.mean(al, 10).tolist(), [3.571428571428571, 4.761904761904762, 1.6666666666666665], 1e-13)
+ok &= close('dm_cov', '', st.dirichlet_multinomial.cov(al, 10).ravel().tolist(), [6.2696232339089475, -4.6441653584510725, -1.625457875457875, -4.6441653584510725, 6.811442525728239, -2.167277167277167, -1.625457875457875, -2.167277167277167, 3.7927350427350426], 1e-13)
+mu = np.array([0.6, 0.0, 0.8])
+xv = np.array([0.0, 0.6, 0.8])
+ok &= close('vmf_logpdf', '', [float(st.vonmises_fisher.logpdf(xv, mu, 2.5))], [-1.8148255850857031], 1e-13)
+ok &= close('vmf_ent', '', [float(st.vonmises_fisher.entropy(mu, 2.5))], [1.880907310554184], 1e-13)
+ok &= close('vmf_rvs3', '', st.vonmises_fisher.rvs(mu, 2.5, size=3, random_state=np.random.RandomState(5)).ravel().tolist(), [0.9747338666170056, 0.025274025120567596, -0.22193492948174381, 0.6683606919548741, -0.30144334789947513, 0.6800190390399066, 0.29460115605770154, 0.9213517375843957, 0.2536161164036712], 1e-13)
+mu4 = np.array([0.5, 0.5, 0.5, 0.5])
+ok &= close('vmf_rvs4', '', st.vonmises_fisher.rvs(mu4, 3.0, size=2, random_state=np.random.RandomState(5)).ravel().tolist(), [-0.32252465852206497, -0.13010731060079492, 0.2567148489649287, 0.9017468706318683, -0.09095421265536885, 0.1637246167974319, 0.36833893318018746, -0.9106305570089648], 1e-13)
+mu2 = np.array([0.6, 0.8])
+ok &= close('vmf_rvs2', '', st.vonmises_fisher.rvs(mu2, 2.0, size=2, random_state=np.random.RandomState(5)).ravel().tolist(), [0.7816163899401303, 0.6237594239584348, -0.2832939153591657, 0.9590331368208681], 1e-13)
+m = np.array([5, 7, 3])
+ok &= close('mh_pmf', '', [float(st.multivariate_hypergeom.pmf([2, 3, 1], m, 6))], [0.20979020979020996], 1e-13)
+ok &= close('mh_cov', '', st.multivariate_hypergeom.cov(m, 6).ravel().tolist(), [0.8571428571428572, -0.6, -0.2571428571428572, -0.6, 0.96, -0.36, -0.2571428571428572, -0.36, 0.6171428571428572], 1e-13)
+ok &= close('mh_rvs', '', st.multivariate_hypergeom.rvs(m, 6, size=3, random_state=np.random.RandomState(5)).ravel().tolist(), [2.0, 4.0, 0.0, 2.0, 4.0, 0.0, 1.0, 3.0, 2.0], 1e-13)
+
 print('ALL OK' if ok else 'FAILED')
 assert ok
