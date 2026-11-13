@@ -68,6 +68,9 @@ pub const STDLIB: &[&str] = &[
     "stdlib/uuid_test.py", "stdlib/difflib_test.py", "stdlib/pprint_test.py",
     "stdlib/io_mod_test.py", "stdlib/glob_test.py", "stdlib/shutil_test.py",
     "stdlib/tempfile_test.py", "stdlib/types_test.py",
+    "stdlib/math_more_test.py", "stdlib/random_parity_test.py", "stdlib/hmac_secrets_test.py",
+    "stdlib/queue_graphlib_test.py", "stdlib/zlib_timeit_test.py", "stdlib/itertools_more_test.py",
+    "stdlib/string_more_test.py",
 ];
 
 pub const CNUMERICS: &[&str] = &[
@@ -183,6 +186,12 @@ pub const SCIPY: &[&str] = &[
     "mne/test_proj_ref.py", "mne/test_csd_annot.py", "mne/test_montage_io.py",
     "mne/test_epochs_more.py",
     "scipy/test_stats_resampling.py", "scipy/test_stats_tests3.py", "scipy/test_mstats.py",
+    "scipy/test_fft2.py", "scipy/test_fftpack.py", "scipy/test_fitpack.py",
+    "scipy/test_interpolate2.py", "scipy/test_interpolate3.py", "scipy/test_qhull.py",
+    "scipy/test_rbf_griddata.py", "scipy/test_rotation.py", "scipy/test_spatial2.py",
+    "sklearn/test_balltree_kdtree.py", "sklearn/test_neighbors2.py", "sklearn/test_decomposition2.py",
+    "sklearn/test_lda_nmf.py", "sklearn/test_manifold2.py", "sklearn/test_tree_export.py",
+    "mne/test_filter_more.py",
 ];
 
 pub const BRAINDECODE: &[&str] = &[
