@@ -2,7 +2,7 @@
 import warnings; warnings.simplefilter('ignore')
 import numpy as np, scipy.interpolate as I
 from _gen_common import Gen
-setup = ['x = np.linspace(-1.0, 3.0, 40)', 'y = np.tanh(3 * x) + 1.0 / (x + 1.5)', 'q = np.array([-0.95, 0.123, 1.0, 2.71, 3.0])']
+setup = ['xi = np.array([0.0, 0.5, 1.0, 1.5, 2.3, 3.0])', 'yi = np.sin(xi)', 'x = np.linspace(-1.0, 3.0, 40)', 'y = np.tanh(3 * x) + 1.0 / (x + 1.5)', 'q = np.array([-0.95, 0.123, 1.0, 2.71, 3.0])']
 ns = {'np': np, 'I': I}
 for l in setup: exec(l, ns)
 g = Gen(ns, tol=1e-9)
@@ -18,4 +18,22 @@ for d in [0, 1, 3, 5]:
     g.E(f'I.FloaterHormannInterpolator(x, y, d={d})(q)')
 g.E('I.FloaterHormannInterpolator(x, y).weights')
 g.E('I.FloaterHormannInterpolator(x, np.stack([y, y * 2], axis=1), d=1)(q)')
+g.test('test_bpoly')
+g.raw('    b = I.BPoly(np.array([[1.0, 2.0], [0.5, -1.0], [3.0, 0.2]]), np.array([0.0, 1.0, 2.5]))')
+ns['b'] = I.BPoly(np.array([[1.0, 2.0], [0.5, -1.0], [3.0, 0.2]]), np.array([0.0, 1.0, 2.5]))
+ns['qq'] = np.array([0.1, 0.9, 1.7, 2.5, 3.0]); g.raw('    qq = np.array([0.1, 0.9, 1.7, 2.5, 3.0])')
+g.E('b(qq)'); g.E('b(qq, 1)'); g.E('b(qq, 2)'); g.E('b.derivative()(qq)'); g.E('b.antiderivative()(qq)'); g.E('[b.integrate(0.2, 2.2)]'); g.E('[b.integrate(2.2, -0.5)]')
+g.raw('    bd = I.BPoly.from_derivatives(np.array([0.0, 1.0, 3.0]), [[1.0, 2.0], [0.5, -1.0, 0.3], [2.0]])')
+ns['bd'] = I.BPoly.from_derivatives(np.array([0.0, 1.0, 3.0]), [[1.0, 2.0], [0.5, -1.0, 0.3], [2.0]])
+g.E('bd.c'); g.E('bd(qq)'); g.E('bd(qq, 1)')
+g.E('I.BPoly.from_derivatives(np.array([0.0, 1.0]), [[1.0, 2.0, 0.0], [0.5, -1.0]], orders=2).c')
+g.E('I.BPoly.from_power_basis(I.PPoly(np.array([[1.0, -2.0], [0.5, 1.0], [0.3, 0.0]]), np.array([0.0, 1.0, 2.5]))).c')
+g.E('I.BPoly.from_power_basis(I.CubicSpline(xi, yi)).c')
+g.test('test_ndppoly')
+ns['C2'] = np.cos(np.arange(36.0) ** 1.2).reshape(3, 2, 2, 3); ns['gx2'] = (np.array([0.0, 1.0, 2.5]), np.array([-1.0, 0.0, 1.0, 2.0]))
+g.raw('    C2 = np.cos(np.arange(36.0) ** 1.2).reshape(3, 2, 2, 3)')
+g.raw('    gx2 = (np.array([0.0, 1.0, 2.5]), np.array([-1.0, 0.0, 1.0, 2.0]))')
+ns['P2'] = np.array([[0.1, -0.5], [1.7, 0.3], [2.4, 1.9], [3.0, 2.5]]); g.raw('    P2 = np.array([[0.1, -0.5], [1.7, 0.3], [2.4, 1.9], [3.0, 2.5]])')
+g.raw('    nd = I.NdPPoly(C2, gx2)'); ns['nd'] = I.NdPPoly(ns['C2'], ns['gx2'])
+g.E('nd(P2)'); g.E('nd(P2, nu=(1, 0))'); g.E('nd(P2, nu=(1, 1))'); g.E('nd.derivative((0, 1))(P2)'); g.E('nd(P2, extrapolate=False)')
 g.write('test_interpolate3.py', 'gen_interpolate3_expected.py', ['import numpy as np', 'import scipy.interpolate as I'], setup)
