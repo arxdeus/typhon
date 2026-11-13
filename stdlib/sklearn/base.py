@@ -50,8 +50,48 @@ def _accuracy(y_true, y_pred) -> float:
             c += 1
     return float(c) / float(n) if n > 0 else 0.0
 
+def _is_param(k: str) -> bool:
+    """Public constructor parameter: no leading/trailing underscore (fitted
+    attributes end with '_' in sklearn)."""
+    return not k.startswith("_") and not k.endswith("_")
+
+def _param_repr(v) -> str:
+    if isinstance(v, str):
+        return repr(v)
+    elif isinstance(v, NoneType):
+        return "None"
+    elif isinstance(v, Optional):
+        if v is None:
+            return "None"
+        return _param_repr(v.__val__())
+    elif hasattr(v, "get_params") and hasattr(v, "fit"):
+        return estimator_repr(v)
+    else:
+        return str(v)
+
+def get_params(estimator, deep: bool = True) -> Dict[str, str]:
+    """Parameter name -> repr string (Typhon has no heterogeneous dicts;
+    values are the reprs sklearn prints)."""
+    d = Dict[str, str]()
+    for k, v in static.vars(estimator):
+        if _is_param(k):
+            d[k] = _param_repr(v)
+    return d
+
+def estimator_repr(estimator) -> str:
+    """ClassName(param=value, ...) over the public parameters."""
+    parts = List[str]()
+    for k, v in static.vars(estimator):
+        if _is_param(k):
+            parts.append(k + "=" + _param_repr(v))
+    return estimator.__class__.__name__ + "(" + ", ".join(parts) + ")"
+
 class BaseEstimator:
-    """Mixin base: inherit to get set_params() and __sklearn_clone__()."""
+    """Mixin base: inherit to get get_params()/set_params()/__repr__ and
+    __sklearn_clone__()."""
+    def get_params(self, deep: bool = True) -> Dict[str, str]:
+        return get_params(self, deep)
+
     def set_params(self, **params):
         for k, v in static.vars(self):
             if hasattr(params, k):
@@ -61,15 +101,91 @@ class BaseEstimator:
     def __sklearn_clone__(self):
         return _shallow_copy(self)
 
+    def __repr__(self) -> str:
+        return estimator_repr(self)
+
+def _r2(y_true, y_pred) -> float:
+    from .metrics import r2_score
+    return float(r2_score(y_true, y_pred))
+
 class ClassifierMixin:
-    _estimator_type: Literal[str] = "classifier"
+    _estimator_type: ClassVar[str] = "classifier"
 
     def score(self, X, y, sample_weight = None):
-        return _accuracy(y, self.predict(X))
+        if isinstance(sample_weight, NoneType):
+            return _accuracy(y, self.predict(X))
+        else:
+            from .metrics import accuracy_score
+            return accuracy_score(y, self.predict(X), sample_weight=sample_weight)
+
+class RegressorMixin:
+    _estimator_type: ClassVar[str] = "regressor"
+
+    def score(self, X, y, sample_weight = None):
+        from .metrics import r2_score
+        return float(r2_score(y, self.predict(X), sample_weight=sample_weight))
 
 class TransformerMixin:
     def fit_transform(self, X, y = None):
         return self.fit(X, y).transform(X)
 
+class ClusterMixin:
+    _estimator_type: ClassVar[str] = "clusterer"
+
+    def fit_predict(self, X, y = None):
+        self.fit(X)
+        return self.labels_
+
+class BiclusterMixin:
+    pass
+
+class OutlierMixin:
+    _estimator_type: ClassVar[str] = "outlier_detector"
+
+    def fit_predict(self, X, y = None):
+        return self.fit(X).predict(X)
+
+class DensityMixin:
+    _estimator_type: ClassVar[str] = "DensityEstimator"
+
+    def score(self, X, y = None):
+        return 0.0
+
+class MetaEstimatorMixin:
+    pass
+
+class MultiOutputMixin:
+    pass
+
+class OneToOneFeatureMixin:
+    def get_feature_names_out(self, input_features = None) -> List[str]:
+        if isinstance(input_features, NoneType):
+            return [f"x{i}" for i in range(self.n_features_in_)]
+        else:
+            return [str(f) for f in input_features]
+
+class ClassNamePrefixFeaturesOutMixin:
+    def get_feature_names_out(self, input_features = None) -> List[str]:
+        nm = self.__class__.__name__.lower()
+        return [f"{nm}{i}" for i in range(self._n_features_out)]
+
+def _estimator_type_of(estimator) -> str:
+    if hasattr(estimator, "_estimator_type"):
+        return str(estimator._estimator_type)
+    else:
+        return ""
+
 def is_classifier(estimator) -> bool:
-    return hasattr(estimator, "predict")
+    t = _estimator_type_of(estimator)
+    if t != "":
+        return t == "classifier"
+    return hasattr(estimator, "predict_proba") or hasattr(estimator, "decision_function") and hasattr(estimator, "classes_")
+
+def is_regressor(estimator) -> bool:
+    return _estimator_type_of(estimator) == "regressor"
+
+def is_clusterer(estimator) -> bool:
+    return _estimator_type_of(estimator) == "clusterer"
+
+def is_outlier_detector(estimator) -> bool:
+    return _estimator_type_of(estimator) == "outlier_detector"
