@@ -20,3 +20,4 @@ from ._match import match_channel_orders
 from .eximia import read_raw_eximia
 from .nicolet import read_raw_nicolet
 from .hitachi import read_raw_hitachi
+from .persyst import read_raw_persyst
