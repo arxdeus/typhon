@@ -349,12 +349,29 @@ def _deflate_raw(data: bytes, level: int) -> List[int]:
     return w.out
 
 def compress(data: bytes, /, level: int = -1, wbits: int = 15) -> bytes:
-    raw = _deflate_raw(data, level)
+    from _zdeflate import _Deflate
+    if level == -1:
+        level = 6
+    if level < 0 or level > 9:
+        raise error("Bad compression level")
+    wb = wbits
+    if wb < 0:
+        wb = -wb
+    elif wb >= 16:
+        wb -= 16
+    if wb < 9:
+        wb = 9
+    raw = List[int]()
+    if level == 0:
+        raw = _deflate_raw(data, 0)
+    else:
+        raw = _Deflate(data, level, wb).run()
     out = List[int]()
     if wbits < 0:
         return bytes(raw)
     if wbits >= 16:
-        for v in [0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 255]:
+        xfl = 2 if level == 9 else (4 if level < 2 else 0)
+        for v in [0x1f, 0x8b, 8, 0, 0, 0, 0, 0, xfl, 3]:
             out.append(v)
         for v in raw:
             out.append(v)
@@ -365,8 +382,11 @@ def compress(data: bytes, /, level: int = -1, wbits: int = 15) -> bytes:
         for k in range(4):
             out.append((n >> (8 * k)) & 255)
         return bytes(out)
-    out.append(0x78)
-    out.append(0x01 if level == 0 or level == 1 else (0xDA if level >= 7 else 0x9C))
+    lf = 0 if level < 2 else (1 if level < 6 else (2 if level == 6 else 3))
+    hdr = ((8 + ((wb - 8) << 4)) << 8) | (lf << 6)
+    hdr += 31 - hdr % 31
+    out.append(hdr >> 8)
+    out.append(hdr & 255)
     for v in raw:
         out.append(v)
     a = adler32(data)
