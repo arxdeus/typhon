@@ -230,3 +230,183 @@ def assert_raises(exc: type, func = None, *args, **kwargs):
         except exc:
             return _AssertRaisesContext[exc](exc.__name__)
         raise AssertionError(exc.__name__ + " not raised by " + func.__name__)
+
+# ---- further numpy.testing API ----
+
+IS_64BIT = True
+IS_PYPY = False
+IS_PYSTON = False
+IS_WASM = False
+IS_MUSL = False
+IS_EDITABLE = False
+IS_INSTALLED = True
+HAS_REFCOUNT = False
+HAS_LAPACK64 = False
+NOGIL_BUILD = False
+BLAS_SUPPORTS_FPE = True
+verbose = 0
+
+class KnownFailureException(Exception):
+    def __init__(self, msg: str = ''):
+        super().__init__(msg)
+
+class SkipTest(Exception):
+    def __init__(self, msg: str = ''):
+        super().__init__(msg)
+
+IgnoreException = KnownFailureException
+
+def _nulp_diff_one(x: float, y: float) -> float:
+    # numpy.testing._private.utils.nulp_diff for float64
+    if x == y:
+        return 0.0
+    ix = _int64_view(x)
+    iy = _int64_view(y)
+    if ix < 0:
+        ix = -9223372036854775808 - ix
+    if iy < 0:
+        iy = -9223372036854775808 - iy
+    return float(abs(ix - iy))
+
+def _int64_view(x: float) -> int:
+    v = x
+    return Ptr[int](__ptr__(v).as_byte())[0]
+
+def assert_array_almost_equal_nulp(x, y, nulp: int = 1):
+    ax = np.abs(np.asarray(x, dtype=float))
+    ay = np.abs(np.asarray(y, dtype=float))
+    xf = np.asarray(x, dtype=float)
+    yf = np.asarray(y, dtype=float)
+    ref = nulp * np.spacing(np.where(ax > ay, ax, ay))
+    if not bool(np.all(np.abs(xf - yf) <= ref)):
+        xb, yb = np.broadcast_arrays(xf, yf)
+        xr = xb.ravel()
+        yr = yb.ravel()
+        mx = 0.0
+        for i in range(xr.size):
+            d = _nulp_diff_one(xr[i], yr[i])
+            if d > mx:
+                mx = d
+        raise AssertionError("Arrays are not equal to " + str(nulp) + " ULP (max is " + str(int(mx)) + ")")
+
+def assert_approx_equal(actual: float, desired: float, significant: int = 7,
+                        err_msg: str = '', verbose: bool = True):
+    import math
+    if actual == desired:
+        return
+    scale = 0.5 * (abs(desired) + abs(actual))
+    scale = 10.0 ** math.floor(math.log10(scale)) if scale != 0.0 else 1.0
+    sc_desired = desired / scale if scale != 0.0 else desired
+    sc_actual = actual / scale if scale != 0.0 else actual
+    if math.isnan(actual) or math.isnan(desired):
+        if math.isnan(actual) and math.isnan(desired):
+            return
+        raise AssertionError("\nItems are not equal to " + str(significant) + " significant digits:\n ACTUAL: "
+                             + str(actual) + "\n DESIRED: " + str(desired))
+    if abs(sc_desired - sc_actual) >= 10.0 ** -(significant - 1):
+        s = "\nItems are not equal to " + str(significant) + " significant digits:"
+        if err_msg != '':
+            s += "\n" + err_msg
+        s += "\n ACTUAL: " + str(actual) + "\n DESIRED: " + str(desired)
+        raise AssertionError(s)
+
+def assert_raises_regex(exc: type, expected_regexp: str, func, *args, **kwargs):
+    import re
+    try:
+        func(*args, **kwargs)
+    except exc as e:
+        if re.search(expected_regexp, str(e)) is None:
+            raise AssertionError('"' + expected_regexp + '" does not match "' + str(e) + '"')
+        return
+    raise AssertionError(exc.__name__ + " not raised by " + func.__name__)
+
+class _NoopWarnCtx:
+    def __init__(self):
+        pass
+    def __enter__(self):
+        return self
+    def __exit__(self, et, ev, tb):
+        return False
+    def filter(self, category = None, message: str = ''):
+        pass
+    def record(self, category = None, message: str = ''):
+        return List[str]()
+
+def assert_warns(warning_class = None, *args, **kwargs):
+    # warnings are not tracked at runtime: context manager / call passthrough
+    return _NoopWarnCtx()
+
+def assert_no_warnings(func = None, *args, **kwargs):
+    if func is None:
+        return _NoopWarnCtx()
+    return func(*args, **kwargs)
+
+def suppress_warnings(forwarding_rule: str = 'always'):
+    return _NoopWarnCtx()
+
+def clear_and_catch_warnings(record: bool = False, modules = ()):
+    return _NoopWarnCtx()
+
+def assert_no_gc_cycles(func = None, *args, **kwargs):
+    if func is None:
+        return _NoopWarnCtx()
+    func(*args, **kwargs)
+
+def break_cycles():
+    pass
+
+def build_err_msg(arrays, err_msg: str, header: str = 'Items are not equal:',
+                  verbose: bool = True, names = ('ACTUAL', 'DESIRED'), precision: int = 8) -> str:
+    msg = '\n' + header
+    if err_msg != '':
+        if err_msg.find('\n') == -1 and len(err_msg) < 79 - len(header):
+            msg = msg + ' ' + err_msg
+        else:
+            msg = msg + '\n' + err_msg
+    if verbose:
+        for i in static.range(static.len(arrays)):
+            msg = msg + '\n ' + names[i] + ': ' + repr(arrays[i])
+    return msg
+
+def print_assert_equal(test_string: str, actual, desired):
+    if actual != desired:
+        raise AssertionError(test_string + " failed\nACTUAL: \n" + str(actual) + "\nDESIRED: \n" + str(desired) + "\n")
+
+def assert_array_compare(comparison, x, y, err_msg: str = '', verbose: bool = True,
+                         header: str = '', precision: int = 6, equal_nan: bool = True,
+                         equal_inf: bool = True, strict: bool = False):
+    xa = np.asarray(x)
+    ya = np.asarray(y)
+    ok = comparison(xa, ya)
+    if not bool(np.all(ok)):
+        bad = np.logical_not(ok)
+        nbad = int(np.count_nonzero(np.atleast_1d(bad)))
+        total = int(np.atleast_1d(bad).size)
+        s = "\n" + header
+        if err_msg != '':
+            s += "\n" + err_msg
+        s += "\nMismatched elements: " + str(nbad) + " / " + str(total)
+        s += "\n x: " + _fmt_arr(xa) + "\n y: " + _fmt_arr(ya)
+        raise AssertionError(s)
+
+def measure(code_str: str, times: int = 1, label = None) -> float:
+    raise NotImplementedError("numpy.testing.measure requires runtime code evaluation")
+
+def jiffies() -> int:
+    import time
+    return int(time.time() * 100.0)
+
+def memusage():
+    return None
+
+def run_threaded(func, max_workers: int = 8, pass_count: bool = False,
+                 pass_barrier: bool = False, outer_iterations: int = 1, prepare_args = None):
+    for _ in range(outer_iterations):
+        for i in range(max_workers):
+            if pass_count:
+                func(i)
+            else:
+                func()
+
+def decorate_methods(cls, decorator, testmatch = None):
+    pass

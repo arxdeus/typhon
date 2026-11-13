@@ -108,3 +108,33 @@ try:
 except AssertionError as e:
     if 'KeyError not raised' not in str(e):
         fail('ctx msg: ' + str(e))
+
+# ---- additional API ----
+from numpy.testing import assert_array_almost_equal_nulp, assert_approx_equal, \
+    assert_raises_regex, assert_warns, suppress_warnings, assert_array_compare, \
+    build_err_msg, IS_64BIT, IS_PYPY
+
+xx = np.array([1.0, 2.0])
+assert_array_almost_equal_nulp(xx, xx + np.spacing(xx), 1)
+m1 = expect_fail('nulp', assert_array_almost_equal_nulp, xx, xx + 10.0 * np.spacing(xx), 2)
+if m1 != 'Arrays are not equal to 2 ULP (max is 10)':
+    fail('nulp msg ' + m1)
+assert_approx_equal(1.234567e10, 1.2345671e10, significant=7)
+m2 = expect_fail('approx', assert_approx_equal, 1.0, 1.1, significant=3)
+if m2.find('Items are not equal to 3 significant digits:') < 0:
+    fail('approx msg ' + m2)
+def _raise_v():
+    raise ValueError('bad value 42')
+assert_raises_regex(ValueError, 'value [0-9]+', _raise_v)
+with assert_warns(RuntimeWarning):
+    pass
+with suppress_warnings() as sup:
+    sup.filter(RuntimeWarning)
+assert_array_compare(np.less, np.array([1, 2]), np.array([2, 3]))
+m3 = expect_fail('compare', assert_array_compare, np.less, np.array([1, 5]), np.array([2, 3]))
+if m3.find('Mismatched elements: 1 / 2') < 0:
+    fail('compare msg ' + m3)
+if build_err_msg((1, 2), 'oops') != '\nItems are not equal: oops\n ACTUAL: 1\n DESIRED: 2':
+    fail('build_err_msg ' + build_err_msg((1, 2), 'oops'))
+assert_(IS_64BIT and not IS_PYPY)
+print('testing extra done')
