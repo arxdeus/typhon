@@ -64,9 +64,24 @@ def lru_cache(maxsize: Optional[int] = 128, typed: bool = False):
         return _cache_wrapper(user_function)
     return decorating_function
 
+def _cache_cell_get(cell: Ptr[cobj], d: T, T: type) -> T:
+    return Ptr[T](cell.as_byte())[0]
+
+def _cache_cell_set(cell: Ptr[cobj], d: T, T: type):
+    Ptr[T](cell.as_byte())[0] = d
+
 def _cache_wrapper(user_function):
-    d = {}
+    # The memo dict lives in a heap cell owned by the closure. It is created inside
+    # the wrapper, where its key/value types are inferred from the inserts (an empty
+    # literal in the enclosing function would be typed before the closure is realized).
+    cell = Ptr[cobj](1)
+    cell[0] = cobj()
     def wrapper(*args):
+        d = {}
+        if cell[0]:
+            d = _cache_cell_get(cell, d)
+        else:
+            _cache_cell_set(cell, d)
         if args in d:
             return d[args]
         r = user_function(*args)
