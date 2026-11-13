@@ -149,3 +149,32 @@ class set_workers:
         _WORKERS[0] = self.workers
     def __exit__(self):
         _WORKERS[0] = self.old
+
+# ---- backend API (scipy.fft._backend). Only the built-in backend exists, so
+# these are accepted and ignored.
+
+def set_global_backend(backend, coerce: bool = False, only: bool = False, try_last: bool = False):
+    pass
+
+def register_backend(backend):
+    pass
+
+class set_backend:
+    def __init__(self, backend, coerce: bool = False, only: bool = False):
+        pass
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self):
+        pass
+
+class skip_backend:
+    def __init__(self, backend):
+        pass
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self):
+        pass

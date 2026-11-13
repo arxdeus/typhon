@@ -1353,3 +1353,152 @@ def dendrogram(Z, p: int = 30, truncate_mode: Optional[str] = None, color_thresh
                 lcl[(int(xi) - 5) // 10] = R.color_list[t]
     R.leaves_color_list = lcl
     return R
+
+# ---------------------------------------------------------------- additions
+
+class ClusterWarning(Warning):
+    pass
+
+def from_mlab_linkage(Z):
+    """Convert a MATLAB linkage matrix (n-1 x 3, 1-based ids) to scipy format."""
+    a = np.ascontiguousarray(np.asarray(Z, dtype=float))
+    if static.len(a.shape) != 2:
+        compile_error("linkage matrix must be 2-D")
+    m = a.shape[0]
+    if m == 0:
+        return np.empty((0, 4), dtype=float)
+    if a.shape[1] != 3:
+        raise ValueError("The linkage array must have 3 columns")
+    mn = a[0, 0]
+    mx = a[0, 0]
+    for i in range(m):
+        for j in range(2):
+            if a[i, j] < mn:
+                mn = a[i, j]
+            if a[i, j] > mx:
+                mx = a[i, j]
+    if mn != 1.0 and mx != 2.0 * m:
+        raise ValueError("The format of the indices is not 1..N")
+    n = m + 1
+    out = np.empty((m, 4), dtype=float)
+    cs = List[float](m)
+    for i in range(m):
+        s = 0.0
+        for j in range(2):
+            c = int(a[i, j]) - 1
+            out[i, j] = float(c)
+            if c < n:
+                s += 1.0
+            else:
+                s += cs[c - n]
+        cs.append(s)
+        out[i, 2] = a[i, 2]
+        out[i, 3] = s
+    return out
+
+def to_mlab_linkage(Z):
+    """Convert a scipy linkage matrix to MATLAB format (n-1 x 3, 1-based ids)."""
+    a = np.ascontiguousarray(np.asarray(Z, dtype=float))
+    if static.len(a.shape) != 2:
+        compile_error("linkage matrix must be 2-D")
+    m = a.shape[0]
+    if m == 0:
+        return np.empty((0, 3), dtype=float)
+    is_valid_linkage(a, throw=True, name="Z")
+    out = np.empty((m, 3), dtype=float)
+    for i in range(m):
+        out[i, 0] = a[i, 0] + 1.0
+        out[i, 1] = a[i, 1] + 1.0
+        out[i, 2] = a[i, 2]
+    return out
+
+class DisjointSet[T]:
+    """Disjoint set data structure (union-find) with union by size and
+    path halving. Subsets are enumerated in element insertion order."""
+    _parents: Dict[T, T]
+    _sizes: Dict[T, int]
+    _nbrs: Dict[T, T]
+    _order: List[T]
+    n_subsets: int
+
+    def __init__(self, elements: Optional[List[T]] = None):
+        self._parents = Dict[T, T]()
+        self._sizes = Dict[T, int]()
+        self._nbrs = Dict[T, T]()
+        self._order = List[T]()
+        self.n_subsets = 0
+        if elements is not None:
+            for x in elements:
+                self.add(x)
+
+    def __len__(self) -> int:
+        return len(self._order)
+
+    def __contains__(self, x: T) -> bool:
+        return x in self._parents
+
+    def __iter__(self):
+        for x in self._order:
+            yield x
+
+    def add(self, x: T):
+        if x in self._parents:
+            return
+        self._order.append(x)
+        self._parents[x] = x
+        self._nbrs[x] = x
+        self._sizes[x] = 1
+        self.n_subsets += 1
+
+    def _find(self, x: T) -> T:
+        if x not in self._parents:
+            raise KeyError(x)
+        while self._parents[x] != x:
+            self._parents[x] = self._parents[self._parents[x]]
+            x = self._parents[x]
+        return x
+
+    def __getitem__(self, x: T) -> T:
+        return self._find(x)
+
+    def merge(self, x: T, y: T) -> bool:
+        xr = self._find(x)
+        yr = self._find(y)
+        if xr == yr:
+            return False
+        if self._sizes[xr] < self._sizes[yr]:
+            t = xr
+            xr = yr
+            yr = t
+        self._parents[yr] = xr
+        self._sizes[xr] += self._sizes[yr]
+        t1 = self._nbrs[xr]
+        self._nbrs[xr] = self._nbrs[yr]
+        self._nbrs[yr] = t1
+        self.n_subsets -= 1
+        return True
+
+    def connected(self, x: T, y: T) -> bool:
+        return self._find(x) == self._find(y)
+
+    def subset(self, x: T) -> List[T]:
+        self._find(x)
+        out = [x]
+        cur = self._nbrs[x]
+        while cur != x:
+            out.append(cur)
+            cur = self._nbrs[cur]
+        return out
+
+    def subset_size(self, x: T) -> int:
+        return self._sizes[self._find(x)]
+
+    def subsets(self) -> List[List[T]]:
+        seen = Dict[T, bool]()
+        res = List[List[T]]()
+        for x in self._order:
+            r = self._find(x)
+            if r not in seen:
+                seen[r] = True
+                res.append(self.subset(x))
+        return res
