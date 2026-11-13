@@ -186,6 +186,10 @@ def Epochs(raw, events = None, event_id = None, tmin: float = -0.2, tmax: float 
     good = List[int]()
     datas = List[np.ndarray[float, 2]]()
     sel_arr = np.array(pk, dtype=int)
+    from ._proj import _setup_proj
+    projector: Optional[np.ndarray[float, 2]] = None
+    if proj and len(info.projs) > 0:
+        projector = _setup_proj(info, True)
     for idx in selected:
         es = int(ev[idx, 0])
         start = int(round(es + raw_times[0] * sfreq)) - first_samp
@@ -224,6 +228,8 @@ def Epochs(raw, events = None, event_id = None, tmin: float = -0.2, tmax: float 
             _rescale_3d(e3, raw_times, bl.__val__(), dpk)
             ep = e3.reshape((ep.shape[0], ep.shape[1]))
         ep = ep[:, np.array(dsel, dtype=int)].copy()
+        if projector is not None:
+            ep = np.dot(projector.__val__(), ep)
         bads = _is_good(ep, info, rej, fl, rt0, rt1)
         if len(bads) > 0:
             for b in bads:

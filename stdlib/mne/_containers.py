@@ -927,7 +927,12 @@ class RawArray:
                           ch_type = "auto", forward = None, *, joint: bool = False, verbose = None):
         """Average or channel re-referencing of EEG channels (in place, returns self)."""
         if projection:
-            raise NotImplementedError("projection=True is not supported in Typhon mne")
+            from ._proj import make_eeg_average_ref_proj, _has_eeg_average_ref_proj, _add_projs
+            if not (isinstance(ref_channels, str) and ref_channels == "average"):
+                raise ValueError("Setting projection=True is only supported for ref_channels=\"average\"")
+            if not _has_eeg_average_ref_proj(self.info):
+                _add_projs(self.info, [make_eeg_average_ref_proj(self.info, ch_type if not isinstance(ch_type, str) or ch_type != "auto" else "eeg", False)], False)
+            return self
         eeg = [i for i in range(self.info.nchan)
                if self.info.ch_types[i] == "eeg" and self.info.ch_names[i] not in self.info.bads]
         refs = List[int]()

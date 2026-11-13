@@ -158,6 +158,44 @@ def _ras_to_neuromag(nasion64, lpa64, rpa64) -> np.ndarray[float, 2]:
     return np.dot(rot, tr)
 
 
+class Projection:
+    """SSP projection item (mne.Projection): vectors in rows of data over col_names."""
+    desc: str
+    kind: int
+    active: bool
+    col_names: List[str]
+    data: np.ndarray[float, 2]
+    explained_var: Optional[float]
+
+    def __init__(self, desc: str, kind: int, active: bool, col_names: List[str],
+                 data: np.ndarray[float, 2], explained_var: Optional[float] = None):
+        self.desc = desc
+        self.kind = kind
+        self.active = active
+        self.col_names = col_names
+        self.data = data
+        self.explained_var = explained_var
+
+    def copy(self):
+        return Projection(self.desc, self.kind, self.active, list(self.col_names),
+                          self.data.copy(), self.explained_var)
+
+    def __getitem__(self, key: Literal[str]):
+        if key == "active":
+            return self.active
+        elif key == "desc":
+            return self.desc
+        elif key == "kind":
+            return self.kind
+        elif key == "explained_var":
+            return self.explained_var
+        else:
+            compile_error("unsupported Projection key")
+
+    def __repr__(self) -> str:
+        return f"<Projection | {self.desc}, active : {self.active}, n_channels : {len(self.col_names)}>"
+
+
 class Info:
     """Measurement info (subset of mne.Info)."""
     ch_names: List[str]
@@ -175,6 +213,7 @@ class Info:
     line_freq: Optional[float]
     experimenter: Optional[str]
     _montage: Optional[DigMontage]
+    projs: List[Projection]
 
     def __init__(self, ch_names: List[str], sfreq: float, ch_types: List[str]):
         self.ch_names = ch_names
@@ -193,6 +232,7 @@ class Info:
         self.line_freq = None
         self.experimenter = None
         self._montage = None
+        self.projs = List[Projection]()
 
     def _copy_extra_from(self, other: Info, sel: List[int]):
         self.cals = [other.cals[i] for i in sel]
@@ -202,6 +242,7 @@ class Info:
         self.units = [other.units[i] for i in sel]
         self.line_freq = other.line_freq
         self.experimenter = other.experimenter
+        self.projs = [p.copy() for p in other.projs]
         if other._montage is not None:
             keep = [other.ch_names[i] for i in sel]
             m = other._montage.__val__()
@@ -237,6 +278,8 @@ class Info:
             return self.lowpass
         elif key == "description":
             return self.description
+        elif key == "projs":
+            return self.projs
         else:
             compile_error("unsupported Info key")
 
@@ -256,7 +299,7 @@ class Info:
             compile_error("unsupported or read-only Info key")
 
     def __contains__(self, key: str) -> bool:
-        return key in ("sfreq", "ch_names", "nchan", "bads", "highpass", "lowpass", "description")
+        return key in ("sfreq", "ch_names", "nchan", "bads", "highpass", "lowpass", "description", "projs")
 
     def get_channel_types(self, picks=None, unique: bool = False, only_data_chs: bool = False) -> List[str]:
         idx = _picks_to_idx(self, picks, "all", ())

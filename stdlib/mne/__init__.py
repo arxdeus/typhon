@@ -19,7 +19,8 @@ from .event import (find_events, find_stim_steps, make_fixed_length_events, merg
 from .io import read_raw_fif
 import channels
 from .channels import make_standard_montage, make_dig_montage, equalize_channels
-from ._info import DigMontage
+from ._info import DigMontage, Projection
+from ._proj import (compute_proj_raw, compute_proj_epochs, compute_proj_evoked)
 import filter
 import event
 import io
