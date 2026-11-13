@@ -1863,3 +1863,98 @@ class float:
                 raise OverflowError("integer ratio does not fit in int")
             den = 1 << (-exp)
         return (num, den)
+
+@extend
+class int:
+    def bit_count(self) -> int:
+        n = self if self >= 0 else -self
+        c = 0
+        while n:
+            n &= n - 1
+            c += 1
+        return c
+
+
+@extend
+class float:
+    def hex(self) -> str:
+        @nocapture
+        @C
+        def frexp(a: float, b: Ptr[Int[32]]) -> float: pass
+
+        if self != self:
+            return "nan"
+        if self == (1.0).cdiv(0.0):
+            return "inf"
+        if self == (-1.0).cdiv(0.0):
+            return "-inf"
+        sign = "-" if (self < 0.0 or (self == 0.0 and (1.0).cdiv(self) < 0.0)) else ""
+        x = -self if self < 0.0 else self
+        if x == 0.0:
+            return sign + "0x0.0p+0"
+        e = Int[32](0)
+        m = frexp(x, __ptr__(e))  # x = m * 2**e, 0.5 <= m < 1
+        exp = int(e) - 1
+        m *= 2.0  # 1 <= m < 2
+        if exp < -1022:
+            m = m * (1.0 if False else 1.0)
+            sh = -1022 - exp
+            for _ in range(sh):
+                m *= 0.5
+            exp = -1022
+        lead = int(m)
+        frac = m - float(lead)
+        digits = ""
+        hexd = "0123456789abcdef"
+        for _ in range(13):
+            frac *= 16.0
+            d = int(frac)
+            digits += hexd[d]
+            frac -= float(d)
+        es = "+" if exp >= 0 else "-"
+        return sign + "0x" + str(lead) + "." + digits + "p" + es + str(abs(exp))
+
+    @staticmethod
+    def fromhex(s: str) -> float:
+        t = s.strip().lower()
+        neg = False
+        if t.startswith("-"):
+            neg = True
+            t = t[1:]
+        elif t.startswith("+"):
+            t = t[1:]
+        if t == "inf" or t == "infinity":
+            r = (1.0).cdiv(0.0)
+            return -r if neg else r
+        if t == "nan":
+            return (0.0).cdiv(0.0)
+        if t.startswith("0x"):
+            t = t[2:]
+        pe = t.find("p")
+        e = 0
+        if pe >= 0:
+            e = int(t[pe + 1:])
+            t = t[:pe]
+        dot = t.find(".")
+        ip = t
+        fp = ""
+        if dot >= 0:
+            ip = t[:dot]
+            fp = t[dot + 1:]
+        if len(ip) + len(fp) == 0:
+            raise ValueError("invalid hexadecimal floating-point string")
+        r = 0.0
+        for ch in ip:
+            r = r * 16.0 + float(int(ch, 16))
+        sc = 1.0 / 16.0
+        for ch in fp:
+            r += float(int(ch, 16)) * sc
+            sc /= 16.0
+        k = e
+        while k > 0:
+            r *= 2.0
+            k -= 1
+        while k < 0:
+            r *= 0.5
+            k += 1
+        return -r if neg else r
