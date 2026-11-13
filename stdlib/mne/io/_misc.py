@@ -251,6 +251,12 @@ def read_raw(fname, *, preload = False, verbose = None, **kwargs):
     if low.endswith(".dat"):
         from .bci2k import read_raw_bci2k
         return read_raw_bci2k(f, preload = preload)
+    if low.endswith(".ns1") or low.endswith(".ns2") or low.endswith(".ns3") or low.endswith(".ns4") or low.endswith(".ns5") or low.endswith(".ns6"):
+        from .nsx import read_raw_nsx
+        return read_raw_nsx(f, preload = preload)
+    if low.endswith(".lay"):
+        from .persyst import read_raw_persyst
+        return read_raw_persyst(f, preload = preload)
     if low.endswith(".eeg"):
         from .nihon import read_raw_nihon
         return read_raw_nihon(f, preload = preload)
