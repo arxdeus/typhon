@@ -19,4 +19,4 @@ from _bsplines2 import make_lsq_spline, make_smoothing_spline, make_splrep, make
     generate_knots
 from _ndgriddata import LinearNDInterpolator, CloughTocher2DInterpolator, NearestNDInterpolator, griddata
 from _bpoly import BPoly
-from _fitpack2d import RectBivariateSpline, bisplev
+from _fitpack2d import RectBivariateSpline, bisplev, SmoothBivariateSpline, LSQBivariateSpline, bisplrep
