@@ -371,3 +371,6 @@ from ._truncated_svd import TruncatedSVD
 from ._nmf import NMF
 from ._kernel_pca import KernelPCA
 from ._incremental_fa import IncrementalPCA, FactorAnalysis
+from ._dict_learning import (DictionaryLearning, MiniBatchDictionaryLearning, SparseCoder,
+                             sparse_encode, dict_learning, dict_learning_online)
+from ._sparse_pca import SparsePCA, MiniBatchSparsePCA
