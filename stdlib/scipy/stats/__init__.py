@@ -60,3 +60,7 @@ from ._kde_binned import gaussian_kde, binned_statistic, binned_statistic_2d, \
 # --- resampling / extra tests (lane scipy-stats-tests-2) ---
 from ._resampling import bootstrap, permutation_test, monte_carlo_test, \
     BootstrapResult, PermutationTestResult, MonteCarloTestResult
+from ._stats_extra import sigmaclip, obrientransform, gzscore, directional_stats, \
+    expectile, lmoment, chatterjeexi, quantile_test, SigmaclipResult, DirectionalStats, \
+    QuantileTestResult
+from . import mstats
