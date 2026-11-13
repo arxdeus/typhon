@@ -153,6 +153,11 @@ impl<'a> TypecheckVisitor<'a> {
         }
         let Some(mut callee_fn) = callee_fn else { return Ok(()) };
 
+        // `isinstance(x, Tuple[T, ...])`: expand the variadic tuple annotation to the arity
+        // of `x` (`Tuple[T, T, T]`) so that the static check compares element-wise.
+        if types.func_name(callee_fn) == mangle::func("", "isinstance") && !self.rewrite_variadic_tuple_isinstance(e)? {
+            return Ok(()); // delay until the object type is known
+        }
         if !self.with_class_generics(callee_fn, true, true, false, |v| v.transform_call_args(e))? {
             return Ok(());
         }
@@ -1479,3 +1484,36 @@ impl<'a> TypecheckVisitor<'a> {
 
 #[allow(dead_code)]
 fn _unused(_: DotExpr, _: IdExpr) {}
+
+impl<'a> TypecheckVisitor<'a> {
+    /// `isinstance(x, Tuple[T, ...])` (or `tuple[T, ...]`): replace the variadic annotation
+    /// by `Tuple[T, ..., T]` with the arity of `x` (a non-tuple `x` gets `Tuple[T]` that
+    /// never matches). Returns false if the type of `x` is not known yet.
+    fn rewrite_variadic_tuple_isinstance(&mut self, e: ExprId) -> Result<bool> {
+        let types = self.types();
+        let items = self.call_items(e);
+        if items.len() != 2 {
+            return Ok(true);
+        }
+        let (Some(obj), Some(te)) = (items[0].value, items[1].value) else { return Ok(true) };
+        let Some(ix) = self.ast()[te].kind.as_index().cloned() else { return Ok(true) };
+        let head_ok = ix.expr.and_then(|h| self.ast()[h].kind.as_id()).is_some_and(|i| i.value == "Tuple" || i.value == "tuple");
+        let Some(tup) = ix.index.and_then(|i| self.ast()[i].kind.as_tuple()).cloned() else { return Ok(true) };
+        if !head_ok || tup.items.len() != 2 || self.ast()[tup.items[1]].kind.as_ellipsis().is_none() {
+            return Ok(true);
+        }
+        let obj = self.tr(obj)?;
+        let mut items = items;
+        items[0].value = Some(obj);
+        self.set_call_items(e, items.clone());
+        let Some(oc) = self.expr_class(obj).filter(|t| types.can_realize(*t)) else { return Ok(false) };
+        let n = if types.is(oc, &stdlib().tuple) { types.generics_len(oc).max(1) } else { 1 };
+        let elems: Vec<ExprId> = (0..n).map(|_| self.cache.ast.clone_expr(tup.items[0], false)).collect();
+        let head = self.id_n("Tuple");
+        let idx = if n == 1 { elems[0] } else { self.n_expr(TupleExpr { items: elems }) };
+        let ne = self.n_expr(crate::ast::IndexExpr { expr: Some(head), index: Some(idx) });
+        items[1].value = Some(ne);
+        self.set_call_items(e, items);
+        Ok(true)
+    }
+}

@@ -2178,3 +2178,14 @@ for seed in range(2):
     callbacks.append(append(7, ...))
 assert callbacks[0]() == [0, 7]
 assert callbacks[1]() == [1, 7]
+
+#%% isinstance_variadic_tuple,barebones
+from typing import Tuple
+def isvt(x):
+    return isinstance(x, Tuple[str, ...])
+print(isvt(("a", "b")), isvt(("a", 1)), isvt(1), isvt(("z",)))
+#: True False False True
+def hr(r: range):
+    return len(r)
+print(hr(range(3)))
+#: 3
