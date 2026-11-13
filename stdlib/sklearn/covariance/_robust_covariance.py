@@ -285,6 +285,10 @@ class EllipticEnvelope(MinCovDet):
     def fit_predict(self, X, y = None):
         return self.fit(X).predict(X)
 
-    def score(self, X, y, sample_weight = None) -> float:
+    def score(self, X, y = None, sample_weight = None) -> float:
+        # sklearn: accuracy of predict(X) against y (y is required there)
         from ..base import _accuracy
-        return _accuracy(y, self.predict(X))
+        if isinstance(y, NoneType):
+            raise TypeError("EllipticEnvelope.score() missing required argument: 'y'")
+        else:
+            return _accuracy(y, self.predict(X))
