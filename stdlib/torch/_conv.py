@@ -109,7 +109,42 @@ def _col2im(T: type, cols: Ptr[T], g: _Geo, c0: int, Cg: int, xp: Ptr[T]):
 def _is_1x1_simple(g: _Geo) -> bool:
     return g.KH == 1 and g.KW == 1 and g.sh == 1 and g.sw == 1 and g.ph == 0 and g.pw == 0
 
+def _fwd_depthwise_row(T: type, x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor):
+    # Depthwise single-row conv (conv1d with groups == in_channels, stride 1,
+    # dilation 1), as ATen's CPU path on arm64: per output a sequential fused
+    # multiply-add over the kernel taps starting from 0 (zero-padding taps
+    # included as fma(0, w, acc)), then + bias.
+    xp = Ptr[T](x._st.ptr) + x._off
+    wp = Ptr[T](w._st.ptr) + w._off
+    op = Ptr[T](out._st.ptr) + out._off
+    Og = g.O // g.G
+    L = g.OW
+    KW = g.KW
+    for n in range(g.N):
+        for o in range(g.O):
+            xr = xp + (n * g.C + o // Og) * g.W
+            wr = wp + o * KW
+            q = op + (n * g.O + o) * L
+            bv = T(0.0)
+            if b is not None:
+                bv = (Ptr[T](b._st.ptr) + b._off)[o]
+            for i in range(L):
+                acc = T(0.0)
+                s = i - g.pw
+                if s >= 0 and s + KW <= g.W:
+                    for k in range(KW):
+                        acc = T._fma(xr[s + k], wr[k], acc)
+                else:
+                    for k in range(KW):
+                        j = s + k
+                        xv = xr[j] if 0 <= j < g.W else T(0.0)
+                        acc = T._fma(xv, wr[k], acc)
+                q[i] = acc + bv
+
 def _fwd(T: type, x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor):
+    if g.H == 1 and g.KH == 1 and g.ph == 0 and g.sw == 1 and g.dw == 1 and g.G > 1 and g.C == g.G:
+        _fwd_depthwise_row(T, x, w, b, g, out)
+        return
     xp = Ptr[T](x._st.ptr) + x._off
     wp = Ptr[T](w._st.ptr) + w._off
     op = Ptr[T](out._st.ptr) + out._off
