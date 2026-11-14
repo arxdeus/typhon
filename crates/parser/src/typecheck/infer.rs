@@ -204,8 +204,10 @@ impl<'a> TypecheckVisitor<'a> {
             // A pass-through unbound that is a field of a partially deduced `self` (helper
             // methods called from `__init__`) is never defaulted here: its owner `__init__`
             // decides the type. Element types of bare generic parameters (`t: list = None`,
-            // `late_default`) are defaulted in a second round, after all other defaults.
-            for pass in 0..2 {
+            // `late_default`) are defaulted in a second round, after all other defaults; any
+            // remaining pass-through unbound (e.g. from default-argument `a = []`) takes its
+            // default in a last-resort third round, as before pass-through deferral existed.
+            for pass in 0..3 {
             for k in keys.iter().copied() {
                 let unbounds: Vec<TypeId> = self.ctx.borrow().base_ref().pending_defaults.get(&k).map(|s| s.iter().copied().collect()).unwrap_or_default();
                 if unbounds.is_empty() {
@@ -214,7 +216,7 @@ impl<'a> TypecheckVisitor<'a> {
                 let mut kept = vec![];
                 for u in unbounds {
                     let Some(l) = types.link(u) else { continue };
-                    if l.pass_through && (pass == 0 || !l.late_default) {
+                    if l.pass_through && (pass == 0 || pass == 1 && !l.late_default) {
                         kept.push(u);
                         continue;
                     }
