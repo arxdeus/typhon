@@ -1,5 +1,7 @@
-# Ported from CPython 3.14 queue (PSF license), single-threaded
+# Ported from CPython 3.14 queue (PSF license)
+# Thread-safe: one mutex and not_empty/not_full/all_tasks_done conditions, like CPython.
 from heapq import heappush, heappop
+from threading import Lock, Condition
 
 class Empty(Exception):
     def __init__(self):
@@ -13,39 +15,43 @@ class ShutDown(Exception):
     def __init__(self):
         super().__init__("")
 
+def _now() -> float:
+    return _C.seq_time_monotonic() / 1e9
+
 class Queue[T]:
+    """Create a queue object with a given maximum size.
+
+    If maxsize is <= 0, the queue size is infinite.
+    """
     maxsize: int
     _q: List[T]
     _head: int
     unfinished_tasks: int
+    is_shutdown: bool
+    mutex: Lock
+    not_empty: Condition
+    not_full: Condition
+    all_tasks_done: Condition
 
     def __init__(self, maxsize: int = 0):
         self.maxsize = maxsize
         self._q = []
         self._head = 0
         self.unfinished_tasks = 0
+        self.is_shutdown = False
+        self.mutex = Lock()
+        self.not_empty = Condition(self.mutex)
+        self.not_full = Condition(self.mutex)
+        self.all_tasks_done = Condition(self.mutex)
 
-    def qsize(self) -> int:
+    # Override these in subclasses (called with the mutex held).
+    def _qsize(self) -> int:
         return len(self._q) - self._head
 
-    def empty(self) -> bool:
-        return self.qsize() == 0
-
-    def full(self) -> bool:
-        return self.maxsize > 0 and self.qsize() >= self.maxsize
-
-    def put(self, item: T, block: bool = True, timeout: Optional[float] = None):
-        if self.full():
-            raise Full()
+    def _put(self, item: T):
         self._q.append(item)
-        self.unfinished_tasks += 1
 
-    def put_nowait(self, item: T):
-        self.put(item, False)
-
-    def get(self, block: bool = True, timeout: Optional[float] = None) -> T:
-        if self.empty():
-            raise Empty()
+    def _get(self) -> T:
         v = self._q[self._head]
         self._head += 1
         if self._head > 32 and self._head * 2 > len(self._q):
@@ -53,104 +59,130 @@ class Queue[T]:
             self._head = 0
         return v
 
-    def get_nowait(self) -> T:
-        return self.get(False)
-
     def task_done(self):
-        if self.unfinished_tasks <= 0:
-            raise ValueError("task_done() called too many times")
-        self.unfinished_tasks -= 1
+        with self.all_tasks_done:
+            unfinished = self.unfinished_tasks - 1
+            if unfinished <= 0:
+                if unfinished < 0:
+                    raise ValueError("task_done() called too many times")
+                self.all_tasks_done.notify_all()
+            self.unfinished_tasks = unfinished
 
     def join(self):
-        pass
-
-class LifoQueue[T]:
-    maxsize: int
-    _q: List[T]
-    unfinished_tasks: int
-
-    def __init__(self, maxsize: int = 0):
-        self.maxsize = maxsize
-        self._q = []
-        self.unfinished_tasks = 0
+        with self.all_tasks_done:
+            while self.unfinished_tasks:
+                self.all_tasks_done._wait_raw(-1.0)
 
     def qsize(self) -> int:
-        return len(self._q)
+        with self.mutex:
+            return self._qsize()
 
     def empty(self) -> bool:
-        return len(self._q) == 0
+        with self.mutex:
+            return not self._qsize()
 
     def full(self) -> bool:
-        return self.maxsize > 0 and len(self._q) >= self.maxsize
+        with self.mutex:
+            return 0 < self.maxsize <= self._qsize()
 
     def put(self, item: T, block: bool = True, timeout: Optional[float] = None):
-        if self.full():
-            raise Full()
-        self._q.append(item)
-        self.unfinished_tasks += 1
-
-    def put_nowait(self, item: T):
-        self.put(item, False)
+        with self.not_full:
+            if self.is_shutdown:
+                raise ShutDown()
+            if self.maxsize > 0:
+                if not block:
+                    if self._qsize() >= self.maxsize:
+                        raise Full()
+                elif timeout is None:
+                    while self._qsize() >= self.maxsize:
+                        self.not_full._wait_raw(-1.0)
+                        if self.is_shutdown:
+                            raise ShutDown()
+                elif timeout < 0:
+                    raise ValueError("'timeout' must be a non-negative number")
+                else:
+                    endtime = _now() + timeout
+                    while self._qsize() >= self.maxsize:
+                        remaining = endtime - _now()
+                        if remaining <= 0.0:
+                            raise Full()
+                        self.not_full._wait_raw(remaining)
+                        if self.is_shutdown:
+                            raise ShutDown()
+            self._put(item)
+            self.unfinished_tasks += 1
+            self.not_empty.notify()
 
     def get(self, block: bool = True, timeout: Optional[float] = None) -> T:
-        if self.empty():
-            raise Empty()
+        with self.not_empty:
+            if self.is_shutdown and not self._qsize():
+                raise ShutDown()
+            if not block:
+                if not self._qsize():
+                    raise Empty()
+            elif timeout is None:
+                while not self._qsize():
+                    self.not_empty._wait_raw(-1.0)
+                    if self.is_shutdown and not self._qsize():
+                        raise ShutDown()
+            elif timeout < 0:
+                raise ValueError("'timeout' must be a non-negative number")
+            else:
+                endtime = _now() + timeout
+                while not self._qsize():
+                    remaining = endtime - _now()
+                    if remaining <= 0.0:
+                        raise Empty()
+                    self.not_empty._wait_raw(remaining)
+                    if self.is_shutdown and not self._qsize():
+                        raise ShutDown()
+            item = self._get()
+            self.not_full.notify()
+            return item
+
+    def put_nowait(self, item: T):
+        self.put(item, block=False)
+
+    def get_nowait(self) -> T:
+        return self.get(block=False)
+
+    def shutdown(self, immediate: bool = False):
+        with self.mutex:
+            self.is_shutdown = True
+            if immediate:
+                while self._qsize():
+                    self._get()
+                    if self.unfinished_tasks > 0:
+                        self.unfinished_tasks -= 1
+                self.all_tasks_done.notify_all()
+            self.not_empty.notify_all()
+            self.not_full.notify_all()
+
+class LifoQueue[T](Queue[T]):
+    def __init__(self, maxsize: int = 0):
+        super().__init__(maxsize)
+
+    def _qsize(self) -> int:
+        return len(self._q)
+
+    def _put(self, item: T):
+        self._q.append(item)
+
+    def _get(self) -> T:
         return self._q.pop()
 
-    def get_nowait(self) -> T:
-        return self.get(False)
-
-    def task_done(self):
-        if self.unfinished_tasks <= 0:
-            raise ValueError("task_done() called too many times")
-        self.unfinished_tasks -= 1
-
-    def join(self):
-        pass
-
-class PriorityQueue[T]:
-    maxsize: int
-    _q: List[T]
-    unfinished_tasks: int
-
+class PriorityQueue[T](Queue[T]):
     def __init__(self, maxsize: int = 0):
-        self.maxsize = maxsize
-        self._q = []
-        self.unfinished_tasks = 0
+        super().__init__(maxsize)
 
-    def qsize(self) -> int:
+    def _qsize(self) -> int:
         return len(self._q)
 
-    def empty(self) -> bool:
-        return len(self._q) == 0
-
-    def full(self) -> bool:
-        return self.maxsize > 0 and len(self._q) >= self.maxsize
-
-    def put(self, item: T, block: bool = True, timeout: Optional[float] = None):
-        if self.full():
-            raise Full()
+    def _put(self, item: T):
         heappush(self._q, item)
-        self.unfinished_tasks += 1
 
-    def put_nowait(self, item: T):
-        self.put(item, False)
-
-    def get(self, block: bool = True, timeout: Optional[float] = None) -> T:
-        if self.empty():
-            raise Empty()
+    def _get(self) -> T:
         return heappop(self._q)
-
-    def get_nowait(self) -> T:
-        return self.get(False)
-
-    def task_done(self):
-        if self.unfinished_tasks <= 0:
-            raise ValueError("task_done() called too many times")
-        self.unfinished_tasks -= 1
-
-    def join(self):
-        pass
 
 class SimpleQueue[T](Queue[T]):
     def __init__(self):
