@@ -1384,8 +1384,13 @@ impl<'a> TypecheckVisitor<'a> {
             Ok(match self.transform_tuple_len(e)? {
                 Some(r) => (true, Some(r)),
                 // Argument type not known yet: wait instead of committing to `__len__`.
+                // Only for property reads such as `len(x.shape)`: a plain name (`len(h)`
+                // with `h` still being inferred) keeps the `__len__ -> int` path, otherwise
+                // `m = len(h) // 2` stays untyped and `h[m:m + 3]` builds `Optional[T]`
+                // with an unbound `T`.
                 None if self.cache.ast[e].kind.as_call().and_then(|c| c.items.first()).and_then(|a| a.value).is_some_and(|a| {
-                    self.expr_type(a).is_none_or(|t| self.cache.types.get_class(t).is_none())
+                    self.cache.ast[a].kind.as_id().is_none()
+                        && self.expr_type(a).is_none_or(|t| self.cache.types.get_class(t).is_none())
                         && !self.has_side_effect(a)
                 }) && self.is_user_module() =>
                 {
