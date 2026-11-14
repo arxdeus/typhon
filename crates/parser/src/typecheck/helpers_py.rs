@@ -138,10 +138,12 @@ impl<'a> TypecheckVisitor<'a> {
         let ec = types.get_class(expected);
         let mut expr_type = expr_type;
         let mut xc = types.get_class(expr_type);
-        let no_wrap = mangle::func("std.internal.attributes", "no_argument_wrap");
+        static NO_WRAP: once_cell::sync::Lazy<String> =
+            once_cell::sync::Lazy::new(|| mangle::func("std.internal.attributes", "no_argument_wrap"));
+        let no_wrap: &str = &NO_WRAP;
         if let Some(c) = callee {
             let ast = types.func_ast_id(c);
-            if self.cache.ast.has_function_attribute(ast, &no_wrap) {
+            if self.cache.ast.has_function_attribute(ast, no_wrap) {
                 return Ok((true, Some(expected), None));
             }
         }

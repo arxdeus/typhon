@@ -35,6 +35,34 @@ pub fn mangled_method(module: &str, cls: &str, method: &str, overload: usize, id
     format!("{module}.{cls}{num}.{method}:{overload}")
 }
 
+/// `name == mangled_func(module, func, 0, 0, false)` without allocating.
+pub fn is_func(name: &str, module: &str, func: &str) -> bool {
+    if is_core(module) {
+        return eq_parts(name, &[func, ":0"]);
+    }
+    let num = if func.contains('.') { "" } else { ".0" };
+    eq_parts(name, &[module, ".", func, num, ":0"])
+}
+
+/// `name == mangled_method(module, cls, method, 0, 0)` without allocating.
+pub fn is_method(name: &str, module: &str, cls: &str, method: &str) -> bool {
+    if is_core(module) {
+        return eq_parts(name, &[cls, ".", method, ":0"]);
+    }
+    let num = if cls.contains('.') { "" } else { ".0" };
+    eq_parts(name, &[module, ".", cls, num, ".", method, ":0"])
+}
+
+fn eq_parts(mut s: &str, parts: &[&str]) -> bool {
+    for p in parts {
+        match s.strip_prefix(p) {
+            Some(r) => s = r,
+            None => return false,
+        }
+    }
+    s.is_empty()
+}
+
 pub fn mangled_var(module: &str, var: &str, id: usize) -> String {
     let num = if var.contains('.') { String::new() } else { format!(".{id}") };
     let prefix = if module.is_empty() { String::new() } else { format!("{module}.") };

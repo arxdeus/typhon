@@ -1365,7 +1365,7 @@ impl<'a> TypecheckVisitor<'a> {
         let ce = self.callee(e);
         let Some(v) = self.ast()[ce].kind.as_id().map(|i| i.value.clone()) else { return Ok((false, None)) };
         let is_f = |module: &str, cls: &str, name: &str| {
-            if name.is_empty() { v == mangle::func(module, cls) } else { v == mangle::mangled_method(module, cls, name, 0, 0) }
+            if name.is_empty() { mangle::is_func(&v, module, cls) } else { mangle::is_method(&v, module, cls, name) }
         };
         let sm = "std.internal.static";
         if is_f("", "superf", "") {
@@ -1380,7 +1380,7 @@ impl<'a> TypecheckVisitor<'a> {
             Ok((true, self.transform_is_instance(e)?))
         } else if is_f(sm, "len", "") {
             Ok((true, self.transform_static_len(e)?))
-        } else if (v == mangle::mangled_func("std.internal.builtin", "len", 0, 0, false) || is_f("", "len", "")) && self.call_items(e).len() == 1 {
+        } else if (is_f("std.internal.builtin", "len", "") || is_f("", "len", "")) && self.call_items(e).len() == 1 {
             Ok(match self.transform_tuple_len(e)? {
                 Some(r) => (true, Some(r)),
                 // Argument type not known yet: wait instead of committing to `__len__`.
