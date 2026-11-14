@@ -52,3 +52,20 @@ def get_num_threads() -> int:
         _NUM_THREADS[0] = _default_num_threads()
     return _NUM_THREADS[0]
 
+
+_NUM_WORKERS = [0]
+
+def _num_workers() -> int:
+    # Physical worker threads for Typhon's own kernels (results never depend on it):
+    # TYPHON_NUM_WORKERS, else torch.get_num_threads().
+    if _NUM_WORKERS[0] == 0:
+        import os
+        v = os.getenv("TYPHON_NUM_WORKERS")
+        n = 0
+        if v is not None:
+            try:
+                n = int(v.__val__())
+            except:
+                n = 0
+        _NUM_WORKERS[0] = n if n > 0 else get_num_threads()
+    return _NUM_WORKERS[0]

@@ -500,9 +500,17 @@ def _gemm_tile(it: Ptr[float32], kt: Ptr[float32], C: int, n: int, n2: int, o: i
 def conv_ft8x8(N: int, C: int, O: int, H: int, W: int, KH: int, KW: int, ph: int, pw: int,
                x: Ptr[float32], w: Ptr[float32], bias: Ptr[float32], y: Ptr[float32]):
     if __aarch64__:   # native NNPACK in libtyphonrt (pinned torch 2.15 commit)
-        from C import typhon_nnp_conv_output(int, int, int, int, int, int, int, int, int, Ptr[float32], Ptr[float32], Ptr[float32], Ptr[float32]) -> int
-        if typhon_nnp_conv_output(N, C, O, H, W, KH, KW, ph, pw, x, w, bias, y) == 0:
+        # Worker threads never change results (NNPACK per-tile order is fixed); layers
+        # with one input channel stay on 1 thread (thread overhead dominates there).
+        from C import typhon_nnp_conv_output_mt(int, int, int, int, int, int, int, int, int, Ptr[float32], Ptr[float32], Ptr[float32], Ptr[float32], int) -> int
+        from torch._misc import _num_workers
+        nt = 1 if C == 1 else _num_workers()
+        if typhon_nnp_conv_output_mt(N, C, O, H, W, KH, KW, ph, pw, x, w, bias, y, nt) == 0:
             return
+    from torch._misc import _num_workers
+    if _num_workers() > 1 and N > 2:
+        conv_ft8x8_par(N, C, O, H, W, KH, KW, ph, pw, x, w, bias, y)
+        return
     _conv_ft8x8_py(N, C, O, H, W, KH, KW, ph, pw, x, w, bias, y)
 
 def _conv_ft8x8_py(N: int, C: int, O: int, H: int, W: int, KH: int, KW: int, ph: int, pw: int,
@@ -552,3 +560,58 @@ def _conv_ft8x8_py(N: int, C: int, O: int, H: int, W: int, KH: int, KW: int, ph:
                 n += n2
             x0 += tw
         y0 += th
+
+def _ft8x8_pair(n: int, n2: int, C: int, O: int, H: int, W: int, KH: int, KW: int, ph: int, pw: int,
+                x: Ptr[float32], kt: Ptr[float32], bias: Ptr[float32], y: Ptr[float32], scr: Ptr[float32]):
+    OH = ph + H + ph - KH + 1
+    OW = pw + W + pw - KW + 1
+    th = 8 - KH + 1
+    tw = 8 - KW + 1
+    it = scr
+    blk = scr + 2 * C * 64
+    v = blk + 64
+    otb = v + 192
+    y0 = 0
+    while y0 < OH:
+        iy = min(_doz(y0, ph), H)
+        x0 = 0
+        while x0 < OW:
+            ix = min(_doz(x0, pw), W)
+            ro = _doz(ph, y0)
+            co = _doz(pw, x0)
+            rc = min(H - iy, 8 - ro)
+            cc = min(W - ix, 8 - co)
+            for dn in range(n2):
+                for c in range(C):
+                    _fft8x8(x + (((n + dn) * C + c) * H + iy) * W + ix, it + (dn * C + c) * 64, W, 8, rc, cc, ro, co, blk, v)
+            o = 0
+            while o < O:
+                o2 = 2 if o + 1 < O else 1
+                for t in range(8):
+                    _gemm_tile(it, kt, C, 0, n2, o, o2, t, otb)
+                for dn in range(n2):
+                    for do in range(o2):
+                        _ifft8x8_bias(otb + (dn * 2 + do) * 64, y + ((((n + dn) * O + o + do) * OH) + y0) * OW + x0,
+                                      bias[o + do], 8, OW, min(th, OH - y0), min(tw, OW - x0), blk, v)
+                o += o2
+            x0 += tw
+        y0 += th
+
+def conv_ft8x8_par(N: int, C: int, O: int, H: int, W: int, KH: int, KW: int, ph: int, pw: int,
+                   x: Ptr[float32], w: Ptr[float32], bias: Ptr[float32], y: Ptr[float32]):
+    # Scratch is allocated here (main thread) only: worker threads never touch the GC.
+    from torch._misc import _num_workers
+    nw = _num_workers()
+    kt = Ptr[float32](O * C * 64)
+    npairs = (N + 1) // 2
+    per = 2 * C * 64 + 64 + 192 + 256
+    scr = Ptr[float32](npairs * per)
+    kscr = Ptr[float32](O * C * 256)
+    @par(num_threads=nw, schedule='static', chunk_size=1)
+    for oc in range(O * C):
+        _fft8x8(w + oc * KH * KW, kt + oc * 64, KW, 8, KH, KW, 0, 0, kscr + oc * 256, kscr + oc * 256 + 64)
+    @par(num_threads=nw, schedule='dynamic', chunk_size=1)
+    for p in range(npairs):
+        n = 2 * p
+        n2 = 2 if n + 1 < N else 1
+        _ft8x8_pair(n, n2, C, O, H, W, KH, KW, ph, pw, x, kt, bias, y, scr + p * per)
