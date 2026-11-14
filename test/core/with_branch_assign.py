@@ -1,5 +1,6 @@
+# Assignments in if/else branches inside with/try/loops update the outer variable.
 import threading
-lock = threading.Lock()
+lock = threading.RLock()
 def w_if(x: int) -> int:
     with lock:
         if x > 1:
@@ -91,5 +92,6 @@ def plain(x: int) -> int:
         cmd = 0
     return cmd
 
-for x in (0, 3, 9):
-    print(w_if(x), w_elif(x), w_float(x), w_nested(x), t_finally(x), t_except(x), w_for(x), w_while(x), w_reassign(x), plain(x))
+print(w_if(0), w_elif(0), w_float(0), w_nested(0), t_finally(0), t_except(0), w_for(0), w_while(0), w_reassign(0), plain(0))  #: 0 0 -2.25 3 0 0 0 0 1 0
+print(w_if(3), w_elif(3), w_float(3), w_nested(3), t_finally(3), t_except(3), w_for(3), w_while(3), w_reassign(3), plain(3))  #: 7 1 1.5 7 7 7 1 2 7 7
+print(w_if(9), w_elif(9), w_float(9), w_nested(9), t_finally(9), t_except(9), w_for(9), w_while(9), w_reassign(9), plain(9))  #: 7 2 1.5 7 7 7 16 9 7 7

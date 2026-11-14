@@ -48,7 +48,7 @@ pub const CORE: &[&str] = &[
     "core/containers.py", "core/trees.py", "core/range.py", "core/bltin.py",
     "core/arguments.py", "core/match.py", "core/serialization.py",
     "core/pipeline.py", "core/empty.py", "core/vec_simd.py",
-    "core/implicit.py", "core/bare_generic_fields.py",
+    "core/implicit.py", "core/bare_generic_fields.py", "core/with_branch_assign.py",
 ];
 
 pub const STDLIB: &[&str] = &[
