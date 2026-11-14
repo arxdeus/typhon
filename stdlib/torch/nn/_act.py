@@ -18,54 +18,71 @@ def _vsel_ge0(v: Vec[float32, 4], neg: Vec[float32, 4]) -> Vec[float32, 4]:
     %r = select <4 x i1> %c, <4 x float> %v, <4 x float> %neg
     ret <4 x float> %r
 
-_PAR_MIN = 32768   # elements per worker below which threads cost more than they save
+_GRAIN = 32768   # at::internal::GRAIN_SIZE
 
-def _par_blocks(n: int) -> int:
-    # Number of worker chunks for an elementwise kernel over n elements. Chunks start at
-    # multiples of 4, so every element keeps its vector/tail role and results never
-    # depend on the worker count.
-    from torch._misc import _num_workers
+def _pieces(n: int) -> List[Tuple[int, int]]:
+    # ATen cpu_kernel_vec runs TensorIterator::for_each -> at::parallel_for(0, n, GRAIN_SIZE):
+    # with T = torch.get_num_threads(), nt = min(T, ceil(n / grain)) chunks of ceil(n / nt);
+    # every chunk has its own vector part (8-element steps) and scalar tail, so results depend on T.
+    # Each chunk's vector part is further split for our workers at 8-element offsets from
+    # the chunk start, so the worker count never changes results.
+    from torch._misc import get_num_threads, _num_workers
+    T = get_num_threads()
+    nt = 1
+    if n >= _GRAIN and T > 1:
+        nt = (n + _GRAIN - 1) // _GRAIN
+        if nt > T:
+            nt = T
+    cs = (n + nt - 1) // nt
     nw = _num_workers()
-    k = n // _PAR_MIN
-    return 1 if k < 2 or nw < 2 else (k if k < nw else nw)
+    sub = n // (_GRAIN * nt)   # worker pieces per chunk (>= 32768 elements each)
+    if sub > nw:
+        sub = nw
+    if sub < 1:
+        sub = 1
+    r = List[Tuple[int, int]]()
+    s = 0
+    while s < n:
+        e = min(s + cs, n)
+        full = (e - s) - (e - s) % 8
+        per = ((full // 8 + sub - 1) // sub) * 8
+        q = 0
+        while q < full:
+            m = min(per, full - q)
+            r.append((s + q, m))
+            q += m
+        if full < e - s:
+            r.append((s + full, e - s - full))
+        s = e
+    return r
 
 def _elu_fwd(x: Ptr[float32], y: Ptr[float32], n: int, alpha: float32):
-    nb = _par_blocks(n)
-    if nb == 1:
+    ps = _pieces(n)
+    if len(ps) == 1:
         _elu_fwd1(x, y, n, alpha)
         return
-    full = n - (n % 4)
-    per = ((full // 4 + nb - 1) // nb) * 4
-    @par(num_threads=nb, schedule='static', chunk_size=1)
-    for b in range(nb):
-        s = b * per
-        e = min(s + per, full)
-        if s < e:
-            _elu_fwd1(x + s, y + s, e - s, alpha)
-    if full < n:
-        _elu_fwd1(x + full, y + full, n - full, alpha)
+    from torch._misc import _num_workers
+    @par(num_threads=_num_workers(), schedule='dynamic', chunk_size=1)
+    for k in range(len(ps)):
+        s, m = ps[k]
+        _elu_fwd1(x + s, y + s, m, alpha)
 
 def _elu_bwd(g: Ptr[float32], x: Ptr[float32], gx: Ptr[float32], n: int, alpha: float32):
-    nb = _par_blocks(n)
-    if nb == 1:
+    ps = _pieces(n)
+    if len(ps) == 1:
         _elu_bwd1(g, x, gx, n, alpha)
         return
-    full = n - (n % 4)
-    per = ((full // 4 + nb - 1) // nb) * 4
-    @par(num_threads=nb, schedule='static', chunk_size=1)
-    for b in range(nb):
-        s = b * per
-        e = min(s + per, full)
-        if s < e:
-            _elu_bwd1(g + s, x + s, gx + s, e - s, alpha)
-    if full < n:
-        _elu_bwd1(g + full, x + full, gx + full, n - full, alpha)
+    from torch._misc import _num_workers
+    @par(num_threads=_num_workers(), schedule='dynamic', chunk_size=1)
+    for k in range(len(ps)):
+        s, m = ps[k]
+        _elu_bwd1(g + s, x + s, gx + s, m, alpha)
 
 def _elu_fwd1(x: Ptr[float32], y: Ptr[float32], n: int, alpha: float32):
-    # cpu_kernel_vec: vectorized loop over full 4-lane blocks, scalar op on the tail;
+    # cpu_kernel_vec: vectorized_loop steps 2 x 4 lanes, so the scalar tail is n % 8;
     # the vector op computes expm1 only if any lane is negative (same values per lane).
     from C import expm1f(float32) -> float32
-    full = n - (n % 4)
+    full = n - (n % 8)
     av = Vec[float32, 4](alpha)
     zero = Vec[float32, 4](float32(0.0))
     for i in range(0, full, 4):
@@ -82,7 +99,8 @@ def _elu_bwd1(g: Ptr[float32], x: Ptr[float32], gx: Ptr[float32], n: int, alpha:
     # vector: blendv(a * negiptcoef * negcoef * exp(b * negiptcoef), a * poscoef, b > 0)
     # scalar: b <= 0 ? a * negiptcoef * negcoef * exp(b * negiptcoef) : a * poscoef
     from C import expf(float32) -> float32
-    full = _expf_block(x, gx, n)    # gx[i] = sleef expf(x[i] * 1) on full blocks
+    # vectorized_loop steps 2 x 4 lanes: scalar tail is n % 8
+    full = _expf_block(x, gx, n - (n % 8))    # gx[i] = sleef expf(x[i] * 1) on full blocks
     one = float32(1.0)
     for i in range(full):
         b = x[i]
