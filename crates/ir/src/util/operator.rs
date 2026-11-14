@@ -280,4 +280,9 @@ pub trait Operator {
 pub fn run_operator<O: Operator + ?Sized>(op: &mut O, m: &mut Module) {
     op.reset();
     op.process(m, NodeRef::Module);
+    // Release the walker sets: passes live in the manager until the end of the build.
+    let st = op.state_mut();
+    st.seen = FxHashSet::default();
+    st.node_stack = Vec::new();
+    st.it_stack = Vec::new();
 }
