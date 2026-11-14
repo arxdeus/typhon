@@ -62,6 +62,9 @@ impl<'a> TypecheckVisitor<'a> {
             && !st.is_atomic_update()
             && st.type_expr.is_none()
             && self.ctx.borrow().static_branch_depth > 0
+            // Inside any runtime block (if/loop/try) a reassignment must update the same
+            // variable: a shadow binding would be invisible after the block.
+            && self.ctx.borrow().block_level == 0
             && self.ctx.borrow().in_function()
             && self.is_user_module()
             && !st.rhs.and_then(|r| self.cache.ast[r].kind.as_binary()).is_some_and(|b| b.in_place)
@@ -74,7 +77,16 @@ impl<'a> TypecheckVisitor<'a> {
                     let rr = self.transform(Some(r))?.unwrap();
                     self.assign_set(s, |a| a.rhs = Some(rr));
                     let rt = self.ety(rr);
-                    if types.can_realize(old) && types.can_realize(rt) && types.realized_name(old) != types.realized_name(rt) {
+                    // Only genuinely different runtime types split the binding (`ndarray[float,2]`
+                    // -> `ndarray[float,3]`). Literal/static kinds (`cmd = 7` vs `cmd = 0`) and
+                    // anything still unrealized go through the normal update path: the `with`
+                    // lowering wraps every body in a static branch, so this must stay narrow.
+                    let runtime = types.static_kind(old) == LiteralKind::Runtime
+                        && types.static_kind(rt) == LiteralKind::Runtime
+                        && types.get_class(old).zip(types.get_class(rt)).is_some_and(|(a, b)| {
+                            !types.realized_name(a).contains("Literal") && !types.realized_name(b).contains("Literal")
+                        });
+                    if runtime && types.can_realize(old) && types.can_realize(rt) && types.realized_name(old) != types.realized_name(rt) {
                         let probe_ok = {
                             let mut undo = crate::types::Unification::new();
                             let ok = types.unify(old, rt, Some(&mut undo), self).map(|x| x >= 0).unwrap_or(false);
