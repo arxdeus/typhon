@@ -17,6 +17,27 @@ def perf_counter() -> float:
 def perf_counter_ns() -> int:
     return _C.seq_time_highres()
 
+def _cpu_clock_ns(clk: int) -> int:
+    from C import clock_gettime(i32, Ptr[int]) -> i32
+    ts = Ptr[int](2)  # struct timespec {time_t tv_sec; long tv_nsec}
+    if int(clock_gettime(i32(clk), ts)) != 0:
+        raise OSError("clock_gettime failed")
+    return ts[0] * 1000000000 + ts[1]
+
+def process_time_ns() -> int:
+    # CLOCK_PROCESS_CPUTIME_ID: 12 on macOS, 2 on Linux
+    return _cpu_clock_ns(12 if __apple__ else 2)
+
+def process_time() -> float:
+    return process_time_ns() / 1e9
+
+def thread_time_ns() -> int:
+    # CLOCK_THREAD_CPUTIME_ID: 16 on macOS, 3 on Linux
+    return _cpu_clock_ns(16 if __apple__ else 3)
+
+def thread_time() -> float:
+    return thread_time_ns() / 1e9
+
 def sleep(secs: float, /):
     if secs < 0:
         raise ValueError("sleep length must be non-negative")
