@@ -5119,6 +5119,23 @@ def _to_numpy(x: Tensor, T: type, ndim: Literal[int]):
 def _k_uniform(z, t: Tensor, a: float, b: float, g: Generator):
     T = type(z)
     p = Ptr[T](t._st.ptr)
+    if t.is_contiguous() and (isinstance(z, float32) or isinstance(z, float)):
+        # same draws and order as the offsets path, without materialising offsets
+        q = p + t._off
+        n = t.numel()
+        if isinstance(z, float32):
+            fa = float32(a)
+            fb = float32(b)
+            for i in range(n):
+                u = g._uniform_f32()
+                v = _fma32(u, fb - fa, fa)
+                q[i] = fa if v == fb else v
+        else:
+            for i in range(n):
+                u = g._uniform_f64()
+                v = _fma64(u, b - a, a)
+                q[i] = a if v == b else v
+        return
     offs = _offsets(t._shape, t._strides, t._off)
     if isinstance(z, float32):
         fa = float32(a)
