@@ -7,9 +7,9 @@
 #   {"name": {"dtype": "F32", "shape": [...], "data_offsets": [b, e]}, ...,
 #    "__metadata__": {...}}, then raw little-endian tensor bytes.
 #   Supported dtypes: F64, F32, I64, I32, I16, I8, U8, BOOL.
-# - torch.save / torch.load use the same safetensors container for a
-#   Dict[str, Tensor] (state_dict). Real pickled torch .pt files are not
-#   supported.
+# - torch.save / torch.load use the native torch zip+pickle checkpoint
+#   format (see _pt_zip.py) for a Dict[str, Tensor] (state_dict); torch.load
+#   also accepts safetensors files (detected by the zip magic).
 
 from torch._tensor import Tensor, _new, _BOOL, _U8, _I8, _I16, _I32, _I64, _F32, _F64, _itemsize, _contig_as
 
@@ -302,10 +302,27 @@ def load_file(filename: str, device: str = "cpu") -> Dict[str, Tensor]:
 def save_file(tensors: Dict[str, Tensor], filename: str, metadata: Optional[Dict[str, str]] = None):
     _write_file(filename, save_bytes(tensors, metadata))
 
+def _archive_name(f: str) -> str:
+    # torch uses the file's basename without extension as the zip root
+    b = f
+    i = b.rfind("/")
+    if i >= 0:
+        b = b[i + 1:]
+    j = b.rfind(".")
+    if j > 0:
+        b = b[:j]
+    return b if b != "" else "archive"
+
 def save(obj: Dict[str, Tensor], f: str):
-    """torch.save for a state_dict (safetensors container, not pickle)."""
-    save_file(obj, f)
+    """torch.save for a state_dict in the native torch zip+pickle format."""
+    from torch._pt_zip import save_bytes as _pt_save
+    _write_file(f, _pt_save(obj, _archive_name(f)))
 
 def load(f: str, map_location = None, weights_only: bool = True) -> Dict[str, Tensor]:
-    """torch.load of a file written by torch.save above or any .safetensors file."""
-    return load_file(f)
+    """torch.load of a native torch checkpoint (zip+pickle state_dict) or a
+    safetensors file (sniffed by magic)."""
+    from torch._pt_zip import is_torch_zip, load_bytes as _pt_load
+    data = _read_file(f)
+    if is_torch_zip(data):
+        return _pt_load(data)
+    return load_bytes(data)
