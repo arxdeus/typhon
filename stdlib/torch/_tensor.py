@@ -3497,11 +3497,7 @@ def _k_sum(z, c: Tensor, outer: int, inner: int, out: Tensor):
     if out._dt == _F32:
         q = Ptr[float32](out._st.ptr)
         for o in range(outer):
-            acc = 0.0
-            b = p + o * inner
-            for i in range(inner):
-                acc += _cv(b[i], float)
-            q[o] = float32(acc)
+            q[o] = _cascade_sum_f32(Ptr[float32]((p + o * inner).as_byte()), inner)
     elif out._dt == _F64:
         q = Ptr[float](out._st.ptr)
         for o in range(outer):
@@ -3515,6 +3511,69 @@ def _k_sum(z, c: Tensor, outer: int, inner: int, out: Tensor):
             for i in range(inner):
                 acc += _cv(b[i], int)
             q[o] = acc
+
+def _cascade_sum_f32(p: Ptr[float32], n: int) -> float32:
+    """Bit-exact float32 contiguous sum of ATen CPU (ReduceOps SumKernel cascade_sum,
+    inner reduction): 8-lane vectors, 4 interleaved rows, 4 cascade levels, then the
+    scalar tail followed by a horizontal add of the lanes."""
+    W = 8
+    ILP = 4
+    L = 4
+    vs = n // W
+    sz = vs // ILP
+    lp = 4
+    if sz > 1:
+        cl = 0
+        while (1 << cl) < sz:
+            cl += 1
+        if cl // L > lp:
+            lp = cl // L
+    step = 1 << lp
+    mask = step - 1
+    acc = Ptr[float32](L * ILP * W)
+    for k in range(L * ILP * W):
+        acc[k] = float32(0.0)
+    i = 0
+    while i + step <= sz:
+        for _ in range(step):
+            for r in range(ILP):
+                src = p + (i * ILP + r) * W
+                dst = acc + r * W
+                for l in range(W):
+                    dst[l] = dst[l] + src[l]
+            i += 1
+        for j in range(1, L):
+            a = acc + j * ILP * W
+            b = acc + (j - 1) * ILP * W
+            for k in range(ILP * W):
+                a[k] = a[k] + b[k]
+                b[k] = float32(0.0)
+            if (i & (mask << (j * lp))) != 0:
+                break
+    while i < sz:
+        for r in range(ILP):
+            src = p + (i * ILP + r) * W
+            dst = acc + r * W
+            for l in range(W):
+                dst[l] = dst[l] + src[l]
+        i += 1
+    for j in range(1, L):
+        a = acc + j * ILP * W
+        for k in range(ILP * W):
+            acc[k] = acc[k] + a[k]
+    for v in range(sz * ILP, vs):
+        src = p + v * W
+        for l in range(W):
+            acc[l] = acc[l] + src[l]
+    for r in range(1, ILP):
+        for l in range(W):
+            acc[l] = acc[l] + acc[r * W + l]
+    fa = float32(0.0)
+    for k in range(vs * W, n):
+        fa = fa + p[k]
+    for l in range(W):
+        fa = fa + acc[l]
+    return fa
 
 def _pairwise_sum_f64(p, n: int) -> float:
     if n <= 8:
@@ -3624,11 +3683,34 @@ def prod(input: Tensor, dim = None, keepdim: bool = False, dtype: Optional[_DTyp
         _attach(out, n)
     return out
 
+def _welford_f32(x: Tensor, dims: List[int], corr: int, keepdim: bool, take_sqrt: bool) -> Tensor:
+    # ATen CPU std_var kernel: per-row Welford in float64 (sqrt in float64 for std),
+    # then cast to float32.
+    c, outer, inner, kshape, oshape = _reduce_prep(x, dims)
+    out = _new(kshape if keepdim else oshape, _F32)
+    pc = Ptr[float32](c._st.ptr) + c._off
+    q = Ptr[float32](out._st.ptr)
+    den = inner - corr
+    for o in range(outer):
+        b = pc + o * inner
+        mu = 0.0
+        m2 = 0.0
+        for i in range(inner):
+            v = float(b[i])
+            d = v - mu
+            mu += d / float(i + 1)
+            m2 += d * (v - mu)
+        r = m2 / float(den) if den > 0 else (float("nan") if inner == 0 or m2 == 0.0 else float("inf"))
+        q[o] = float32(_math.sqrt(r) if take_sqrt else r)
+    return out
+
 def var(input: Tensor, dim = None, unbiased: bool = True, keepdim: bool = False, correction: Optional[int] = None) -> Tensor:
     corr = (1 if unbiased else 0) if correction is None else correction
     x = input
     nd = len(x._shape)
     dims = _norm_dims(dim, nd)
+    if x._dt == _F32 and nd > 0 and not _needs([x]):
+        return _welford_f32(x, dims, corr, keepdim, False)
     cnt = 1
     for d in dims:
         if nd > 0:
@@ -3640,6 +3722,10 @@ def var(input: Tensor, dim = None, unbiased: bool = True, keepdim: bool = False,
     return div(ss, float(den) if den > 0 else 0.0)
 
 def std(input: Tensor, dim = None, unbiased: bool = True, keepdim: bool = False, correction: Optional[int] = None) -> Tensor:
+    nd = len(input._shape)
+    if input._dt == _F32 and nd > 0 and not _needs([input]):
+        corr = (1 if unbiased else 0) if correction is None else correction
+        return _welford_f32(input, _norm_dims(dim, nd), corr, keepdim, True)
     return sqrt(var(input, dim, unbiased, keepdim, correction))
 
 def var_mean(input: Tensor, dim = None, unbiased: bool = True, keepdim: bool = False, correction: Optional[int] = None) -> Tuple[Tensor, Tensor]:
