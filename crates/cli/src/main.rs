@@ -123,6 +123,9 @@ fn process_source(cli: &mut Cli, standalone: bool) -> Option<Compiler> {
     let mut t = typhon_common::Timer::new("compile");
     compiler.run_passes();
     t.log();
+    if !test_mode {
+        compiler.release_frontend();
+    }
     Some(compiler)
 }
 

@@ -142,6 +142,18 @@ impl Compiler {
         }
     }
 
+    /// Free the front-end state (AST, type arena, realizations) once IR passes are done.
+    /// LLVM codegen only reads the IR module; the realizer is needed by IR passes only.
+    /// Cuts peak RSS during LLVM by the size of the typechecked program.
+    pub fn release_frontend(&mut self) {
+        self.module.borrow_mut().set_realizer(None);
+        let fs = self.cache.borrow().fs.clone();
+        let mut fresh = Cache::new(fs);
+        fresh.options = self.cache.borrow().options.clone();
+        let old = std::mem::replace(&mut *self.cache.borrow_mut(), fresh);
+        drop(old);
+    }
+
     /// Second half of `compile()`: lower the IR module to LLVM in `ctx`.
     pub fn codegen<'ctx>(&self, ctx: &'ctx Context) -> Result<LlvmVisitor<'ctx>> {
         let _t = Timer::new("llvm/codegen");
