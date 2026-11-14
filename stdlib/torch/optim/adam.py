@@ -3,8 +3,48 @@
 # Adam / AdamW, single-tensor (CPU default) update path of torch.
 
 import math
-from torch._tensor import Tensor, no_grad
+from torch._tensor import Tensor, no_grad, _F32
 from .optimizer import Optimizer, ParamGroup
+
+def _adam_f32_step(param: Tensor, grad: Tensor, st, lr: float, beta1: float, beta2: float, eps: float, wd: float):
+    # torch 2.15 CPU default = _multi_tensor_adam (foreach) with ATen elementwise kernels:
+    #   grad = grad + wd * param            (add alpha: fma)
+    #   exp_avg.lerp_(grad, 1 - beta1)       (|w| < .5: fma(w, end - self, self))
+    #   exp_avg_sq = exp_avg_sq * beta2 + ((1 - beta2) * grad) * grad   (addcmul, separate roundings)
+    #   denom = sqrt(exp_avg_sq) / bc2_sqrt + eps
+    #   param = param + (step_size * exp_avg) / denom                   (addcdiv)
+    p = Ptr[float32](param._st.ptr) + param._off
+    gp = Ptr[float32](grad._st.ptr) + grad._off
+    ea = Ptr[float32](st.exp_avg._st.ptr) + st.exp_avg._off
+    es = Ptr[float32](st.exp_avg_sq._st.ptr) + st.exp_avg_sq._off
+    step = st.step
+    bc1 = 1.0 - beta1 ** step
+    bc2 = 1.0 - beta2 ** step
+    ss = float32((lr / bc1) * -1.0)
+    bc2s = float32(bc2 ** 0.5)
+    w = float32(1.0 - beta1)
+    small = abs(1.0 - beta1) < 0.5
+    one_m_w = float32(1.0) - w
+    b2 = float32(beta2)
+    vb2 = float32(1.0 - beta2)
+    fwd = float32(wd)
+    fe = float32(eps)
+    from C import sqrtf(float32) -> float32
+    for i in range(param.numel()):
+        g = gp[i]
+        if wd != 0.0:
+            g = float32._fma(fwd, p[i], g)
+        a = ea[i]
+        if small:
+            a = float32._fma(w, g - a, a)
+        else:
+            a = g - (g - a) * one_m_w
+        ea[i] = a
+        s = es[i] * b2
+        s = s + (vb2 * g) * g
+        es[i] = s
+        den = sqrtf(s) / bc2s + fe
+        p[i] = p[i] + (ss * a) / den
 
 class _AdamState:
     step: float
@@ -60,6 +100,10 @@ class _AdamBase(Optimizer):
                         self.state[k] = _AdamState(param, g.amsgrad)
                     st = self.state[k]
                     st.step += 1.0
+                    if (not g.amsgrad and not self.decoupled and param._dt == _F32 and grad._dt == _F32
+                            and param.is_contiguous() and grad.is_contiguous()):
+                        _adam_f32_step(param, grad, st, lr, beta1, beta2, g.eps, g.weight_decay)
+                        continue
                     if g.weight_decay != 0:
                         if self.decoupled:
                             param.mul_(1 - lr * g.weight_decay)

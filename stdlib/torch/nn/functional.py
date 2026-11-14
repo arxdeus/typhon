@@ -51,6 +51,11 @@ def _wrap(d: int, n: int) -> int:
 # ---------------------------------------------------------------- linear
 
 def linear(input: Tensor, weight: Tensor, bias: Optional[Tensor] = None) -> Tensor:
+    if (input.ndim == 2 and weight.ndim == 2 and input._dt == _F32 and weight._dt == _F32
+            and (bias is None or (bias.__val__()._dt == _F32 and bias.__val__().ndim == 1))):
+        # ATen addmm on CPU BLAS (bit-exact, incl. backward)
+        from torch.nn._linear import linear_f32
+        return linear_f32(input, weight, bias)
     out = input.matmul(weight.t())
     if bias is not None:
         out = out + bias.__val__()
@@ -283,15 +288,17 @@ def relu6(input: Tensor, inplace: bool = False) -> Tensor:
 def elu(input: Tensor, alpha: float = 1.0, inplace: bool = False) -> Tensor:
     from torch import where
     if input._dt == _F32 and not (_T._GRAD_ENABLED[0] and input.requires_grad) and input.is_contiguous():
-        # fused inference path, same per-element values as the where() below
+        # fused inference path = ATen elu kernel: SLEEF expm1f on full 4-lane blocks,
+        # libm expm1f on the n % 4 tail (cpu_kernel_vec)
+        from torch.nn._act import _elu_fwd
         out = _new(input._shape.copy(), _F32)
-        p = Ptr[float32](input._st.ptr) + input._off
-        q = Ptr[float32](out._st.ptr)
-        a = float32(alpha)
-        for i in range(input.numel()):
-            v = p[i]
-            q[i] = v if v > float32(0.0) else _T._U.expm1(v) * a
+        _elu_fwd(Ptr[float32](input._st.ptr) + input._off, Ptr[float32](out._st.ptr),
+                 input.numel(), float32(alpha))
         return out
+    if input._dt == _F32 and alpha == 1.0:
+        # ATen elu (training): SLEEF expm1f/expf kernels, bit-exact on aarch64
+        from torch.nn._act import elu_f32
+        return elu_f32(input, alpha)
     return where(input > 0.0, input, input.expm1() * alpha)
 
 def selu(input: Tensor, inplace: bool = False) -> Tensor:
@@ -458,6 +465,12 @@ def batch_norm(input: Tensor, running_mean: Optional[Tensor], running_var: Optio
         n = input.numel() // C
         if n <= 1:
             raise ValueError(f"Expected more than 1 value per channel when training, got input size {input.shape}")
+        if (input._dt == _F32 and (weight is None or weight.__val__()._dt == _F32)
+                and (bias is None or bias.__val__()._dt == _F32)
+                and (running_mean is None or (running_mean.__val__()._dt == _F32 and running_mean.__val__().is_contiguous()))
+                and (running_var is None or (running_var.__val__()._dt == _F32 and running_var.__val__().is_contiguous()))):
+            from torch.nn._bn import batch_norm_train_f32
+            return batch_norm_train_f32(input, running_mean, running_var, weight, bias, momentum, eps)
         mean = input.mean(dims, keepdim=True)
         xc = input - mean
         var = (xc * xc).mean(dims, keepdim=True)
@@ -665,6 +678,12 @@ def nll_loss(input: Tensor, target: Tensor, weight: Optional[Tensor] = None, siz
 def cross_entropy(input: Tensor, target: Tensor, weight: Optional[Tensor] = None, size_average = None, ignore_index: int = -100,
                   reduce = None, reduction: str = "mean", label_smoothing: float = 0.0) -> Tensor:
     cdim = 0 if input.ndim == 1 else 1
+    if (input.ndim == 2 and input._dt == _F32 and not target.is_floating_point() and target.ndim == 1
+            and target._dt == _T._I64 and label_smoothing <= 0.0
+            and (weight is None or weight.__val__()._dt == _F32) and reduction in ("mean", "sum", "none")):
+        # ATen log_softmax + nll_loss kernels (bit-exact incl. backward)
+        from torch.nn._ce import cross_entropy_f32
+        return cross_entropy_f32(input, target, weight, ignore_index, reduction)
     logp = input.log_softmax(cdim)
     if target.is_floating_point():
         # class probabilities
