@@ -204,6 +204,35 @@ def _fwd_nnpack(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor)
             for i in range(Og * L):
                 dst[i] = src[i]
 
+def _fwd_slow2d(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor):
+    # ATen Slow2d (thnn_conv2d, slow_conv2d_update_output_frame) per sample:
+    #   output = bias broadcast (or 0); output(O x L) += weight(O x K) * columns(K x L)
+    # as cpublas::gemm(N, N, L, O, K, 1, columns, L, weight, K, 1 or 0, output, L).
+    xp = Ptr[float32](x._st.ptr) + x._off
+    wp = Ptr[float32](w._st.ptr) + w._off
+    op = Ptr[float32](out._st.ptr) + out._off
+    K = g.C * g.KH * g.KW
+    L = g.OH * g.OW
+    simple = _is_1x1_simple(g)
+    cols = _scratch(0, 1 if simple else K * L)
+    for n in range(g.N):
+        xn = xp + n * g.C * g.H * g.W
+        on = op + n * g.O * L
+        cp = xn
+        if not simple:
+            _im2col(float32, xn, g, 0, g.C, cols)
+            cp = cols
+        beta = 0.0
+        if b is not None:
+            bp = Ptr[float32](b._st.ptr) + b._off
+            for o in range(g.O):
+                bv = bp[o]
+                q = on + o * L
+                for i in range(L):
+                    q[i] = bv
+            beta = 1.0
+        _gemm_cm(False, False, L, g.O, K, cp, L, wp, K, beta, on, L)
+
 def _fwd(T: type, x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor):
     if g.H == 1 and g.KH == 1 and g.ph == 0 and g.sw == 1 and g.dw == 1 and g.G > 1 and g.C == g.G and g.N < 16:
         _fwd_depthwise_row(T, x, w, b, g, out)
@@ -211,6 +240,9 @@ def _fwd(T: type, x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tenso
     if T is float32:
         if _nnpack_ft8x8_eligible(g):
             _fwd_nnpack(x, w, b, g, out)
+            return
+        if g.G == 1:
+            _fwd_slow2d(x, w, b, g, out)
             return
     xp = Ptr[T](x._st.ptr) + x._off
     wp = Ptr[T](w._st.ptr) + w._off
@@ -349,6 +381,18 @@ def _bwd(T: type, x: Tensor, w: Tensor, gy: Tensor, g: _Geo, gx: Tensor, gw: Ten
                     _col2im(T, cols, g, gi * Cg, Cg, gxn)
     if need_b:
         bp = Ptr[T](gb._st.ptr)
+        if T is float32:
+            # ATen Slow2d backward: grad_bias = grad_output.sum({0, 2, 3}); SumKernel's
+            # cascade_sum runs the contiguous inner reduction per sample and adds it to
+            # the output (out += cascade(row)), samples in order
+            from torch._tensor import _cascade_sum_f32
+            gpf = Ptr[float32](gy._st.ptr) + gy._off
+            for o in range(g.O):
+                s = float32(0.0)
+                for n in range(g.N):
+                    s = s + _cascade_sum_f32(gpf + (n * g.O + o) * L, L)
+                bp[o] = s
+            return
         for o in range(g.O):
             s = T()
             for n in range(g.N):
