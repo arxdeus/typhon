@@ -472,10 +472,11 @@ pub struct InstantiateExpr {
 }
 
 macro_rules! expr_kinds {
-    ($($variant:ident($ty:ident) => $as:ident, $as_mut:ident;)*) => {
-        /// Expression node kinds (one per `*Expr` class).
+    ($($variant:ident($ty:ident $(, $boxed:ident)?) => $as:ident, $as_mut:ident;)*) => {
+        /// Expression node kinds (one per `*Expr` class). Rare large kinds are boxed to keep
+        /// every AST node small.
         #[derive(Clone, Debug, Serialize, Deserialize)]
-        pub enum ExprKind { $($variant($ty)),* }
+        pub enum ExprKind { $($variant(expr_kinds!(@ty $ty $(, $boxed)?))),* }
 
         /// Discriminant of [`ExprKind`] (`NodeId`).
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -496,17 +497,19 @@ macro_rules! expr_kinds {
         }
         $(
             impl From<$ty> for ExprKind {
-                fn from(x: $ty) -> Self { ExprKind::$variant(x) }
+                fn from(x: $ty) -> Self { ExprKind::$variant(x.into()) }
             }
         )*
     };
+    (@ty $ty:ident) => { $ty };
+    (@ty $ty:ident, boxed) => { Box<$ty> };
 }
 
 expr_kinds! {
     None(NoneExpr) => as_none, as_none_mut;
     Bool(BoolExpr) => as_bool, as_bool_mut;
-    Int(IntExpr) => as_int, as_int_mut;
-    Float(FloatExpr) => as_float, as_float_mut;
+    Int(IntExpr, boxed) => as_int, as_int_mut;
+    Float(FloatExpr, boxed) => as_float, as_float_mut;
     String(StringExpr) => as_string, as_string_mut;
     Id(IdExpr) => as_id, as_id_mut;
     Star(StarExpr) => as_star, as_star_mut;
@@ -518,9 +521,9 @@ expr_kinds! {
     Generator(GeneratorExpr) => as_generator, as_generator_mut;
     If(IfExpr) => as_if, as_if_mut;
     Unary(UnaryExpr) => as_unary, as_unary_mut;
-    Binary(BinaryExpr) => as_binary, as_binary_mut;
+    Binary(BinaryExpr, boxed) => as_binary, as_binary_mut;
     ChainBinary(ChainBinaryExpr) => as_chain_binary, as_chain_binary_mut;
-    Pipe(PipeExpr) => as_pipe, as_pipe_mut;
+    Pipe(PipeExpr, boxed) => as_pipe, as_pipe_mut;
     Index(IndexExpr) => as_index, as_index_mut;
     Call(CallExpr) => as_call, as_call_mut;
     Dot(DotExpr) => as_dot, as_dot_mut;

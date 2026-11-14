@@ -159,7 +159,7 @@ pub struct ClassType {
     /// Fully generalized concrete types are reused.
     pub immutable: bool,
     /// Cached realized name (`_rn`).
-    pub rn: String,
+    pub rn: Ustr,
     pub kind: ClassKind,
 }
 
@@ -171,7 +171,7 @@ impl ClassType {
             hidden_generics,
             is_tuple: false,
             immutable: false,
-            rn: String::new(),
+            rn: Ustr::default(),
             kind: ClassKind::Plain,
         }
     }
@@ -597,14 +597,14 @@ impl TypeArena {
             _ => unreachable!(),
         });
         c.immutable = false;
-        c.rn = String::new();
+        c.rn = Ustr::default();
         c.kind = ClassKind::Func(Box::new(FuncData { ast, func_generics, func_parent }));
         self.alloc(TypeKind::Class(c), src)
     }
     /// `make_shared<IntStaticType>(cache, i)`.
     pub fn new_int_static(&self, v: i64) -> TypeId {
         let mut c = ClassType::new("Int", vec![], vec![]);
-        c.rn = "Int[64]".into();
+        c.rn = Ustr::from("Int[64]");
         c.kind = ClassKind::IntStatic(v);
         self.alloc(TypeKind::Class(c), SrcInfo::default())
     }

@@ -467,7 +467,7 @@ impl<'a> TypecheckVisitor<'a> {
                     let site = format!("{}\x01{}:{}:{}", owner, src.file, src.line, src.col);
                     if self.cache.int_widen_sites.contains(&site) {
                         if let Ok(fv) = v.parse::<i64>() {
-                            self.cache.ast[r].kind = crate::ast::ExprKind::Float(crate::ast::FloatExpr::new(fv as f64));
+                            self.cache.ast[r].kind = crate::ast::FloatExpr::new(fv as f64).into();
                         }
                     } else {
                         int_site = Some(site);

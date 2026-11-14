@@ -492,7 +492,7 @@ impl TypeArena {
         if let Some(canonical) = self.canonical_optional(this) {
             return self.realized_name(canonical);
         }
-        if let Some(rn) = self.with_class(this, |c| (!c.rn.is_empty()).then(|| c.rn.clone())).flatten() {
+        if let Some(rn) = self.with_class(this, |c| (!c.rn.is_empty()).then(|| c.rn.as_str().to_string())).flatten() {
             return rn;
         }
         let c = self.class(this).unwrap();
@@ -517,7 +517,7 @@ impl TypeArena {
             format!("{}{}", c.name, if s.is_empty() { String::new() } else { format!("[{s}]") })
         };
         if self.class_can_realize(&c) {
-            self.with_class_mut(this, |c| c.rn = s.clone());
+            self.with_class_mut(this, |c| c.rn = ustr::Ustr::from(s.as_str()));
         }
         s
     }

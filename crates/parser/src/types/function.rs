@@ -61,7 +61,7 @@ impl TypeArena {
         self.with_class_mut(base, |c| {
             c.kind = ClassKind::Func(Box::new(FuncData { ast, func_generics: fg, func_parent: parent }));
             c.immutable = false;
-            c.rn = String::new();
+            c.rn = Default::default();
         });
         base
     }
@@ -321,7 +321,7 @@ impl TypeArena {
         });
         self.with_class_mut(this, |c| {
             c.generics[0].ty = Some(args);
-            c.rn.clear();
+            c.rn = Default::default();
         });
     }
 }

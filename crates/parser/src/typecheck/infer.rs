@@ -364,7 +364,7 @@ impl<'a> TypecheckVisitor<'a> {
             types.with_class_mut(ty, |c| {
                 c.name = st.tuple.as_str().into();
                 c.generics = gens;
-                c.rn.clear();
+                c.rn = Default::default();
             });
         }
         // Check if the type was already realized
