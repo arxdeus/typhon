@@ -1041,11 +1041,26 @@ class RawArray:
                fir_window: str = "hamming", fir_design: str = "firwin",
                skip_by_annotation = ("edge", "bad_acq_skip"), pad: str = "reflect_limited",
                verbose = None):
-        """Filter in place (FIR only) and return self."""
+        """Filter in place and return self; like mne, each contiguous segment between
+        `skip_by_annotation` annotations (e.g. "EDGE boundary") is filtered separately."""
+        from .preprocessing._maxwell_filter import _segments
         pk = _filter_picks(self.info, picks)
-        _filter_inplace_3d(self._data, self.info.sfreq, l_freq, h_freq, pk, filter_length,
-                           l_trans_bandwidth, h_trans_bandwidth, method, iir_params, phase,
-                           fir_window, fir_design, pad)
+        onsets, ends = _segments(self, skip_by_annotation)
+        for si in range(len(onsets)):
+            start = onsets[si]
+            stop = ends[si]
+            if stop <= start:
+                continue
+            if start == 0 and stop == self._data.shape[1]:
+                _filter_inplace_3d(self._data, self.info.sfreq, l_freq, h_freq, pk, filter_length,
+                                   l_trans_bandwidth, h_trans_bandwidth, method, iir_params, phase,
+                                   fir_window, fir_design, pad)
+            else:
+                seg = self._data[:, start:stop].copy()
+                _filter_inplace_3d(seg, self.info.sfreq, l_freq, h_freq, pk, filter_length,
+                                   l_trans_bandwidth, h_trans_bandwidth, method, iir_params, phase,
+                                   fir_window, fir_design, pad)
+                self._data[:, start:stop] = seg
         _update_filter_info(self.info, pk, l_freq, h_freq)
         return self
 
