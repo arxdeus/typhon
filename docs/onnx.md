@@ -174,3 +174,17 @@ artifact, train in Typhon, store weights as safetensors, and open ORT with
 `ORT_DISABLE_ALL` + `AddInitializer` for every trained tensor after checking names, dtypes and
 shapes. Alternative when optimization is wanted: rewrite the initializers into the `.onnx`
 bytes and load that (no override semantics involved).
+
+## App bundling
+
+The Flutter example ships its own ORT instead of a plugin: the build hook
+(`examples/bci_flutter/hook/ort_fetch.dart`) downloads pinned, sha256-checked
+releases and emits them as a native-assets code asset. Android: the AAR's
+`jni/<abi>/libonnxruntime.so` (1.32.0, arm64-v8a + x86_64, 16 KB aligned)
+is copied as is. iOS: the pod archive (1.30.0) has only static archives, so
+the hook links the slice into a dylib:
+`xcrun -sdk iphoneos clang -dynamiclib -arch arm64 -Wl,-force_load,<slice>
+-framework Foundation CoreML Accelerate UIKit Network -lc++ -lz
+-install_name @rpath/libonnxruntime.dylib` (simulator: `lipo -thin arm64`
+first). Overrides for a custom build: `ORT_ANDROID_LIB_DIR`,
+`ORT_IOS_XCFRAMEWORK`.
