@@ -148,7 +148,7 @@ pub enum AttrValue {
     /// `ir::KeyValueAttribute`.
     KeyValue(BTreeMap<String, String>),
     /// `BindingsAttribute`.
-    Bindings(BindingsAttr),
+    Bindings(Box<BindingsAttr>),
 }
 
 impl AttrValue {
@@ -186,6 +186,9 @@ impl Attrs {
         if let Some(slot) = self.values.iter_mut().find(|(k, _)| *k == key) {
             slot.1 = value;
         } else {
+            // Nodes carry 1-3 attributes; the default first growth (capacity 4) would
+            // dominate the AST's memory.
+            self.values.reserve_exact(1);
             self.values.push((key, value));
         }
     }
@@ -242,13 +245,13 @@ impl Attrs {
     }
     pub fn get_bindings(&self) -> Option<&BindingsAttr> {
         match self.get(Attr::Bindings) {
-            Some(AttrValue::Bindings(s)) => Some(s),
+            Some(AttrValue::Bindings(s)) => Some(&**s),
             _ => None,
         }
     }
     pub fn get_bindings_mut(&mut self) -> Option<&mut BindingsAttr> {
         match self.get_mut(Attr::Bindings) {
-            Some(AttrValue::Bindings(s)) => Some(s),
+            Some(AttrValue::Bindings(s)) => Some(&mut **s),
             _ => None,
         }
     }

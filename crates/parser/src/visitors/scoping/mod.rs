@@ -214,7 +214,7 @@ impl<'a> ScopingVisitor<'a> {
     fn node_bindings_mut(&mut self, n: Node) -> &mut BindingsAttr {
         let attrs = self.node_attrs_mut(n);
         if !attrs.has(Attr::Bindings) {
-            attrs.set_value(Attr::Bindings, AttrValue::Bindings(BindingsAttr::default()));
+            attrs.set_value(Attr::Bindings, AttrValue::Bindings(Box::default()));
         }
         attrs.get_bindings_mut().expect("bindings")
     }

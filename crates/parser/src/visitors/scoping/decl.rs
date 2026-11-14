@@ -265,7 +265,7 @@ impl ScopingVisitor<'_> {
             }
             b.bindings.insert(u.clone(), bind);
         }
-        self.cache.ast[id].attrs.set_value(Attr::Bindings, AttrValue::Bindings(b));
+        self.cache.ast[id].attrs.set_value(Attr::Bindings, AttrValue::Bindings(Box::new(b)));
 
         if !c.class_deduce.1.is_empty() {
             // Note: the reference iterates an unordered_set; insertion order is used here.

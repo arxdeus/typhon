@@ -229,7 +229,7 @@ impl Visitor for ScopingVisitor<'_> {
         for (u, v) in &c.map {
             b.bindings.insert(u.clone(), crate::ast::Binding { name: u.clone(), count: v.len(), is_nonlocal: false });
         }
-        self.cache.ast[id].attrs.set_value(Attr::Bindings, crate::ast::AttrValue::Bindings(b));
+        self.cache.ast[id].attrs.set_value(Attr::Bindings, crate::ast::AttrValue::Bindings(Box::new(b)));
     }
 
     fn visit_yield_expr(&mut self, _id: ExprId) {
