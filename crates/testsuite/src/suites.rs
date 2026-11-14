@@ -70,7 +70,7 @@ pub const STDLIB: &[&str] = &[
     "stdlib/io_mod_test.py", "stdlib/glob_test.py", "stdlib/shutil_test.py",
     "stdlib/tempfile_test.py", "stdlib/types_test.py",
     "stdlib/math_more_test.py", "stdlib/random_parity_test.py", "stdlib/hmac_secrets_test.py",
-    "stdlib/queue_graphlib_test.py", "stdlib/test_threading_queue.py", "stdlib/zlib_timeit_test.py", "stdlib/itertools_more_test.py",
+    "stdlib/queue_graphlib_test.py", "stdlib/test_threading_queue.py", "stdlib/test_robot_decision.py", "stdlib/zlib_timeit_test.py", "stdlib/itertools_more_test.py",
     "stdlib/string_more_test.py",
     "stdlib/numcore_test.py", "stdlib/struct_more_test.py", "stdlib/deque_more_test.py",
     "stdlib/functools_more_test.py", "stdlib/zlib_deflate_test.py", "stdlib/decimal_test.py",
