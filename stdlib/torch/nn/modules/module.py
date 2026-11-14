@@ -382,14 +382,16 @@ class Module:
                     o._strides = n._strides
                     o._dt = n._dt
 
-    def to(self, dtype: _DType):
-        for m in self.modules():
-            m._to_dtype(dtype)
-        return self
-
-    def to(self, device: str, dtype: Optional[_DType] = None):
-        if dtype is not None:
-            self.to(dtype)
+    def to(self, arg, dtype: Optional[_DType] = None):
+        # One method (not overloads, which would bind `self` to Module and
+        # lose the subclass type of `model = Net().to(device)`): `to(dtype)`
+        # or `to(device[, dtype])` (devices are strings, CPU only).
+        if isinstance(arg, _DType):
+            for m in self.modules():
+                m._to_dtype(arg)
+        elif dtype is not None:
+            for m in self.modules():
+                m._to_dtype(dtype)
         return self
 
     def float(self):
