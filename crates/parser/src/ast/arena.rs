@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::ops::{Index, IndexMut};
 use std::rc::Rc;
 
-use la_arena::Arena;
+use typhon_common::chunkvec::ChunkVec;
 use typhon_common::{ErrorKind, Result, SrcInfo};
 
 use super::attr::Attr;
@@ -50,8 +50,8 @@ pub trait TypeFormatter {
 /// Owner of all AST nodes. the reference never frees individual nodes; neither does this arena.
 #[derive(Default)]
 pub struct AstArena {
-    exprs: Arena<Expr>,
-    stmts: Arena<Stmt>,
+    exprs: ChunkVec<Expr>,
+    stmts: ChunkVec<Stmt>,
     /// Type printer used by `toString`/`debug dump`/format (falls back to `T<n>`).
     pub type_fmt: Option<Rc<dyn TypeFormatter>>,
 }
@@ -65,23 +65,23 @@ impl std::fmt::Debug for AstArena {
 impl Index<ExprId> for AstArena {
     type Output = Expr;
     fn index(&self, id: ExprId) -> &Expr {
-        &self.exprs[id.0]
+        &self.exprs[id.index() as usize]
     }
 }
 impl IndexMut<ExprId> for AstArena {
     fn index_mut(&mut self, id: ExprId) -> &mut Expr {
-        &mut self.exprs[id.0]
+        &mut self.exprs[id.index() as usize]
     }
 }
 impl Index<StmtId> for AstArena {
     type Output = Stmt;
     fn index(&self, id: StmtId) -> &Stmt {
-        &self.stmts[id.0]
+        &self.stmts[id.index() as usize]
     }
 }
 impl IndexMut<StmtId> for AstArena {
     fn index_mut(&mut self, id: StmtId) -> &mut Stmt {
-        &mut self.stmts[id.0]
+        &mut self.stmts[id.index() as usize]
     }
 }
 
@@ -127,20 +127,20 @@ impl AstArena {
     }
     /// Iterate all expressions.
     pub fn exprs(&self) -> impl Iterator<Item = (ExprId, &Expr)> {
-        self.exprs.iter().map(|(i, e)| (ExprId(i), e))
+        self.exprs.iter().enumerate().map(|(i, e)| (ExprId::from_index(i as u32), e))
     }
     /// Iterate all statements.
     pub fn stmts(&self) -> impl Iterator<Item = (StmtId, &Stmt)> {
-        self.stmts.iter().map(|(i, s)| (StmtId(i), s))
+        self.stmts.iter().enumerate().map(|(i, s)| (StmtId::from_index(i as u32), s))
     }
 
     /// Allocate a fully built expression node without normalization.
     pub fn alloc_expr(&mut self, e: Expr) -> ExprId {
-        ExprId(self.exprs.alloc(e))
+        ExprId::from_index(self.exprs.push(e) as u32)
     }
     /// Allocate a fully built statement node without normalization.
     pub fn alloc_stmt(&mut self, s: Stmt) -> StmtId {
-        StmtId(self.stmts.alloc(s))
+        StmtId::from_index(self.stmts.push(s) as u32)
     }
 
     /// `cache->NS<T>(src, args...)` for expressions. Applies original side effects

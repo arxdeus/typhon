@@ -1,5 +1,6 @@
 //! Shared foundation for the Typhon compiler.
 
+pub mod chunkvec;
 pub mod config;
 pub mod diag;
 pub mod error;

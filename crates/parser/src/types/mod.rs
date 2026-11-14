@@ -316,7 +316,7 @@ pub type ClassResolver = Rc<dyn Fn(&str) -> Option<TypeId>>;
 /// that type printing needs (reverse identifier lookup, generated tuple names, unbound
 /// counter).
 pub struct TypeArena {
-    slots: RefCell<Vec<TypeData>>,
+    slots: RefCell<typhon_common::chunkvec::ChunkVec<TypeData>>,
     /// `Cache::unboundCount` (starts at 256).
     pub unbound_count: Cell<i32>,
     /// `Cache::reverseIdentifierLookup` (canonical -> user name).
@@ -374,7 +374,7 @@ pub(crate) fn join<S: AsRef<str>>(v: &[S], sep: &str) -> String {
 impl TypeArena {
     pub fn new() -> Self {
         Self {
-            slots: RefCell::new(Vec::new()),
+            slots: RefCell::new(typhon_common::chunkvec::ChunkVec::new()),
             unbound_count: Cell::new(256),
             reverse_lookup: RefCell::new(FxHashMap::default()),
             generated_tuple_names: RefCell::new(vec![vec![]]),
