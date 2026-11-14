@@ -217,7 +217,8 @@ def cross_entropy_f32(input: Tensor, target: Tensor, weight: Optional[Tensor], i
             dv = pl[b * C + t]
             if weight is not None:
                 wv2 = pw[t]
-                lps[0] = lps[0] - dv * wv2
+                # loss_partial_sums[0] -= cur_weight * data: clang contracts to fma
+                lps[0] = float32._fma(-dv, wv2, lps[0])
                 wps[0] = wps[0] + wv2
             else:
                 lps[0] = lps[0] - dv
