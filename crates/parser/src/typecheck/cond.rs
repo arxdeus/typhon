@@ -205,6 +205,8 @@ impl<'a> TypecheckVisitor<'a> {
             if let (Some(br), Some(vt)) = (br, vt) {
                 let mut rebound = std::collections::BTreeSet::new();
                 super::class::rebound_locals(&self.cache.ast, br, &mut rebound);
+                // A branch that unwraps `x` itself (`x.__val__()`) keeps `x` Optional.
+                super::class::optional_api_names(&self.cache.ast, br, &mut rebound);
                 let types = self.types();
                 if !rebound.contains(&name) && types.is(vt, &st.optional) && types.can_realize(vt) {
                     let key = self.get_unmangled_name(&name);

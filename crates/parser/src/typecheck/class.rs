@@ -591,6 +591,32 @@ pub(crate) fn rebound_locals(a: &AstArena, s: StmtId, names: &mut BTreeSet<Strin
         }
     }
 }
+/// Names used through the explicit Optional API (`x.__val__()`, `x.__has__()`) anywhere in
+/// `s`. Such code already unwraps `x` itself, so None-narrowing must leave `x` Optional.
+pub(crate) fn optional_api_names(a: &AstArena, s: StmtId, names: &mut BTreeSet<String>) {
+    fn ex(a: &AstArena, e: ExprId, names: &mut BTreeSet<String>) {
+        if let Some(d) = a[e].kind.as_dot() {
+            if d.member == "__val__" || d.member == "__has__" {
+                if let Some(i) = d.expr.and_then(|x| a[x].kind.as_id()) {
+                    names.insert(i.value.clone());
+                }
+            }
+        }
+        for c in expr_children(a, e) {
+            match c {
+                Child::Stmt(x) | Child::Suite(x) => optional_api_names(a, x, names),
+                Child::Expr(e) => ex(a, e, names),
+            }
+        }
+    }
+    for c in stmt_children(a, s) {
+        match c {
+            Child::Stmt(x) | Child::Suite(x) => optional_api_names(a, x, names),
+            Child::Expr(e) => ex(a, e, names),
+        }
+    }
+}
+
 fn rebound_locals_expr(a: &AstArena, e: ExprId, names: &mut BTreeSet<String>) {
     for c in expr_children(a, e) {
         match c {
