@@ -55,9 +55,38 @@ def get_num_threads() -> int:
 
 _NUM_WORKERS = [0]
 
+def _fast_cores() -> int:
+    # big + mid cores: macOS/iOS hw.perflevel0 (performance cores); Android/Linux: CPUs
+    # whose cpuinfo_max_freq is above the slowest cluster (little cores excluded).
+    if __apple__:
+        from C import sysctlbyname(cobj, Ptr[i32], Ptr[int], cobj, int) -> i32
+        out = i32(0)
+        sz = 4
+        if sysctlbyname("hw.perflevel0.physicalcpu".c_str(), __ptr__(out), __ptr__(sz), cobj(), 0) == i32(0) and int(out) > 0:
+            return int(out)
+        return 0
+    freqs = List[int]()
+    i = 0
+    while i < 64:
+        try:
+            with open(f"/sys/devices/system/cpu/cpu{i}/cpufreq/cpuinfo_max_freq") as fh:
+                freqs.append(int(fh.read().strip()))
+        except:
+            break
+        i += 1
+    if len(freqs) == 0:
+        return 0
+    lo = min(freqs)
+    n = 0
+    for v in freqs:
+        if v > lo:
+            n += 1
+    return n if n > 0 else len(freqs)
+
 def _num_workers() -> int:
     # Physical worker threads for Typhon's own kernels (results never depend on it):
-    # TYPHON_NUM_WORKERS, else torch.get_num_threads().
+    # TYPHON_NUM_WORKERS, else min(torch.get_num_threads(), 4) on desktop (a 5th worker
+    # only adds spin time); on Android/iOS the big + mid core count.
     if _NUM_WORKERS[0] == 0:
         import os
         v = os.getenv("TYPHON_NUM_WORKERS")
@@ -67,5 +96,13 @@ def _num_workers() -> int:
                 n = int(v.__val__())
             except:
                 n = 0
-        _NUM_WORKERS[0] = n if n > 0 else get_num_threads()
+        if n <= 0:
+            n = get_num_threads()
+            if n > 4:
+                n = 4
+            if __android__ or __ios__:
+                f = _fast_cores()
+                if f > 0:
+                    n = f
+        _NUM_WORKERS[0] = n
     return _NUM_WORKERS[0]
