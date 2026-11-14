@@ -30,5 +30,13 @@ fn env_skip_reason(_cfg: &Config, case: &typhon_testsuite::suites::Case) -> Opti
     if case.suite == "gpu" && !std::path::Path::new("/usr/local/cuda/nvvm/libdevice").exists() {
         return Some("needs CUDA libdevice");
     }
+    if case.suite == "robot"
+        && !typhon_testsuite::config::workspace_root()
+            .join(typhon_testsuite::suites::ROBOT_REPO)
+            .join("data/users/S025_test/combined_record.edf")
+            .exists()
+    {
+        return Some("needs examples/Robot-BCI-Movement-GUI");
+    }
     None
 }

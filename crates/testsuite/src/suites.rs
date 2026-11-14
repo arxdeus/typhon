@@ -48,6 +48,7 @@ pub const CORE: &[&str] = &[
     "core/containers.py", "core/trees.py", "core/range.py", "core/bltin.py",
     "core/arguments.py", "core/match.py", "core/serialization.py",
     "core/pipeline.py", "core/empty.py", "core/vec_simd.py",
+    "core/implicit.py", "core/bare_generic_fields.py",
 ];
 
 pub const STDLIB: &[&str] = &[
@@ -69,7 +70,7 @@ pub const STDLIB: &[&str] = &[
     "stdlib/io_mod_test.py", "stdlib/glob_test.py", "stdlib/shutil_test.py",
     "stdlib/tempfile_test.py", "stdlib/types_test.py",
     "stdlib/math_more_test.py", "stdlib/random_parity_test.py", "stdlib/hmac_secrets_test.py",
-    "stdlib/queue_graphlib_test.py", "stdlib/zlib_timeit_test.py", "stdlib/itertools_more_test.py",
+    "stdlib/queue_graphlib_test.py", "stdlib/test_threading_queue.py", "stdlib/zlib_timeit_test.py", "stdlib/itertools_more_test.py",
     "stdlib/string_more_test.py",
     "stdlib/numcore_test.py", "stdlib/struct_more_test.py", "stdlib/deque_more_test.py",
     "stdlib/functools_more_test.py", "stdlib/zlib_deflate_test.py", "stdlib/decimal_test.py",
@@ -283,6 +284,13 @@ pub const BRAINDECODE: &[&str] = &[
     "sklearn/test_estimators.py", "sklearn/test_extended.py", "joblib/test_joblib.py",
     "braindecode/test_training_eegclassifier.py",
 ];
+/// Robot-BCI-Movement-GUI (user repo under examples/, not tracked): skipped when absent.
+pub const ROBOT: &[&str] = &[
+    "robot/test_pth_load.py", "robot/test_finetune_rng.py", "robot/test_finetune_data.py",
+    "robot/test_finetune_short.py", "robot/test_inference.py",
+];
+/// Workspace-relative root of the user's Robot-BCI package (put on TYPHON_PATH for "robot").
+pub const ROBOT_REPO: &str = "examples/Robot-BCI-Movement-GUI";
 
 /// Split a file on `#%%` markers (port of `getTypeTests`). `source` is the file text.
 /// Header is `#%% name[,barebones]`; name `__ignore__` skips the case.
@@ -357,6 +365,7 @@ pub fn all_cases(read: impl Fn(&str) -> Option<String>) -> Vec<Case> {
     v.extend(combine("numpy", NUMPY, true, true));
     v.extend(combine("scipy", SCIPY, true, true));
     v.extend(combine("braindecode", BRAINDECODE, true, true));
+    v.extend(combine("robot", ROBOT, true, true));
     v
 }
 

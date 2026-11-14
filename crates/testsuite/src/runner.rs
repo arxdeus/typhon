@@ -125,7 +125,14 @@ pub fn execute(cfg: &Config, case: &Case) -> Result<Outcome, String> {
     // C++ runCompileAndRun: options->test = true (release pipeline in debug too,
     // plus TestOutliner/TestInliner/EscapeValidator).
     cmd.env("TYPHON_TEST_MODE", "1");
-    cmd.env("TYPHON_PATH", &cfg.stdlib);
+    // "robot": the user's package (`from src.models...`) is the extra import root;
+    // the stdlib is still found through TYPHON_STDLIB_DIR. (DiskFileSystem takes
+    // TYPHON_PATH as one path, so it must be a single directory.)
+    if case.suite == "robot" {
+        cmd.env("TYPHON_PATH", crate::config::workspace_root().join(crate::suites::ROBOT_REPO));
+    } else {
+        cmd.env("TYPHON_PATH", &cfg.stdlib);
+    }
     cmd.env("TYPHON_STDLIB_DIR", &cfg.stdlib);
     // C++ ran from the repo root: tests open `build/...` for scratch files and
     // `test/stdlib/data/...` for fixtures. Emulate with a per-case scratch cwd.
