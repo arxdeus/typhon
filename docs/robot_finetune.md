@@ -6,6 +6,14 @@ the lines listed in its header (8 `.numpy()` call sites given an explicit dtype/
 optional `models_dir=` for on-device use). `test/robot/check_typhon_copies.py` checks that
 nothing else changed.
 
+It builds with the release compiler (f6b624c2 or later) and needs no other changes: the
+default `target_channels` and no `TYPHON_PATH`, from a driver next to `src/`. The compiler
+features this relies on are:
+- implicit `Optional` for `x: list = None`
+- imports resolved from the main script's directory
+- int to float widening of function locals (`best_val_f1 = 0`, later assigned a float;
+  `correct_val += t.item()`)
+
 ## Parity (S025_test / S050_test `combined_record.edf`, torch 2.15.0, mne 1.13.2, sklearn 1.9.1)
 
 - Data pipeline (`prepare_patient_loaders_from_edf`): bit-exact. The epoch tensors, labels
@@ -23,6 +31,6 @@ nothing else changed.
   is 1 ulp in the first forward conv layer (batched depthwise Conv1d). Weights end up
   within 2.3e-4.
 - CPU time of the full run (user+sys), Typhon vs torch:
-  - S025: Typhon 41.6 s. Torch at 1 thread: 98.2 s. Torch at default threads: 282 s
-    (106 s wall).
+  - S025: Typhon 27.6 s on release f6b624c2 (an earlier build: 41.6 s). Torch at 1 thread:
+    98.2 s. Torch at default threads: 282 s (106 s wall).
   - S050: Typhon 22.3 s. Torch at default threads: 140 s.
