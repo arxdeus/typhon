@@ -373,6 +373,14 @@ def _avgpool_k(z: T, x: Tensor, g: _PoolGeo, cip: bool, dov: int, out: Tensor, T
         for oy in range(g.OH):
             for ox in range(g.OW):
                 hs, he, ws, we, div = _avgpool_div(g, oy, ox, cip, dov)
+                if T is float32:
+                    # ATen cpu_avg_pool2d: acc_t = opmath (float) sum, float division
+                    sf = float32(0.0)
+                    for iy in range(hs, he):
+                        for ix in range(ws, we):
+                            sf += xp[base + iy * g.W + ix]
+                    op[(b * g.OH + oy) * g.OW + ox] = sf / float32(div) if (he > hs and we > ws) else T(0)
+                    continue
                 s = 0.0
                 for iy in range(hs, he):
                     for ix in range(ws, we):
@@ -382,6 +390,20 @@ def _avgpool_k(z: T, x: Tensor, g: _PoolGeo, cip: bool, dov: int, out: Tensor, T
 def _avgpool_bwd_k(z: T, gy: Tensor, g: _PoolGeo, cip: bool, dov: int, gx: Tensor, T: type):
     gp = gy._ptr(T)
     q = gx._ptr(T)
+    if T is float32:
+        # ATen cpu_avg_pool2d_backward: grad_delta = gy / divide_factor (float), += into gx
+        for i in range(g.B * g.H * g.W):
+            q[i] = float32(0.0)
+        for b in range(g.B):
+            base = b * g.H * g.W
+            for oy in range(g.OH):
+                for ox in range(g.OW):
+                    hs, he, ws, we, div = _avgpool_div(g, oy, ox, cip, dov)
+                    v = gp[(b * g.OH + oy) * g.OW + ox] / float32(div)
+                    for iy in range(hs, he):
+                        for ix in range(ws, we):
+                            q[base + iy * g.W + ix] += v
+        return
     acc = [0.0] * (g.B * g.H * g.W)
     for b in range(g.B):
         base = b * g.H * g.W

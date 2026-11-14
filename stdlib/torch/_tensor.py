@@ -3606,6 +3606,67 @@ def _cascade_sum_f32(p: Ptr[float32], n: int) -> float32:
         fa = fa + acc[l]
     return fa
 
+def _multi_row_sum_f32(p: Ptr[float32], row_stride: int, col_stride: int, size: int, nrows: int, out: Ptr[float32]):
+    # ATen SumKernel multi_row_sum<float, nrows> (4 cascade levels)
+    L = 4
+    lp = 4
+    if size > 1:
+        cl = 0
+        while (1 << cl) < size:
+            cl += 1
+        if cl // L > lp:
+            lp = cl // L
+    step = 1 << lp
+    mask = step - 1
+    acc = Ptr[float32](L * nrows)
+    for k in range(L * nrows):
+        acc[k] = float32(0.0)
+    i = 0
+    while i + step <= size:
+        for _ in range(step):
+            base = p + i * row_stride
+            for k in range(nrows):
+                acc[k] = acc[k] + base[k * col_stride]
+            i += 1
+        for j in range(1, L):
+            for k in range(nrows):
+                acc[j * nrows + k] = acc[j * nrows + k] + acc[(j - 1) * nrows + k]
+                acc[(j - 1) * nrows + k] = float32(0.0)
+            if (i & (mask << (j * lp))) != 0:
+                break
+    while i < size:
+        base = p + i * row_stride
+        for k in range(nrows):
+            acc[k] = acc[k] + base[k * col_stride]
+        i += 1
+    for j in range(1, L):
+        for k in range(nrows):
+            acc[k] = acc[k] + acc[j * nrows + k]
+    for k in range(nrows):
+        out[k] = acc[k]
+
+def _row_sum_f32(p: Ptr[float32], stride: int, size: int) -> float32:
+    # ATen SumKernel row_sum (ilp_factor 4)
+    si = size // 4
+    ps = Ptr[float32](4)
+    _multi_row_sum_f32(p, stride * 4, stride, si, 4, ps)
+    for i in range(si * 4, size):
+        ps[0] = ps[0] + p[i * stride]
+    for k in range(1, 4):
+        ps[0] = ps[0] + ps[k]
+    return ps[0]
+
+def _outer_sum_f32(p: Ptr[float32], N: int, C: int, q: Ptr[float32]):
+    # ATen vectorized_outer_sum on aarch64 (nrows 8 x 4 lanes): sum over rows of a
+    # contiguous (N, C) block, per column.
+    j = 0
+    while j + 32 <= C:
+        _multi_row_sum_f32(p + j, C, 1, N, 32, q + j)
+        j += 32
+    while j < C:
+        q[j] = _row_sum_f32(p + j, C, N)
+        j += 1
+
 def _pairwise_sum_f64(p, n: int) -> float:
     if n <= 8:
         s = 0.0
@@ -3637,6 +3698,20 @@ def sum(input: Tensor, dim = None, keepdim: bool = False, dtype: Optional[_DType
         x = x.to(dtype)
     nd = len(x._shape)
     dims = _norm_dims(dim, nd)
+    if x._dt == _F32 and nd >= 2 and len(dims) == 1 and dims[0] == 0 and x.is_contiguous():
+        # contiguous outer reduction (e.g. linear bias grad): ATen vectorized_outer_sum
+        rest = x.numel() // x._shape[0] if x._shape[0] > 0 else 0
+        kshape0 = x._shape.copy()
+        kshape0[0] = 1
+        out0 = _new(kshape0 if keepdim else x._shape[1:], _F32)
+        _outer_sum_f32(Ptr[float32](x._st.ptr) + x._off, x._shape[0], rest, Ptr[float32](out0._st.ptr))
+        if _needs([x]):
+            n0 = _node("SumBackward1", _K_SUM, [x])
+            n0.ints = x._shape.copy()
+            n0.ints2 = kshape0
+            n0.fl = 1.0 if keepdim else 0.0
+            _attach(out0, n0)
+        return out0
     c, outer, inner, kshape, oshape = _reduce_prep(x, dims)
     odt = x._dt if _is_float(x._dt) else _I64
     out = _new(kshape if keepdim else oshape, odt)
