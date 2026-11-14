@@ -74,16 +74,32 @@ class Module:
         # (unless the same object is already registered). Recurses through the
         # concrete field types. Order: field order of the class, not assignment
         # order (affects only parameters() order, not state_dict keys).
+        # A field that aliases a module already reachable through the module
+        # tree (e.g. `self._dw = conv` with conv also inside a registered
+        # Sequential) is a typed handle, not a new child: registering it would
+        # add duplicate state_dict keys and duplicate parameter writes.
         for k, v in static.vars(self):
             if isinstance(v, Module):
                 if v.__raw__() != cobj():
-                    known = False
-                    for m in self._mods:
-                        if m is not None and m.__val__() is v:
-                            known = True
-                    if not known:
-                        self.add_module(k, v)
                     v._autoreg()
+        reach = Set[int]()
+        for m in self._mods:
+            if m is not None:
+                m.__val__()._reach(reach)
+        for k, v in static.vars(self):
+            if isinstance(v, Module):
+                if v.__raw__() != cobj():
+                    if id(v) not in reach:
+                        self.add_module(k, v)
+                        v._reach(reach)
+
+    def _reach(self, seen: Set[int]):
+        if id(self) in seen:
+            return
+        seen.add(id(self))
+        for m in self._mods:
+            if m is not None:
+                m.__val__()._reach(seen)
 
     def _get_name(self) -> str:
         n = self.__class__.__name__
