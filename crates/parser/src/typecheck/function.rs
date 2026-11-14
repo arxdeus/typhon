@@ -33,6 +33,26 @@ impl<'a> TypecheckVisitor<'a> {
         c.generate_canonical_name(self.cache, name, include_base, no_suffix)
     }
 
+    /// User code (Python semantics apply): not the typhon stdlib. Modules reached through a
+    /// symlink, the script dir or `TYPHON_PATH` count as user code; only files under a search
+    /// root named `stdlib` (the bundled or embedded standard library) do not.
+    pub(crate) fn is_user_module(&self) -> bool {
+        let c = self.ctx.borrow();
+        if c.is_stdlib_loading {
+            return false;
+        }
+        let mi = c.module_info();
+        if mi.status == typhon_common::fs::ImportStatus::Package {
+            return true;
+        }
+        let Some(fs) = self.cache.fs.clone() else { return false };
+        let f = fs.borrow();
+        let p = mi.path.replace('\\', "/");
+        !f.search_paths().iter().any(|sp| {
+            sp.file_name().is_some_and(|n| n == "stdlib") && p.starts_with(&*sp.to_string_lossy().replace('\\', "/"))
+        })
+    }
+
     /// Syntactic check: annotation already admits `None` (`Optional[..]`, `Union[.., None]`,
     /// `X | None`, `None`, `Any`, `object`). Used for Python implicit Optional of `x: T = None`.
     pub(crate) fn is_optional_annotation(&self, t: ExprId) -> bool {
@@ -655,8 +675,7 @@ impl<'a> TypecheckVisitor<'a> {
                         // Special case: `arg: type = None` -> `arg: type = NoneType
                         default_value = Some(self.id_n(&st.none_type));
                     } else if a.ty.is_some()
-                        && !self.ctx.borrow().is_stdlib_loading
-                        && self.ctx.borrow().module_info().status == typhon_common::fs::ImportStatus::Package
+                        && self.is_user_module()
                         && a.is_value() && !self.is_optional_annotation(a.ty.unwrap()) {
                         // Python implicit Optional: `x: T = None` behaves as `x: Optional[T] = None`.
                         let o = self.id_n(&st.optional);
@@ -952,8 +971,7 @@ impl<'a> TypecheckVisitor<'a> {
                                 || p.ty.and_then(|e| ast[e].kind.as_index()).is_some_and(|ix| is_id(ast, ix.expr, &stdlib().optional) && is_bare(ix.index))
                         };
                         if bare
-                            && !self.ctx.borrow().is_stdlib_loading
-                            && self.ctx.borrow().module_info().status == typhon_common::fs::ImportStatus::Package
+                            && self.is_user_module()
                         {
                             let ubs = types.get_unbounds(t, false);
                             for u in ubs {

@@ -1137,9 +1137,7 @@ impl<'a> TypecheckVisitor<'a> {
     /// constructor arguments, like an unannotated deduced member.
     fn generalize_bare_generic_fields(&mut self, args: &mut Vec<Param>) -> Result<bool> {
         let st = stdlib();
-        if self.ctx.borrow().is_stdlib_loading
-            || self.ctx.borrow().module_info().status != typhon_common::fs::ImportStatus::Package
-        {
+        if !self.is_user_module() {
             return Ok(false);
         }
         let mut new_generics = vec![];
