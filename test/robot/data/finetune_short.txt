@@ -1,0 +1,25 @@
+sub loss 0.505388
+sub loss 0.582017
+sub ep 1 f1 0.7471 preds 10
+sub loss 0.343066
+sub loss 0.502287
+sub ep 2 f1 0.7905 preds 9
+sub loss 0.246076
+sub loss 0.274919
+sub ep 3 f1 0.8854 preds 7
+fin p 0.247369 mix 0 loss 1.689019
+fin p 0.567340 mix 1 loss 1.763014
+fin p 0.383672 mix 0 loss 1.865691
+fin ep 1 f1 0.0808 P 0.06 R 0.17 lr 0.001
+fin p 0.717025 mix 0 loss 1.610551
+fin p 0.426246 mix 1 loss 1.739691
+fin p 0.078490 mix 0 loss 1.895021
+fin ep 2 f1 0.1111 P 0.13 R 0.21 lr 0.001
+fin p 0.947026 mix 0 loss 1.652476
+fin p 0.717284 mix 0 loss 1.696886
+fin p 0.502553 mix 1 loss 1.649880
+fin ep 3 f1 0.1326 P 0.23 R 0.25 lr 0.001
+fin p 0.810663 mix 0 loss 1.664753
+fin p 0.965066 mix 0 loss 1.689202
+fin p 0.482506 mix 1 loss 1.932695
+fin ep 4 f1 0.0513 P 0.03 R 0.20 lr 0.001
