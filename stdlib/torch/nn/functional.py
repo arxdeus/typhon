@@ -490,42 +490,38 @@ def batch_norm(input: Tensor, running_mean: Optional[Tensor], running_var: Optio
         rm = running_mean.__val__()
         rv = running_var.__val__()
         r = (rv + eps).rsqrt()
-        if (input._dt == _F32 and rm._dt == _F32 and r._dt == _F32 and input.is_contiguous() and rm.is_contiguous()
+        if (input._dt == _F32 and rm._dt == _F32 and rv._dt == _F32 and input.is_contiguous() and rm.is_contiguous() and rv.is_contiguous()
                 and not (_T._GRAD_ENABLED[0] and (input.requires_grad or (weight is not None and weight.__val__().requires_grad)
                                                   or (bias is not None and bias.__val__().requires_grad)))
                 and (weight is None or (weight.__val__()._dt == _F32 and weight.__val__().is_contiguous()))
                 and (bias is None or (bias.__val__()._dt == _F32 and bias.__val__().is_contiguous()))):
-            # fused inference path: same per-element ops and order as below
-            # ((x - mean) * rsqrt(var + eps)) * weight + bias, in float32
+            # fused inference path = ATen batch_norm_cpu_contiguous_impl (eval):
+            # invstd = 1 / sqrt(rv + eps) in float32, alpha = invstd * w,
+            # beta = b - mean * alpha (clang contracts to fma), out = x * alpha + beta
+            from C import sqrtf(float32) -> float32
             res = _new(input._shape.copy(), _F32)
             N0 = input.size(0)
             inner = input.numel() // (N0 * C) if N0 * C > 0 else 0
             px = Ptr[float32](input._st.ptr) + input._off
             po = Ptr[float32](res._st.ptr)
             pm = Ptr[float32](rm._st.ptr) + rm._off
-            pr = Ptr[float32](r._st.ptr) + r._off
+            prv = Ptr[float32](rv._st.ptr) + rv._off
+            pw = Ptr[float32]()
+            pb = Ptr[float32]()
+            if weight is not None:
+                wv = weight.__val__()
+                pw = Ptr[float32](wv._st.ptr) + wv._off
+            if bias is not None:
+                bv = bias.__val__()
+                pb = Ptr[float32](bv._st.ptr) + bv._off
             for c in range(C):
-                mc = pm[c]
-                rc = pr[c]
-                hw = weight is not None
-                hb = bias is not None
-                wc = float32(0.0)
-                bc = float32(0.0)
-                if weight is not None:
-                    wv = weight.__val__()
-                    wc = (Ptr[float32](wv._st.ptr) + wv._off)[c]
-                if bias is not None:
-                    bv = bias.__val__()
-                    bc = (Ptr[float32](bv._st.ptr) + bv._off)[c]
+                inv = float32(1.0) / sqrtf(prv[c] + float32(eps))
+                al = inv * (pw[c] if weight is not None else float32(1.0))
+                be = float32._fma(-pm[c], al, pb[c] if bias is not None else float32(0.0))
                 for n in range(N0):
                     base = (n * C + c) * inner
                     for i in range(inner):
-                        v = (px[base + i] - mc) * rc
-                        if hw:
-                            v = v * wc
-                        if hb:
-                            v = v + bc
-                        po[base + i] = v
+                        po[base + i] = px[base + i] * al + be
             return res
         out = (input - rm.reshape(shp)) * r.reshape(shp)
     if weight is not None:
