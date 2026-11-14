@@ -77,8 +77,8 @@ def _print_sink(sink: _TextSink, args, sep: str, end: str, flush: bool):
 
 def print(*args, sep: str = " ", end: str = "\n", file=None, flush: bool = False):
     if file is None:
-        if _stdout_sink is not None:
-            _print_sink(_stdout_sink, args, sep, end, flush)
+        if _stdout_sink.__has__():
+            _print_sink(_stdout_sink.__val__(), args, sep, end, flush)
             return
         print(*args, sep=sep, end=end, file=_C.seq_stdout(), flush=flush)
         return
@@ -88,11 +88,11 @@ def print(*args, sep: str = " ", end: str = "\n", file=None, flush: bool = False
         fp = file
     elif hasattr(file, "_state"):
         fp = file._state._fp
-        if _stderr_sink is not None and fp == _C.seq_stderr():
-            _print_sink(_stderr_sink, args, sep, end, flush)
+        if _stderr_sink.__has__() and fp == _C.seq_stderr():
+            _print_sink(_stderr_sink.__val__(), args, sep, end, flush)
             return
-        if _stdout_sink is not None and fp == _C.seq_stdout():
-            _print_sink(_stdout_sink, args, sep, end, flush)
+        if _stdout_sink.__has__() and fp == _C.seq_stdout():
+            _print_sink(_stdout_sink.__val__(), args, sep, end, flush)
             return
     else:
         # Any object with a write(str) method (e.g. io.StringIO).
