@@ -3295,7 +3295,23 @@ def masked_select(input: Tensor, mask: Tensor) -> Tensor:
         p[i] = lin[i]
     return index_select(x, 0, idx)
 
+def _slice_int(v):
+    # Tensor.item() is statically float, while torch returns int for integer dtypes:
+    # accept integral floats as slice bounds (t[:, :, :-shift] with shift = randint(...).item()).
+    if isinstance(v, float):
+        if v != float(int(v)):
+            raise TypeError("slice indices must be integers or None or have an __index__ method")
+        return Optional[int](int(v))
+    elif isinstance(v, Optional[float]):
+        if v is None:
+            return Optional[int]()
+        return _slice_int(v.__val__())
+    else:
+        return v
+
 def _norm_slice(sl, n: int):
+    if isinstance(sl.start, float) or isinstance(sl.stop, float) or isinstance(sl.step, float) or isinstance(sl.start, Optional[float]) or isinstance(sl.stop, Optional[float]) or isinstance(sl.step, Optional[float]):
+        return _norm_slice(Slice(_slice_int(sl.start), _slice_int(sl.stop), _slice_int(sl.step)), n)
     start, stop, step, length = sl.adjust_indices(n)
     if step <= 0:
         raise ValueError("step must be greater than zero")
