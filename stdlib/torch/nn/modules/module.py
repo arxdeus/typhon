@@ -338,6 +338,9 @@ class Module:
             m.train(mode)
 
     def eval(self):
+        # register first: an overridden train() reaches Module.train through
+        # super(), where `self` is statically Module and has no field info
+        self._autoreg()
         self.train(False)
         return self
 
