@@ -44,16 +44,20 @@ Two separate settings:
   whose `cpuinfo_max_freq` is above the slowest cluster). Single-input-channel conv layers
   always use 1 worker.
 
-## Time (S025 / S050, Apple M-series host, interleaved runs, load 3.8-6.9)
+## Time (S025 / S050, Apple M-series host, e0d0d386)
 
-wall / user / sys seconds; every Typhon row's log is identical to the torch row above it.
+Interleaved runs, 3 repetitions each, medians; load 3.2-7.1. wall / user / sys seconds.
+Every Typhon run's log is identical to the torch run at the same thread count (60/60).
 
 | run | S025 | S050 |
 |---|---|---|
-| torch, 1 thread | 60.4 / 59.2 / 0.6 | 33.9 / 32.8 / 0.5 |
-| Typhon, OMP=1, 1 worker | 64.7 / 64.3 / 0.3 | 34.1 / 33.9 / 0.2 |
-| Typhon, OMP=1, 2 workers | 40.0 / 64.6 / 3.0 | 22.3 / 35.8 / 1.8 |
-| Typhon, OMP=1, 4 workers | 36.7 / 78.5 / 15.6 | 17.8 / 39.6 / 6.8 |
-| torch, 5 threads (default) | 110.8 / 134.0 / 183.6 | 56.9 / 69.7 / 95.3 |
-| Typhon, default (OMP=5, 4 workers) | 35.9 / 77.3 / 15.3 | 19.7 / 42.0 / 8.5 |
-| Typhon, OMP=5, 1 worker | 61.7 / 61.4 / 0.3 | 33.9 / 33.5 / 0.3 |
+| torch, 1 thread | 59.1 / 57.8 / 0.6 | 34.0 / 32.8 / 0.5 |
+| Typhon, OMP=1, 1 worker | 56.6 / 56.1 / 0.4 | 31.4 / 31.1 / 0.2 |
+| Typhon, OMP=1, 2 workers | 37.3 / 59.4 / 3.1 | 20.8 / 32.8 / 1.8 |
+| Typhon, OMP=1, 4 workers | 35.3 / 72.9 / 15.9 | 19.7 / 40.2 / 9.0 |
+| torch, 5 threads (default) | 110.0 / 132.9 / 182.7 | 62.6 / 74.1 / 102.0 |
+| Typhon, default (OMP=5, 4 workers) | 35.7 / 73.8 / 16.0 | 19.9 / 40.8 / 9.0 |
+| Typhon, OMP=5, 1 worker | 56.7 / 56.2 / 0.4 | 31.0 / 30.7 / 0.2 |
+
+At 1 worker Typhon uses less CPU than torch at 1 thread; by default it finishes about 3x
+sooner than default torch with a quarter of its CPU time.
