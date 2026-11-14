@@ -313,16 +313,21 @@ def _archive_name(f: str) -> str:
         b = b[:j]
     return b if b != "" else "archive"
 
-def save(obj: Dict[str, Tensor], f: str):
-    """torch.save for a state_dict in the native torch zip+pickle format."""
+def save(obj, f):
+    """torch.save for a state_dict (any str -> Tensor mapping) in the native
+    torch zip+pickle format; f is a str or path-like."""
     from torch._pt_zip import save_bytes as _pt_save
-    _write_file(f, _pt_save(obj, _archive_name(f)))
+    p = str(f)
+    d = Dict[str, Tensor]()
+    for k, v in obj.items():
+        d[k] = v
+    _write_file(p, _pt_save(d, _archive_name(p)))
 
-def load(f: str, map_location = None, weights_only: bool = True) -> Dict[str, Tensor]:
+def load(f, map_location = None, weights_only: bool = True) -> Dict[str, Tensor]:
     """torch.load of a native torch checkpoint (zip+pickle state_dict) or a
     safetensors file (sniffed by magic)."""
     from torch._pt_zip import is_torch_zip, load_bytes as _pt_load
-    data = _read_file(f)
+    data = _read_file(str(f))
     if is_torch_zip(data):
         return _pt_load(data)
     return load_bytes(data)
