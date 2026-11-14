@@ -86,6 +86,14 @@ impl<'a> TypecheckVisitor<'a> {
         if !tv.cache.errors.is_empty() {
             return Err(CompilerError::Parser(tv.cache.errors.clone()));
         }
+        if std::env::var_os("TYPHON_TIMINGS").is_some() {
+            eprintln!(
+                "[T] typecheck arenas: exprs={} stmts={} types={}",
+                tv.cache.ast.expr_count(),
+                tv.cache.ast.stmt_count(),
+                tv.cache.types.len()
+            );
+        }
         Ok(out)
     }
 

@@ -2096,11 +2096,13 @@ impl<'a> TypecheckVisitor<'a> {
             }
             types.with_class_mut(cls_typ, |c| {
                 c.generics = new_gens.clone();
-                c.hidden_generics = new_hgens.clone();
+                c.hidden_generics = new_hgens.clone().into_boxed_slice();
             });
             types.with_class_mut(typ, |c| {
-                c.hidden_generics.extend(new_gens);
-                c.hidden_generics.extend(new_hgens);
+                let mut hg = std::mem::take(&mut c.hidden_generics).into_vec();
+                hg.extend(new_gens);
+                hg.extend(new_hgens);
+                c.hidden_generics = hg.into_boxed_slice();
             });
         }
 

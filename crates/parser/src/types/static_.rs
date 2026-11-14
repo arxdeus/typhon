@@ -31,7 +31,7 @@ impl TypeArena {
             }
             ClassKind::StrStatic(v) => {
                 if let Some(t) = self.get_str_static(typ) {
-                    return Ok(if *v == t { 1 } else { -1 });
+                    return Ok(if **v == *t { 1 } else { -1 });
                 } else if let Some(c) = self.get_class(typ) {
                     return self.class_unify(this, c, us, host);
                 }

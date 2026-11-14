@@ -144,7 +144,7 @@ pub enum ClassKind {
     /// `IntStaticType`.
     IntStatic(i64),
     /// `StrStaticType`.
-    StrStatic(String),
+    StrStatic(Box<str>),
     /// `BoolStaticType`.
     BoolStatic(bool),
 }
@@ -154,7 +154,8 @@ pub struct ClassType {
     /// Canonical type name.
     pub name: Ustr,
     pub generics: Vec<Generic>,
-    pub hidden_generics: Vec<Generic>,
+    /// Rarely set (classes with inherited generics): a boxed slice keeps the slot small.
+    pub hidden_generics: Box<[Generic]>,
     pub is_tuple: bool,
     /// Fully generalized concrete types are reused.
     pub immutable: bool,
@@ -168,7 +169,7 @@ impl ClassType {
         Self {
             name: Ustr::from(name.as_ref()),
             generics,
-            hidden_generics,
+            hidden_generics: hidden_generics.into_boxed_slice(),
             is_tuple: false,
             immutable: false,
             rn: Ustr::default(),
@@ -600,7 +601,7 @@ impl TypeArena {
         let base = self.get_class(base).expect("copy of a non-class type");
         let (c, src) = self.with(base, |d| match &d.kind {
             TypeKind::Class(c) => {
-                let mut n = ClassType::new(c.name, c.generics.clone(), c.hidden_generics.clone());
+                let mut n = ClassType::new(c.name, c.generics.clone(), c.hidden_generics.to_vec());
                 n.is_tuple = c.is_tuple;
                 (n, d.src)
             }
@@ -630,7 +631,7 @@ impl TypeArena {
     /// `make_shared<StrStaticType>(cache, s)`.
     pub fn new_str_static(&self, v: impl Into<String>) -> TypeId {
         let mut c = ClassType::new("str", vec![], vec![]);
-        c.kind = ClassKind::StrStatic(v.into());
+        c.kind = ClassKind::StrStatic(v.into().into_boxed_str());
         self.alloc(TypeKind::Class(c), SrcInfo::default())
     }
     /// `make_shared<BoolStaticType>(cache, b)`.
@@ -722,7 +723,7 @@ impl TypeArena {
     pub fn get_str_static(&self, id: TypeId) -> Option<String> {
         let f = self.follow(id);
         self.with(f, |d| match &d.kind {
-            TypeKind::Class(ClassType { kind: ClassKind::StrStatic(v), .. }) => Some(v.clone()),
+            TypeKind::Class(ClassType { kind: ClassKind::StrStatic(v), .. }) => Some(v.to_string()),
             _ => None,
         })
     }
@@ -770,7 +771,7 @@ impl TypeArena {
     }
     /// Hidden generics of `getClass()` (cloned).
     pub fn hidden_generics(&self, id: TypeId) -> Vec<Generic> {
-        self.get_class(id).and_then(|c| self.with_class(c, |c| c.hidden_generics.clone())).unwrap_or_default()
+        self.get_class(id).and_then(|c| self.with_class(c, |c| c.hidden_generics.to_vec())).unwrap_or_default()
     }
     /// `getClass()->generics[idx].type`.
     pub fn generic_type(&self, id: TypeId, idx: usize) -> Option<TypeId> {

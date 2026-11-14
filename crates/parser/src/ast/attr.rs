@@ -168,28 +168,38 @@ impl AttrValue {
 /// Insertion-ordered attribute map (`ir::AttributeMap`, a small vector of pairs).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Attrs {
-    values: Vec<(Attr, AttrValue)>,
+    /// Boxed so a node without attributes (most of them) pays one pointer.
+    values: Option<Box<Vec<(Attr, AttrValue)>>>,
 }
+
+const NO_ATTRS: &[(Attr, AttrValue)] = &[];
 
 impl Attrs {
     pub fn new() -> Self {
         Self::default()
     }
+    fn slice(&self) -> &[(Attr, AttrValue)] {
+        self.values.as_deref().map_or(NO_ATTRS, |v| v.as_slice())
+    }
+    fn slice_mut(&mut self) -> &mut [(Attr, AttrValue)] {
+        self.values.as_deref_mut().map_or(&mut [], |v| v.as_mut_slice())
+    }
     pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
+        self.slice().is_empty()
     }
     pub fn len(&self) -> usize {
-        self.values.len()
+        self.slice().len()
     }
     /// `setAttribute(key, value)`: replaces in place if present, else appends.
     pub fn set_value(&mut self, key: Attr, value: AttrValue) {
-        if let Some(slot) = self.values.iter_mut().find(|(k, _)| *k == key) {
+        if let Some(slot) = self.slice_mut().iter_mut().find(|(k, _)| *k == key) {
             slot.1 = value;
         } else {
             // Nodes carry 1-3 attributes; the default first growth (capacity 4) would
             // dominate the AST's memory.
-            self.values.reserve_exact(1);
-            self.values.push((key, value));
+            let v = self.values.get_or_insert_with(Default::default);
+            v.reserve_exact(1);
+            v.push((key, value));
         }
     }
     /// `setAttribute(key)`.
@@ -205,13 +215,13 @@ impl Attrs {
         self.set_value(key, AttrValue::Str(v.into()))
     }
     pub fn has(&self, key: Attr) -> bool {
-        self.values.iter().any(|(k, _)| *k == key)
+        self.slice().iter().any(|(k, _)| *k == key)
     }
     pub fn get(&self, key: Attr) -> Option<&AttrValue> {
-        self.values.iter().find(|(k, _)| *k == key).map(|(_, v)| v)
+        self.slice().iter().find(|(k, _)| *k == key).map(|(_, v)| v)
     }
     pub fn get_mut(&mut self, key: Attr) -> Option<&mut AttrValue> {
-        self.values.iter_mut().find(|(k, _)| *k == key).map(|(_, v)| v)
+        self.slice_mut().iter_mut().find(|(k, _)| *k == key).map(|(_, v)| v)
     }
     pub fn get_int(&self, key: Attr) -> Option<i64> {
         match self.get(key) {
@@ -257,10 +267,15 @@ impl Attrs {
     }
     /// `eraseAttribute(key)`.
     pub fn erase(&mut self, key: Attr) {
-        self.values.retain(|(k, _)| *k != key);
+        if let Some(v) = self.values.as_mut() {
+            v.retain(|(k, _)| *k != key);
+            if v.is_empty() {
+                self.values = None;
+            }
+        }
     }
     pub fn iter(&self) -> impl Iterator<Item = (Attr, &AttrValue)> {
-        self.values.iter().map(|(k, v)| (*k, v))
+        self.slice().iter().map(|(k, v)| (*k, v))
     }
 }
 
