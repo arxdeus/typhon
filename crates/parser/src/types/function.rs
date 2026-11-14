@@ -280,30 +280,44 @@ impl TypeArena {
 
     /// `FuncType::realizedName`.
     pub(crate) fn func_realized_name(&self, this: TypeId) -> String {
-        let f = self.func_data(this);
-        let mut gs: Vec<String> = vec![];
-        for a in &f.func_generics {
-            if !a.name.is_empty() {
-                gs.push(self.generic_realized_name(a));
-            }
+        let mut out = String::new();
+        self.write_func_realized_name(this, &mut out);
+        out
+    }
+    /// Append `FuncType::realizedName` to `out` without intermediate strings.
+    /// Function-typed arguments go through `realizedName` too (`get_func` follows
+    /// links exactly like `realized_name`), so all entries use the generic writer.
+    pub(crate) fn write_func_realized_name(&self, this: TypeId, out: &mut String) {
+        let (ast, parent, fgen) = self
+            .with_class(this, |c| {
+                let f = c.func().expect("not a function type");
+                let g: SmallVec<[Generic; 2]> =
+                    f.func_generics.iter().filter(|a| !a.name.is_empty()).cloned().collect();
+                (f.ast, f.func_parent, g)
+            })
+            .expect("not a function type");
+        if let Some(p) = parent {
+            self.write_realized_name(p, out);
+            out.push(':');
         }
-        let s = join(&gs, ",");
-        let mut as_: Vec<String> = vec![];
+        out.push_str(&self.func_ast(ast).name);
         // Important: return type does not have to be realized.
-        for a in self.func_args(this) {
-            as_.push(match self.get_func(a.ty()) {
-                Some(af) => self.func_realized_name(af),
-                None => self.generic_realized_name(&a),
-            });
+        let g0 = self.generic_type(this, 0).expect("function without argument tuple");
+        let args = self.get_class(g0).map(|c| self.generic_tys_kinds(c)).unwrap_or_default();
+        let open = out.len();
+        out.push('[');
+        for (i, (ty, kind)) in args.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            self.write_generic_realized_name(*ty, *kind, out);
         }
-        let a = join(&as_, ",");
-        let s = if s.is_empty() { a } else { format!("{a},{s}") };
-        format!(
-            "{}{}{}",
-            f.func_parent.map(|p| format!("{}:", self.realized_name(p))).unwrap_or_default(),
-            self.func_ast(f.ast).name,
-            if s.is_empty() { String::new() } else { format!("[{s}]") }
-        )
+        // Generics always follow a comma (even with no arguments: `f[,T]`).
+        for g in &fgen {
+            out.push(',');
+            self.write_generic_realized_name(g.ty(), g.static_kind, out);
+        }
+        super::class::close_or_drop_brackets(out, open);
     }
 
     /// `FuncType::replaceArgTypes`: replace non-null argument types, preserving shared

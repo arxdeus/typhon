@@ -1006,14 +1006,25 @@ impl TypeArena {
 
     /// `realizedName()`.
     pub fn realized_name(&self, id: TypeId) -> String {
+        let mut out = String::new();
+        self.write_realized_name(id, &mut out);
+        out
+    }
+    /// Append `realizedName()` to `out` (shared buffer, no per-level strings).
+    pub fn write_realized_name(&self, id: TypeId, out: &mut String) {
         match self.shape(id) {
-            Shape::Link(LinkKind::Link, t) => self.realized_name(t.unwrap()),
-            Shape::Link(..) => self.link(id).map(|l| format!("#{}", l.generic_name)).unwrap(),
-            Shape::Func => self.func_realized_name(id),
+            Shape::Link(LinkKind::Link, t) => self.write_realized_name(t.unwrap(), out),
+            Shape::Link(..) => {
+                out.push('#');
+                out.push_str(&self.link(id).unwrap().generic_name);
+            }
+            Shape::Func => self.write_func_realized_name(id, out),
             // StaticType::realizedName = debugString(0)
-            Shape::Static => self.with_class(id, |c| c.clone()).map(|c| self.static_debug_string(&c, 0)).unwrap(),
-            Shape::Class { .. } => self.class_realized_name(id),
-            Shape::Trait => String::new(),
+            Shape::Static => {
+                out.push_str(&self.with_class(id, |c| c.clone()).map(|c| self.static_debug_string(&c, 0)).unwrap())
+            }
+            Shape::Class { .. } => self.write_class_realized_name(id, out),
+            Shape::Trait => {}
         }
     }
 

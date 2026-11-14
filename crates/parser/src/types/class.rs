@@ -31,13 +31,22 @@ impl TypeArena {
     }
     /// `Generic::realizedName`.
     pub fn generic_realized_name(&self, g: &Generic) -> String {
-        let t = g.ty();
-        if g.static_kind == LiteralKind::Runtime && self.get_static(t).is_some() {
+        let mut out = String::new();
+        self.write_generic_realized_name(g.ty(), g.static_kind, &mut out);
+        out
+    }
+    /// Append `Generic::realizedName` of a generic `(type, static kind)` to `out`.
+    pub(crate) fn write_generic_realized_name(&self, t: TypeId, kind: LiteralKind, out: &mut String) {
+        if kind == LiteralKind::Runtime && self.get_static(t).is_some() {
             if let Some(ns) = self.non_static_type(t) {
-                return self.realized_name(ns);
+                return self.write_realized_name(ns, out);
             }
         }
-        self.realized_name(t)
+        self.write_realized_name(t, out)
+    }
+    /// `(type, static kind)` of each generic of a class slot.
+    pub(crate) fn generic_tys_kinds(&self, c: TypeId) -> SmallVec<[(TypeId, LiteralKind); 8]> {
+        self.with_class(c, |c| c.generics.iter().map(|g| (g.ty(), g.static_kind)).collect()).unwrap_or_default()
     }
     /// `Generic::generalize`.
     pub fn generic_generalize(&self, g: &Generic, at_level: i32) -> Generic {
@@ -489,37 +498,73 @@ impl TypeArena {
     /// `ClassType::realizedName` (with the `_rn` cache). Use [`TypeArena::realized_name`]
     /// for virtual dispatch.
     pub fn class_realized_name(&self, this: TypeId) -> String {
+        let mut out = String::new();
+        self.write_class_realized_name(this, &mut out);
+        out
+    }
+    /// Append `ClassType::realizedName` to `out`, filling the `_rn` cache.
+    pub(crate) fn write_class_realized_name(&self, this: TypeId, out: &mut String) {
         if let Some(canonical) = self.canonical_optional(this) {
-            return self.realized_name(canonical);
+            return self.write_realized_name(canonical, out);
         }
-        if let Some(rn) = self.with_class(this, |c| (!c.rn.is_empty()).then(|| c.rn.as_str().to_string())).flatten() {
-            return rn;
+        let (name, rn) = self.with_class(this, |c| (c.name, c.rn)).expect("not a class");
+        if !rn.is_empty() {
+            out.push_str(rn.as_str());
+            return;
         }
-        let c = self.class(this).unwrap();
-        let s = if c.name == "Partial" {
-            self.class_debug_string(this, 1)
-        } else {
-            let mut gs: Vec<String> = vec![];
-            if c.name == stdlib().union.as_str() && self.get_class(c.generics[0].ty()).is_some() {
-                let mut gss = BTreeSet::new();
-                for a in self.generics(c.generics[0].ty()) {
-                    gss.insert(self.generic_realized_name(&a));
-                }
-                gs = vec![gss.into_iter().collect::<Vec<_>>().join("|")];
-            } else {
-                for a in &c.generics {
-                    if !a.name.is_empty() {
-                        gs.push(self.generic_realized_name(a));
-                    }
-                }
+        let start = out.len();
+        if name == "Partial" {
+            let c = self.class(this).unwrap();
+            out.push_str(&self.class_debug_string(this, 1));
+            if self.class_can_realize(&c) {
+                self.with_class_mut(this, |c| c.rn = ustr::Ustr::from(&out[start..]));
             }
-            let s = join(&gs, ",");
-            format!("{}{}", c.name, if s.is_empty() { String::new() } else { format!("[{s}]") })
-        };
-        if self.class_can_realize(&c) {
-            self.with_class_mut(this, |c| c.rn = ustr::Ustr::from(s.as_str()));
+            return;
         }
-        s
+        out.push_str(name.as_str());
+        let union_tys = if name == stdlib().union.as_str() {
+            let g0 = self.with_class(this, |c| c.generics[0].ty()).unwrap();
+            self.get_class(g0).map(|g0c| self.generic_tys_kinds(g0c))
+        } else {
+            None
+        };
+        if let Some(members) = union_tys {
+            let mut gss = BTreeSet::new();
+            for (t, k) in members {
+                let mut m = String::new();
+                self.write_generic_realized_name(t, k, &mut m);
+                gss.insert(m);
+            }
+            let open = out.len();
+            out.push('[');
+            for (i, m) in gss.iter().enumerate() {
+                if i > 0 {
+                    out.push('|');
+                }
+                out.push_str(m);
+            }
+            close_or_drop_brackets(out, open);
+        } else {
+            let gens: SmallVec<[(TypeId, LiteralKind); 8]> = self
+                .with_class(this, |c| {
+                    c.generics.iter().filter(|g| !g.name.is_empty()).map(|g| (g.ty(), g.static_kind)).collect()
+                })
+                .unwrap();
+            if !gens.is_empty() {
+                let open = out.len();
+                out.push('[');
+                for (i, (t, k)) in gens.into_iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    self.write_generic_realized_name(t, k, out);
+                }
+                close_or_drop_brackets(out, open);
+            }
+        }
+        if self.with_class(this, |c| self.class_can_realize(c)).unwrap() {
+            self.with_class_mut(this, |c| c.rn = ustr::Ustr::from(&out[start..]));
+        }
     }
 
     /// `getPartialFunc()`.
@@ -545,5 +590,15 @@ impl TypeArena {
         ag.len() == 1
             && self.generics(ag[0].ty()).is_empty()
             && self.generic_type(ka, 1).is_some_and(|k| self.generics(k).is_empty())
+    }
+}
+
+/// Close a `[` opened at `open`, or drop it when nothing was written inside
+/// (`name[...]` only when the joined generics are non-empty).
+pub(crate) fn close_or_drop_brackets(out: &mut String, open: usize) {
+    if out.len() == open + 1 {
+        out.truncate(open);
+    } else {
+        out.push(']');
     }
 }
