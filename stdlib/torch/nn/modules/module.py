@@ -50,12 +50,37 @@ class Module:
     def forward(self, input: Tensor) -> Tensor:
         raise NotImplementedError(f'Module [{self._get_name()}] is missing the required "forward" function')
 
-    def __call__(self, input: Tensor) -> Tensor:
+    def __call__(self, *inputs):
+        # one generic entry for `model(x)` and multi-input forwards
+        # (`model(x1, x2, x3, x4)`); an overloaded __call__ would bind `self`
+        # to the base class and lose the subclass forward.
+        self._autoreg()
         self._refresh_parametrizations()
-        return self.forward(input)
+        return self.forward(*inputs)
+
+    def _autoreg(self):
+        # torch registers submodules in Module.__setattr__. Plain attribute
+        # assignment in a user subclass (`self.block = nn.Sequential(...)`)
+        # bypasses add_module here, so the Module-typed fields of the static
+        # type of `self` are registered lazily under their attribute names
+        # (unless the same object is already registered). Recurses through the
+        # concrete field types. Order: field order of the class, not assignment
+        # order (affects only parameters() order, not state_dict keys).
+        for k, v in static.vars(self):
+            if isinstance(v, Module):
+                if v.__raw__() != cobj():
+                    known = False
+                    for m in self._mods:
+                        if m is not None and m.__val__() is v:
+                            known = True
+                    if not known:
+                        self.add_module(k, v)
+                    v._autoreg()
 
     def _get_name(self) -> str:
-        return "Module"
+        n = self.__class__.__name__
+        i = n.find("[")
+        return n[:i] if i >= 0 else n
 
     def extra_repr(self) -> str:
         return ""
@@ -107,6 +132,7 @@ class Module:
         self.add_module(name, module)
 
     def get_submodule(self, target: str) -> Module:
+        self._autoreg()
         if target == "":
             return self
         mod: Module = self
@@ -159,6 +185,7 @@ class Module:
                     m._named_members_params(prefix + self._mnames[i] + ".", True, out, seen)
 
     def named_parameters(self, prefix: str = "", recurse: bool = True, remove_duplicate: bool = True) -> List[Tuple[str, Tensor]]:
+        self._autoreg()
         out = List[Tuple[str, Tensor]]()
         seen = Set[int]()
         self._named_members_params(prefix + "." if prefix else "", recurse, out, seen)
@@ -183,6 +210,7 @@ class Module:
                     m._named_members_buffers(prefix + self._mnames[i] + ".", True, out, seen)
 
     def named_buffers(self, prefix: str = "", recurse: bool = True, remove_duplicate: bool = True) -> List[Tuple[str, Tensor]]:
+        self._autoreg()
         out = List[Tuple[str, Tensor]]()
         seen = Set[int]()
         self._named_members_buffers(prefix + "." if prefix else "", recurse, out, seen)
@@ -192,6 +220,7 @@ class Module:
         return [b for _, b in self.named_buffers(recurse=recurse)]
 
     def named_children(self) -> List[Tuple[str, Module]]:
+        self._autoreg()
         out = List[Tuple[str, Module]]()
         seen = Set[int]()
         for i in range(len(self._mnames)):
@@ -218,6 +247,7 @@ class Module:
                 m._nm(prefix + ("." if prefix else "") + self._mnames[i], out, seen)
 
     def named_modules(self, prefix: str = "") -> List[Tuple[str, Module]]:
+        self._autoreg()
         out = List[Tuple[str, Module]]()
         seen = Set[int]()
         self._nm(prefix, out, seen)
@@ -244,6 +274,7 @@ class Module:
                 m._save_to_state_dict(prefix + self._mnames[i] + ".", d, keep_vars)
 
     def state_dict(self, prefix: str = "", keep_vars: bool = False) -> Dict[str, Tensor]:
+        self._autoreg()
         d = Dict[str, Tensor]()
         self._save_to_state_dict(prefix, d, keep_vars)
         return d
@@ -282,6 +313,7 @@ class Module:
                 m._load(prefix + self._mnames[i] + ".", sd, missing, used)
 
     def load_state_dict(self, state_dict: Dict[str, Tensor], strict: bool = True, assign: bool = False):
+        self._autoreg()
         missing = List[str]()
         used = Set[str]()
         self._load("", state_dict, missing, used)
@@ -297,10 +329,13 @@ class Module:
 
     # ------------------------------------------------------------ modes
     def train(self, mode: bool = True):
+        # torch returns self; here train() returns None because user subclasses
+        # commonly override it without a return (`super().train(mode)`) and a
+        # virtual override must keep the base return type. eval() returns self.
+        self._autoreg()
         self.training = mode
         for m in self.children():
             m.train(mode)
-        return self
 
     def eval(self):
         self.train(False)
