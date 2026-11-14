@@ -420,7 +420,6 @@ impl<'a> TypecheckVisitor<'a> {
     /// function type. Also realize built-ins and extern C functions.
     pub fn visit_function(&mut self, s: StmtId) -> Result<()> {
         let types = self.types();
-        let orig_stmt = self.cache.ast.clone_stmt(s, true);
 
         // Parse attributes
         let mut decorators: Vec<Option<ExprId>> =
@@ -544,7 +543,7 @@ impl<'a> TypecheckVisitor<'a> {
             c.pop_block();
             r?
         };
-        self.finish_function(s, orig_stmt, decorators, sig, root_name, canonical_name, is_class_member)
+        self.finish_function(s, decorators, sig, root_name, canonical_name, is_class_member)
     }
 
     /// Handle captures. Add additional argument to the function for every capture.
@@ -1022,7 +1021,6 @@ impl<'a> TypecheckVisitor<'a> {
     fn finish_function(
         &mut self,
         s: StmtId,
-        orig_stmt: StmtId,
         decorators: Vec<Option<ExprId>>,
         sig: FnSignature,
         root_name: String,
@@ -1059,7 +1057,6 @@ impl<'a> TypecheckVisitor<'a> {
                 root_name: root_name.clone(),
                 ast: Some(f),
                 ty: None,
-                orig_ast: Some(orig_stmt),
                 is_toplevel: toplevel,
                 ..Default::default()
             },

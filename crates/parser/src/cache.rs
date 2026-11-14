@@ -185,8 +185,6 @@ pub struct Function {
     pub ast: Option<StmtId>,
     /// Unrealized function type.
     pub ty: Option<TypeId>,
-    /// Non-simplified AST.
-    pub orig_ast: Option<StmtId>,
     pub is_toplevel: bool,
     /// Realized name -> realization.
     pub realizations: FxHashMap<String, FunctionRealizationRef>,
