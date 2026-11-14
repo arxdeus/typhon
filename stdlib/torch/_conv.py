@@ -155,6 +155,16 @@ def _nnpack_ft8x8_eligible(g: _Geo) -> bool:
     t16 = ((g.OH + (16 - g.KH)) // (16 - g.KH + 1)) * ((g.OW + (16 - g.KW)) // (16 - g.KW + 1))
     return t8 <= 4 * t16
 
+_SCR = [Ptr[float32](), Ptr[float32](), Ptr[float32]()]
+_SCR_N = [0, 0, 0]
+
+def _scratch(k: int, n: int) -> Ptr[float32]:
+    # grow-only reusable buffers (main thread only), avoids per-call GC allocations
+    if _SCR_N[k] < n:
+        _SCR[k] = Ptr[float32](n)
+        _SCR_N[k] = n
+    return _SCR[k]
+
 def _fwd_nnpack(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor):
     # ATen convolution(): backends without native groups loop over groups on contiguous
     # sub-tensors (input/weight/bias split along dim 1/0) and concatenate the outputs.
@@ -166,9 +176,19 @@ def _fwd_nnpack(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor)
     op = Ptr[float32](out._st.ptr) + out._off
     HW = g.H * g.W
     L = g.OH * g.OW
-    xg = Ptr[float32](g.N * Cg * HW)
-    yg = Ptr[float32](g.N * Og * L)
-    bg = Ptr[float32](Og)
+    bg = _scratch(2, Og)
+    if g.G == 1:
+        # one group: the sub-tensors are the tensors themselves, no copies
+        bp = bg
+        if b is None:
+            for o in range(Og):
+                bg[o] = float32(0.0)
+        else:
+            bp = Ptr[float32](b._st.ptr) + b._off
+        conv_ft8x8(g.N, Cg, Og, g.H, g.W, g.KH, g.KW, g.ph, g.pw, xp, wp, bp, op)
+        return
+    xg = _scratch(0, g.N * Cg * HW)
+    yg = _scratch(1, g.N * Og * L)
     for gi in range(g.G):
         for n in range(g.N):
             src = xp + (n * g.C + gi * Cg) * HW
