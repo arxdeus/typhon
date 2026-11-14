@@ -3,7 +3,6 @@
 # imported unchanged) on S025_test/S050_test: read_raw_edf, rename/pick, Raw.filter 8-30 Hz
 # per EDGE-boundary segment, Epochs(-1, 4, baseline), crop(0.5, 3.5), z-score, masks.
 # Bit-exact hashes from gen_finetune_data.py (torch 2.15.0, mne 1.13.2).
-# Build with TYPHON_PATH=examples/Robot-BCI-Movement-GUI until main-dir imports land.
 import os
 import torch
 
@@ -33,7 +32,7 @@ else:
     from src.models.models_finetuning import prepare_patient_loaders_from_edf
     out = List[str]()
     for s in ["S025_test", "S050_test"]:
-        full, y, subs = prepare_patient_loaders_from_edf(REPO + "/data/users/" + s + "/combined_record.edf", 64, ['F3', 'C3', 'C4', 'Cz', 'T7', 'T8', 'P7', 'O1'])
+        full, y, subs = prepare_patient_loaders_from_edf(REPO + "/data/users/" + s + "/combined_record.edf")
         X = full.dataset.tensors[0]
         out.append(f"{s} n={len(y)} shape={','.join([str(v) for v in X.shape])} X={bithash(X)} y={bithash(y)} batches={len(full)}")
         for k in subs:

@@ -7,7 +7,6 @@
 # 3 epochs on the Both Hands submodel + 4 epochs of a MotorControlNet head on S025_test.
 # Expected: data/finetune_short.txt from gen_finetune_short.py (torch 2.15.0); metrics
 # exact, losses within 2e-4 (float32 summation order in BLAS kernels).
-# Build with TYPHON_PATH=examples/Robot-BCI-Movement-GUI until main-dir imports land.
 import os
 DIR = __file__[:__file__.rfind("/")] if "/" in __file__ else "."
 REPO = DIR + "/../../examples/Robot-BCI-Movement-GUI"
@@ -30,7 +29,7 @@ else:
     from sklearn.metrics import precision_score, recall_score, f1_score
     from sklearn.utils.class_weight import compute_class_weight
     from src.models.architecture import MotorControlNet, CustomTemporalNet
-    full, y, subs = prepare_patient_loaders_from_edf(REPO + "/data/users/S025_test/combined_record.edf", 64, ['F3', 'C3', 'C4', 'Cz', 'T7', 'T8', 'P7', 'O1'])
+    full, y, subs = prepare_patient_loaders_from_edf(REPO + "/data/users/S025_test/combined_record.edf")
     seed_everything(52)
     md = REPO + "/src/models/"
     paths = {'fwd': md + 'best_general_both_hands_f1.pth', 'back': md + 'best_general_both_feet_f1.pth',
