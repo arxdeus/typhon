@@ -83,6 +83,17 @@ def _elu_fwd1(x: Ptr[float32], y: Ptr[float32], n: int, alpha: float32):
     # the vector op computes expm1 only if any lane is negative (same values per lane).
     from C import expm1f(float32) -> float32
     full = n - (n % 8)
+    if __aarch64__:
+        # native SLEEF expm1f (libtyphonrt), lane values identical to the Vec port
+        from torch._sleef import expm1f_block
+        expm1f_block(x, y, full)
+        for i in range(full):
+            v = x[i]
+            y[i] = v if v >= float32(0.0) else y[i] * alpha
+        for i in range(full, n):
+            v = x[i]
+            y[i] = expm1f(v) * alpha if v < float32(0.0) else v
+        return
     av = Vec[float32, 4](alpha)
     zero = Vec[float32, 4](float32(0.0))
     for i in range(0, full, 4):
