@@ -49,9 +49,11 @@ pub const CORE: &[&str] = &[
     "core/arguments.py", "core/match.py", "core/serialization.py",
     "core/pipeline.py", "core/empty.py", "core/vec_simd.py",
     "core/implicit.py", "core/bare_generic_fields.py", "core/with_branch_assign.py",
+    "core/int_float_widen.py", "core/python_narrowing.py",
 ];
 
 pub const STDLIB: &[&str] = &[
+    "stdlib/time_process_test.py",
     "stdlib/llvm_test.py", "stdlib/str_test.py", "stdlib/bytearray_test.py",
     "stdlib/enum_test.py", "stdlib/re_test.py", "stdlib/math_test.py",
     "stdlib/cmath_test.py", "stdlib/datetime_test.py", "stdlib/getopt_test.py",

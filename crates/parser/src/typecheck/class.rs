@@ -566,7 +566,7 @@ impl InitializedFields {
 
 /// `ReboundLocalsVisitor`: names (re)bound by assignments, loops and handlers,
 /// not descending into nested functions/classes.
-fn rebound_locals(a: &AstArena, s: StmtId, names: &mut BTreeSet<String>) {
+pub(crate) fn rebound_locals(a: &AstArena, s: StmtId, names: &mut BTreeSet<String>) {
     match &a[s].kind {
         StmtKind::Function(_) | StmtKind::Class(_) => return,
         StmtKind::Assign(x) => {

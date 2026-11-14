@@ -190,8 +190,57 @@ impl<'a> TypecheckVisitor<'a> {
         // slot from `items` (stale read past `size()` that yields the original type arg);
         // keep that original argument explicitly.
         let orig_type_arg = self.cache.ast[is.cond.unwrap()].kind.as_call().and_then(|c| c.items.get(1)).and_then(|a| a.value);
+        let narrow = self.none_check_narrowing(is.cond.unwrap());
         let mut cond = self.transform(is.cond)?.unwrap();
         self.cache.ast[s].kind.as_if_mut().unwrap().cond = Some(cond);
+
+        // Python narrowing for statements (user code): in the branch where `x` is known to be
+        // non-None (`if x is not None: A` / `if x is None: ... else: A`), bind
+        // `tmp = x.__val__()` and resolve `x` to `tmp` inside `A`. Skipped when `A` rebinds
+        // `x` (writes must keep targeting the outer variable).
+        if let Some((name, non_none_in_if)) = narrow.filter(|_| self.is_user_module() && self.ctx.borrow().in_function()) {
+            let br = if non_none_in_if { is.if_suite } else { is.else_suite };
+            let t = self.get_time();
+            let vt = self.find(&name, t).map(|v| v.borrow().ty());
+            if let (Some(br), Some(vt)) = (br, vt) {
+                let mut rebound = std::collections::BTreeSet::new();
+                super::class::rebound_locals(&self.cache.ast, br, &mut rebound);
+                let types = self.types();
+                if !rebound.contains(&name) && types.is(vt, &st.optional) && types.can_realize(vt) {
+                    let key = self.get_unmangled_name(&name);
+                    if !rebound.contains(&key) {
+                        let tmp = {
+                            let ctx = self.ctx.clone();
+                            let c = ctx.borrow();
+                            c.generate_canonical_name(self.cache, &key, false, false)
+                        };
+                        let mut renames: BTreeMap<String, String> =
+                            self.cache.ast[br].attrs.get_key_value(Attr::LocalRenames).cloned().unwrap_or_default();
+                        for target in renames.values_mut() {
+                            if *target == name || *target == key {
+                                *target = tmp.clone();
+                            }
+                        }
+                        renames.insert(key, tmp.clone());
+                        let inner = self.c_suite(vec![br]);
+                        self.cache.ast[inner].attrs.set_value(Attr::LocalRenames, AttrValue::KeyValue(renames));
+                        let v = self.id_n(&name);
+                        let d = self.dot_n(v, "__val__");
+                        let c = self.call_n(d, vec![]);
+                        let tn = self.id_n(&tmp);
+                        let a = self.c_assign(tn, c);
+                        let nb = self.c_suite(vec![a, inner]);
+                        let k = self.cache.ast[s].kind.as_if_mut().unwrap();
+                        if non_none_in_if {
+                            k.if_suite = Some(nb);
+                        } else {
+                            k.else_suite = Some(nb);
+                        }
+                    }
+                }
+            }
+        }
+        let is = self.cache.ast[s].kind.as_if().unwrap().clone();
 
         if let Some(ci) = self.cache.ast[cond].kind.as_call().cloned() {
             let fname = ci

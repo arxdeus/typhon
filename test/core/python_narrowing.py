@@ -38,3 +38,28 @@ class C:
         self.m = 3
 
 print([k for k, _ in static.vars(C())])  #: ['z', 'a', 'm']
+
+def _sq(x):
+    return x * x
+
+def narrow_untyped_loop(q):
+    s = 0
+    while True:
+        c = q.pop()
+        if c is None:
+            break
+        s += _sq(c)
+    return s
+print(narrow_untyped_loop([None, 2, 3]))  #: 13
+
+def narrow_not_none(c: Optional[int]):
+    if c is not None:
+        return _sq(c)
+    return -1
+print(narrow_not_none(4), narrow_not_none(None))  #: 16 -1
+
+def narrow_rebound(c: Optional[int]):
+    if c is not None:
+        c = None
+    return c is None
+print(narrow_rebound(1))  #: True
