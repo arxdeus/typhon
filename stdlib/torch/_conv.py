@@ -141,10 +141,57 @@ def _fwd_depthwise_row(T: type, x: Tensor, w: Tensor, b: Optional[Tensor], g: _G
                         acc = T._fma(xv, wr[k], acc)
                 q[i] = acc + bv
 
+def _nnpack_ft8x8_eligible(g: _Geo) -> bool:
+    # ATen ConvParams::use_nnpack (torch 2.15 CPU float, not mobile): batch >= 16, stride 1
+    # (else per-sample nnp_convolution_inference), no dilation, kernel < 17, padding < kernel;
+    # NNPACK auto algorithm must pick ft8x8 (wt8x8 for 3x3 and ft16x16 are not ported).
+    if g.N < 16 or g.sh != 1 or g.sw != 1 or g.dh != 1 or g.dw != 1:
+        return False
+    if g.KH >= 17 or g.KW >= 17 or g.ph >= g.KH or g.pw >= g.KW:
+        return False
+    if g.KH > 8 or g.KW > 8 or (g.KH == 3 and g.KW == 3):
+        return False
+    t8 = ((g.OH + (8 - g.KH)) // (8 - g.KH + 1)) * ((g.OW + (8 - g.KW)) // (8 - g.KW + 1))
+    t16 = ((g.OH + (16 - g.KH)) // (16 - g.KH + 1)) * ((g.OW + (16 - g.KW)) // (16 - g.KW + 1))
+    return t8 <= 4 * t16
+
+def _fwd_nnpack(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor):
+    # ATen convolution(): backends without native groups loop over groups on contiguous
+    # sub-tensors (input/weight/bias split along dim 1/0) and concatenate the outputs.
+    from torch._nnpack import conv_ft8x8
+    Cg = g.C // g.G
+    Og = g.O // g.G
+    xp = Ptr[float32](x._st.ptr) + x._off
+    wp = Ptr[float32](w._st.ptr) + w._off
+    op = Ptr[float32](out._st.ptr) + out._off
+    HW = g.H * g.W
+    L = g.OH * g.OW
+    xg = Ptr[float32](g.N * Cg * HW)
+    yg = Ptr[float32](g.N * Og * L)
+    bg = Ptr[float32](Og)
+    for gi in range(g.G):
+        for n in range(g.N):
+            src = xp + (n * g.C + gi * Cg) * HW
+            dst = xg + n * Cg * HW
+            for i in range(Cg * HW):
+                dst[i] = src[i]
+        for o in range(Og):
+            bg[o] = float32(0.0) if b is None else (Ptr[float32](b._st.ptr) + b._off)[gi * Og + o]
+        conv_ft8x8(g.N, Cg, Og, g.H, g.W, g.KH, g.KW, g.ph, g.pw, xg, wp + gi * Og * Cg * g.KH * g.KW, bg, yg)
+        for n in range(g.N):
+            src = yg + n * Og * L
+            dst = op + (n * g.O + gi * Og) * L
+            for i in range(Og * L):
+                dst[i] = src[i]
+
 def _fwd(T: type, x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor):
-    if g.H == 1 and g.KH == 1 and g.ph == 0 and g.sw == 1 and g.dw == 1 and g.G > 1 and g.C == g.G:
+    if g.H == 1 and g.KH == 1 and g.ph == 0 and g.sw == 1 and g.dw == 1 and g.G > 1 and g.C == g.G and g.N < 16:
         _fwd_depthwise_row(T, x, w, b, g, out)
         return
+    if T is float32:
+        if _nnpack_ft8x8_eligible(g):
+            _fwd_nnpack(x, w, b, g, out)
+            return
     xp = Ptr[T](x._st.ptr) + x._off
     wp = Ptr[T](w._st.ptr) + w._off
     op = Ptr[T](out._st.ptr) + out._off
@@ -187,7 +234,61 @@ def conv2d_forward(x: Tensor, w: Tensor, b: Optional[Tensor], stride: Tuple[int,
         _fwd(float32, xc, wc, bc, g, out)
     return out
 
+def _gemm_cm(ta: bool, tb: bool, M: int, N: int, K: int, A: Ptr[float32], lda: int, B: Ptr[float32], ldb: int, beta: float, C: Ptr[float32], ldc: int):
+    # column-major sgemm, exactly as ATen cpublas::gemm hands it to BLAS
+    if M == 0 or N == 0:
+        return
+    cblas_sgemm(fint(102), fint(_TR if ta else _NT), fint(_TR if tb else _NT), fint(M), fint(N), fint(K), float32(1.0), A, fint(lda), B, fint(ldb), float32(beta), C, fint(ldc))
+
+def _bwd_dilated(x: Tensor, w: Tensor, gy: Tensor, g: _Geo, gx: Tensor, gw: Tensor, gb: Tensor, need_x: bool, need_w: bool, need_b: bool):
+    # ATen backward of NnpackSpatial = slow_conv_dilated2d_backward (NaiveDilatedConvolution.cpp)
+    # per group (convolution_backward's nogroup loop on subtensors), per sample:
+    #   grad_input:  columns^T = grad_output_n^T * weight          (gemm N,T; col2im)
+    #   grad_weight: grad_weight^T += columns * grad_output_n^T    (gemm T,N, beta=1)
+    #   grad_bias  += grad_output_n.sum(spatial)
+    from torch._tensor import _cascade_sum_f32
+    xp = Ptr[float32](x._st.ptr) + x._off
+    wp = Ptr[float32](w._st.ptr) + w._off
+    gp = Ptr[float32](gy._st.ptr) + gy._off
+    Cg = g.C // g.G
+    Og = g.O // g.G
+    K = Cg * g.KH * g.KW
+    L = g.OH * g.OW
+    HW = g.H * g.W
+    cols = Ptr[float32](K * L)
+    gyn = Ptr[float32](Og * L)
+    gxp = Ptr[float32](gx._st.ptr)
+    gwp = Ptr[float32](gw._st.ptr)
+    gbp = Ptr[float32](gb._st.ptr)
+    if need_w:
+        for i in range(gw.numel()):
+            gwp[i] = float32(0.0)
+    if need_b:
+        for i in range(g.O):
+            gbp[i] = float32(0.0)
+    for gi in range(g.G):
+        for n in range(g.N):
+            src = gp + (n * g.O + gi * Og) * L
+            for i in range(Og * L):
+                gyn[i] = src[i]
+            if need_x:
+                _gemm_cm(False, True, L, K, Og, gyn, L, wp + gi * Og * K, K, 0.0, cols, L)
+                gxn = gxp + n * g.C * HW
+                for i in range(Cg * HW):
+                    gxn[gi * Cg * HW + i] = float32(0.0)
+                _col2im(float32, cols, g, gi * Cg, Cg, gxn)
+            if need_w:
+                _im2col(float32, xp + n * g.C * HW, g, gi * Cg, Cg, cols)
+                _gemm_cm(True, False, K, Og, L, cols, L, gyn, L, 1.0, gwp + gi * Og * K, K)
+            if need_b:
+                for o in range(Og):
+                    gbp[gi * Og + o] = gbp[gi * Og + o] + _cascade_sum_f32(gyn + o * L, L)
+
 def _bwd(T: type, x: Tensor, w: Tensor, gy: Tensor, g: _Geo, gx: Tensor, gw: Tensor, gb: Tensor, need_x: bool, need_w: bool, need_b: bool):
+    if T is float32:
+        if _nnpack_ft8x8_eligible(g):
+            _bwd_dilated(x, w, gy, g, gx, gw, gb, need_x, need_w, need_b)
+            return
     xp = Ptr[T](x._st.ptr) + x._off
     wp = Ptr[T](w._st.ptr) + w._off
     gp = Ptr[T](gy._st.ptr) + gy._off
