@@ -90,7 +90,7 @@ impl TypeArena {
         if c.immutable {
             return true;
         }
-        if !matches!(c.kind, ClassKind::Plain) || c.name == stdlib().unrealized_type.as_str() || c.name == "__NTuple__" {
+        if !matches!(c.kind, ClassKind::Plain) || c.name == HOT.unrealized_type || c.name == "__NTuple__" {
             return false;
         }
         let stable = |g: &Generic| -> bool {
@@ -120,12 +120,12 @@ impl TypeArena {
         let (name, g0) = self.with_class(this, |c| {
             (c.name, if c.generics.len() == 1 { c.generics[0].ty } else { None })
         })?;
-        if name != stdlib().optional.as_str() {
+        if name != HOT.optional {
             return None;
         }
         let member = self.get_class(g0?)?;
         let mname = self.with_class(member, |c| c.name)?;
-        if self.can_realize(member) && (mname == stdlib().optional.as_str() || mname == stdlib().none_type.as_str()) {
+        if self.can_realize(member) && (mname == HOT.optional || mname == HOT.none_type) {
             Some(member)
         } else {
             None
@@ -158,7 +158,7 @@ impl TypeArena {
             if me.name == st.none_type.as_str() && tc.name == st.optional.as_str() {
                 return self.unify(tcid, this, us, host);
             }
-            if me.name == st.unrealized_type.as_str() && tc.name == me.name {
+            if me.name == HOT.unrealized_type && tc.name == me.name {
                 if me.generics[0].ty == tc.generics[0].ty {
                     return Ok(0);
                 }
@@ -286,7 +286,7 @@ impl TypeArena {
                     c.immutable,
                     c.generics.is_empty() && c.hidden_generics.is_empty(),
                     matches!(c.kind, ClassKind::Plain),
-                    if c.name == stdlib().unrealized_type.as_str() { Some(c.generics.first().and_then(|g| g.ty)) } else { None },
+                    if c.name == HOT.unrealized_type { Some(c.generics.first().and_then(|g| g.ty)) } else { None },
                 )
             })
             .unwrap();
@@ -362,7 +362,7 @@ impl TypeArena {
 
     /// `ClassType::hasUnbounds`.
     pub(crate) fn class_has_unbounds(&self, c: &ClassType, include_generics: bool) -> bool {
-        if c.name == stdlib().unrealized_type.as_str() {
+        if c.name == HOT.unrealized_type {
             return false;
         }
         c.generics
@@ -374,7 +374,7 @@ impl TypeArena {
     /// `ClassType::getUnbounds`.
     pub(crate) fn class_get_unbounds(&self, c: &ClassType, include_generics: bool) -> Vec<TypeId> {
         let mut u = vec![];
-        if c.name == stdlib().unrealized_type.as_str() {
+        if c.name == HOT.unrealized_type {
             return u;
         }
         for g in c.generics.iter().chain(c.hidden_generics.iter()) {
@@ -389,11 +389,10 @@ impl TypeArena {
 
     /// `ClassType::canRealize`.
     pub(crate) fn class_can_realize(&self, c: &ClassType) -> bool {
-        let st = stdlib();
-        if c.name == st.type_.as_str() && !self.class_has_unbounds(c, false) {
+        if c.name == HOT.type_ && !self.class_has_unbounds(c, false) {
             return true; // always true!
         }
-        if c.name == st.unrealized_type.as_str() {
+        if c.name == HOT.unrealized_type {
             return self.get_class(c.generics[0].ty()).is_some();
         }
         c.generics.iter().chain(c.hidden_generics.iter()).all(|g| g.ty.is_none_or(|t| self.can_realize(t)))
@@ -522,7 +521,7 @@ impl TypeArena {
             return;
         }
         out.push_str(name.as_str());
-        let union_tys = if name == stdlib().union.as_str() {
+        let union_tys = if name == HOT.union {
             let g0 = self.with_class(this, |c| c.generics[0].ty()).unwrap();
             self.get_class(g0).map(|g0c| self.generic_tys_kinds(g0c))
         } else {

@@ -278,12 +278,6 @@ impl TypeArena {
         format!("{}{}", fnname, if s.is_empty() { String::new() } else { format!("[{s}]") })
     }
 
-    /// `FuncType::realizedName`.
-    pub(crate) fn func_realized_name(&self, this: TypeId) -> String {
-        let mut out = String::new();
-        self.write_func_realized_name(this, &mut out);
-        out
-    }
     /// Append `FuncType::realizedName` to `out` without intermediate strings.
     /// Function-typed arguments go through `realizedName` too (`get_func` follows
     /// links exactly like `realized_name`), so all entries use the generic writer.

@@ -367,6 +367,25 @@ pub fn literal_index(k: LiteralKind) -> i32 {
     }
 }
 
+/// Interned stdlib class names compared on hot paths (`Ustr == Ustr` is a pointer compare).
+pub(crate) struct HotNames {
+    pub optional: Ustr,
+    pub none_type: Ustr,
+    pub type_: Ustr,
+    pub unrealized_type: Ustr,
+    pub union: Ustr,
+}
+pub(crate) static HOT: once_cell::sync::Lazy<HotNames> = once_cell::sync::Lazy::new(|| {
+    let st = typhon_common::mangle::stdlib();
+    HotNames {
+        optional: Ustr::from(&st.optional),
+        none_type: Ustr::from(&st.none_type),
+        type_: Ustr::from(&st.type_),
+        unrealized_type: Ustr::from(&st.unrealized_type),
+        union: Ustr::from(&st.union),
+    }
+});
+
 pub(crate) fn join<S: AsRef<str>>(v: &[S], sep: &str) -> String {
     v.iter().map(|s| s.as_ref()).collect::<Vec<_>>().join(sep)
 }
@@ -943,10 +962,10 @@ impl TypeArena {
                 ClassKind::Func(_) => Shape::Func,
                 ClassKind::IntStatic(_) | ClassKind::StrStatic(_) | ClassKind::BoolStatic(_) => Shape::Static,
                 _ => {
-                    let st = typhon_common::mangle::stdlib();
+                    let st = &*HOT;
                     Shape::Class {
-                        type_: c.name == st.type_.as_str(),
-                        unrealized: c.name == st.unrealized_type.as_str(),
+                        type_: c.name == st.type_,
+                        unrealized: c.name == st.unrealized_type,
                     }
                 }
             },
