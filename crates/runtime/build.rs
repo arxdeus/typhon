@@ -41,6 +41,107 @@ fn main() {
     println!("cargo:rustc-link-lib=static:+whole-archive=gc");
     println!("cargo:rustc-link-lib=static:+whole-archive=lzma");
     let _ = omp_rust;
+
+    if env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("aarch64")
+        && matches!(target_os.as_str(), "macos" | "ios" | "android" | "linux")
+    {
+        torch_kernels(&target_os);
+    }
+}
+
+/// SLEEF (AdvSIMD expf/expm1f/logf) + NNPACK (conv output) at torch 2.15.0's pinned
+/// commits, plus the C-ABI wrappers in src/torchk/torchk.c, for bit-identical torch CPU
+/// results. Compiled with each library's own CMake flags (no cmake needed). aarch64 only;
+/// other targets use the .py ports in stdlib/torch.
+fn torch_kernels(target_os: &str) {
+    let v = Path::new("vendor");
+    println!("cargo:rerun-if-changed=vendor");
+    println!("cargo:rerun-if-changed=src/torchk");
+    let base = || {
+        let mut b = cc::Build::new();
+        b.cargo_metadata(false).warnings(false).opt_level(3).define("NDEBUG", None);
+        b
+    };
+    // SLEEF: sleef's CMake flags for the ADVSIMD libm target (-ffp-contract=off matters).
+    let s = v.join("sleef/src");
+    base()
+        .std("gnu99")
+        .flag("-ffp-contract=off")
+        .flag("-fno-math-errno")
+        .flag("-fno-trapping-math")
+        .define("DORENAME", "1")
+        .define("ENABLE_ADVSIMD", "1")
+        .define("ENABLE_BUILTIN_MATH", "1")
+        .define("SLEEF_STATIC_LIBS", "1")
+        .define("ALIAS_NO_EXT_SUFFIX", "\"alias_advsimd.h\"")
+        .include(s.join("common"))
+        .include(s.join("arch"))
+        .include(v.join("sleef/generated"))
+        .include(s.join("libm"))
+        .file(s.join("libm/sleefsimdsp.c"))
+        .file(s.join("libm/rempitab.c"))
+        .compile("typhon_sleef");
+    // pthreadpool + cpuinfo (NNPACK's deps, needed by nnp_initialize / its API).
+    let inc = |b: &mut cc::Build| {
+        for d in ["nnpack/include", "nnpack/src", "pthreadpool/include", "cpuinfo/include", "psimd/include", "fp16/include", "fxdiv/include"] {
+            b.include(v.join(d));
+        }
+    };
+    let mut pt = base();
+    inc(&mut pt);
+    pt.std("c11").define("FXDIV_USE_INLINE_ASSEMBLY", "0").define("PTHREADPOOL_USE_FASTPATH", "0");
+    for f in ["legacy-api.c", "memory.c", "portable-api.c", "pthreads.c"] {
+        pt.file(v.join("pthreadpool/src").join(f));
+    }
+    pt.compile("typhon_pthreadpool");
+    let mut ci = base();
+    ci.std("c99").include(v.join("cpuinfo/include")).include(v.join("cpuinfo/src"));
+    ci.define("CPUINFO_LOG_LEVEL", "0").define("CPUINFO_LOG_TO_STDIO", "0");
+    let mut cif = vec!["api.c", "init.c", "cache.c", "log.c", "arm/cache.c", "arm/uarch.c"];
+    if target_os == "macos" || target_os == "ios" {
+        cif.extend(["arm/mach/init.c", "mach/topology.c"]);
+    } else {
+        ci.define("_GNU_SOURCE", "1");
+        cif.extend([
+            "arm/linux/aarch64-isa.c", "arm/linux/chipset.c", "arm/linux/clusters.c", "arm/linux/cpuinfo.c",
+            "arm/linux/hwcap.c", "arm/linux/init.c", "arm/linux/midr.c", "linux/cpulist.c",
+            "linux/multiline.c", "linux/processors.c", "linux/smallfile.c",
+        ]);
+        if target_os == "android" {
+            cif.push("arm/android/properties.c");
+        }
+    }
+    for f in cif {
+        ci.file(v.join("cpuinfo/src").join(f));
+    }
+    ci.compile("typhon_cpuinfo");
+    // NNPACK, neon backend (NNPACK CMake: -O3 -std=gnu99; its ARM -mfpu flags are 32-bit only).
+    let mut nn = base();
+    inc(&mut nn);
+    nn.std("gnu99")
+        .define("CPUINFO_SUPPORTED_PLATFORM", "1")
+        .define("FXDIV_USE_INLINE_ASSEMBLY", "0")
+        .define("NNP_CONVOLUTION_ONLY", "0")
+        .define("NNP_INFERENCE_ONLY", "0");
+    let nsrc = v.join("nnpack/src");
+    for e in std::fs::read_dir(&nsrc).unwrap().chain(std::fs::read_dir(nsrc.join("neon")).unwrap())
+        .chain(std::fs::read_dir(nsrc.join("neon/blas")).unwrap())
+        .chain(std::fs::read_dir(nsrc.join("psimd")).unwrap())
+        .chain(std::fs::read_dir(nsrc.join("psimd/blas")).unwrap())
+    {
+        let p = e.unwrap().path();
+        if p.extension().is_some_and(|x| x == "c") {
+            nn.file(p);
+        }
+    }
+    nn.file("src/torchk/torchk.c");
+    nn.compile("typhon_nnpack");
+    // Whole archives: the stdlib reaches typhon_* by name through `from C import`.
+    let out = env::var("OUT_DIR").unwrap();
+    println!("cargo:rustc-link-search=native={out}");
+    for l in ["typhon_nnpack", "typhon_sleef", "typhon_pthreadpool", "typhon_cpuinfo"] {
+        println!("cargo:rustc-link-lib=static:+whole-archive={l}");
+    }
 }
 
 /// Build static OpenBLAS (ILP64, plain `cblas_*` / Fortran `xxxx_` names, C-translated

@@ -7,3 +7,17 @@ Apache License, Version 2.0 (see LICENSE).
 The original sources (including the Python standard library and test programs
 in stdlib/ and test/) were modified for Typhon: translated to Rust,
 renamed and adapted from the original work.
+
+Third-party code in crates/runtime/vendor/ (aarch64 builds of libtyphonrt), vendored
+unmodified at the commits pinned by PyTorch 2.15.0 third_party/, minimal subset; full
+license texts are next to each library:
+- SLEEF 5a1d179 (https://github.com/shibatch/sleef), Boost Software License 1.0
+  (vendor/sleef/LICENSE.txt). vendor/sleef/generated/ holds headers produced by its build.
+- NNPACK c07e3a0 (https://github.com/Maratyszcza/NNPACK), BSD 2-Clause
+  (vendor/nnpack/LICENSE). Copyright (c) 2017 Facebook Inc., 2015-2017 Georgia Institute
+  of Technology.
+- cpuinfo bc3c01e (https://github.com/pytorch/cpuinfo), BSD 2-Clause (vendor/cpuinfo/LICENSE).
+- pthreadpool a56dcd7 (https://github.com/google/pthreadpool), BSD 2-Clause
+  (vendor/pthreadpool/LICENSE).
+- psimd 072586a, FP16 4dfe081, FXdiv b408327 (https://github.com/Maratyszcza), MIT
+  (vendor/{psimd,fp16,fxdiv}/LICENSE).
