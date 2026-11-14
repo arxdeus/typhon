@@ -109,6 +109,7 @@ impl TypeArena {
                             default_type,
                             pass_through: l.pass_through,
                         late_default: l.late_default,
+                        self_field: l.self_field,
                         },
                         typhon_common::SrcInfo::default(),
                     )
@@ -153,6 +154,7 @@ impl TypeArena {
                         default_type,
                         pass_through: l.pass_through,
                         late_default: l.late_default,
+                        self_field: l.self_field,
                     },
                     typhon_common::SrcInfo::default(),
                 );

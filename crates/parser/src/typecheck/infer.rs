@@ -216,7 +216,7 @@ impl<'a> TypecheckVisitor<'a> {
                 let mut kept = vec![];
                 for u in unbounds {
                     let Some(l) = types.link(u) else { continue };
-                    if l.pass_through && (pass == 0 || pass == 1 && !l.late_default) {
+                    if l.pass_through && (pass == 0 || pass == 1 && !l.late_default || l.self_field) {
                         kept.push(u);
                         continue;
                     }

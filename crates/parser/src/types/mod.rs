@@ -96,6 +96,9 @@ pub struct LinkType {
     /// Pass-through unbound that may still take its default as a last resort (element type
     /// of a bare generic parameter such as `t: list = None`).
     pub late_default: bool,
+    /// Pass-through field unbound of a partially deduced `self`: never defaulted while
+    /// realizing a method, its owner `__init__` decides the type.
+    pub self_field: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -564,6 +567,7 @@ impl TypeArena {
                 default_type: None,
                 pass_through: false,
                 late_default: false,
+                self_field: false,
             },
             src,
         )
@@ -583,6 +587,7 @@ impl TypeArena {
                 default_type: None,
                 pass_through: false,
                 late_default: false,
+                self_field: false,
             },
             src,
         )

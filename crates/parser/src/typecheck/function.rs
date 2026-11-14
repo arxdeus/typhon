@@ -936,9 +936,15 @@ impl<'a> TypecheckVisitor<'a> {
                         self.cache.ast[s].attrs.set(Attr::AllowPassThrough);
                     }
                     if deduce {
+                        // User code only: stdlib deduced classes (scipy splines) keep the
+                        // reference behaviour of defaulting unresolved fields.
+                        let user = self.is_user_module();
                         for u in types.get_unbounds(pc, true) {
                             self.cache.ast[s].attrs.set(Attr::AllowPassThrough);
-                            types.with_link_mut(u, |l| l.pass_through = true);
+                            types.with_link_mut(u, |l| {
+                                l.pass_through = true;
+                                l.self_field = user;
+                            });
                         }
                     }
                 }
