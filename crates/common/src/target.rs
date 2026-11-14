@@ -115,6 +115,8 @@ impl TargetInfo {
             ("__macos__", self.os == TargetOs::MacOs),
             ("__wasm__", self.is_wasm()),
             ("__wasi__", self.os == TargetOs::Wasi),
+            ("__aarch64__", self.is_aarch64()),
+            ("__x86_64__", self.arch == "x86_64"),
         ]
     }
 
@@ -167,11 +169,11 @@ mod tests {
     #[test]
     fn defines() {
         let d = |t: &str| TargetInfo::parse(t).defines().into_iter().filter(|x| x.1).map(|x| x.0).collect::<Vec<_>>();
-        assert_eq!(d("aarch64-linux-android24"), vec!["__linux__", "__android__"]);
-        assert_eq!(d("arm64-apple-ios13.0"), vec!["__apple__", "__ios__"]);
-        assert_eq!(d("arm64-apple-macosx14.0"), vec!["__apple__", "__macos__"]);
-        assert_eq!(d("x86_64-unknown-linux-gnu"), vec!["__linux__"]);
-        assert_eq!(d("x86_64-pc-windows-msvc"), vec!["__windows__"]);
+        assert_eq!(d("aarch64-linux-android24"), vec!["__linux__", "__android__", "__aarch64__"]);
+        assert_eq!(d("arm64-apple-ios13.0"), vec!["__apple__", "__ios__", "__aarch64__"]);
+        assert_eq!(d("arm64-apple-macosx14.0"), vec!["__apple__", "__macos__", "__aarch64__"]);
+        assert_eq!(d("x86_64-unknown-linux-gnu"), vec!["__linux__", "__x86_64__"]);
+        assert_eq!(d("x86_64-pc-windows-msvc"), vec!["__windows__", "__x86_64__"]);
         assert_eq!(d("wasi"), vec!["__wasm__", "__wasi__"]);
         assert_eq!(TargetInfo::parse("wasm32").rust_triple().unwrap(), "wasm32-wasip1");
     }
