@@ -87,9 +87,9 @@ def _elu_fwd1(x: Ptr[float32], y: Ptr[float32], n: int, alpha: float32):
         # native SLEEF expm1f (libtyphonrt), lane values identical to the Vec port
         from torch._sleef import expm1f_block
         expm1f_block(x, y, full)
-        for i in range(full):
-            v = x[i]
-            y[i] = v if v >= float32(0.0) else y[i] * alpha
+        av = Vec[float32, 4](alpha)
+        for i in range(0, full, 4):
+            _vsel_ge0(Vec[float32, 4].load(x + i), Vec[float32, 4].load(y + i) * av).store(y + i)
         for i in range(full, n):
             v = x[i]
             y[i] = expm1f(v) * alpha if v < float32(0.0) else v
