@@ -4240,6 +4240,18 @@ def _gemm(z, a: Tensor, b: Tensor, out: Tensor, M: int, K: int, N: int, ao: int,
                         acc += pa[i * K + k] * pb[k * N + j]
                 po[i * N + j] = acc
 
+def _gemm_bt(z, a: Tensor, b: Tensor, out: Tensor, M: int, K: int, N: int):
+    # out[M,N] = a[M,K] @ b^T where b is a contiguous [N,K] buffer (b = w.t()
+    # of a contiguous weight): BLAS transposed operand, no copy of the weight.
+    T = type(z)
+    pa = Ptr[T](a._st.ptr) + a._off
+    pb = Ptr[T](b._st.ptr) + b._off
+    po = Ptr[T](out._st.ptr)
+    if isinstance(z, float32):
+        cblas_sgemm(fint(101), fint(111), fint(112), fint(M), fint(N), fint(K), float32(1.0), pa, fint(K), pb, fint(K), float32(0.0), po, fint(N))
+    else:
+        cblas_dgemm(fint(101), fint(111), fint(112), fint(M), fint(N), fint(K), 1.0, pa, fint(K), pb, fint(K), 0.0, po, fint(N))
+
 def mm(input: Tensor, mat2: Tensor) -> Tensor:
     if len(input._shape) != 2 or len(mat2._shape) != 2:
         raise RuntimeError("self must be a matrix")
@@ -4252,9 +4264,15 @@ def mm(input: Tensor, mat2: Tensor) -> Tensor:
         raise RuntimeError("expected m1 and m2 to have the same dtype, but got: " + str(input.dtype) + " != " + str(mat2.dtype))
     dt = input._dt
     a = _contig_as(input, dt)
-    b = _contig_as(mat2, dt)
     out = _new([M, N], dt)
-    _dispatch(dt, _gemm, a, b, out, M, K, N, 0, 0, 0)
+    if (dt == _F32 or dt == _F64) and M > 0 and N > 0 and K > 0 and mat2._strides[0] == 1 and mat2._strides[1] == K:
+        if dt == _F32:
+            _gemm_bt(float32(), a, mat2, out, M, K, N)
+        else:
+            _gemm_bt(0.0, a, mat2, out, M, K, N)
+    else:
+        b = _contig_as(mat2, dt)
+        _dispatch(dt, _gemm, a, b, out, M, K, N, 0, 0, 0)
     if _needs([input, mat2]):
         _attach(out, _node("MmBackward0", _K_MM, [input, mat2]))
     return out
