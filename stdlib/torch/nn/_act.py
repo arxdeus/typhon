@@ -18,7 +18,50 @@ def _vsel_ge0(v: Vec[float32, 4], neg: Vec[float32, 4]) -> Vec[float32, 4]:
     %r = select <4 x i1> %c, <4 x float> %v, <4 x float> %neg
     ret <4 x float> %r
 
+_PAR_MIN = 32768   # elements per worker below which threads cost more than they save
+
+def _par_blocks(n: int) -> int:
+    # Number of worker chunks for an elementwise kernel over n elements. Chunks start at
+    # multiples of 4, so every element keeps its vector/tail role and results never
+    # depend on the worker count.
+    from torch._misc import _num_workers
+    nw = _num_workers()
+    k = n // _PAR_MIN
+    return 1 if k < 2 or nw < 2 else (k if k < nw else nw)
+
 def _elu_fwd(x: Ptr[float32], y: Ptr[float32], n: int, alpha: float32):
+    nb = _par_blocks(n)
+    if nb == 1:
+        _elu_fwd1(x, y, n, alpha)
+        return
+    full = n - (n % 4)
+    per = ((full // 4 + nb - 1) // nb) * 4
+    @par(num_threads=nb, schedule='static', chunk_size=1)
+    for b in range(nb):
+        s = b * per
+        e = min(s + per, full)
+        if s < e:
+            _elu_fwd1(x + s, y + s, e - s, alpha)
+    if full < n:
+        _elu_fwd1(x + full, y + full, n - full, alpha)
+
+def _elu_bwd(g: Ptr[float32], x: Ptr[float32], gx: Ptr[float32], n: int, alpha: float32):
+    nb = _par_blocks(n)
+    if nb == 1:
+        _elu_bwd1(g, x, gx, n, alpha)
+        return
+    full = n - (n % 4)
+    per = ((full // 4 + nb - 1) // nb) * 4
+    @par(num_threads=nb, schedule='static', chunk_size=1)
+    for b in range(nb):
+        s = b * per
+        e = min(s + per, full)
+        if s < e:
+            _elu_bwd1(g + s, x + s, gx + s, e - s, alpha)
+    if full < n:
+        _elu_bwd1(g + full, x + full, gx + full, n - full, alpha)
+
+def _elu_fwd1(x: Ptr[float32], y: Ptr[float32], n: int, alpha: float32):
     # cpu_kernel_vec: vectorized loop over full 4-lane blocks, scalar op on the tail;
     # the vector op computes expm1 only if any lane is negative (same values per lane).
     from C import expm1f(float32) -> float32
@@ -35,7 +78,7 @@ def _elu_fwd(x: Ptr[float32], y: Ptr[float32], n: int, alpha: float32):
         v = x[i]
         y[i] = expm1f(v) * alpha if v < float32(0.0) else v
 
-def _elu_bwd(g: Ptr[float32], x: Ptr[float32], gx: Ptr[float32], n: int, alpha: float32):
+def _elu_bwd1(g: Ptr[float32], x: Ptr[float32], gx: Ptr[float32], n: int, alpha: float32):
     # vector: blendv(a * negiptcoef * negcoef * exp(b * negiptcoef), a * poscoef, b > 0)
     # scalar: b <= 0 ? a * negiptcoef * negcoef * exp(b * negiptcoef) : a * poscoef
     from C import expf(float32) -> float32

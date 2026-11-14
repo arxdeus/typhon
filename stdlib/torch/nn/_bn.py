@@ -21,6 +21,17 @@ def _threads() -> int:
     from torch._misc import get_num_threads
     return get_num_threads()
 
+def _workers(n: int, C: int) -> int:
+    # physical workers for per-channel loops (never changes results)
+    from torch._misc import _num_workers
+    nw = _num_workers()
+    k = n // 32768
+    if k > nw:
+        k = nw
+    if k > C:
+        k = C
+    return k if k > 1 else 1
+
 def _chunk(N: int, T: int) -> int:
     # at::parallel_for(0, N, grain 1) with OpenMP: ceil(N / min(T, N)) per thread
     t = T if T < N else N
@@ -77,6 +88,8 @@ def bn_train_forward(x: Tensor, w: Optional[Tensor], b: Optional[Tensor], rm: Op
     mean = Ptr[float32](save_mean._st.ptr)
     vsum = Ptr[float32](C)
     if S != 1:
+        # per-channel double sums: channel order irrelevant, in-channel order unchanged
+        @par(num_threads=_workers(N * C * S, C), schedule='static')
         for c in range(C):
             s = 0.0
             for i in range(N):
@@ -165,6 +178,8 @@ def bn_train_forward(x: Tensor, w: Optional[Tensor], b: Optional[Tensor], rm: Op
             unb = vsum[c] / float32(n - 1)
             r[c] = float32._fma(mom, unb, (float32(1.0) - mom) * r[c])
     po = Ptr[float32](out._st.ptr)
+    # per-channel elementwise: each element computed identically on any worker
+    @par(num_threads=_workers(N * C * S, C), schedule='static')
     for c in range(C):
         wv = float32(1.0) if w is None else (Ptr[float32](w._st.ptr) + w._off)[c]
         bv = float32(0.0) if b is None else (Ptr[float32](b._st.ptr) + b._off)[c]
@@ -190,8 +205,11 @@ def bn_train_backward(x: Tensor, dy: Tensor, w: Optional[Tensor], save_mean: Ten
     pgw = Ptr[float32](gw._st.ptr)
     pgb = Ptr[float32](gb._st.ptr)
     if S != 1:
-        acc = Ptr[float32](4)
+        # channels are independent; each keeps ATen's exact per-channel order
+        accs = Ptr[float32](4 * C)
+        @par(num_threads=_workers(N * C * S, C), schedule='static')
         for c in range(C):
+            acc = accs + 4 * c
             wv = float32(1.0) if w is None else (Ptr[float32](w._st.ptr) + w._off)[c]
             m = mean[c]
             iv = inv[c]
