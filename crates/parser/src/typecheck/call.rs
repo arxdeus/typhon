@@ -1380,6 +1380,19 @@ impl<'a> TypecheckVisitor<'a> {
             Ok((true, self.transform_is_instance(e)?))
         } else if is_f(sm, "len", "") {
             Ok((true, self.transform_static_len(e)?))
+        } else if (v == mangle::mangled_func("std.internal.builtin", "len", 0, 0, false) || is_f("", "len", "")) && self.call_items(e).len() == 1 {
+            Ok(match self.transform_tuple_len(e)? {
+                Some(r) => (true, Some(r)),
+                // Argument type not known yet: wait instead of committing to `__len__`.
+                None if self.cache.ast[e].kind.as_call().and_then(|c| c.items.first()).and_then(|a| a.value).is_some_and(|a| {
+                    self.expr_type(a).is_none_or(|t| self.cache.types.get_class(t).is_none())
+                        && !self.has_side_effect(a)
+                }) && self.is_user_module() =>
+                {
+                    (true, None)
+                }
+                None => (false, None),
+            })
         } else if is_f("", "hasattr", "") {
             Ok((true, self.transform_has_attr(e, false)?))
         } else if is_f("", "hasattr_dynamic", "") {

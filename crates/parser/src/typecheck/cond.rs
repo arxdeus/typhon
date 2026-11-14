@@ -150,6 +150,9 @@ impl<'a> TypecheckVisitor<'a> {
     /// Recognise `v is None` / `v is not None` (either operand order) on a plain
     /// variable. Returns the variable's name and whether the *if* branch is the one
     /// where `v` is not None.
+    pub(crate) fn none_check_narrowing_pub(&self, cond: ExprId) -> Option<(String, bool)> {
+        self.none_check_narrowing(cond)
+    }
     fn none_check_narrowing(&self, cond: ExprId) -> Option<(String, bool)> {
         let a = &self.cache.ast;
         let bx = a[cond].kind.as_binary()?;

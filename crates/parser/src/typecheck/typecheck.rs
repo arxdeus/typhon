@@ -466,6 +466,7 @@ impl<'a> TypecheckVisitor<'a> {
                 self.ctx.borrow_mut().add(k, item);
             }
         }
+        self.narrow_after_none_exit(s);
         let items = self.cache.ast[s].kind.as_suite().unwrap().items.clone();
         let mut stmts = vec![];
         let mut done = true;
@@ -499,6 +500,52 @@ impl<'a> TypecheckVisitor<'a> {
             self.set_done_stmt(s);
         }
         Ok(())
+    }
+
+    /// Python narrowing after an exiting None check (user code only):
+    /// `if x is None: <...; break|continue|return|raise>` followed by `tail` is rewritten to
+    /// `if x is None: <...> else: tail` (same semantics), so `tail` sees `x` narrowed to the
+    /// non-None type exactly like an explicit `else` branch.
+    fn narrow_after_none_exit(&mut self, s: StmtId) {
+        if !self.is_user_module() {
+            return;
+        }
+        let items = self.cache.ast[s].kind.as_suite().unwrap().items.clone();
+        let exits = |v: &Self, st: StmtId| -> bool {
+            let mut cur = st;
+            loop {
+                match &v.cache.ast[cur].kind {
+                    k if k.as_suite().is_some() => match k.as_suite().unwrap().items.last() {
+                        Some(l) => cur = *l,
+                        None => return false,
+                    },
+                    k => return k.as_break().is_some() || k.as_continue().is_some() || k.as_return().is_some() || k.as_throw().is_some(),
+                }
+            }
+        };
+        for (i, &it) in items.iter().enumerate() {
+            if i + 1 >= items.len() || self.cache.ast[it].done {
+                continue;
+            }
+            let Some(is) = self.cache.ast[it].kind.as_if().cloned() else { continue };
+            if is.else_suite.is_some() {
+                continue;
+            }
+            let Some(c) = is.cond else { continue };
+            if !matches!(self.none_check_narrowing_pub(c), Some((_, false))) {
+                continue;
+            }
+            if !is.if_suite.is_some_and(|x| exits(self, x)) {
+                continue;
+            }
+            let tail = items[i + 1..].to_vec();
+            let es = self.n_stmt(SuiteStmt { items: tail });
+            self.cache.ast[it].kind.as_if_mut().unwrap().else_suite = Some(es);
+            let mut head = items[..=i].to_vec();
+            head.truncate(i + 1);
+            self.cache.ast[s].kind.as_suite_mut().unwrap().items = head;
+            return;
+        }
     }
 
     /// `visit(ExprStmt*)`.

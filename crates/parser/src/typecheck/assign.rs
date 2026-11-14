@@ -8,7 +8,7 @@ use crate::ast::{
     StringExpr, SuiteStmt, UpdateMode,
 };
 use crate::cache::{FN_SETTER_SUFFIX, VAR_USED_SUFFIX, fn_optional_unwrap, var_argc, var_argv};
-use crate::ids::{ExprId, StmtId};
+use crate::ids::{ExprId, StmtId, TypeId};
 use crate::types::LiteralKind;
 
 impl<'a> TypecheckVisitor<'a> {
@@ -53,6 +53,46 @@ impl<'a> TypecheckVisitor<'a> {
             // Update case: a += b
             typhon_common::seqassert!(st.type_expr.is_none(), "invalid AssignStmt");
             must_update = true;
+        }
+
+        // Python rebinding in a statically taken branch (`if len(x.shape) == 2: x = f(x)`):
+        // when the new value's type cannot unify with the dominated binding, bind a fresh
+        // variable that shadows the old one for the rest of the function.
+        if must_update
+            && !st.is_atomic_update()
+            && st.type_expr.is_none()
+            && self.ctx.borrow().static_branch_depth > 0
+            && self.ctx.borrow().in_function()
+            && self.is_user_module()
+            && !st.rhs.and_then(|r| self.cache.ast[r].kind.as_binary()).is_some_and(|b| b.in_place)
+        {
+            if let (Some(name), Some(r)) = (self.cache.ast[lhs].kind.as_id().map(|i| i.value.clone()), st.rhs) {
+                let t = self.get_time();
+                let old = self.find(&name, t).map(|v| v.borrow().ty());
+                if let Some(old) = old {
+                    let types = self.types();
+                    let rr = self.transform(Some(r))?.unwrap();
+                    self.assign_set(s, |a| a.rhs = Some(rr));
+                    let rt = self.ety(rr);
+                    if types.can_realize(old) && types.can_realize(rt) && types.realized_name(old) != types.realized_name(rt) {
+                        let probe_ok = {
+                            let mut undo = crate::types::Unification::new();
+                            let ok = types.unify(old, rt, Some(&mut undo), self).map(|x| x >= 0).unwrap_or(false);
+                            undo.undo(&types);
+                            ok
+                        };
+                        // Optional/float wrapping is still handled by the update path.
+                        let wraps = types.is(old, &stdlib().optional) || types.is(old, &stdlib().float);
+                        if !probe_ok && !wraps {
+                            must_update = false;
+                            let a = &mut self.cache.ast[lhs].attrs;
+                            a.erase(Attr::ExprDominated);
+                            a.erase(Attr::ExprDominatedUsed);
+                            self.assign_set(s, |a| a.update = UpdateMode::Assign);
+                        }
+                    }
+                }
+            }
         }
 
         self.result_stmt = self.transform_assignment(s, must_update)?;
@@ -402,6 +442,27 @@ impl<'a> TypecheckVisitor<'a> {
                 self.cache.ast[r].expected_type = Some(t);
             }
         }
+        // Python int->float widening: `x = 0` later `x = 0.5` / `x += 0.5`. A bare int literal
+        // bound to a fresh function local is remembered by site; once a float is assigned to
+        // it, the owning realization restarts and the literal is emitted as a float.
+        let mut int_site = None;
+        if type_expr.is_none() && self.ctx.borrow().in_function() {
+            if let Some(r) = rhs0 {
+                let lit = self.cache.ast[r].kind.as_int().filter(|i| i.suffix.is_empty()).map(|i| i.value.clone());
+                let owner = self.empty_literal_owner();
+                if let (Some(v), false) = (lit, owner.is_empty()) {
+                    let src = self.cache.ast[r].src;
+                    let site = format!("{}\x01{}:{}:{}", owner, src.file, src.line, src.col);
+                    if self.cache.int_widen_sites.contains(&site) {
+                        if let Ok(fv) = v.parse::<i64>() {
+                            self.cache.ast[r].kind = crate::ast::ExprKind::Float(crate::ast::FloatExpr::new(fv as f64));
+                        }
+                    } else {
+                        int_site = Some(site);
+                    }
+                }
+            }
+        }
         let rhs = self.transform_allow(rhs0, true)?;
         self.assign_set(s, |a| {
             a.rhs = rhs;
@@ -419,6 +480,9 @@ impl<'a> TypecheckVisitor<'a> {
             c.generate_canonical_name(self.cache, &name, false, false)
         };
         let new_lhs = self.id_n(&canonical);
+        if let Some(site) = int_site {
+            self.cache.int_literal_decls.insert(canonical.clone(), site);
+        }
         let a = self.new_assign(new_lhs, rhs, type_expr, UpdateMode::Assign);
         let lattrs = self.cache.ast[lhs].attrs.clone();
         self.cache.ast[new_lhs].attrs = lattrs;
@@ -534,6 +598,10 @@ impl<'a> TypecheckVisitor<'a> {
 
         let rhs = self.transform(self.as_assign(s).rhs)?;
         let te = self.tr_type_opt(self.as_assign(s).type_expr)?;
+        if let (Some(r), None) = (rhs, te) {
+            let rt = self.ety(r);
+            self.request_int_widening(lhs, rt);
+        }
         self.assign_set(s, |a| {
             a.rhs = rhs;
             a.type_expr = te;
@@ -700,6 +768,24 @@ impl<'a> TypecheckVisitor<'a> {
         Ok(())
     }
 
+    /// `x = <int literal>` local later assigned a float (`x = 0.5`, `x += 0.5`): request a
+    /// restart of the owning realization with the literal emitted as a float (Python keeps
+    /// the float). The unification error that follows triggers the restart.
+    fn request_int_widening(&mut self, lhs: ExprId, rt: TypeId) {
+        let types = self.types();
+        let Some(name) = self.cache.ast[lhs].kind.as_id().map(|i| i.value.clone()) else { return };
+        let Some(site) = self.cache.int_literal_decls.get(&name).cloned() else { return };
+        let lt = self.ety(lhs);
+        let (Some(lc), Some(rc)) = (types.get_class(types.follow(lt)), types.get_class(types.follow(rt))) else { return };
+        if !(types.is(lc, "Int") && types.to_string(lc) == "Int[Literal[64]]" && types.is(rc, "float")) {
+            return;
+        }
+        let owner = site.split('\x01').next().unwrap_or_default().to_string();
+        if self.cache.int_widen_sites.insert(site) {
+            self.cache.empty_literal_restarts.insert(owner);
+        }
+    }
+
     /// `transformInplaceUpdate(stmt)`: in-place and atomic updates.
     /// `a += b` -> `a.__iadd__(a, b)`; capsules: `a = b` -> `a.val[0] = b`;
     /// atomics: `a = b` -> `type(a).__atomic_xchg__(__ptr__(a), b)`,
@@ -743,6 +829,8 @@ impl<'a> TypecheckVisitor<'a> {
             }
             if self.expr_class(bl.unwrap()).is_some() && self.expr_class(br.unwrap()).is_some() {
                 if let Some(t) = self.transform_binary_inplace_magic(rhs, is_atomic)? {
+                    let tt = self.ety(t);
+                    self.request_int_widening(lhs, tt);
                     let (a, b) = (self.ety(rhs), self.ety(t));
                     self.unify(a, b)?;
                     let es = self.expr_stmt_n(t);

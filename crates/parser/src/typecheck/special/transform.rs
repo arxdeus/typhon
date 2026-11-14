@@ -258,6 +258,41 @@ impl<'a> TypecheckVisitor<'a> {
         self.transform(Some(n))
     }
 
+    /// Builtin `len(t)` of a side-effect-free fixed-size tuple (`len(a.shape)`) in user code is
+    /// a compile-time constant, so `if len(x.shape) == 2: x = expand_dims(x)` folds like a
+    /// static `if` and the branch may rebind `x` with a new type (Python semantics).
+    pub fn transform_tuple_len(&mut self, e: ExprId) -> Result<Option<ExprId>> {
+        let types = self.types();
+        if !self.is_user_module() {
+            return Ok(None);
+        }
+        let a0 = self.sp_arg(e, 0);
+        // A property read on a name (`x.shape`, already lowered to `shape(x)`) is
+        // treated as side-effect free here; only its static type is used.
+        let is_prop_read = self.cache.ast[a0].kind.as_call().is_some_and(|c| {
+            c.items.len() == 1
+                && c.items[0].value.is_some_and(|v| self.cache.ast[v].kind.tag() == crate::ast::ExprTag::Id)
+                && c.expr.is_some_and(|f| {
+                    self.expr_type(f).and_then(|t| self.cache.types.get_func(t)).is_some_and(|ft| {
+                        let fa = self.cache.types.func_ast_id(ft);
+                        self.cache.ast[fa].attrs.has(Attr::Property)
+                    })
+                })
+        });
+        if self.has_side_effect(a0) && !is_prop_read {
+            return Ok(None);
+        }
+        let a0 = self.tr(a0)?;
+        self.sp_set_arg(e, 0, a0);
+        let typ = self.extract_type_expr(a0);
+        let Some(cls) = types.get_class(typ) else { return Ok(None) };
+        if types.get_union(typ).is_some() || types.class_name(cls).map(|n| n.to_string()) != Some(stdlib().tuple.clone()) {
+            return Ok(None);
+        }
+        let n = self.sp_int(types.generics(cls).len() as i64);
+        self.transform(Some(n))
+    }
+
     /// Strip `TypeWrap[T]` -> `T` (class).
     fn sp_unwrap_type_wrap(&self, t: Option<TypeId>) -> Option<TypeId> {
         let types = &self.cache.types;

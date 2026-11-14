@@ -266,6 +266,12 @@ pub struct Cache {
     pub empty_literal_slots: BTreeMap<TypeId, (Vec<(usize, String)>, TypeId)>,
     /// Realizations that must be restarted due to a widened slot.
     pub empty_literal_restarts: BTreeSet<String>,
+    /// Python int->float variable widening: declaration sites (`owner\x01file:line:col`)
+    /// of function locals bound to a bare int literal that are later assigned a float.
+    /// On restart of the owner the literal is emitted as a float.
+    pub int_widen_sites: BTreeSet<String>,
+    /// Canonical variable name -> declaration site of locals bound to a bare int literal.
+    pub int_literal_decls: BTreeMap<String, String>,
 
 
     pub generated_tuples: FxHashSet<usize>,
@@ -313,6 +319,8 @@ impl Cache {
             empty_literal_unions: BTreeMap::new(),
             empty_literal_slots: BTreeMap::new(),
             empty_literal_restarts: BTreeSet::new(),
+            int_widen_sites: BTreeSet::new(),
+            int_literal_decls: BTreeMap::new(),
             generated_tuples: FxHashSet::default(),
             generated_kw_tuples: FxHashMap::default(),
             errors: ParserErrors::default(),

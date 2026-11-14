@@ -135,12 +135,17 @@ impl<'a> TypecheckVisitor<'a> {
     pub fn auto_deduce_members(&mut self, s: StmtId, args: &mut Vec<Param>) -> Result<bool> {
         let st = stdlib();
         let suite = self.cache.ast[s].kind.as_class().unwrap().suite;
-        let mut members = BTreeSet::new();
+        // Python `__dict__` order: first assignment order (no sorting).
+        let mut members: Vec<String> = Vec::new();
         for sp in self.class_methods_opt(suite)? {
             let a = &self.cache.ast[sp];
             if a.kind.as_function().is_some_and(|f| f.name == "__init__") {
                 if let Some(b) = a.attrs.get_str_list(Attr::ClassDeduce) {
-                    members.extend(b.iter().cloned());
+                    for m in b.iter() {
+                        if !members.contains(m) {
+                            members.push(m.clone());
+                        }
+                    }
                 }
             }
         }
