@@ -1,5 +1,12 @@
 # Ported from mne 1.13.2 / numpy 2.5.4 (BSD-3-Clause): user log_power_lda_model/preprocessing.py
-# (verbatim body, as compiled into the bci_model ORT library; see docs/bci_ort.md). Expected values from the reference venv.
+# (included byte-for-byte between the markers below, guarded by check_verbatim.py). Expected values from the reference venv.
+# --- BEGIN verbatim preprocessing.py (bci-research-lab d617e8b) ---
+"""Stateless Butterworth/log-power preprocessing from two_band_logpower.ipynb.
+
+Input: complete EEG trials (N, 6, 500) in microvolts, sampled at 125 Hz.
+Output: float64 log-power features (N, 12), ready for the LDA ONNX model.
+Channel order: 2, 3, 1, 10, 7, 13 (Fz, F4, F3, C3, Cz, C4).
+"""
 from __future__ import annotations
 
 import mne
@@ -12,6 +19,7 @@ TWO_BAND_RANGES = (
 
 
 def butterworth_filter(X, low_hz, high_hz, sfreq=125.0):
+    """Apply the notebook's fourth-order zero-phase SOS bandpass to volts."""
     return mne.filter.filter_data(
         X,
         sfreq=sfreq, l_freq=low_hz, h_freq=high_hz,
@@ -22,6 +30,7 @@ def butterworth_filter(X, low_hz, high_hz, sfreq=125.0):
 
 
 def two_band_log_power(X):
+    """Compute the exact notebook log(mean(X**2)) along the time axis."""
     X = np.asarray(X, dtype=np.float64)
     if X.ndim != 3:
         raise ValueError('Ожидается массив (пробы, каналы, отсчёты).')
@@ -30,6 +39,11 @@ def two_band_log_power(X):
 
 
 def preprocess(X):
+    """Convert raw microvolt trials to 12 features without fitting parameters.
+
+    The first six features are 8–13 Hz, followed by six at 13–30 Hz.
+    Filtering uses the complete four-second trial, as in the notebook.
+    """
     X = np.asarray(X, dtype=np.float64)
     if X.ndim != 3 or X.shape[0] == 0 or X.shape[1:] != (6, 500):
         raise ValueError('Ожидается непустой массив (N, 6, 500).')
@@ -40,6 +54,7 @@ def preprocess(X):
         two_band_log_power(butterworth_filter(volts, low_hz, high_hz))
         for _, low_hz, high_hz in TWO_BAND_RANGES
     ], axis=1)
+# --- END verbatim ---
 
 
 F0 = [-23.748217065105933, -23.556119017579345, -23.39139185592984, -23.222906306340054, -23.105822060294443, -22.965396201809828, -25.557345561913333, -25.55816574252022, -25.335760012454074, -25.536076423278846, -25.54549139783193, -25.543744456632755]
