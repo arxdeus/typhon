@@ -3973,6 +3973,28 @@ def softmax(input: Tensor, dim: int, dtype: Optional[_DType] = None) -> Tensor:
     x = input if dtype is None else input.to(_unw(dtype))
     if not _is_float(x._dt):
         x = x.float()
+    if (x._dt == _F32 and x.ndim >= 1 and (dim == -1 or dim == x.ndim - 1) and x.is_contiguous()
+            and not (_GRAD_ENABLED[0] and x.requires_grad) and x.numel() > 0):
+        # ATen _vec_softmax_lastdim: max via reduce_all, out = Sleef exp(x - max),
+        # sum via reduce_all, out *= 1 / sum (no autograd needed here)
+        from torch.nn._ce import _max_all, _sum_all
+        from torch._sleef import expf as _sexp
+        C = x._shape[x.ndim - 1]
+        R = x.numel() // C
+        res = _new(x._shape.copy(), _F32)
+        px = Ptr[float32](x._st.ptr) + x._off
+        po = Ptr[float32](res._st.ptr)
+        acc = Ptr[float32](4)
+        for r in range(R):
+            row = px + r * C
+            o = po + r * C
+            mx = _max_all(row, C, acc)
+            for j in range(C):
+                o[j] = _sexp(row[j] - mx)
+            inv = float32(1.0) / _sum_all(o, C, acc)
+            for j in range(C):
+                o[j] = o[j] * inv
+        return res
     m = amax(x.detach(), dim, True)
     e = exp(sub(x, m))
     return div(e, sum(e, dim, True))
