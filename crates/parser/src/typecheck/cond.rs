@@ -240,6 +240,14 @@ impl<'a> TypecheckVisitor<'a> {
             }
         }
 
+        // `if w:` where `w` is a NoneType name (e.g. a `None` default argument) is statically
+        // False in Python: prune the body like `if w is not None:` instead of typechecking it.
+        if self.cache.ast[cond].kind.as_id().is_some() && types.is(self.ety(cond), &st.none_type) {
+            let f = self.n_expr(crate::ast::BoolExpr { value: false });
+            cond = self.transform(Some(f))?.unwrap();
+            self.cache.ast[s].kind.as_if_mut().unwrap().cond = Some(cond);
+        }
+
         // Static if evaluation
         if types.static_kind(self.ety(cond)) != LiteralKind::Runtime {
             if let Some(is_true) = self.evaluate_static_condition(cond) {

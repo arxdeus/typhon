@@ -33,6 +33,46 @@ impl<'a> TypecheckVisitor<'a> {
         c.generate_canonical_name(self.cache, name, include_base, no_suffix)
     }
 
+    /// Syntactic check: annotation already admits `None` (`Optional[..]`, `Union[.., None]`,
+    /// `X | None`, `None`, `Any`, `object`). Used for Python implicit Optional of `x: T = None`.
+    pub(crate) fn is_optional_annotation(&self, t: ExprId) -> bool {
+        let ast = &self.cache.ast;
+        let leaf = |e: ExprId| -> Option<String> {
+            match &ast[e].kind {
+                ExprKind::Id(i) => Some(i.value.clone()),
+                ExprKind::Dot(d) => Some(d.member.clone()),
+                ExprKind::String(_) => Some("<fwd>".into()),
+                _ => None,
+            }
+        };
+        let is_none = |e: ExprId| matches!(ast[e].kind, ExprKind::None(_)) || leaf(e).is_some_and(|n| n == "None" || n == "NoneType" || n.ends_with(".NoneType"));
+        match &ast[t].kind {
+            ExprKind::None(_) => true,
+            ExprKind::Binary(b) if b.op == "|" => {
+                b.lexpr.is_some_and(|x| is_none(x) || self.is_optional_annotation(x))
+                    || b.rexpr.is_some_and(|x| is_none(x) || self.is_optional_annotation(x))
+            }
+            ExprKind::Index(ix) => {
+                let n = ix.expr.and_then(leaf).unwrap_or_default();
+                if n == "Optional" || n.ends_with(".Optional") {
+                    return true;
+                }
+                if n == "Union" || n.ends_with(".Union") {
+                    let items: Vec<ExprId> = match ix.index.map(|i| &ast[i].kind) {
+                        Some(ExprKind::Tuple(tp)) => tp.items.clone(),
+                        _ => ix.index.into_iter().collect(),
+                    };
+                    return items.into_iter().any(is_none);
+                }
+                false
+            }
+            _ => leaf(t).is_none_or(|n| {
+                matches!(n.as_str(), "None" | "NoneType" | "Any" | "object" | "Optional" | "<fwd>") || n.ends_with(".NoneType")
+                    || n.ends_with(".Any") || n.starts_with('$') || n.starts_with('.')
+            }),
+        }
+    }
+
     /// `auto nctx = make_shared<TypeContext>(cache); *nctx = *ctx; nctx->bases.pop_back();`
     /// and, if `global`, drop everything but the toplevel base.
     pub(crate) fn copy_ctx_without_base(&self, global: bool) -> CtxRef {
@@ -600,6 +640,7 @@ impl<'a> TypecheckVisitor<'a> {
 
             // Handle default values
             let mut default_value = a.default_value;
+            let mut implicit_opt_ty: Option<ExprId> = None;
             let simple = default_value.is_some_and(|d| match &self.cache.ast[d].kind {
                 ExprKind::None(_) | ExprKind::Int(_) | ExprKind::Bool(_) | ExprKind::Float(_) | ExprKind::Id(_) | ExprKind::String(_) => true,
                 ExprKind::Unary(u) => u.expr.is_some_and(|x| matches!(self.cache.ast[x].kind, ExprKind::Int(_))),
@@ -613,6 +654,18 @@ impl<'a> TypecheckVisitor<'a> {
                     if is_id(&self.cache.ast, a.ty, &st.type_) || is_id(&self.cache.ast, a.ty, &st.type_trait) {
                         // Special case: `arg: type = None` -> `arg: type = NoneType
                         default_value = Some(self.id_n(&st.none_type));
+                    } else if a.ty.is_some()
+                        && !self.ctx.borrow().is_stdlib_loading
+                        && self.ctx.borrow().module_info().status == typhon_common::fs::ImportStatus::Package
+                        && a.is_value() && !self.is_optional_annotation(a.ty.unwrap()) {
+                        // Python implicit Optional: `x: T = None` behaves as `x: Optional[T] = None`.
+                        let o = self.id_n(&st.optional);
+                        let inner = self.cache.ast.clone_expr_opt(a.ty, false);
+                        let ix = self.n_expr(IndexExpr { expr: Some(o), index: inner });
+                        implicit_opt_ty = Some(ix);
+                        if let Some(it) = self.cache.ast[s].kind.as_function_mut().unwrap().items.iter_mut().find(|x| x.name == a.name) {
+                            it.ty = Some(ix);
+                        }
                     } else {
                         // Do nothing. NoneExpr will be handled later (we don't want it
                         // to be converted to Optional call yet.)
@@ -632,7 +685,7 @@ impl<'a> TypecheckVisitor<'a> {
                     default_value = Some(self.function_default_value(s, canonical_name, a, d, is_class_member, is_global)?);
                 }
             }
-            let mut np = Param::with_status(format!("{}{}", "*".repeat(stars), name), a.ty, default_value, a.status);
+            let mut np = Param::with_status(format!("{}{}", "*".repeat(stars), name), implicit_opt_ty.or(a.ty), default_value, a.status);
             np.kind = a.kind;
             np.status = a.status;
             // Note: the reference `Param(name, type, default, status, kind)` re-infers the status
@@ -889,6 +942,30 @@ impl<'a> TypecheckVisitor<'a> {
                         let te = r?.unwrap();
                         let t = self.extract_type_expr(te);
                         self.unify(g, t)?;
+                        // Bare generic annotations (`t: list`, `t: list = None`): the element
+                        // type is fixed by the caller or, for an empty/None argument, by the
+                        // body (`t = ['a']`, `t.append(x)`), as in Python.
+                        let bare = {
+                            let ast = &self.cache.ast;
+                            let is_bare = |e: Option<ExprId>| e.is_some_and(|e| matches!(ast[e].kind, ExprKind::Id(_) | ExprKind::Dot(_)));
+                            is_bare(p.ty)
+                                || p.ty.and_then(|e| ast[e].kind.as_index()).is_some_and(|ix| is_id(ast, ix.expr, &stdlib().optional) && is_bare(ix.index))
+                        };
+                        if bare
+                            && !self.ctx.borrow().is_stdlib_loading
+                            && self.ctx.borrow().module_info().status == typhon_common::fs::ImportStatus::Package
+                        {
+                            let ubs = types.get_unbounds(t, false);
+                            for u in ubs {
+                                if let Some(ub) = types.get_unbound(u) {
+                                    types.with_link_mut(ub, |l| {
+                                        l.pass_through = true;
+                                        l.late_default = true;
+                                    });
+                                    self.cache.ast[s].attrs.set(Attr::AllowPassThrough);
+                                }
+                            }
+                        }
                     }
                 }
             }

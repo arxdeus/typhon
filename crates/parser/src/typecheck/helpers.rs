@@ -43,6 +43,21 @@ pub fn get_import_file(cache: &mut Cache, what: &str, relative_to: &str, force_s
         }
     }
     let sps: Vec<PathBuf> = fs.borrow().search_paths().to_vec();
+    // Python `sys.path[0]`: the main script's directory is a search root for every import made
+    // from user code (also from modules in subpackages), before the stdlib.
+    if !force_stdlib {
+        let f = fs.borrow();
+        let rel = relative_to.replace('\\', "/");
+        let from_stdlib = sps.iter().any(|p| rel.starts_with(&*p.to_string_lossy().replace('\\', "/")));
+        let m0 = f.module0().parent().map(|p| p.to_path_buf()).unwrap_or_default();
+        if !from_stdlib && !m0.as_os_str().is_empty() && m0 != parent {
+            for c in [replace_ext(m0.join(what), "py"), m0.join(what).join("__init__.py")] {
+                if f.exists(&c) {
+                    paths.push(gen_(f.canonical(&c)));
+                }
+            }
+        }
+    }
     for p in sps {
         {
             let f = fs.borrow();

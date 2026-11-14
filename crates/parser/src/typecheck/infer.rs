@@ -201,13 +201,23 @@ impl<'a> TypecheckVisitor<'a> {
             }
             let keys: Vec<i32> = self.ctx.borrow().base_ref().pending_defaults.keys().copied().collect();
             let types = self.types();
-            for k in keys {
+            // A pass-through unbound that is a field of a partially deduced `self` (helper
+            // methods called from `__init__`) is never defaulted here: its owner `__init__`
+            // decides the type. Element types of bare generic parameters (`t: list = None`,
+            // `late_default`) are defaulted in a second round, after all other defaults.
+            for pass in 0..2 {
+            for k in keys.iter().copied() {
                 let unbounds: Vec<TypeId> = self.ctx.borrow().base_ref().pending_defaults.get(&k).map(|s| s.iter().copied().collect()).unwrap_or_default();
                 if unbounds.is_empty() {
                     continue;
                 }
+                let mut kept = vec![];
                 for u in unbounds {
                     let Some(l) = types.link(u) else { continue };
+                    if l.pass_through && (pass == 0 || !l.late_default) {
+                        kept.push(u);
+                        continue;
+                    }
                     let Some(d) = l.default_type else { continue };
                     let mut undo = Unification::new();
                     let target = if types.get_class(d).is_some() {
@@ -222,10 +232,19 @@ impl<'a> TypecheckVisitor<'a> {
                         another = true;
                     }
                 }
-                self.ctx.borrow_mut().get_base().pending_defaults.get_mut(&k).unwrap().clear();
+                {
+                    let mut c = self.ctx.borrow_mut();
+                    let e = c.get_base().pending_defaults.get_mut(&k).unwrap();
+                    e.clear();
+                    e.extend(kept);
+                }
                 if another {
                     break;
                 }
+            }
+            if another {
+                break;
+            }
             }
             if another {
                 self.ctx.borrow_mut().get_base().iteration += 1;

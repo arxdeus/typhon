@@ -308,7 +308,11 @@ impl<'a> TypecheckVisitor<'a> {
                         }
                     }
                     self.ctx = old_ctx;
-                    if !errors.is_empty() && !deferred {
+                    // A helper realized with a partially deduced `self` (pass-through field
+                    // unbounds) is retried once the owner `__init__` assigns the field.
+                    let pending_self = fattrs.has(Attr::AllowPassThrough)
+                        && types.get_unbounds(ty, true).iter().any(|u| types.link(*u).is_some_and(|l| l.pass_through));
+                    if !errors.is_empty() && !deferred && !pending_self {
                         return Err(CompilerError::Parser(errors));
                     }
                     return Ok(None); // inference must be delayed

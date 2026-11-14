@@ -93,6 +93,9 @@ pub struct LinkType {
     pub default_type: Option<TypeId>,
     /// Can be used unrealized as a function argument during function realization.
     pub pass_through: bool,
+    /// Pass-through unbound that may still take its default as a last resort (element type
+    /// of a bare generic parameter such as `t: list = None`).
+    pub late_default: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -540,6 +543,7 @@ impl TypeArena {
                 generic_name: String::new(),
                 default_type: None,
                 pass_through: false,
+                late_default: false,
             },
             src,
         )
@@ -558,6 +562,7 @@ impl TypeArena {
                 generic_name: String::new(),
                 default_type: None,
                 pass_through: false,
+                late_default: false,
             },
             src,
         )

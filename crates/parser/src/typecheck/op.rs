@@ -328,6 +328,18 @@ impl<'a> TypecheckVisitor<'a> {
         let be = self.op_bin(e);
         let op = be.op.clone();
         if self.op_is_expected(e, &st.bool_) && (op == "&&" || op == "||") {
+            // `(a and b) and c` -> `a and (b and c)` (same truth value and evaluation order in
+            // a bool context) so a statically False `b` (e.g. `hasattr(self, 'x')`) prunes `c`.
+            let l0 = be.lexpr.unwrap();
+            if let Some(lb) = self.cache.ast[l0].kind.as_binary().cloned() {
+                if lb.op == op && !self.cache.ast[l0].done {
+                    let inner = self.op_new_bin(lb.rexpr.unwrap(), &op, be.rexpr.unwrap(), false);
+                    let k = self.cache.ast[e].kind.as_binary_mut().unwrap();
+                    k.lexpr = lb.lexpr;
+                    k.rexpr = Some(inner);
+                    return self.visit_binary(e);
+                }
+            }
             let b = self.get_stdlib_type(&st.bool_)?;
             self.cache.ast[be.lexpr.unwrap()].expected_type = Some(b);
             self.cache.ast[be.rexpr.unwrap()].expected_type = Some(b);

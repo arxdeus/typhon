@@ -108,6 +108,7 @@ impl TypeArena {
                             generic_name: l.generic_name,
                             default_type,
                             pass_through: l.pass_through,
+                        late_default: l.late_default,
                         },
                         typhon_common::SrcInfo::default(),
                     )
@@ -151,6 +152,7 @@ impl TypeArena {
                         generic_name: l.generic_name,
                         default_type,
                         pass_through: l.pass_through,
+                        late_default: l.late_default,
                     },
                     typhon_common::SrcInfo::default(),
                 );
