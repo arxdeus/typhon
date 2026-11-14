@@ -126,3 +126,51 @@ Host check: `pip install onnxruntime-training` has no macOS wheel (Linux x86_64 
 What it gives: softmax regression (cross entropy gradient descent) on top of the fixed features. It does not reproduce LDA (different objective, no closed form, depends on lr/epochs). From Typhon the calls are the same table technique: `GetTrainingApi(version)` then `CreateCheckpointState`/`LoadCheckpoint`, `CreateTrainingSession`, `TrainStep`, `OptimizerStep`, `LazyResetGrad`, `ExportModelForInferencing`. Not exercised from Typhon here (no macOS training C library was available to link, only the Python wheel).
 
 Recommendation: for LDA the closed-form path (A) is exact, tiny, and works with the standard inference package. Use B only if a gradient-trained head is wanted.
+
+## Retraining an ONNX model on device (no ORT training APIs)
+
+ORT on-device training is being retired upstream (last prebuilt training packages: 1.19.2), so
+a retrainable ONNX model is kept as a plain inference graph and its weights are replaced at
+session creation: train in Typhon's `torch`/`braindecode` port (`bci_nn.md`), save the
+`state_dict`, then create the session from the ORIGINAL `.onnx` with one
+`SessionOptions AddInitializer(name, OrtValue)` per trained tensor (same C API call as the LDA
+retrain in `test/bci/lib/ort/ort_api.py`). Check: `test/bci/lib/ort/check_retrain_nn.py`.
+
+Export: `torch.onnx.export(..., opset_version=17, do_constant_folding=False,
+keep_initializers_as_inputs=False, dynamo=False)`. Initializer names equal the `state_dict` keys
+(EEGNet: 18 float32 tensors incl. BatchNorm `running_mean`/`running_var`;
+`num_batches_tracked` is not in the graph). Trap: the exporter deduplicates initializers with
+equal values, and a fresh model has `running_mean == bias == 0`, `running_var == weight == 1`,
+`bnorm_2 == bnorm_1`, so 10 initializers serve 18 tensors and cannot be overridden separately.
+Fix (in the check script): export with unique random values, map names by value, then write the
+real weights back into the `.onnx`.
+
+EEGNet (6 ch, 3 classes, 500 samples), 3 epochs x 240 trials Adam in Typhon (loss 1.1693 ->
+1.1042, all 18 tensors changed), inference on 240 trials vs PyTorch with the same trained
+weights, onnxruntime 1.32.0 CPU, M-series host:
+
+| ORT graph optimization | max abs logit diff | max abs proba diff | labels equal | session create ms (plain / overrides) | run 1 trial ms |
+|---|---|---|---|---|---|
+| ORT_DISABLE_ALL | 5.6e-8 | 3.0e-8 | yes | 1.2 / 1.3 | 0.11 |
+| ORT_ENABLE_BASIC | 3.5e-2 | 1.0e-2 | no | 3.9 | 0.09 |
+| ORT_ENABLE_EXTENDED / ALL | 3.5e-2 | 1.0e-2 | no | 3.6 / 4.0 | 0.10 |
+
+(Original weights vs trained: 7.4e-2, so at BASIC+ the overrides are partly lost.)
+
+Caveats:
+- With any optimization above `ORT_DISABLE_ALL`, overrides of tensors that ORT constant-folds or
+  fuses (Conv+BatchNorm fusion, the weight-norm parametrization of `conv_spatial`, BN stats)
+  are silently dropped: per tensor, only `conv_separable_depth` and the classifier survived.
+  No error. Use `ORT_DISABLE_ALL` (costs nothing measurable at EEGNet size).
+- dtype mismatch (float64 OrtValue for a float32 initializer), shape mismatch and unknown names
+  are all accepted silently (wrong dtype = the original weight is used). Validate name, dtype
+  and shape against the graph yourself before `AddInitializer`.
+- `AddInitializer` does not copy: the OrtValue and its buffer must stay alive until the session
+  is released (the Typhon wrapper keeps them on the session object).
+- Session creation is ~1 ms, so recreating the session after each retrain is fine.
+
+Recommendation: keep one exported `.onnx` (dedup-safe export as above) as the deployed
+artifact, train in Typhon, store weights as safetensors, and open ORT with
+`ORT_DISABLE_ALL` + `AddInitializer` for every trained tensor after checking names, dtypes and
+shapes. Alternative when optimization is wanted: rewrite the initializers into the `.onnx`
+bytes and load that (no override semantics involved).
