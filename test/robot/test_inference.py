@@ -8,7 +8,6 @@
 # Expected: data/inference_expected.txt from gen_inference_expected.py (torch 2.15.0,
 # mne 1.13.2): command sequences exact, argmax of all 1466 S025 windows exact,
 # probe logits within 2e-5 (float32 BLAS summation order), preprocessed values 1e-6.
-# Build with TYPHON_PATH=examples/Robot-BCI-Movement-GUI (the user package is not next to this test).
 import os
 DIR = __file__[:__file__.rfind("/")] if "/" in __file__ else "."
 REPO = DIR + "/../../examples/Robot-BCI-Movement-GUI"
@@ -73,8 +72,10 @@ else:
             print(s, "argmax flips", flips, "max|dlogit|", dlog, "max|dpre|", dpre)
             if flips != 0 or dlog > 2e-5 or dpre > 1e-6:
                 ok = False
-        dq = queue.Queue()
-        cq = queue.Queue()
+        # element types declared here (untyped Queue + None sentinel is not inferred);
+        # run_inference itself is the user's verbatim code
+        dq = queue.Queue[Optional[np.ndarray[float, 2]]]()
+        cq = queue.Queue[str]()
         for c in chunks:
             dq.put(c)
         dq.put(None)
