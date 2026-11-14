@@ -570,6 +570,18 @@ class Tensor:
     def type_as(self, other: Tensor) -> Tensor:
         return self.to(other.dtype)
 
+    def __deepcopy__(self) -> Tensor:
+        # torch: leaf tensors only; new storage, same requires_grad, detached from graph.
+        if self.grad_fn is not None:
+            raise RuntimeError("Only Tensors created explicitly by the user (graph leaves) support the deepcopy protocol at the moment.  If you were attempting to deepcopy a module, this may be because of a torch.nn.utils.weight_norm usage, see https://github.com/pytorch/pytorch/pull/103001")
+        r = clone(self.detach())
+        if self.requires_grad:
+            r.requires_grad_(True)
+        return r
+
+    def __copy__(self) -> Tensor:
+        return self
+
     def clone(self, memory_format=None) -> Tensor:
         return clone(self)
 
