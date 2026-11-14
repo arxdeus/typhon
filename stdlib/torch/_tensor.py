@@ -2837,7 +2837,10 @@ def _unfold(input: Tensor, dimension: int, size: int, step: int) -> Tensor:
         _attach(r, nd2)
     return r
 
-def cat(tensors: List[Tensor], dim: int = 0) -> Tensor:
+def cat(tensors, dim: int = 0) -> Tensor:
+    if not isinstance(tensors, List[Tensor]):
+        # `torch.cat((a, b, c), dim=1)`: a tuple (or other sequence) of tensors
+        return cat(List[Tensor]([t for t in tensors]), dim)
     if len(tensors) == 0:
         raise RuntimeError("torch.cat(): expected a non-empty list of Tensors")
     # legacy: skip 1-d empty tensors
