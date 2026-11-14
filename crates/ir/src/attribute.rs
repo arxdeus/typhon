@@ -250,7 +250,7 @@ impl Attribute {
 /// small ordered association list keyed by attribute id.
 #[derive(Clone, Debug, Default)]
 pub struct AttributeMap {
-    values: SmallVec<[(i32, Attribute); 2]>,
+    values: SmallVec<[(i32, Attribute); 1]>,
 }
 
 impl AttributeMap {
