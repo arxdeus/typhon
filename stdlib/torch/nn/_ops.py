@@ -319,6 +319,28 @@ def max_pool2d_raw(x: Tensor, k: Tuple[int, int], s: Tuple[int, int], p: Tuple[i
     g = _PoolGeo(B, H, W, OH, OW, k[0], k[1], s[0], s[1], p[0], p[1], d[0], d[1])
     xc = _c(x.detach())
     out = _new([B, OH, OW], x._dt)
+    if (x._dt == _F32 and not (is_grad_enabled() and x.requires_grad) and H == 1 and k[0] == 1
+            and p[1] == 0 and d[1] == 1 and k[1] <= W):
+        # inference fast path (max_pool1d): no index bookkeeping. Same
+        # selection rule as _maxpool_k (first max, NaN propagates).
+        xp = xc._ptr(float32)
+        op = out._ptr(float32)
+        for b in range(B):
+            row = xp + b * W
+            for ox in range(OW):
+                st = ox * s[1]
+                best = row[st]
+                if best == best:
+                    for kx in range(1, k[1]):
+                        if st + kx >= W:
+                            break
+                        v = row[st + kx]
+                        if v > best or v != v:
+                            best = v
+                            if v != v:
+                                break
+                op[b * OW + ox] = best
+        return (out.view(out_lead + [OH, OW]), List[int]())
     idx = [0] * (B * OH * OW)
     _dispatch_float(x._dt, _maxpool_k, xc, g, out, idx)
     out = out.view(out_lead + [OH, OW])

@@ -31,8 +31,10 @@ class Module:
     _ptz_fns: List[Module]
     _ptz_orig: List[Tensor]
     _ptz_cache: List[Tensor]
+    _autoreg_done: bool
 
     def __init__(self):
+        self._autoreg_done = False
         self.training = True
         self._pnames = []
         self._params = []
@@ -54,9 +56,15 @@ class Module:
         # one generic entry for `model(x)` and multi-input forwards
         # (`model(x1, x2, x3, x4)`); an overloaded __call__ would bind `self`
         # to the base class and lose the subclass forward.
-        self._autoreg()
+        self._autoreg_call()
         self._refresh_parametrizations()
         return self.forward(*inputs)
+
+    def _autoreg_call(self):
+        # hot path: fields are complete once the module is called
+        if not self._autoreg_done:
+            self._autoreg()
+            self._autoreg_done = True
 
     def _autoreg(self):
         # torch registers submodules in Module.__setattr__. Plain attribute

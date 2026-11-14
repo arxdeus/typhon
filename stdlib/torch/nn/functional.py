@@ -282,6 +282,16 @@ def relu6(input: Tensor, inplace: bool = False) -> Tensor:
 
 def elu(input: Tensor, alpha: float = 1.0, inplace: bool = False) -> Tensor:
     from torch import where
+    if input._dt == _F32 and not (_T._GRAD_ENABLED[0] and input.requires_grad) and input.is_contiguous():
+        # fused inference path, same per-element values as the where() below
+        out = _new(input._shape.copy(), _F32)
+        p = Ptr[float32](input._st.ptr) + input._off
+        q = Ptr[float32](out._st.ptr)
+        a = float32(alpha)
+        for i in range(input.numel()):
+            v = p[i]
+            q[i] = v if v > float32(0.0) else _T._U.expm1(v) * a
+        return out
     return where(input > 0.0, input, input.expm1() * alpha)
 
 def selu(input: Tensor, inplace: bool = False) -> Tensor:
@@ -466,7 +476,45 @@ def batch_norm(input: Tensor, running_mean: Optional[Tensor], running_var: Optio
             raise RuntimeError("running_mean and running_var must be defined in evaluation mode")
         rm = running_mean.__val__()
         rv = running_var.__val__()
-        out = (input - rm.reshape(shp)) * (rv.reshape(shp) + eps).rsqrt()
+        r = (rv + eps).rsqrt()
+        if (input._dt == _F32 and rm._dt == _F32 and r._dt == _F32 and input.is_contiguous() and rm.is_contiguous()
+                and not (_T._GRAD_ENABLED[0] and (input.requires_grad or (weight is not None and weight.__val__().requires_grad)
+                                                  or (bias is not None and bias.__val__().requires_grad)))
+                and (weight is None or (weight.__val__()._dt == _F32 and weight.__val__().is_contiguous()))
+                and (bias is None or (bias.__val__()._dt == _F32 and bias.__val__().is_contiguous()))):
+            # fused inference path: same per-element ops and order as below
+            # ((x - mean) * rsqrt(var + eps)) * weight + bias, in float32
+            res = _new(input._shape.copy(), _F32)
+            N0 = input.size(0)
+            inner = input.numel() // (N0 * C) if N0 * C > 0 else 0
+            px = Ptr[float32](input._st.ptr) + input._off
+            po = Ptr[float32](res._st.ptr)
+            pm = Ptr[float32](rm._st.ptr) + rm._off
+            pr = Ptr[float32](r._st.ptr) + r._off
+            for c in range(C):
+                mc = pm[c]
+                rc = pr[c]
+                hw = weight is not None
+                hb = bias is not None
+                wc = float32(0.0)
+                bc = float32(0.0)
+                if weight is not None:
+                    wv = weight.__val__()
+                    wc = (Ptr[float32](wv._st.ptr) + wv._off)[c]
+                if bias is not None:
+                    bv = bias.__val__()
+                    bc = (Ptr[float32](bv._st.ptr) + bv._off)[c]
+                for n in range(N0):
+                    base = (n * C + c) * inner
+                    for i in range(inner):
+                        v = (px[base + i] - mc) * rc
+                        if hw:
+                            v = v * wc
+                        if hb:
+                            v = v + bc
+                        po[base + i] = v
+            return res
+        out = (input - rm.reshape(shp)) * r.reshape(shp)
     if weight is not None:
         out = out * weight.__val__().reshape(shp)
     if bias is not None:
