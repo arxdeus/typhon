@@ -93,6 +93,19 @@ pub fn process_cpu_seconds() -> f64 {
     0.0
 }
 
+/// Peak resident set size of this process so far, in MB (`ru_maxrss`; bytes on macOS, KB on Linux).
+pub fn process_max_rss_mb() -> u64 {
+    #[cfg(unix)]
+    unsafe {
+        let mut ru: libc::rusage = std::mem::zeroed();
+        if libc::getrusage(libc::RUSAGE_SELF, &mut ru) == 0 {
+            let v = ru.ru_maxrss as u64;
+            return if cfg!(target_os = "macos") { v >> 20 } else { v >> 10 };
+        }
+    }
+    0
+}
+
 /// `TYPHON_TIMINGS=1` enables the per-phase timing report (same as `-log=t`).
 pub fn timings_env() -> bool {
     static ON: once_cell::sync::Lazy<bool> =
@@ -111,7 +124,7 @@ impl Timer {
     pub fn log(&mut self) {
         if !self.logged {
             let cpu = process_cpu_seconds() - self.cpu;
-            log_line(&format!("[T] {} = {:.3} (cpu {:.3})", self.name, self.elapsed(), cpu));
+            log_line(&format!("[T] {} = {:.3} (cpu {:.3}, maxrss {} MB)", self.name, self.elapsed(), cpu, process_max_rss_mb()));
             self.logged = true;
         }
     }
