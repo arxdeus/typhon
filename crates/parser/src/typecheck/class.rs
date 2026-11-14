@@ -1131,6 +1131,78 @@ impl<'a> TypecheckVisitor<'a> {
         Ok(())
     }
 
+    /// Python fields annotated with a bare generic class (`dq: list`, `q: queue.Queue`,
+    /// `q: queue.Queue | None = None`) do not fix the element type. In user code give each
+    /// such field a hidden generic `T_<field>` (default `NoneType`) that is deduced from the
+    /// constructor arguments, like an unannotated deduced member.
+    fn generalize_bare_generic_fields(&mut self, args: &mut Vec<Param>) -> Result<bool> {
+        let st = stdlib();
+        if self.ctx.borrow().is_stdlib_loading
+            || self.ctx.borrow().module_info().status != typhon_common::fs::ImportStatus::Package
+        {
+            return Ok(false);
+        }
+        let mut new_generics = vec![];
+        for i in 0..args.len() {
+            let a = &args[i];
+            if !a.is_value() || self.cache.ast.is_class_var(a) {
+                continue;
+            }
+            let Some(t) = a.ty else { continue };
+            // `X` or `X | None` / `Optional[X]` with `X` a bare name.
+            let (bare, optional) = match &self.cache.ast[t].kind {
+                ExprKind::Id(_) | ExprKind::Dot(_) => (t, false),
+                ExprKind::Binary(b) if b.op == "|" => {
+                    let is_none = |e: Option<ExprId>, v: &Self| e.is_some_and(|e| matches!(v.cache.ast[e].kind, ExprKind::None(_)) || is_id(&v.cache.ast, Some(e), "None"));
+                    let pick = if is_none(b.rexpr, self) { b.lexpr } else if is_none(b.lexpr, self) { b.rexpr } else { None };
+                    match pick {
+                        Some(x) if matches!(self.cache.ast[x].kind, ExprKind::Id(_) | ExprKind::Dot(_)) => (x, true),
+                        _ => continue,
+                    }
+                }
+                ExprKind::Index(ix) if is_id(&self.cache.ast, ix.expr, "Optional") => match ix.index {
+                    Some(x) if matches!(self.cache.ast[x].kind, ExprKind::Id(_) | ExprKind::Dot(_)) => (x, true),
+                    _ => continue,
+                },
+                _ => continue,
+            };
+            let probe = self.cache.ast.clone_expr(bare, false);
+            let Ok(Some(te)) = self.transform_type(Some(probe), true) else { continue };
+            let Some(ct) = self.extract_class_type_expr(te) else { continue };
+            let types = self.types();
+            let ng = types.generics(types.get_class(ct).unwrap()).len();
+            if ng == 0 || types.can_realize(ct) {
+                continue;
+            }
+            // `list` -> `list[T_<field>_0]` (each class generic becomes a hidden class generic);
+            // an unset optional field then still realizes (`Optional[List[NoneType]]`).
+            let mut idx = vec![];
+            for j in 0..ng {
+                let g = format!("T_{}_{}", a.name, j);
+                new_generics.push(g.clone());
+                idx.push(self.id_n(&g));
+            }
+            let index = if idx.len() == 1 { idx[0] } else { self.n_expr(TupleExpr { items: idx }) };
+            let base = self.cache.ast.clone_expr(bare, false);
+            let gid = self.n_expr(IndexExpr { expr: Some(base), index: Some(index) });
+            let nty = if optional {
+                let o = self.id_n(&st.optional);
+                self.n_expr(IndexExpr { expr: Some(o), index: Some(gid) })
+            } else {
+                gid
+            };
+            args[i].ty = Some(nty);
+        }
+        let any = !new_generics.is_empty();
+        for g in new_generics.into_iter().rev() {
+            let ty = self.id_n(&st.type_);
+            let def = self.id_n(&st.none_type);
+            let p = self.cache.ast.new_param(Default::default(), g, Some(ty), Some(def), 1, ParamKind::Normal);
+            args.insert(0, p);
+        }
+        Ok(any)
+    }
+
     /// A bare base class `A` whose members were auto-deduced from its `__init__` is
     /// implicitly generic (`A[T_c]`). Python code writes `class B(A)`, so give `B` the same
     /// hidden generics and rewrite the base to `A[T_c, ...]`; otherwise the base can never
@@ -1281,6 +1353,17 @@ impl<'a> TypecheckVisitor<'a> {
         } else {
             if has(self, Attr::ClassDeduce) && !self.auto_deduce_members(s, &mut args_to_parse)? {
                 self.cache.ast[s].attrs.erase(Attr::ClassDeduce);
+            }
+            if self.generalize_bare_generic_fields(&mut args_to_parse)? {
+                // `__init__` assigning such a field must defer the hidden generics.
+                self.cache.ast[s].attrs.set(Attr::ClassDeduce);
+                let suite = self.cache.ast[s].kind.as_class().unwrap().suite;
+                for sp in self.class_methods_opt(suite)? {
+                    let a = &mut self.cache.ast[sp];
+                    if a.kind.as_function().is_some_and(|f| f.name == "__init__") && !a.attrs.has(Attr::ClassDeduce) {
+                        a.attrs.set_value(Attr::ClassDeduce, crate::ast::AttrValue::StrList(vec![]));
+                    }
+                }
             }
             self.propagate_deduced_base_generics(s, &mut args_to_parse)?;
 
