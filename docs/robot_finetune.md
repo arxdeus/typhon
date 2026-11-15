@@ -123,6 +123,17 @@ with torch-mac except at the float32-ulp level (last printed digit of a loss or 
 Not yet measured on the device (the device went offline): final-weight max abs/rel diff, val-loss
 diff at full precision, and test-window label agreement of the fine-tuned model.
 
+Fine-tune magnitude, device vs torch-mac (S050, OMP 1 / 1 worker, native libraries as shipped,
+device run 2026-11-15, battery 35.7-35.9 C, 58 s wall). Weights were compared on the device against
+the torch-mac 1-thread state_dict. Val loss is printed with repr() in a scratch copy. The host
+Typhon build is bit-exact against the same reference: 0 weight diffs, same val losses, same probs.
+- Final weights: 3374087 of 4249442 values differ. Max abs diff 1.21e-4 (motor_classifier.0.bias).
+  Max rel diff 4.7, on near-zero values (fwd_model.spatial_conv.0.bias). Abs diff stays <= 1.3e-4 everywhere.
+- Val loss per epoch (22 epochs): max abs diff 2.29e-5 (rel 1.8e-5). Early stop is the same (epoch 12,
+  best F1 0.5790).
+- Fine-tuned model on the 1466 S050_test windows: labels 1466/1466 identical, max |dprob| 3.5e-5.
+Not measured: default thread count, S025, torch linux-aarch64.
+
 ### Float libm on host vs device (native libraries)
 
 Host and device each use their native libm (Apple libm on macOS/iOS, bionic on Android). Neither is correctly rounded, and they differ from each other, so the last digits of Val Loss can differ on the device. Exhaustive check over all 2^32 float inputs, with CORE-MATH (correctly rounded) as the reference. NaN==NaN counts as equal. Apple is `libsystem_m` in-process. Bionic is modelled by host builds of its upstream sources: ARM optimized-routines for logf/sinf/cosf/expf, FreeBSD msun for expm1f/tanhf/log1pf, built with `-O2 -ffp-contract=off`. The device was not used, so device-build details such as FMA contraction may move the bionic counts a little.
