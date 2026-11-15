@@ -61,3 +61,23 @@ Every Typhon run's log is identical to the torch run at the same thread count (6
 
 At 1 worker Typhon uses less CPU than torch at 1 thread; by default it finishes about 3x
 sooner than default torch with a quarter of its CPU time.
+
+## Pixel 9a (device)
+
+Android 16, f1d63717, `finetune_harness` over adb, battery 33-34 C. Android defaults:
+`torch.get_num_threads()` = online CPUs (8), workers = big + mid cores (4). The matching torch
+reference is torch at 8 threads (the host library is also exact against it: S050 0/27).
+
+| run | wall / user / sys s | lines differing from torch (same thread count) |
+|---|---|---|
+| S050 default (OMP 8, 4 workers) | 82.3 / 296.2 / 5.3 | 5 / 27 |
+| S050 OMP 1, 1 worker | 45.3 / 43.2 / 1.9 | 4 / 27 |
+| S025 default | 141.5 / 514.2 / 8.5 | 1 / 51 |
+| torch host, 8 threads | S050 82.7 / 93.2 / 231.6, S025 145.9 / 169.3 / 416.3 | |
+
+All differences are in the 4th decimal of a loss or one F1 value. Early-stop epochs and the
+best F1 are the same. The device result does not depend on the thread count. Causes found:
+bionic `logf`/`cosf`/`sinf` rounding (changes `randn` values), plus a non-elementwise
+difference that remains when both platforms use identical libm results, most likely
+OpenBLAS `sgemm` on Android versus Accelerate in the host torch reference. See
+`examples/robot_bci/README.md`.
