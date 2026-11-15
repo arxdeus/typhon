@@ -164,6 +164,33 @@ around it take 45%, and that is why OMP 8 is slower than OMP 1 on wall time. tor
 OpenBLAS threading, and ATen gives the thread count to BLAS. Changing it would change neither
 results nor bits, only speed: a possible follow-up is fewer BLAS threads for small GEMMs.
 
+OpenBLAS small-GEMM threading (Android only). Root cause of the slow OMP 8 run: OpenBLAS 0.3.32 on
+generic ARMV8 (interface/gemm.c get_gemm_optimal_nthreads) threads every GEMM with M*N*K > 65536*4
+over omp_get_max_threads() = 8, little cores included. driver/level3/level3_thread.c then
+spin-waits on the slowest thread. Device check before the fix (S050, scratch build that sets
+BLAS threads via omp_set_num_threads, battery 33-35 C):
+
+| OMP | BLAS threads | wall | user |
+|---|---|---|---|
+| 8 | 8 (as shipped) | 77.6 s | 190 s |
+| 8 | 4 | 73.0 s | 165 s |
+| 8 | 1 | 68.8 s | 155 s |
+
+The weight hash, val losses and probs are identical in all three rows, and equal to the runs
+above. The fix is crates/runtime/build.rs: `GEMM_MULTITHREAD_THRESHOLD=1024` for the
+aarch64-android OpenBLAS build, so GEMMs up to 2^26 M*N*K run on the caller thread. Apple and
+Accelerate are not touched.
+
+Device re-measure, not yet measured on device (the Pixel was unplugged):
+- [ ] Rebuild with `tools/build-runtime.sh aarch64-linux-android` and rebuild the probe or library.
+- [ ] S050 OMP 8 (default workers) and OMP 1 (1 worker): wall/CPU, battery temperature.
+- [ ] Bits: WHASH -0x4420ac99c30d7d12 (OMP 8), val-loss md5 268d858e..., probs md5 12cf0c40...
+  must be unchanged. Also OMP 8 with TYPHON_NUM_WORKERS=1.
+- [ ] simpleperf: inner_thread should drop from 45%.
+- [ ] Separate check: with OMP 1 but the default workers, the run took 90 s vs 58 s with
+  1 worker. The NNPACK and typhon-omp pools also lose time on this SoC (cores 0-3 are 1.95 GHz).
+  Measure workers pinned to cores 4-7 (`taskset f0`) before changing `_fast_cores`.
+
 ### Float libm on host vs device (native libraries)
 
 Host and device each use their native libm (Apple libm on macOS/iOS, bionic on Android). Neither is correctly rounded, and they differ from each other, so the last digits of Val Loss can differ on the device. Exhaustive check over all 2^32 float inputs, with CORE-MATH (correctly rounded) as the reference. NaN==NaN counts as equal. Apple is `libsystem_m` in-process. Bionic is modelled by host builds of its upstream sources: ARM optimized-routines for logf/sinf/cosf/expf, FreeBSD msun for expm1f/tanhf/log1pf, built with `-O2 -ffp-contract=off`. The device was not used, so device-build details such as FMA contraction may move the bionic counts a little.
