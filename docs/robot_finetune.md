@@ -78,6 +78,24 @@ reference is torch at 8 threads (the host library is also exact against it: S050
 All differences are in the 4th decimal of a loss or one F1 value. Early-stop epochs and the
 best F1 are the same. The device result does not depend on the thread count. Causes found:
 bionic `logf`/`cosf`/`sinf` rounding (changes `randn` values), plus a non-elementwise
-difference that remains when both platforms use identical libm results, most likely
-OpenBLAS `sgemm` on Android versus Accelerate in the host torch reference. See
+difference that remains when both platforms use identical libm results, not the BLAS `sgemm`
+(see below). See
 `examples/robot_bci/README.md`.
+
+Follow-up (robot-device-parity):
+- sgemm is not the cause. Linking the same naive sequential-fma `sgemm` into both the host and the
+  device library (all `cblas_sgemm` calls), the device still differs from the host in 3/27 (OMP 1)
+  and 2/27 (OMP 8) lines. The real platform difference is elsewhere in the step (libm and the
+  remaining float paths).
+- torch itself is platform-dependent. torch 2.15 linux-aarch64 (podman VM, glibc 2.43, bundled
+  OpenBLAS 0.3.34 neoversen1, oneDNN 3.13 + ACL) differs from torch-macOS in S050 3/27 (8 threads)
+  and 7/27 (1 thread) lines. Its own 1-vs-8-thread logs differ in 5/27 lines (S050) and 2/51 (S025).
+  Conv1d forward and weight-grad bits differ between the two torch builds even with mkldnn disabled.
+  Linear, mm, ELU, exp and log give the same bits on both.
+- glibc 2.43 and bionic give identical bits for `logf`/`sinf`/`cosf`/`expf`/`sqrtf` (FNV hash
+  over every 7th float32 bit pattern), so `randn` agrees on both. `expm1f`/`tanhf`/`log1pf`
+  differ (Typhon's ELU uses SLEEF for these, libm only on n % 4 tails).
+- Device vs torch-linux-aarch64: S050 4/27 (OMP 1 vs 1 thread), 6/27 (default vs 8); S025
+  0/51 vs 1 thread, 1/51 vs 8 threads. The device does not match any torch build exactly,
+  and no torch reference is thread-count-independent, while Typhon is by design. All
+  differences stay in the 4th decimal of a loss or one F1 value; early stop and best F1 are the same.
