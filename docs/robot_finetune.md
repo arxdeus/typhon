@@ -100,6 +100,29 @@ Follow-up (robot-device-parity):
   and no torch reference is thread-count-independent, while Typhon is by design. All
   differences stay in the 4th decimal of a loss or one F1 value; early stop and best F1 are the same.
 
+Divergence bisect (robot-device-bisect, device run 2026-11-15, battery 31.6-32.9 C). A Typhon-built
+probe hashes (FNV-1a over float32 bit patterns) every intermediate of one training step: randn,
+randn_like, rand masks, augment, per-module forward, loss, every parameter grad, one Adam step,
+BN buffers. It also runs each module in isolation on `rand` inputs (no libm) plus elementwise
+exp/expm1/log/tanh/log1p/ELU/softmax/CE.
+- Native libraries (as shipped): the first differing tensor is `randn` (libm logf/sinf/cosf). In
+  isolation, conv weight grads (sgemm), Linear forward (sgemm) and exp/expm1/log/tanh/log1p (libm)
+  differ. Softmax, CE, BatchNorm, ELU's SLEEF part, pooling and dropout masks are identical.
+- With the same naive sequential-fma `sgemm` and the same float libm (`(float)<double fn>`,
+  including Apple's `__sincosf_stret`, which LLVM emits for sin+cos pairs on macOS) linked into
+  both binaries, every hash of the step (93 lines), the isolated modules and the Adam step is
+  identical on host and device at OMP 1 / 1 worker, OMP 8 and OMP 8 / 2 workers.
+So the only sources of divergence are native BLAS and libm rounding. No flag or code-path
+difference in our code (runtime C kernels: SLEEF `-ffp-contract=off`, NNPACK; Typhon codegen;
+stdlib) changes bits between android-arm64 and macOS. The only platform checks in stdlib/torch
+pick thread and worker counts, and results do not depend on those.
+
+Policy: each platform uses its native libraries (Apple libm + Accelerate on macOS/iOS, bionic libm
++ OpenBLAS on Android). Inference labels and command sequences are identical. Fine-tune logs agree
+with torch-mac except at the float32-ulp level (last printed digit of a loss or one F1 value).
+Not yet measured on the device (the device went offline): final-weight max abs/rel diff, val-loss
+diff at full precision, and test-window label agreement of the fine-tuned model.
+
 ### Float libm on host vs device (native libraries)
 
 Host and device each use their native libm (Apple libm on macOS/iOS, bionic on Android). Neither is correctly rounded, and they differ from each other, so the last digits of Val Loss can differ on the device. Exhaustive check over all 2^32 float inputs, with CORE-MATH (correctly rounded) as the reference. NaN==NaN counts as equal. Apple is `libsystem_m` in-process. Bionic is modelled by host builds of its upstream sources: ARM optimized-routines for logf/sinf/cosf/expf, FreeBSD msun for expm1f/tanhf/log1pf, built with `-O2 -ffp-contract=off`. The device was not used, so device-build details such as FMA contraction may move the bionic counts a little.
