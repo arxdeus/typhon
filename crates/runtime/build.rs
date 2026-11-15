@@ -155,7 +155,9 @@ fn openblas() {
         return;
     }
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let lib = out.join("openblas-omp");
+    // Directory name keys the cached archive by its make config (see make_openblas).
+    let android = env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android");
+    let lib = out.join(if android { "openblas-omp-mt1024" } else { "openblas-omp" });
     if !lib.join("libopenblas.a").exists() {
         let src = openblas_build::download(&out).expect("download OpenBLAS source");
         make_openblas(&src);
@@ -215,7 +217,16 @@ fn make_openblas(src: &Path) {
         .collect();
     args.push(format!("CC={} {}", ccpath, cflags.join(" ")).trim_end().to_string());
     match (arch.as_str(), os.as_str()) {
-        ("aarch64", "android") => args.push("TARGET=ARMV8".into()),
+        // GEMM_MULTITHREAD_THRESHOLD: generic ARMV8 threads every GEMM with M*N*K > 65536*4
+        // over omp_get_max_threads() (all 8 cores of a phone, little ones included), and
+        // driver/level3/level3_thread.c spin-waits (YIELDING nops) on the slowest thread.
+        // On a Pixel 9a fine-tune that spin was 45% of cycles and OMP 8 ran slower than 1
+        // BLAS thread. 1024 keeps GEMMs up to 2^26 MNK on the caller thread. Bits do not
+        // change: level-3 threading splits M/N only, never K (checked on device).
+        ("aarch64", "android") => {
+            args.push("TARGET=ARMV8".into());
+            args.push("GEMM_MULTITHREAD_THRESHOLD=1024".into());
+        }
         ("aarch64", _) => args.extend(["TARGET=ARMV8".into(), "DYNAMIC_ARCH=1".into()]),
         ("x86_64", _) => args.extend(["TARGET=PRESCOTT".into(), "DYNAMIC_ARCH=1".into()]),
         _ => {}
