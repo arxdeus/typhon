@@ -158,6 +158,20 @@ pub fn gc_init() {
             }
             setenv(c"GC_RETRY_SIGNALS".as_ptr(), c"0".as_ptr(), 0);
         }
+        // GC_init registers the calling thread with `GC_stackbottom`, which defaults to
+        // the stack base of the process main thread (`GC_get_main_stack_base`). A
+        // `-lib` is often first entered from another thread (Dart isolate worker): it
+        // would then be registered with the main thread's stack bottom, and marking
+        // scans from its own sp up to that address, through unmapped/guard pages
+        // (SIGSEGV SEGV_ACCERR in GC_mark_from on Android). Give GC_init the calling
+        // thread's own stack base; before initialization GC_set_stackbottom(NULL, ..)
+        // sets the primordial thread's bottom. Main-thread startup is unchanged.
+        if !is_process_main_thread() {
+            let mut sb = gc::GC_stack_base { mem_base: core::ptr::null_mut() };
+            if gc::GC_get_stack_base(&mut sb) == 0 && !sb.mem_base.is_null() {
+                gc::GC_set_stackbottom(core::ptr::null_mut(), &sb);
+            }
+        }
         gc::GC_init();
         // GC_init registers the calling thread. In a `-lib` that is whichever foreign
         // thread first entered the library (dlopen or first export call), and it may
@@ -214,6 +228,40 @@ pub fn gc_init() {
             }
         }
     }
+}
+
+/// Whether the caller is the process's initial thread (whose stack bdwgc's
+/// `GC_get_main_stack_base` describes).
+fn is_process_main_thread() -> bool {
+    #[cfg(target_vendor = "apple")]
+    unsafe {
+        unsafe extern "C" {
+            fn pthread_main_np() -> c_int;
+        }
+        pthread_main_np() == 1
+    }
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    unsafe {
+        libc::syscall(libc::SYS_gettid) as libc::pid_t == libc::getpid()
+    }
+    #[cfg(not(any(target_vendor = "apple", target_os = "linux", target_os = "android")))]
+    true
+}
+
+/// Stack bottom bdwgc recorded for the calling (registered) thread; test hook.
+#[unsafe(no_mangle)]
+pub extern "C" fn seq_gc_my_stackbottom() -> *mut c_void {
+    let mut sb = gc::GC_stack_base { mem_base: core::ptr::null_mut() };
+    unsafe { gc::GC_get_my_stackbottom(&mut sb) }; // takes the reader lock itself
+    sb.mem_base
+}
+
+/// Stack base of the calling thread as reported by the OS; test hook.
+#[unsafe(no_mangle)]
+pub extern "C" fn seq_gc_os_stackbase() -> *mut c_void {
+    let mut sb = gc::GC_stack_base { mem_base: core::ptr::null_mut() };
+    unsafe { gc::GC_get_stack_base(&mut sb) };
+    sb.mem_base
 }
 
 /// bdwgc builds its small-object size classes lazily (`GC_extend_size_map`), and the

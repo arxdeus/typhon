@@ -44,6 +44,8 @@ unsafe extern "C" {
     pub fn GC_register_my_thread(sb: *const GC_stack_base) -> c_int;
     pub fn GC_allow_register_threads();
     pub fn GC_thread_is_registered() -> c_int;
+    pub fn GC_set_stackbottom(handle: *mut c_void, sb: *const GC_stack_base);
+    pub fn GC_get_my_stackbottom(sb: *mut GC_stack_base) -> *mut c_void;
     pub fn GC_unregister_my_thread() -> c_int;
     pub fn GC_do_blocking(
         f: unsafe extern "C" fn(*mut c_void) -> *mut c_void,
