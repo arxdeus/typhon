@@ -26,6 +26,7 @@ unsafe extern "C" {
     pub fn GC_malloc_atomic_uncollectable(n: usize) -> *mut c_void;
     pub fn GC_realloc(p: *mut c_void, n: usize) -> *mut c_void;
     pub fn GC_free(p: *mut c_void);
+    pub fn GC_size(p: *const c_void) -> usize;
     pub fn GC_register_finalizer(
         obj: *mut c_void,
         f: GC_finalization_proc,

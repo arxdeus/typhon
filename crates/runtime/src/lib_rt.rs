@@ -165,6 +165,7 @@ pub fn gc_init() {
         // `seq_register_current_thread`, or the next stop-the-world signals its stale
         // pthread_t (bionic aborts). No effect on a main thread that ends via exit().
         FOREIGN_THREAD_GUARD.with(|g| g.set(true));
+        seed_size_classes();
         gc::GC_set_warn_proc(Some(gc::GC_ignore_warn_proc));
         gc::GC_set_finalizer_notifier(Some(run_finalizers));
         GC_DIVISOR.store(gc::GC_get_free_space_divisor(), Ordering::Relaxed);
@@ -211,6 +212,30 @@ pub fn gc_init() {
             if gc::GC_get_stack_base(&mut sb) == 0 {
                 gc::GC_register_my_thread(&sb); // returns GC_DUPLICATE if already registered
             }
+        }
+    }
+}
+
+/// bdwgc builds its small-object size classes lazily (`GC_extend_size_map`), and the
+/// class chosen for a size depends on which sizes were requested first: a first
+/// 840-byte request (numpy's dtype-name dict table at startup) creates a 1024-byte
+/// class covering 641..1024, so every later 640-byte LAPACK work buffer costs 1024
+/// bytes (np_small_linalg: +22% allocated bytes, +25% collections, ~3% slower than
+/// the C++ baseline, where the same buffer gets the 672-byte class). Requesting each
+/// size class once in ascending order at startup gives the order-independent classes
+/// (..., 512, 672, 800, 1024, 1344, 2048). The objects are freed right away, and
+/// their blocks are reclaimed at the first collection.
+unsafe fn seed_size_classes() {
+    let mut n = 1usize;
+    while n <= 2048 {
+        unsafe {
+            let p = gc::GC_malloc_atomic(n);
+            if p.is_null() {
+                return;
+            }
+            let s = gc::GC_size(p);
+            gc::GC_free(p);
+            n = s.max(n) + 1;
         }
     }
 }
