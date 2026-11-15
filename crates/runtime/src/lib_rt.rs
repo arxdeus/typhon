@@ -42,7 +42,12 @@ unsafe extern "C" {
 }
 
 unsafe extern "C" fn register_thread_shim(sb: *mut gc::GC_stack_base) -> c_int {
-    unsafe { gc::GC_register_my_thread(sb) }
+    let r = unsafe { gc::GC_register_my_thread(sb) };
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    if r == 0 {
+        crate::stackfix::record_current_thread();
+    }
+    r
 }
 
 thread_local! {
@@ -173,12 +178,16 @@ pub fn gc_init() {
             }
         }
         gc::GC_init();
+        #[cfg(any(target_os = "linux", target_os = "android"))]
+        crate::stackfix::install();
         // GC_init registers the calling thread. In a `-lib` that is whichever foreign
         // thread first entered the library (dlopen or first export call), and it may
         // exit: unregister it at exit like threads registered by
         // `seq_register_current_thread`, or the next stop-the-world signals its stale
         // pthread_t (bionic aborts). No effect on a main thread that ends via exit().
         FOREIGN_THREAD_GUARD.with(|g| g.set(true));
+        #[cfg(any(target_os = "linux", target_os = "android"))]
+        crate::stackfix::record_current_thread();
         seed_size_classes();
         gc::GC_set_warn_proc(Some(gc::GC_ignore_warn_proc));
         gc::GC_set_finalizer_notifier(Some(run_finalizers));
@@ -329,6 +338,8 @@ fn register_current_thread_slow() {
             // collector would signal (pthread_kill on a stale pthread_t aborts on
             // bionic): unregister from a TLS destructor at thread exit.
             FOREIGN_THREAD_GUARD.with(|g| g.set(true));
+            #[cfg(any(target_os = "linux", target_os = "android"))]
+            crate::stackfix::record_current_thread();
             THREAD_REGISTERED.set(true);
         }
     }
@@ -346,6 +357,8 @@ impl Drop for ForeignThreadGuard {
             // Later TLS destructors calling exports must re-register.
             let _ = THREAD_REGISTERED.try_with(|r| r.set(false));
             unsafe { gc::GC_unregister_my_thread() };
+            #[cfg(any(target_os = "linux", target_os = "android"))]
+            crate::stackfix::forget_current_thread();
         }
     }
 }

@@ -17,6 +17,8 @@
 
 pub mod exc;
 pub mod lib_rt;
+#[cfg(any(target_os = "linux", target_os = "android"))]
+mod stackfix;
 pub mod numpy;
 pub mod re;
 pub mod rtti;
