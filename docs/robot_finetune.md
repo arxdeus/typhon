@@ -134,6 +134,36 @@ Typhon build is bit-exact against the same reference: 0 weight diffs, same val l
 - Fine-tuned model on the 1466 S050_test windows: labels 1466/1466 identical, max |dprob| 3.5e-5.
 Not measured: default thread count, S025, torch linux-aarch64.
 
+Device runs 2026-11-15 (same tool, native libraries as shipped, battery 33-36 C):
+- S050, OMP 8 (default 4 workers on the big+mid cores): 78.9 s wall / 274.6 s user. With 1 worker:
+  88.5 s / 213.9 s. The OMP 1 run above took 58 s wall, faster than OMP 8 (see the profile below).
+- Worker invariance (S050, OMP 8, default workers vs TYPHON_NUM_WORKERS=1): the final-weight hash,
+  all val losses (repr) and the test probs are bit-identical.
+- S050 OMP 8 vs torch-mac 8 threads: 3365827 of 4249442 weights differ, max abs 1.02e-4
+  (motor_classifier.0.bias). Val loss max abs 1.37e-5. Same early stop (epoch 12, best F1 0.5790).
+  Labels 1466/1466, max |dprob| 2.6e-5.
+- S025 OMP 1 vs torch-mac 1 thread: 3570429 weights differ, max abs 1.87e-4
+  (left_model.spatial_conv.0.bias). Val loss max abs 1.59e-5 over 46 epochs. Same early stop as
+  torch (epoch 36, best F1 0.3597). Labels 1465/1466, max |dprob| 2.0e-5. The one mismatch,
+  window 1268, is a near-tie between classes 3 and 4: torch 0.253497 / 0.253503,
+  device 0.253501 / 0.253500.
+
+Profile (simpleperf, cpu-cycles:u, first 20 s of S050 at OMP 8). All compute hot spots are native
+vector kernels:
+| share | symbol | what |
+|---|---|---|
+| 45.0% | inner_thread | OpenBLAS level-3 thread driver (driver/level3/level3_thread.c): sync and spin-wait between BLAS threads |
+| 14.0% + 3.9% | nnp_c4gemm / nnp_s4c2gemm `__neon` | NNPACK FFT conv GEMM, NEON |
+| 5.5% + 3.9% | nnp_ifft8x8 / nnp_fft8x8 `__psimd` | NNPACK transforms, psimd (NEON vectors) |
+| 4.2% | Sleef_expm1f4_u10advsimd | ELU, SLEEF AdvSIMD |
+| 3.4% + 1.7% + 1.1% | thread_main, typhon_omp barrier/take | NNPACK pthreadpool and Typhon workers, idle/sync |
+| 2.6% | sgemm_kernel | OpenBLAS NEON sgemm micro-kernel |
+No scalar fallback is hot: the largest Typhon-code addresses are each below 0.4%. The hot spot is
+OpenBLAS's threaded small-GEMM synchronisation. Real sgemm work is 2.6%, but the threads spinning
+around it take 45%, and that is why OMP 8 is slower than OMP 1 on wall time. torch uses the same
+OpenBLAS threading, and ATen gives the thread count to BLAS. Changing it would change neither
+results nor bits, only speed: a possible follow-up is fewer BLAS threads for small GEMMs.
+
 ### Float libm on host vs device (native libraries)
 
 Host and device each use their native libm (Apple libm on macOS/iOS, bionic on Android). Neither is correctly rounded, and they differ from each other, so the last digits of Val Loss can differ on the device. Exhaustive check over all 2^32 float inputs, with CORE-MATH (correctly rounded) as the reference. NaN==NaN counts as equal. Apple is `libsystem_m` in-process. Bionic is modelled by host builds of its upstream sources: ARM optimized-routines for logf/sinf/cosf/expf, FreeBSD msun for expm1f/tanhf/log1pf, built with `-O2 -ffp-contract=off`. The device was not used, so device-build details such as FMA contraction may move the bionic counts a little.
