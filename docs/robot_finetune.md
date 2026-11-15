@@ -99,3 +99,19 @@ Follow-up (robot-device-parity):
   0/51 vs 1 thread, 1/51 vs 8 threads. The device does not match any torch build exactly,
   and no torch reference is thread-count-independent, while Typhon is by design. All
   differences stay in the 4th decimal of a loss or one F1 value; early stop and best F1 are the same.
+
+### Float libm on host vs device (native libraries)
+
+Host and device each use their native libm (Apple libm on macOS/iOS, bionic on Android). Neither is correctly rounded, and they differ from each other, so the last digits of Val Loss can differ on the device. Exhaustive check over all 2^32 float inputs, with CORE-MATH (correctly rounded) as the reference. NaN==NaN counts as equal. Apple is `libsystem_m` in-process. Bionic is modelled by host builds of its upstream sources: ARM optimized-routines for logf/sinf/cosf/expf, FreeBSD msun for expm1f/tanhf/log1pf, built with `-O2 -ffp-contract=off`. The device was not used, so device-build details such as FMA contraction may move the bionic counts a little.
+
+| fn | Apple != CR | Apple max ulp | bionic != CR | bionic max ulp | Apple != bionic | max ulp |
+|---|---|---|---|---|---|---|
+| logf | 13540 (0.0003%) | 1 | 416908 (0.0097%) | 1 | 420256 (0.0098%) | 1 |
+| sinf | 346516414 (8.07%) | 1 | 29362804 (0.68%) | 1 | 335149902 (7.80%) | 1 |
+| cosf | 295141874 (6.87%) | 1 | 28209648 (0.66%) | 1 | 282252698 (6.57%) | 1 |
+| expf | 2041856 (0.048%) | 1 | 170646 (0.0040%) | 1 | 2048808 (0.048%) | 1 |
+| expm1f | 2978469 (0.069%) | 1 | 12920593 (0.30%) | 1 | 14215778 (0.33%) | 1 |
+| tanhf | 4421346 (0.10%) | 1 | 70733480 (1.65%) | 2 | 70968362 (1.65%) | 2 |
+| log1pf | 2237332 (0.052%) | 1 | 11588705 (0.27%) | 1 | 13571531 (0.32%) | 1 |
+
+Both libraries are within 1 ulp of the correctly rounded result (bionic tanhf: 2 ulp), and they are at most 2 ulp apart. None of the open candidates matches Apple bit for bit over all inputs: CORE-MATH, ARM optimized-routines, musl, FreeBSD msun, and SLEEF u10/u35 all differ on 13540 or more inputs for logf, and on 2.8e8 or more for sinf/cosf. So a device/host difference of 1-2 ulp in these functions is expected, and the results are not bit-identical across platforms.
