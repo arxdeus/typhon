@@ -554,8 +554,8 @@ def _filter_inplace_3d(data, sfreq: float, l_freq, h_freq, picks: List[int], fil
                        phase: str, fir_window: str, fir_design: str, pad: str):
     """Filter (n_epochs, n_ch, n_times) or (n_ch, n_times) float data in place."""
     if method == "iir":
-        p = _create_iir(sfreq, l_freq, h_freq, l_trans_bandwidth, h_trans_bandwidth,
-                        iir_params, phase)
+        p, zi = _create_iir(sfreq, l_freq, h_freq, l_trans_bandwidth, h_trans_bandwidth,
+                            iir_params, phase)
         if data.ndim == 3:
             n_ep = data.shape[0]
             n_ch = data.shape[1]
@@ -564,9 +564,9 @@ def _filter_inplace_3d(data, sfreq: float, l_freq, h_freq, picks: List[int], fil
             for e in range(n_ep):
                 for pp in picks:
                     allp.append(e * n_ch + pp)
-            _iir_filter_2d(x2, p, allp, phase)
+            _iir_filter_2d(x2, p, allp, phase, zi)
         elif data.ndim == 2:
-            _iir_filter_2d(data, p, picks, phase)
+            _iir_filter_2d(data, p, picks, phase, zi)
         else:
             compile_error("data must be 2D or 3D")
         return
@@ -762,6 +762,7 @@ from scipy.signal import iirfilter as _sp_iirfilter, sosfilt as _sp_sosfilt, \
     lfilter as _sp_lfilter, sosfiltfilt as _sp_sosfiltfilt, filtfilt as _sp_filtfilt, \
     sos2zpk as _sp_sos2zpk, tf2zpk as _sp_tf2zpk, sosfilt_zi as _sp_sosfilt_zi
 from scipy.signal import get_window as _sp_get_window
+from scipy.signal._signaltools import _sosfiltfilt_inplace as _sp_sosfiltfilt_inplace
 
 _known_iir_ftypes = ("bessel", "butter", "butterworth", "cauer", "cheby1", "cheby2",
                      "chebyshev1", "chebyshev2", "chebyshevi", "chebyshevii",
@@ -1032,10 +1033,33 @@ def _construct_iir_cached(iir_params, f_pass, sfreq: float, btype: str, phase: s
     return ent
 
 
-def _iir_filter_2d(x, p: IIRParams, picks: List[int], phase: str):
+def _iir_filter_2d(x, p: IIRParams, picks: List[int], phase: str, zi = None):
     if len(picks) == 0:
         return
     n_t = x.shape[1]
+    if (phase == "zero" or phase == "zero-double") and p.output == "sos" and zi is not None \
+            and n_t > 1:
+        # One padded buffer, filtered forward-backward in place (no per-row
+        # temporaries); same arithmetic as _smart_pad + sosfiltfilt(padlen=0).
+        padlen = min(p.padlen, n_t - 1)
+        ext = np.empty((len(picks), n_t + 2 * padlen))
+        for i in range(len(picks)):
+            src = picks[i]
+            x0 = x[src, 0]
+            for k in range(padlen):
+                ext[i, k] = 2 * x0 - x[src, padlen - k]
+            for k in range(n_t):
+                ext[i, padlen + k] = x[src, k]
+            xl = x[src, n_t - 1]
+            o = padlen + n_t
+            for k in range(padlen):
+                ext[i, o + k] = 2 * xl - x[src, n_t - 2 - k]
+        _sp_sosfiltfilt_inplace(p.sos, zi, ext)
+        for i in range(len(picks)):
+            dst = picks[i]
+            for k in range(n_t):
+                x[dst, k] = ext[i, padlen + k]
+        return
     if phase == "zero" or phase == "zero-double":
         padlen = min(p.padlen, n_t - 1)
         sub = np.zeros((len(picks), n_t))
@@ -1063,7 +1087,7 @@ def _iir_filter_2d(x, p: IIRParams, picks: List[int], phase: str):
 
 
 def _create_iir(sfreq: float, l_freq, h_freq, l_trans_bandwidth, h_trans_bandwidth,
-                iir_params, phase: str) -> IIRParams:
+                iir_params, phase: str) -> Tuple[IIRParams, np.ndarray[float, 2]]:
     _check_option("phase", phase, ("zero", "zero-double", "forward"))
     hf: Optional[float] = None if h_freq is None else float(h_freq)
     lf: Optional[float] = None if l_freq is None else float(l_freq)
@@ -1080,15 +1104,19 @@ def _create_iir(sfreq: float, l_freq, h_freq, l_trans_bandwidth, h_trans_bandwid
         q = IIRParams()
         q.output = "ba"
         q.padlen = 0 if p.padlen < 0 else p.padlen
-        return q
+        return q, np.zeros((0, 2))
     elif lf is None:
-        return _construct_iir_cached(iir_params, hf.__val__(), sfreq, "lowpass", phase).p
+        e = _construct_iir_cached(iir_params, hf.__val__(), sfreq, "lowpass", phase)
+        return e.p, e.zi
     elif hf is None:
-        return _construct_iir_cached(iir_params, lf.__val__(), sfreq, "highpass", phase).p
+        e = _construct_iir_cached(iir_params, lf.__val__(), sfreq, "highpass", phase)
+        return e.p, e.zi
     elif lf.__val__() < hf.__val__():
-        return _construct_iir_cached(iir_params, [lf.__val__(), hf.__val__()], sfreq, "bandpass", phase).p
+        e = _construct_iir_cached(iir_params, [lf.__val__(), hf.__val__()], sfreq, "bandpass", phase)
+        return e.p, e.zi
     else:
-        return _construct_iir_cached(iir_params, [hf.__val__(), lf.__val__()], sfreq, "bandstop", phase).p
+        e = _construct_iir_cached(iir_params, [hf.__val__(), lf.__val__()], sfreq, "bandstop", phase)
+        return e.p, e.zi
 
 
 # ---------------------------------------------------------------------------

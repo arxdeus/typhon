@@ -146,6 +146,47 @@ def _sosfilt_rows(s, x2, zz):
                 xc = yc
             x2[r, i] = xc
 
+def _sosfilt_rows_rev(s, x2, zz):
+    # Same recurrence as _sosfilt_rows over each row read and written right to left
+    # (equals reverse, filter, reverse without the reversed copies).
+    ns = s.shape[0]
+    M = x2.shape[0]
+    N = x2.shape[1]
+    for r in range(M):
+        for i in range(N - 1, -1, -1):
+            xc = x2[r, i]
+            for k in range(ns):
+                b0 = s[k, 0]
+                b1 = s[k, 1]
+                b2 = s[k, 2]
+                a1 = s[k, 4]
+                a2 = s[k, 5]
+                yc = b0 * xc + zz[r, k, 0]
+                zz[r, k, 0] = b1 * xc - a1 * yc + zz[r, k, 1]
+                zz[r, k, 1] = b2 * xc - a2 * yc
+                xc = yc
+            x2[r, i] = xc
+
+def _sosfiltfilt_inplace(s, zi, ext):
+    # Forward-backward SOS filtering of every row of 2-D ext in place, initial
+    # states zi * (first sample of each pass); s is a float (ns, 6) sos array.
+    ns = s.shape[0]
+    M = ext.shape[0]
+    L = ext.shape[1]
+    zz = np.empty((M, ns, 2), dtype=ext.dtype)
+    for r in range(M):
+        x0 = ext[r, 0]
+        for k in range(ns):
+            zz[r, k, 0] = zi[k, 0] * x0
+            zz[r, k, 1] = zi[k, 1] * x0
+    _sosfilt_rows(s, ext, zz)
+    for r in range(M):
+        y0 = ext[r, L - 1]
+        for k in range(ns):
+            zz[r, k, 0] = zi[k, 0] * y0
+            zz[r, k, 1] = zi[k, 1] * y0
+    _sosfilt_rows_rev(s, ext, zz)
+
 def sosfilt(sos, x, axis: int = -1, zi = None):
     s, ns = _validate_sos(sos)
     xa = np.asarray(x)
@@ -376,30 +417,15 @@ def sosfiltfilt(sos, x, axis: int = -1, padtype: Optional[str] = 'odd',
     edge = _edge(kind, padlen, x2.shape[1], ntaps)
     ext = _pad_rows(x2, edge, kind)
     zi = sosfilt_zi(s)
+    _sosfiltfilt_inplace(s, zi, ext)
+    if edge == 0:
+        return _from_rows(ext, msh, ax)
     M = ext.shape[0]
-    L = ext.shape[1]
-    zz = np.empty((M, ns, 2), dtype=T)
-    for r in range(M):
-        x0 = ext[r, 0]
-        for k in range(ns):
-            zz[r, k, 0] = zi[k, 0] * x0
-            zz[r, k, 1] = zi[k, 1] * x0
-    _sosfilt_rows(s, ext, zz)
-    yr = np.empty(ext.shape, dtype=T)
-    for r in range(M):
-        for i in range(L):
-            yr[r, i] = ext[r, L - 1 - i]
-    for r in range(M):
-        y0 = yr[r, 0]
-        for k in range(ns):
-            zz[r, k, 0] = zi[k, 0] * y0
-            zz[r, k, 1] = zi[k, 1] * y0
-    _sosfilt_rows(s, yr, zz)
     N = x2.shape[1]
     out = np.empty((M, N), dtype=T)
     for r in range(M):
         for i in range(N):
-            out[r, i] = yr[r, L - 1 - (edge + i)]
+            out[r, i] = ext[r, edge + i]
     return _from_rows(out, msh, ax)
 
 # ------------------------------------------------------------------ detrend
