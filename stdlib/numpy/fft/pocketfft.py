@@ -2,6 +2,7 @@
 # Adapted from PocketFFT - https://github.com/mreineck/pocketfft
 
 from ..util import free, sqrt, sin, cos, cast, count, sizeof, PI
+from threading import Lock
 
 def _special_mul(v1, v2, fwd: bool):
     if type(v1) is complex and type(v2) is complex64:
@@ -2098,9 +2099,13 @@ class pocketfft_c:
     def exec(self, c: Ptr[T], fct: T0, fwd: bool):
         if self.packplan is not None:
             self.packplan.exec(c, fct, fwd)
-            self.packplan.dealloc()
         else:
             self.blueplan.exec(c, fct, fwd)
+
+    def dealloc(self):
+        if self.packplan is not None:
+            self.packplan.dealloc()
+        else:
             self.blueplan.dealloc()
 
 class pocketfft_r:
@@ -2135,10 +2140,65 @@ class pocketfft_r:
     def exec(self, c: Ptr[T0], fct: T0, fwd: bool):
         if self.packplan is not None:
             self.packplan.exec(c, fct, fwd)
-            self.packplan.dealloc()
         else:
             self.blueplan.exec_r(c, fct, fwd)
+
+    def dealloc(self):
+        if self.packplan is not None:
+            self.packplan.dealloc()
+        else:
             self.blueplan.dealloc()
+
+# Plans (factors and twiddles) are cached per length and dtype. A plan is
+# read-only after construction (exec allocates its own scratch), so threads
+# share cached plans. The lock only guards the dicts.
+_PLAN_CACHE_MAX = 64
+_plan_lock = Lock()
+_rplans64 = Dict[int, pocketfft_r[complex, float]]()
+_rplans32 = Dict[int, pocketfft_r[complex64, float32]]()
+_cplans64 = Dict[int, pocketfft_c[complex, float]]()
+_cplans32 = Dict[int, pocketfft_c[complex64, float32]]()
+
+def _cached(d, n: int, P: type):
+    with _plan_lock:
+        if n in d:
+            return Optional(d[n])
+    q = P(n)
+    with _plan_lock:
+        if n in d:
+            q.dealloc()
+            return Optional(d[n])
+        if len(d) < _PLAN_CACHE_MAX:
+            d[n] = q
+            return Optional(q)
+    q.dealloc()
+    return Optional[P]()
+
+def _rplan_exec(c: Ptr[T0], n: int, fct: T0, fwd: bool, T: type, T0: type):
+    if T0 is float:
+        p = _cached(_rplans64, n, pocketfft_r[complex, float])
+    elif T0 is float32:
+        p = _cached(_rplans32, n, pocketfft_r[complex64, float32])
+    else:
+        p = Optional[pocketfft_r[T, T0]]()
+    if p is not None:
+        p.exec(c, fct, fwd)
+    else:
+        q = pocketfft_r[T, T0](n)
+        q.exec(c, fct, fwd)
+        q.dealloc()
+
+def _cplan_exec(c: Ptr[T], n: int, fct: T0, fwd: bool, T: type, T0: type) -> bool:
+    if T is complex:
+        p = _cached(_cplans64, n, pocketfft_c[complex, float])
+    elif T is complex64:
+        p = _cached(_cplans32, n, pocketfft_c[complex64, float32])
+    else:
+        return False
+    if p is None:
+        return False
+    p.exec(c, fct, fwd)
+    return True
 
 def _bad_norm(norm: str):
     raise ValueError(f'Invalid norm value {repr(norm)}; should be "backward", "ortho" or "forward".')
@@ -2176,8 +2236,10 @@ def _fft(v: Ptr[T], n: int, is_forward: bool, norm: Optional[str], T: type):
     else:
         _bad_norm(norm)
 
-    plan = pocketfft_c(n)
-    plan.exec(v, fct, is_forward)
+    if not _cplan_exec(v, n, fct, is_forward):
+        plan = pocketfft_c[T, real_dtype](n)
+        plan.exec(v, fct, is_forward)
+        plan.dealloc()
 
 def fft(v: Ptr[T], n: int, norm: Optional[str], T: type):
     return _fft(v, n, is_forward=True, norm=norm)
@@ -2201,8 +2263,7 @@ def rfft(v: Ptr[T0], n: int, is_forward: bool, norm: Optional[str], o: Ptr[T], T
     else:
         _bad_norm(norm)
 
-    plan = pocketfft_r[T, T0](n)
-    plan.exec(v, fct, True)
+    _rplan_exec(v, n, fct, True, T)
 
     i = 1
     ii = 1
@@ -2239,8 +2300,6 @@ def irfft(v: Ptr[T], n: int, norm: Optional[str], o: Ptr[T0], T: type, T0: type)
     else:
         _bad_norm(norm)
 
-    plan = pocketfft_r[T, T0](n)
-
     i = 1
     ii = 1
     o[0] = v[0].real
@@ -2262,4 +2321,4 @@ def irfft(v: Ptr[T], n: int, norm: Optional[str], o: Ptr[T0], T: type, T0: type)
     if i < n:
         o[i] = v[ii].real
 
-    plan.exec(o, fct, False)
+    _rplan_exec(o, n, fct, False, T)
