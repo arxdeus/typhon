@@ -126,13 +126,45 @@ def _validate_sos(sos):
             raise ValueError('sos[:, 3] should be all ones')
     return s.astype(float), s.shape[0]
 
-def _sosfilt_rows(s, x2, zz):
-    # zz: (M, n_sections, 2) contiguous states, x2 overwritten in place
+def _sosfilt_rows_dir(s, x2, zz, rev: bool):
+    # zz: (M, n_sections, 2) states, x2 overwritten in place, rows walked left
+    # to right (or right to left when rev). Per-sample arithmetic is exactly
+    # yc = b0*xc + z0; z0 = (b1*xc - a1*yc) + z1; z1 = b2*xc - a2*yc.
     ns = s.shape[0]
     M = x2.shape[0]
     N = x2.shape[1]
+    # hoisted coefficients: c[5k..5k+4] = b0, b1, b2, a1, a2
+    c = Ptr[float](5 * ns if ns > 0 else 1)
+    for k in range(ns):
+        c[5 * k] = float(s[k, 0])
+        c[5 * k + 1] = float(s[k, 1])
+        c[5 * k + 2] = float(s[k, 2])
+        c[5 * k + 3] = float(s[k, 4])
+        c[5 * k + 4] = float(s[k, 5])
+    i0 = N - 1 if rev else 0
+    st = -1 if rev else 1
+    if x2.dtype is float and zz.dtype is float and x2._contig[0] and zz._contig[0]:
+        xp = x2.data
+        zp = zz.data
+        for r in range(M):
+            row = xp + r * N
+            z = zp + r * (2 * ns)
+            i = i0
+            for _ in range(N):
+                xc = row[i]
+                for k in range(ns):
+                    cc = c + 5 * k
+                    zk = z + 2 * k
+                    yc = cc[0] * xc + zk[0]
+                    zk[0] = cc[1] * xc - cc[3] * yc + zk[1]
+                    zk[1] = cc[2] * xc - cc[4] * yc
+                    xc = yc
+                row[i] = xc
+                i += st
+        return
     for r in range(M):
-        for i in range(N):
+        i = i0
+        for _ in range(N):
             xc = x2[r, i]
             for k in range(ns):
                 b0 = s[k, 0]
@@ -145,27 +177,13 @@ def _sosfilt_rows(s, x2, zz):
                 zz[r, k, 1] = b2 * xc - a2 * yc
                 xc = yc
             x2[r, i] = xc
+            i += st
+
+def _sosfilt_rows(s, x2, zz):
+    _sosfilt_rows_dir(s, x2, zz, False)
 
 def _sosfilt_rows_rev(s, x2, zz):
-    # Same recurrence as _sosfilt_rows over each row read and written right to left
-    # (equals reverse, filter, reverse without the reversed copies).
-    ns = s.shape[0]
-    M = x2.shape[0]
-    N = x2.shape[1]
-    for r in range(M):
-        for i in range(N - 1, -1, -1):
-            xc = x2[r, i]
-            for k in range(ns):
-                b0 = s[k, 0]
-                b1 = s[k, 1]
-                b2 = s[k, 2]
-                a1 = s[k, 4]
-                a2 = s[k, 5]
-                yc = b0 * xc + zz[r, k, 0]
-                zz[r, k, 0] = b1 * xc - a1 * yc + zz[r, k, 1]
-                zz[r, k, 1] = b2 * xc - a2 * yc
-                xc = yc
-            x2[r, i] = xc
+    _sosfilt_rows_dir(s, x2, zz, True)
 
 def _sosfiltfilt_inplace(s, zi, ext):
     # Forward-backward SOS filtering of every row of 2-D ext in place, initial
