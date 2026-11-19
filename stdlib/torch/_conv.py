@@ -178,15 +178,13 @@ def _nnpack_ft8x8_eligible(g: _Geo) -> bool:
     t16 = ((g.OH + (16 - g.KH)) // (16 - g.KH + 1)) * ((g.OW + (16 - g.KW)) // (16 - g.KW + 1))
     return t8 <= 4 * t16
 
-_SCR = [Ptr[float32](), Ptr[float32](), Ptr[float32]()]
-_SCR_N = [0, 0, 0]
+def _tmp(T: type, n: int) -> Ptr[T]:
+    # per-call scratch (callers may run on several threads), released with _rel
+    return Ptr[T](max(n, 1))
 
-def _scratch(k: int, n: int) -> Ptr[float32]:
-    # grow-only reusable buffers (main thread only), avoids per-call GC allocations
-    if _SCR_N[k] < n:
-        _SCR[k] = Ptr[float32](n)
-        _SCR_N[k] = n
-    return _SCR[k]
+def _rel(p: Ptr[T], T: type):
+    from internal.gc import free
+    free(p.as_byte())
 
 def _fwd_nnpack(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor):
     # ATen convolution(): backends without native groups loop over groups on contiguous
@@ -199,7 +197,7 @@ def _fwd_nnpack(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor)
     op = Ptr[float32](out._st.ptr) + out._off
     HW = g.H * g.W
     L = g.OH * g.OW
-    bg = _scratch(2, Og)
+    bg = _tmp(float32, Og)
     if g.G == 1:
         # one group: the sub-tensors are the tensors themselves, no copies
         bp = bg
@@ -209,9 +207,10 @@ def _fwd_nnpack(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor)
         else:
             bp = Ptr[float32](b._st.ptr) + b._off
         conv_ft8x8(g.N, Cg, Og, g.H, g.W, g.KH, g.KW, g.ph, g.pw, xp, wp, bp, op)
+        _rel(bg)
         return
-    xg = _scratch(0, g.N * Cg * HW)
-    yg = _scratch(1, g.N * Og * L)
+    xg = _tmp(float32, g.N * Cg * HW)
+    yg = _tmp(float32, g.N * Og * L)
     for gi in range(g.G):
         for n in range(g.N):
             src = xp + (n * g.C + gi * Cg) * HW
@@ -226,6 +225,9 @@ def _fwd_nnpack(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor)
             dst = op + (n * g.O + gi * Og) * L
             for i in range(Og * L):
                 dst[i] = src[i]
+    _rel(xg)
+    _rel(yg)
+    _rel(bg)
 
 def _fwd_slow2d(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor):
     # ATen Slow2d (thnn_conv2d, slow_conv2d_update_output_frame) per sample:
@@ -237,7 +239,7 @@ def _fwd_slow2d(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor)
     K = g.C * g.KH * g.KW
     L = g.OH * g.OW
     simple = _is_1x1_simple(g)
-    cols = _scratch(0, 1 if simple else K * L)
+    cols = _tmp(float32, 1 if simple else K * L)
     for n in range(g.N):
         xn = xp + n * g.C * g.H * g.W
         on = op + n * g.O * L
@@ -255,6 +257,7 @@ def _fwd_slow2d(x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor)
                     q[i] = bv
             beta = 1.0
         _gemm_cm(False, False, L, g.O, K, cp, L, wp, K, beta, on, L)
+    _rel(cols)
 
 def _fwd(T: type, x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor):
     if g.H == 1 and g.KH == 1 and g.ph == 0 and g.sw == 1 and g.dw == 1 and g.G > 1 and g.C == g.G and g.N < 16:
@@ -293,6 +296,7 @@ def _fwd(T: type, x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tenso
                 q = on + o * L
                 for i in range(L):
                     q[i] += bv
+    _rel(cols)
 
 def conv2d_forward(x: Tensor, w: Tensor, b: Optional[Tensor], stride: Tuple[int, int], padding: Tuple[int, int], dilation: Tuple[int, int], groups: int) -> Tensor:
     dt = x._dt
@@ -358,6 +362,8 @@ def _bwd_dilated(x: Tensor, w: Tensor, gy: Tensor, g: _Geo, gx: Tensor, gw: Tens
             if need_b:
                 for o in range(Og):
                     gbp[gi * Og + o] = gbp[gi * Og + o] + _cascade_sum_f32(gyn + o * L, L)
+    _rel(cols)
+    _rel(gyn)
 
 def _bwd(T: type, x: Tensor, w: Tensor, gy: Tensor, g: _Geo, gx: Tensor, gw: Tensor, gb: Tensor, need_x: bool, need_w: bool, need_b: bool):
     if T is float32:
@@ -402,6 +408,7 @@ def _bwd(T: type, x: Tensor, w: Tensor, gy: Tensor, g: _Geo, gx: Tensor, gw: Ten
                 else:
                     _gemm(T, True, False, K, L, Og, wp + gi * Og * K, K, gyg, L, 0.0, cols, L)
                     _col2im(T, cols, g, gi * Cg, Cg, gxn)
+    _rel(cols)
     if need_b:
         bp = Ptr[T](gb._st.ptr)
         if T is float32:
