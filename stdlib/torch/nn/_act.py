@@ -85,11 +85,24 @@ def _elu_fwd1(x: Ptr[float32], y: Ptr[float32], n: int, alpha: float32):
     full = n - (n % 8)
     if __aarch64__:
         # native SLEEF expm1f (libtyphonrt), lane values identical to the Vec port
+        # SLEEF only on runs of 4-lane blocks with a lane not >= 0 (lanes are
+        # independent, so skipping all-positive blocks keeps every bit).
         from torch._sleef import expm1f_block
-        expm1f_block(x, y, full)
         av = Vec[float32, 4](alpha)
-        for i in range(0, full, 4):
-            _vsel_ge0(Vec[float32, 4].load(x + i), Vec[float32, 4].load(y + i) * av).store(y + i)
+        zero = Vec[float32, 4](float32(0.0))
+        i = 0
+        while i < full:
+            if (Vec[float32, 4].load(x + i) >= zero).all():
+                Vec[float32, 4].load(x + i).store(y + i)
+                i += 4
+                continue
+            j = i + 4
+            while j < full and not (Vec[float32, 4].load(x + j) >= zero).all():
+                j += 4
+            expm1f_block(x + i, y + i, j - i)
+            for k in range(i, j, 4):
+                _vsel_ge0(Vec[float32, 4].load(x + k), Vec[float32, 4].load(y + k) * av).store(y + k)
+            i = j
         for i in range(full, n):
             v = x[i]
             y[i] = expm1f(v) * alpha if v < float32(0.0) else v
