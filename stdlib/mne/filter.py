@@ -16,6 +16,20 @@ _known_fir_windows = ("hann", "hamming", "blackman")
 _known_fir_designs = ("firwin", "firwin2")
 
 
+# Design caches. Each cache is an immutable list published by a single pointer
+# store after a fence. Readers take one snapshot of the global and scan it, so
+# concurrent callers see either the old or the new list and at worst redesign
+# the same filter twice (race-benign). Entries are never mutated after
+# publication and cached arrays are only read (public entry points copy).
+_CACHE_MAX = 16
+
+
+@llvm
+def _publish_fence() -> None:
+    fence seq_cst
+    ret {} {}
+
+
 def _length_factor(window: str) -> float:
     if window == "hann":
         return 3.1
@@ -213,8 +227,83 @@ def _firwin_design(N: int, freq: List[float], gain: List[float], window: str, sf
     return h
 
 
+class _FIRCacheEntry:
+    key: Tuple[float, List[float], List[float], int, str, str, str]
+    h: np.ndarray[float, 1]
+
+    def __init__(self, key: Tuple[float, List[float], List[float], int, str, str, str], h: np.ndarray[float, 1]):
+        self.key = key
+        self.h = h
+
+
+class _HFFTCacheEntry:
+    h: np.ndarray[float, 1]
+    nf: int
+    h_fft: np.ndarray[complex, 1]
+
+    def __init__(self, h: np.ndarray[float, 1], nf: int, h_fft: np.ndarray[complex, 1]):
+        self.h = h
+        self.nf = nf
+        self.h_fft = h_fft
+
+
+_fir_cache = List[_FIRCacheEntry]()
+_hfft_cache = List[_HFFTCacheEntry]()
+
+
+def _same_f64(a: np.ndarray[float, 1], b: np.ndarray[float, 1]) -> bool:
+    if a.shape[0] != b.shape[0]:
+        return False
+    for k in range(a.shape[0]):
+        x = a[k]
+        y = b[k]
+        if x != y and not (x != x and y != y):
+            return False
+        if math.copysign(1.0, x) != math.copysign(1.0, y):
+            return False
+    return True
+
+
+def _h_fft_cached(hh: np.ndarray[float, 1], nf: int) -> np.ndarray[complex, 1]:
+    """rfft(hh, nf), shared and read-only (only multiplied into other buffers)."""
+    global _hfft_cache
+    snap = _hfft_cache
+    for e in snap:
+        if e.nf == nf and _same_f64(e.h, hh):
+            return e.h_fft
+    h_fft = _rfft(hh, nf)
+    nxt = List[_HFFTCacheEntry]()
+    for k in range(max(len(snap) - _CACHE_MAX + 1, 0), len(snap)):
+        nxt.append(snap[k])
+    nxt.append(_HFFTCacheEntry(hh.copy(), nf, h_fft))
+    _publish_fence()
+    _hfft_cache = nxt
+    return h_fft
+
+
 def _construct_fir_filter(sfreq: float, freq: List[float], gain: List[float], filter_length: int,
                           phase: str, fir_window: str, fir_design: str):
+    """Cached FIR design; returns a fresh copy so callers may mutate it."""
+    global _fir_cache
+    key = (sfreq, freq, gain, filter_length, phase, fir_window, fir_design)
+    snap = _fir_cache
+    for e in snap:
+        if e.key == key:
+            return e.h.copy()
+    h = _construct_fir_filter_uncached(sfreq, list(freq), list(gain), filter_length, phase,
+                                       fir_window, fir_design)
+    nxt = List[_FIRCacheEntry]()
+    for k in range(max(len(snap) - _CACHE_MAX + 1, 0), len(snap)):
+        nxt.append(snap[k])
+    nxt.append(_FIRCacheEntry((sfreq, list(freq), list(gain), filter_length, phase, fir_window,
+                               fir_design), h.copy()))
+    _publish_fence()
+    _fir_cache = nxt
+    return h
+
+
+def _construct_fir_filter_uncached(sfreq: float, freq: List[float], gain: List[float], filter_length: int,
+                                   phase: str, fir_window: str, fir_design: str):
     assert freq[0] == 0
     nfreq = [f / (sfreq / 2.0) for f in freq]
     if nfreq[0] != 0 or nfreq[-1] != 1:
@@ -455,7 +544,7 @@ def _overlap_add_filter_2d(x, h, n_fft: Optional[int], phase: str, picks: List[i
         nf = n_fft
     if nf < min_fft:
         raise ValueError(f"n_fft is too short, has to be at least 2 * len(h) - 1 ({min_fft}), got {nf}")
-    h_fft = _rfft(hh, nf)
+    h_fft = _h_fft_cached(hh, nf)
     for p in picks:
         x[p, :] = _1d_overlap_filter(x[p, :], nh, n_edge, phase, h_fft, pad, nf)
 
@@ -671,7 +760,7 @@ def notch_filter(x, Fs: float, freqs, filter_length = "auto", notch_widths = Non
 
 from scipy.signal import iirfilter as _sp_iirfilter, sosfilt as _sp_sosfilt, \
     lfilter as _sp_lfilter, sosfiltfilt as _sp_sosfiltfilt, filtfilt as _sp_filtfilt, \
-    sos2zpk as _sp_sos2zpk, tf2zpk as _sp_tf2zpk
+    sos2zpk as _sp_sos2zpk, tf2zpk as _sp_tf2zpk, sosfilt_zi as _sp_sosfilt_zi
 from scipy.signal import get_window as _sp_get_window
 
 _known_iir_ftypes = ("bessel", "butter", "butterworth", "cauer", "cheby1", "cheby2",
@@ -839,10 +928,59 @@ def estimate_ringing_samples(p: IIRParams, max_try: int = 100000) -> int:
     return n_per_chunk * n_chunks_max
 
 
+class _IIRCacheEntry:
+    output: str
+    order: int
+    ftype: str
+    rp: Optional[float]
+    rs: Optional[float]
+    padlen: int
+    fp: List[float]
+    sfreq: float
+    btype: str
+    p: IIRParams
+    zi: np.ndarray[float, 2]
+
+    def __init__(self, p0: IIRParams, fp: List[float], sfreq: float, btype: str, p: IIRParams):
+        self.output = p0.output
+        self.order = p0.order
+        self.ftype = p0.ftype
+        self.rp = p0.rp
+        self.rs = p0.rs
+        self.padlen = p0.padlen
+        self.fp = fp
+        self.sfreq = sfreq
+        self.btype = btype
+        self.p = p
+        self.zi = _sp_sosfilt_zi(p.sos) if p.output == "sos" else np.zeros((0, 2))
+
+    def matches(self, p0: IIRParams, fp: List[float], sfreq: float, btype: str) -> bool:
+        return (self.order == p0.order and self.padlen == p0.padlen and self.sfreq == sfreq
+                and self.output == p0.output and self.ftype == p0.ftype and self.btype == btype
+                and self.rp == p0.rp and self.rs == p0.rs and self.fp == fp)
+
+
+_iir_cache = List[_IIRCacheEntry]()
+
+
+def _copy_iir(p: IIRParams) -> IIRParams:
+    q = IIRParams(p.order, p.ftype, p.output, p.rp, p.rs, p.padlen)
+    q.sos = p.sos.copy()
+    q.b = p.b.copy()
+    q.a = p.a.copy()
+    return q
+
+
 def construct_iir_filter(iir_params = None, f_pass = None, f_stop = None, sfreq: float = 0.0,
                          btype: str = "", return_copy: bool = True, *, phase: str = "zero",
                          verbose = None) -> IIRParams:
     """Design an IIR filter by order (gpass/gstop iirdesign is not supported)."""
+    return _copy_iir(_construct_iir_cached(iir_params, f_pass, sfreq, btype, phase).p)
+
+
+def _construct_iir_cached(iir_params, f_pass, sfreq: float, btype: str, phase: str) -> _IIRCacheEntry:
+    """Shared, read-only design for (params, f_pass, sfreq, btype). Never mutate the result."""
+    global _iir_cache
     p0 = _iir_params_from(iir_params)
     p = IIRParams()
     p.output = p0.output
@@ -861,6 +999,10 @@ def construct_iir_filter(iir_params = None, f_pass = None, f_stop = None, sfreq:
     else:
         for f in f_pass:
             fp.append(float(f))
+    snap = _iir_cache
+    for e in snap:
+        if e.matches(p0, fp, sfreq, btype):
+            return e
     Wp = [f / (sfreq / 2.0) for f in fp]
     singleton = btype in ("low", "lowpass", "high", "highpass")
     if p.output == "sos":
@@ -880,7 +1022,14 @@ def construct_iir_filter(iir_params = None, f_pass = None, f_stop = None, sfreq:
     _check_coefficients_p(p)
     if p.padlen < 0:
         p.padlen = estimate_ringing_samples(p)
-    return p
+    ent = _IIRCacheEntry(p0, fp, sfreq, btype, p)
+    nxt = List[_IIRCacheEntry]()
+    for k in range(max(len(snap) - _CACHE_MAX + 1, 0), len(snap)):
+        nxt.append(snap[k])
+    nxt.append(ent)
+    _publish_fence()
+    _iir_cache = nxt
+    return ent
 
 
 def _iir_filter_2d(x, p: IIRParams, picks: List[int], phase: str):
@@ -933,13 +1082,13 @@ def _create_iir(sfreq: float, l_freq, h_freq, l_trans_bandwidth, h_trans_bandwid
         q.padlen = 0 if p.padlen < 0 else p.padlen
         return q
     elif lf is None:
-        return construct_iir_filter(iir_params, hf.__val__(), None, sfreq, "lowpass", phase=phase)
+        return _construct_iir_cached(iir_params, hf.__val__(), sfreq, "lowpass", phase).p
     elif hf is None:
-        return construct_iir_filter(iir_params, lf.__val__(), None, sfreq, "highpass", phase=phase)
+        return _construct_iir_cached(iir_params, lf.__val__(), sfreq, "highpass", phase).p
     elif lf.__val__() < hf.__val__():
-        return construct_iir_filter(iir_params, [lf.__val__(), hf.__val__()], None, sfreq, "bandpass", phase=phase)
+        return _construct_iir_cached(iir_params, [lf.__val__(), hf.__val__()], sfreq, "bandpass", phase).p
     else:
-        return construct_iir_filter(iir_params, [hf.__val__(), lf.__val__()], None, sfreq, "bandstop", phase=phase)
+        return _construct_iir_cached(iir_params, [hf.__val__(), lf.__val__()], sfreq, "bandstop", phase).p
 
 
 # ---------------------------------------------------------------------------
