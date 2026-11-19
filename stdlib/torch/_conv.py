@@ -9,6 +9,7 @@
 
 from numpy.linalg.blas import cblas_sgemm, cblas_dgemm, fint
 from torch._tensor import Tensor, _new, _F32, _F64, _contig_as, _is_float
+from simd import Vec
 
 _ROW = 101
 _NT = 111
@@ -109,6 +110,17 @@ def _col2im(T: type, cols: Ptr[T], g: _Geo, c0: int, Cg: int, xp: Ptr[T]):
 def _is_1x1_simple(g: _Geo) -> bool:
     return g.KH == 1 and g.KW == 1 and g.sh == 1 and g.sw == 1 and g.ph == 0 and g.pw == 0
 
+def _dw_row_vec4(xr: Ptr[float32], wr: Ptr[float32], q: Ptr[float32], bv: float32, i: int, hi: int, pw: int, KW: int) -> int:
+    bvv = Vec[float32, 4](bv)
+    while i + 4 <= hi:
+        accv = Vec[float32, 4](float32(0.0))
+        s = i - pw
+        for k in range(KW):
+            accv = Vec[float32, 4].load(xr + s + k)._fma(Vec[float32, 4](wr[k]), accv)
+        (accv + bvv).store(q + i)
+        i += 4
+    return i
+
 def _fwd_depthwise_row(T: type, x: Tensor, w: Tensor, b: Optional[Tensor], g: _Geo, out: Tensor):
     # Depthwise single-row conv (conv1d with groups == in_channels, stride 1,
     # dilation 1), as ATen's CPU path on arm64: per output a sequential fused
@@ -128,7 +140,17 @@ def _fwd_depthwise_row(T: type, x: Tensor, w: Tensor, b: Optional[Tensor], g: _G
             bv = T(0.0)
             if b is not None:
                 bv = (Ptr[T](b._st.ptr) + b._off)[o]
-            for i in range(L):
+            # interior outputs [lo, hi) (no padding taps), float32: 4 outputs per
+            # step, each lane the same sequential fma chain as the scalar loop
+            lo = min(max(g.pw, 0), L)
+            hi = max(min(g.W - KW + g.pw + 1, L), lo)
+            i = 0
+            while i < L:
+                if i == lo:
+                    if T is float32:
+                        i = _dw_row_vec4(xr, wr, q, bv, i, hi, g.pw, KW)
+                    if i >= L:
+                        break
                 acc = T(0.0)
                 s = i - g.pw
                 if s >= 0 and s + KW <= g.W:
@@ -140,6 +162,7 @@ def _fwd_depthwise_row(T: type, x: Tensor, w: Tensor, b: Optional[Tensor], g: _G
                         xv = xr[j] if 0 <= j < g.W else T(0.0)
                         acc = T._fma(xv, wr[k], acc)
                 q[i] = acc + bv
+                i += 1
 
 def _nnpack_ft8x8_eligible(g: _Geo) -> bool:
     # ATen ConvParams::use_nnpack (torch 2.15 CPU float, not mobile): batch >= 16, stride 1
