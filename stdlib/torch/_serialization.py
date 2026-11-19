@@ -239,8 +239,7 @@ def load_bytes(data: bytes) -> Dict[str, Tensor]:
             raise ValueError("safetensors: bad data_offsets for " + e.name)
         dst = Ptr[u8](t._st.ptr)
         src = base + e.begin
-        for i in range(nbytes):
-            dst[i] = src[i]
+        str.memcpy(dst.as_byte(), src.as_byte(), nbytes)
         out[e.name] = t
     return out
 
@@ -274,14 +273,12 @@ def save_bytes(tensors: Dict[str, Tensor], metadata: Optional[Dict[str, str]] = 
     buf = Ptr[u8](total)
     for i in range(8):
         buf[i] = u8((L >> (8 * i)) & 0xff)
-    for i in range(L):
-        buf[8 + i] = u8(hb[i])
+    str.memcpy((buf + 8).as_byte(), hb._ptr, L)
     pos = 8 + L
     for t in blobs:
         nb = t.numel() * _itemsize(t._dt)
         src = Ptr[u8](t._st.ptr) + t._off * _itemsize(t._dt)
-        for i in range(nb):
-            buf[pos + i] = src[i]
+        str.memcpy((buf + pos).as_byte(), src.as_byte(), nb)
         pos += nb
     return bytes(buf, total)
 

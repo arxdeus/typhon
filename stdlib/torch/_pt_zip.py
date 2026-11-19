@@ -518,6 +518,17 @@ def _putstr(b: List[u8], s: str):
     for c in s:
         b.append(u8(ord(c)))
 
+def _putblk(b: List[u8], p: Ptr[u8], n: int):
+    # append n bytes with one grow and one memcpy (tensor payloads are MBs)
+    if n <= 0:
+        return
+    m = len(b)
+    if b._cap < m + n:
+        c = max(m + n, (3 * b._cap) >> 1)
+        b._resize(c)
+    str.memcpy((b._ptr + m).as_byte(), p.as_byte(), n)
+    b._len = m + n
+
 def _crc(p: Ptr[u8], n: int) -> int:
     return crc32(bytes(p, n))
 
@@ -538,8 +549,7 @@ def _zw_record(z: _ZW, name: str, p: Ptr[u8], n: int):
     _put16(o, pad)
     for _ in range(pad):
         o.append(u8(0x5a))
-    for j in range(n):
-        o.append(p[j])
+    _putblk(o, p, n)
     # data descriptor
     _put32(o, 0x08074b50); _put32(o, crc); _put32(o, n); _put32(o, n)
     c = z.cd
@@ -557,7 +567,7 @@ def _zw_str(z: _ZW, name: str, s: str):
 def _zw_finish(z: _ZW) -> bytes:
     o = z.out
     cdoff = len(o)
-    o.extend(z.cd)
+    _putblk(o, z.cd._ptr, len(z.cd))
     cdsize = len(z.cd)
     z64 = len(o)
     _put32(o, 0x06064b50); _put64(o, 44); _put16(o, 0x31e); _put16(o, 45)
