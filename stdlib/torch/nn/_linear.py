@@ -67,7 +67,7 @@ class _LinearNode(_NodeBase[Tensor]):
         return res
 
 def linear_f32(input: Tensor, weight: Tensor, bias: Optional[Tensor]) -> Tensor:
-    from torch.nn._ops import _attach
+    from torch.nn._ops import _attach, _grad_on
     x = input.detach().contiguous()
     w = weight.detach().contiguous()
     N = x._shape[0]
@@ -84,4 +84,6 @@ def linear_f32(input: Tensor, weight: Tensor, bias: Optional[Tensor]) -> Tensor:
                 po[n * O + o] = pb[o]
         beta = float32(1.0)
     _sg(True, False, O, N, K, _p(w), K, _p(x), K, beta, po, O)
+    if not (_grad_on(input) or _grad_on(weight) or (bias is not None and _grad_on(bias.__val__()))):
+        return out
     return _attach(out, _LinearNode(input, weight, bias))

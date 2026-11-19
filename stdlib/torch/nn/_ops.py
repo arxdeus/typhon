@@ -17,6 +17,10 @@ def _attach(out: Tensor, node: _NodeBase[Tensor]) -> Tensor:
         out.grad_fn = node
     return out
 
+def _grad_on(x: Tensor) -> bool:
+    # no_grad / frozen inputs: skip building a backward node (and its saved data)
+    return x.requires_grad and is_grad_enabled()
+
 def _zeros(shape: List[int], dt: int) -> Tensor:
     t = _new(shape, dt)
     n = t.numel()
@@ -210,6 +214,8 @@ def conv2d_raw(x: Tensor, w: Tensor, b: Optional[Tensor], stride: Tuple[int, int
         bc = _c(b.__val__().detach())
     from torch._conv import conv2d_forward
     out = conv2d_forward(xc, wc, bc, stride, padding, dilation, groups)
+    if not (_grad_on(x) or _grad_on(w) or (b is not None and _grad_on(b.__val__()))):
+        return out
     return _attach(out, _ConvNode(x, w, b, geo, xshape, wshape))
 
 # ======================================================================
@@ -344,6 +350,8 @@ def max_pool2d_raw(x: Tensor, k: Tuple[int, int], s: Tuple[int, int], p: Tuple[i
     idx = [0] * (B * OH * OW)
     _dispatch_float(x._dt, _maxpool_k, xc, g, out, idx)
     out = out.view(out_lead + [OH, OW])
+    if not _grad_on(x):
+        return (out, idx)
     return (_attach(out, _MaxPoolNode(x, idx, g, xs.copy())), idx)
 
 def _avgpool_div(g: _PoolGeo, oy: int, ox: int, count_include_pad: bool, divisor_override: int) -> Tuple[int, int, int, int, int]:
@@ -456,6 +464,8 @@ def avg_pool2d_raw(x: Tensor, k: Tuple[int, int], s: Tuple[int, int], p: Tuple[i
     out = _new([B, OH, OW], x._dt)
     _dispatch_float(x._dt, _avgpool_k, xc, g, count_include_pad, divisor_override, out)
     out = out.view(out_lead + [OH, OW])
+    if not _grad_on(x):
+        return out
     return _attach(out, _AvgPoolNode(x, g, count_include_pad, divisor_override, xs.copy()))
 
 # ======================================================================
@@ -589,6 +599,8 @@ def pad_raw(x: Tensor, pads: List[int], mode: int, value: float) -> Tensor:
         _dispatch_float(x._dt, _pad_k, xc, out, maps, value)
     else:
         raise NotImplementedError("pad: only floating tensors are supported")
+    if not _grad_on(x):
+        return out
     names = ["ConstantPadNdBackward0", "ReflectionPadBackward0", "ReplicationPadBackward0", "CircularPadBackward0"]
     return _attach(out, _PadNode(x, maps, names[mode]))
 

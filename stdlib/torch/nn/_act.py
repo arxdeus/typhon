@@ -140,8 +140,10 @@ class _EluNode(_NodeBase[Tensor]):
         return r
 
 def elu_f32(input: Tensor, alpha: float) -> Tensor:
-    from torch.nn._ops import _attach
+    from torch.nn._ops import _attach, _grad_on
     x = input.detach().contiguous()
     out = _new(x._shape.copy(), _F32)
     _elu_fwd(Ptr[float32](x._st.ptr) + x._off, Ptr[float32](out._st.ptr), x.numel(), float32(alpha))
+    if not _grad_on(input):
+        return out
     return _attach(out, _EluNode(input, alpha))
