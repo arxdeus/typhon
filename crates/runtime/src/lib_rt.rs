@@ -649,6 +649,21 @@ pub extern "C" fn seq_alloc_atomic(n: usize) -> *mut c_void {
     large_alloc(n, gc::GC_malloc_atomic)
 }
 
+/// Grow the GC heap to at least `bytes` (no-op if it is already that big).
+/// Emitted in the load-time constructor of `-lib -lib-heap=<MiB>` builds: a library
+/// whose exported calls each leave ~0.5-4 MiB of garbage otherwise starts from
+/// bdwgc's small default heap and collects every few calls (LDA N=1: 316 GCs per
+/// 1000 calls, 0.33 ms/call; with 32 MiB: 21 GCs, 0.26 ms/call). Collection
+/// timing has no effect on results.
+#[unsafe(no_mangle)]
+pub extern "C" fn seq_gc_reserve(bytes: usize) {
+    gc_init();
+    let have = unsafe { gc::GC_get_heap_size() };
+    if bytes > have {
+        unsafe { gc::GC_expand_hp(bytes - have) };
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_alloc_uncollectable(n: usize) -> *mut c_void {
     unsafe { gc::GC_malloc_uncollectable(n) }

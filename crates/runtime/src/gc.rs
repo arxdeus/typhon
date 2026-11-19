@@ -40,6 +40,7 @@ unsafe extern "C" {
     pub fn GC_exclude_static_roots(low: *mut c_void, high_plus_1: *mut c_void);
     pub fn GC_gcollect();
     pub fn GC_get_heap_size() -> usize;
+    pub fn GC_expand_hp(n: usize) -> c_int;
     pub fn GC_get_stack_base(sb: *mut GC_stack_base) -> c_int;
     pub fn GC_register_my_thread(sb: *const GC_stack_base) -> c_int;
     pub fn GC_allow_register_threads();

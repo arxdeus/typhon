@@ -28,3 +28,14 @@ fn gc_alloc_smoke() {
         assert_eq!(s.encode(), "héllo".as_bytes());
     }
 }
+
+#[test]
+fn gc_reserve_grows_heap_once() {
+    seq_init(0);
+    let before = unsafe { typhonrt::gc::GC_get_heap_size() };
+    seq_gc_reserve(before + (16 << 20));
+    let after = unsafe { typhonrt::gc::GC_get_heap_size() };
+    assert!(after >= before + (16 << 20), "{before} -> {after}");
+    seq_gc_reserve(1 << 20); // smaller than the heap: no-op, never shrinks
+    assert!(unsafe { typhonrt::gc::GC_get_heap_size() } >= after);
+}

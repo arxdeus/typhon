@@ -172,6 +172,10 @@ pub fn parse(argv0: &str, args: &[String], build: bool) -> Cli {
             "asm" | "assembly" if build => cli.build_kind = BuildKind::Assembly,
             "exe" if build => cli.build_kind = BuildKind::Executable,
             "lib" if build => cli.build_kind = BuildKind::Library,
+            "lib-heap" if build => {
+                let v = take(val);
+                o.lib_heap_mib = v.parse().unwrap_or_else(|_| usage_error("-lib-heap expects a size in MiB"))
+            }
             "cir" if build => cli.build_kind = BuildKind::Cir,
             "detect" if build => cli.build_kind = BuildKind::Detect,
             "std" | "std-version" => {

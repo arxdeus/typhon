@@ -42,6 +42,10 @@ pub struct Options {
     pub target: String,
     /// `-sysroot`: SDK / sysroot passed to the cross linker.
     pub sysroot: String,
+    /// `-lib-heap=<MiB>` (`build -lib` only): grow the GC heap to this size when the
+    /// library is loaded, so per-call garbage of exported functions is collected
+    /// far less often. 0 (default) keeps the collector's own sizing.
+    pub lib_heap_mib: usize,
 }
 
 impl Default for Options {
@@ -72,6 +76,7 @@ impl Default for Options {
             static_runtime: false,
             target: String::new(),
             sysroot: String::new(),
+            lib_heap_mib: 0,
         }
     }
 }

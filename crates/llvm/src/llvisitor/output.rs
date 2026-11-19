@@ -167,6 +167,12 @@ impl<'ctx> LlvmVisitor<'ctx> {
         ll::set_linkage(ctor, LLVMPrivateLinkage);
         b.at_end(ll::append_block(self.c, ctor, "entry"));
         b.call(ll::function_type(main), main, &[b.c_i32(0), b.null_ptr()]);
+        if self.options.lib_heap_mib > 0 {
+            // `-lib-heap`: pre-size the GC heap once, after the runtime is initialized.
+            let rty = ll::fn_ty(b.void(), &[b.i64()], false);
+            let reserve = ll::get_or_insert_function(mm, "seq_gc_reserve", rty);
+            b.call(rty, reserve, &[b.c_i64((self.options.lib_heap_mib as i64) << 20)]);
+        }
         b.ret_void();
         if ll::triple(mm).contains("android") {
             // bionic's loader only runs `.init_array`; the default `.ctors` section
