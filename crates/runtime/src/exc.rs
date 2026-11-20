@@ -1,4 +1,4 @@
-//! Itanium-ABI exceptions for compiled Typhon code
+//! Native exceptions for compiled Typhon code: SEH on MSVC, Itanium elsewhere.
 //! (`seq_alloc_exc`, `seq_throw`, `seq_personality` with hand-written LSDA parsing,
 //! `seq_terminate`) and backtraces.
 
@@ -42,6 +42,7 @@ pub struct UnwindContext {
     _private: [u8; 0],
 }
 
+#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
 unsafe extern "C" {
     fn _Unwind_RaiseException(exc: *mut UnwindException) -> UnwindReasonCode;
     fn _Unwind_GetIP(ctx: *mut UnwindContext) -> usize;
@@ -51,9 +52,174 @@ unsafe extern "C" {
     fn _Unwind_SetIP(ctx: *mut UnwindContext, value: usize);
 }
 
+// Keep the envelope layout and seq_exc_offset identical on both ABIs. On MSVC
+// the embedded UnwindException is an opaque payload, not a system unwind record.
+// This follows codon/runtime/exc.cpp (Windows support commit 494bbe8d7).
+#[cfg(any(test, all(target_os = "windows", target_env = "msvc")))]
+mod seh {
+    use super::*;
+    use core::cell::Cell;
+
+    const CODON_SEH_CODE: u32 = 0xE0C0_D047;
+    #[cfg(all(target_os = "windows", target_env = "msvc"))]
+    const EXCEPTION_NONCONTINUABLE: u32 = 1;
+
+    std::thread_local! {
+        static CURRENT: Cell<*mut c_void> = const { Cell::new(core::ptr::null_mut()) };
+    }
+
+    // Only ExceptionCode is inspected, but describe the complete Win32 layout so
+    // tests also validate the pointer indirection used by __C_specific_handler.
+    #[repr(C)]
+    struct ExceptionRecord {
+        code: u32,
+        flags: u32,
+        record: *mut ExceptionRecord,
+        address: *mut c_void,
+        parameter_count: u32,
+        information: [usize; 15],
+    }
+
+    #[repr(C)]
+    struct ExceptionPointers {
+        record: *const ExceptionRecord,
+        context: *mut c_void,
+    }
+
+    #[cfg(all(target_os = "windows", target_env = "msvc"))]
+    #[link(name = "kernel32")]
+    unsafe extern "system-unwind" {
+        fn RaiseException(code: u32, flags: u32, count: u32, arguments: *const usize);
+    }
+
+    #[cfg(all(target_os = "windows", target_env = "msvc"))]
+    pub(super) unsafe fn raise(exc: *mut c_void) {
+        CURRENT.set(exc);
+        // SEH must be allowed to unwind this Rust frame into generated funclets.
+        unsafe { RaiseException(CODON_SEH_CODE, EXCEPTION_NONCONTINUABLE, 0, core::ptr::null()) };
+    }
+
+    #[cfg_attr(all(target_os = "windows", target_env = "msvc"), unsafe(no_mangle))]
+    pub extern "C" fn seq_exc_current() -> *mut c_void {
+        CURRENT.get()
+    }
+
+    /// # Safety
+    /// `info` is null or a valid Win32 EXCEPTION_POINTERS supplied by SEH.
+    #[cfg_attr(all(target_os = "windows", target_env = "msvc"), unsafe(no_mangle))]
+    pub unsafe extern "C" fn seq_exc_filter(info: *mut c_void, _frame: *mut c_void) -> i32 {
+        let info = info.cast::<ExceptionPointers>();
+        if info.is_null() {
+            return 0;
+        }
+        unsafe {
+            let record = (*info).record;
+            i32::from(!record.is_null() && (*record).code == CODON_SEH_CODE)
+        }
+    }
+
+    /// Return the first matching clause's selector, exactly as the Itanium
+    /// personality does. Zero represents either catch-all or no typed match.
+    /// # Safety
+    /// `exc` is null or an allocated Typhon exception. `ids` has `n` entries.
+    #[cfg_attr(all(target_os = "windows", target_env = "msvc"), unsafe(no_mangle))]
+    pub unsafe extern "C" fn seq_exc_match(exc: *mut c_void, ids: *const i32, n: i32) -> i32 {
+        if exc.is_null() || n <= 0 {
+            return 0;
+        }
+        unsafe {
+            let base = &*base_of(exc);
+            for &ty in core::slice::from_raw_parts(ids, n as usize) {
+                if ty == CATCH_ALL_SELECTOR || ty == BASE_EXCEPTION_SELECTOR || isinstance(base.obj, ty as SeqInt) {
+                    return ty;
+                }
+            }
+        }
+        0
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn filter_accepts_only_private_exception_code() {
+            unsafe {
+                assert_eq!(seq_exc_filter(core::ptr::null_mut(), core::ptr::null_mut()), 0);
+                let mut info = ExceptionPointers { record: core::ptr::null(), context: core::ptr::null_mut() };
+                let p = (&mut info as *mut ExceptionPointers).cast();
+                assert_eq!(seq_exc_filter(p, core::ptr::null_mut()), 0);
+                // Access violations and C++ exceptions are not language exceptions.
+                for code in [0, 0xC000_0005, 0xE06D_7363, CODON_SEH_CODE] {
+                    let record = ExceptionRecord { code, ..core::mem::zeroed() };
+                    let mut info = ExceptionPointers { record: &record, context: core::ptr::null_mut() };
+                    let p = (&mut info as *mut ExceptionPointers).cast();
+                    assert_eq!(seq_exc_filter(p, core::ptr::null_mut()), i32::from(code == CODON_SEH_CODE));
+                }
+            }
+        }
+
+        #[test]
+        fn current_payload_is_thread_local_and_replaceable() {
+            assert!(seq_exc_current().is_null());
+            let mut payload = 42u8;
+            let p = (&mut payload as *mut u8).cast();
+            CURRENT.set(p);
+            assert_eq!(seq_exc_current(), p);
+            std::thread::spawn(|| {
+                assert!(seq_exc_current().is_null());
+                let mut nested = 1u8;
+                let p = (&mut nested as *mut u8).cast();
+                CURRENT.set(p);
+                assert_eq!(seq_exc_current(), p);
+                CURRENT.set(core::ptr::null_mut());
+            }).join().unwrap();
+            assert_eq!(seq_exc_current(), p);
+            CURRENT.set(core::ptr::null_mut());
+        }
+
+        #[test]
+        fn selector_obeys_clause_order_and_inheritance() {
+            let mro = [5, 3, 1];
+            let info = TypeInfo {
+                id: 5, n_mro: 3, mro: mro.as_ptr(), offsets: core::ptr::null(),
+                sorted_mro: core::ptr::null(), n_slots: 0, slots: core::ptr::null(),
+                n_methods: 0, methods: core::ptr::null(), rtti: true,
+                raw_name: SeqStr::EMPTY, nice_name: SeqStr::EMPTY, base_name: SeqStr::EMPTY,
+                n_params: 0, params: core::ptr::null(), size: 0, reference: true,
+                inline_value: false, exception_offset: -1, system_exit_offset: -1,
+            };
+            let mut obj = &info as *const TypeInfo;
+            let mut envelope: BaseExceptionData = unsafe { core::mem::zeroed() };
+            envelope.obj = (&mut obj as *mut *const TypeInfo).cast();
+            envelope.unwind_exception.exception_class = SEQ_EXCEPTION_CLASS;
+            let exc = (&mut envelope.unwind_exception as *mut UnwindException).cast();
+            unsafe {
+                assert_eq!((*base_of(exc)).obj, envelope.obj);
+                for (ids, expected) in [
+                    (&[7, 5][..], 5), (&[3, 5][..], 3), (&[5, 3][..], 5),
+                    (&[7, 1][..], 1), (&[7, 8][..], 0),
+                    (&[BASE_EXCEPTION_SELECTOR, 5][..], BASE_EXCEPTION_SELECTOR),
+                    (&[CATCH_ALL_SELECTOR, 5][..], CATCH_ALL_SELECTOR),
+                ] {
+                    assert_eq!(seq_exc_match(exc, ids.as_ptr(), ids.len() as i32), expected);
+                }
+                assert_eq!(seq_exc_match(core::ptr::null_mut(), core::ptr::null(), 0), 0);
+                assert_eq!(seq_exc_match(exc, core::ptr::null(), 0), 0);
+                assert_eq!(seq_exc_match(exc, core::ptr::null(), -1), 0);
+            }
+        }
+    }
+}
+
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+pub use seh::{seq_exc_current, seq_exc_filter, seq_exc_match};
+
 /// `__builtin_eh_return_data_regno(0/1)`.
+#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "riscv64"))]
 const EH_DATA_REG: [c_int; 2] = if cfg!(target_arch = "riscv64") { [10, 11] } else { [0, 1] };
+#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "riscv64")))]
 const EH_DATA_REG: [c_int; 2] = [0, 1];
 
@@ -338,10 +504,22 @@ pub unsafe extern "C" fn seq_terminate(exc: *mut c_void) {
 
 /// # Safety
 /// `exc` must be a pointer returned by `seq_alloc_exc`.
+#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn seq_throw(exc: *mut c_void) {
     unsafe {
         let _ = _Unwind_RaiseException(exc as *mut UnwindException);
+        seq_terminate(exc);
+    }
+}
+
+/// # Safety
+/// `exc` must be a pointer returned by `seq_alloc_exc`.
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C-unwind" fn seq_throw(exc: *mut c_void) {
+    unsafe {
+        seh::raise(exc);
         seq_terminate(exc);
     }
 }
@@ -480,6 +658,7 @@ pub unsafe fn read_encoded_pointer(data: &mut *const u8, enc: u8) -> usize {
     }
 }
 
+#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
 unsafe fn handle_action_value(
     result_action: &mut i64,
     ttype_encoding: u8,
@@ -520,6 +699,7 @@ unsafe fn handle_action_value(
     }
 }
 
+#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
 unsafe fn handle_lsda(
     mut lsda: *const u8,
     actions: UnwindAction,
@@ -605,6 +785,7 @@ unsafe fn handle_lsda(
 /// # Safety
 /// Called only by the system unwinder.
 #[unsafe(no_mangle)]
+#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
 pub unsafe extern "C" fn seq_personality(
     _version: c_int,
     actions: UnwindAction,
