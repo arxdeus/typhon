@@ -7,6 +7,10 @@ on:
         description: "New version (semver, without leading v), e.g. 0.2.0"
         required: true
         type: string
+      build_only:
+        description: "Build and test artifacts without changing versions, tags, or releases"
+        type: boolean
+        default: false
       prerelease:
         description: "Mark as pre-release"
         type: boolean
@@ -22,6 +26,9 @@ concurrency:
 jobs:
   bump:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      BUILD_ONLY: ${{ inputs.build_only }}
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
     steps:
@@ -30,10 +37,11 @@ jobs:
           fetch-depth: 0
       - name: Validate version
         run: |
-          v="${{ inputs.version }}"
+          v="$RELEASE_VERSION"
           [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "bad version: $v"; exit 1; }
-          if git rev-parse "v$v" >/dev/null 2>&1; then echo "tag v$v already exists"; exit 1; fi
+          if [ "$BUILD_ONLY" != true ] && git rev-parse "v$v" >/dev/null 2>&1; then echo "tag v$v already exists"; exit 1; fi
       - name: Bump workspace version
+        if: ${{ !inputs.build_only }}
         run: |
           sed -i -E '/^\[workspace\.package\]/,/^\[/ s/^version = ".*"/version = "${{ inputs.version }}"/' Cargo.toml
           grep -n '^version' Cargo.toml
@@ -42,11 +50,14 @@ jobs:
       - id: commit
         name: Commit and tag
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(release): v${{ inputs.version }}" || true
-          git tag "v${{ inputs.version }}"
-          git push origin HEAD "v${{ inputs.version }}"
+          if [ "$BUILD_ONLY" != true ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add Cargo.toml Cargo.lock
+            if ! git diff --cached --quiet; then git commit -m "chore(release): v$RELEASE_VERSION"; fi
+            git tag "v$RELEASE_VERSION"
+            git push --atomic origin "HEAD:${GITHUB_REF_NAME}" "v$RELEASE_VERSION"
+          fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
@@ -72,6 +83,9 @@ jobs:
         with:
           ref: ${{ needs.bump.outputs.sha }}
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
@@ -87,12 +101,15 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 20
-          sudo apt-get install -y llvm-20-dev libpolly-20-dev libzstd-dev libxml2-dev zlib1g-dev cmake clang-20
-          echo "LLVM_SYS_201_PREFIX=/usr/lib/llvm-20" >> "$GITHUB_ENV"
-          # .cargo/config.toml carries a macOS-only flag for these; override for Linux
-          f="-DLARGE_CONFIG -DNO_BLACK_LISTING"
-          echo "CFLAGS_x86_64_unknown_linux_gnu=$f" >> "$GITHUB_ENV"
-          echo "CFLAGS_aarch64_unknown_linux_gnu=$f" >> "$GITHUB_ENV"
+          sudo apt-get install -y llvm-20-dev libpolly-20-dev libomp-20-dev libzstd-dev libxml2-dev zlib1g-dev cmake clang-20
+          {
+            echo "LLVM_SYS_201_PREFIX=/usr/lib/llvm-20"
+            echo "CC=clang-20"
+            echo "CXX=clang++-20"
+            echo "CFLAGS_x86_64_unknown_linux_gnu=-DLARGE_CONFIG -DNO_BLACK_LISTING"
+            echo "CFLAGS_aarch64_unknown_linux_gnu=-DLARGE_CONFIG -DNO_BLACK_LISTING"
+          } >> "$GITHUB_ENV"
+          printf '#include <omp.h>\n' | clang-20 -fopenmp -x c -fsyntax-only -
 
       - name: Install LLVM 20 + OpenBLAS (Windows)
         if: runner.os == 'Windows'
@@ -111,7 +128,7 @@ jobs:
 
       - name: Build
         shell: bash
-        run: cargo build --release -p typhon-cli -p typhon-runtime
+        run: cargo build --locked --release -p typhon-cli -p typhon-runtime
 
       - name: Smoke test
         shell: bash
@@ -126,6 +143,9 @@ jobs:
           name="typhon-v${{ inputs.version }}-${{ matrix.target }}"
           mkdir -p "dist/$name/bin" "dist/$name/lib/typhon"
           cp -R stdlib "dist/$name/lib/typhon/stdlib"
+          # Generated Unicode and float tables must travel with the package, not
+          # depend on the CI worker's compile-time OUT_DIR.
+          tar -xzf tools/unicode/tables-16.0.0.tar.gz -C "dist/$name/lib/typhon/stdlib"
           cp README.md LICENSE NOTICE "dist/$name/"
           if [ "$RUNNER_OS" = Windows ]; then
             cp target/release/typhon.exe /c/openblas/bin/libopenblas.dll "dist/$name/bin/"
@@ -139,6 +159,10 @@ jobs:
           fi
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
+      - name: Test installed package
+        shell: bash
+        run: python tools/ci/smoke-package.py "dist/${{ steps.pkg.outputs.name }}"
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.pkg.outputs.name }}
@@ -148,6 +172,7 @@ jobs:
             dist/*.sha256
 
   release:
+    if: ${{ !inputs.build_only }}
     needs: [bump, build]
     runs-on: ubuntu-latest
     steps:
@@ -169,7 +194,7 @@ jobs:
             for t in "feat:Features" "fix:Bug fixes" "perf:Performance" "refactor:Refactoring" "docs:Documentation" "test:Tests" "build:Build" "ci:CI" "chore:Chores" "revert:Reverts"; do
               k="${t%%:*}"; title="${t#*:}"
               lines="$(git log --no-merges --format='- %s (%h)' "$range" | grep -E "^- $k(\(|!|:)" || true)"
-              [ -n "$lines" ] && printf '\n### %s\n%s\n' "$title" "$lines"
+              if [ -n "$lines" ]; then printf '\n### %s\n%s\n' "$title" "$lines"; fi
             done
           } > CHANGELOG.md
           head -c 120000 CHANGELOG.md > NOTES.md
