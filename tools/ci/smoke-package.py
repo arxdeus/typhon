@@ -21,10 +21,24 @@ import unicodedata
 x = np.array([1.0, 2.0, 3.0, 4.0])
 assert np.mean(x) == 2.5
 assert unicodedata.normalize("NFC", "e\\u0301") == "é"
-try:
+events = []
+def fail():
     raise ValueError("expected")
+try:
+    try:
+        fail()
+    except ValueError:
+        events.append(1)
+        try:
+            raise TypeError("nested")
+        except TypeError:
+            events.append(2)
+        raise
+    finally:
+        events.append(3)
 except ValueError:
-    pass
+    events.append(4)
+assert events == [1, 2, 3, 4]
 print("typhon release smoke OK")
 '''
     with tempfile.TemporaryDirectory(prefix="typhon-smoke-") as directory:
