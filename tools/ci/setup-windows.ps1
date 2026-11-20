@@ -12,7 +12,7 @@ if (-not $IsWindows) { throw 'This setup requires Windows.' }
 foreach ($name in @('RUNNER_TEMP', 'GITHUB_ENV', 'GITHUB_PATH')) {
     if (-not [Environment]::GetEnvironmentVariable($name)) { throw "Missing $name" }
 }
-foreach ($tool in @('cl.exe', 'lib.exe', 'tar.exe', 'curl.exe')) {
+foreach ($tool in @('cl.exe', 'lib.exe', '7z.exe', 'curl.exe')) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
         throw "Missing $tool. Run ilammy/msvc-dev-cmd with arch: x64 before this step."
     }
@@ -66,8 +66,40 @@ foreach ($directory in @($llvmExtract, $blas)) {
     if (Test-Path -LiteralPath $directory) { Remove-Item -LiteralPath $directory -Recurse -Force }
     New-Item -ItemType Directory -Path $directory | Out-Null
 }
-& tar.exe -xf $llvmArchive -C $llvmExtract
-if ($LASTEXITCODE -ne 0) { throw "LLVM extraction failed (exit $LASTEXITCODE)" }
+# Windows' bundled bsdtar can spend tens of minutes decompressing this archive.
+# Stream 7-Zip's xz output into a second 7-Zip process, without a multi-GB .tar
+# intermediate. BaseStream avoids PowerShell decoding/corrupting binary output.
+Write-Host 'Extracting LLVM development archive with 7-Zip...'
+$sevenZip = (Get-Command 7z.exe).Source
+$decodeInfo = [System.Diagnostics.ProcessStartInfo]::new($sevenZip)
+$decodeInfo.UseShellExecute = $false
+$decodeInfo.RedirectStandardOutput = $true
+foreach ($argument in @('x', $llvmArchive, '-so', '-bsp0')) { $decodeInfo.ArgumentList.Add($argument) }
+$extractInfo = [System.Diagnostics.ProcessStartInfo]::new($sevenZip)
+$extractInfo.UseShellExecute = $false
+$extractInfo.RedirectStandardInput = $true
+foreach ($argument in @('x', '-si', '-ttar', "-o$llvmExtract", '-y', '-bso0', '-bsp0')) { $extractInfo.ArgumentList.Add($argument) }
+$decoder = $null
+$extractor = $null
+try {
+    $extractor = [System.Diagnostics.Process]::Start($extractInfo)
+    $decoder = [System.Diagnostics.Process]::Start($decodeInfo)
+    $decoder.StandardOutput.BaseStream.CopyTo($extractor.StandardInput.BaseStream)
+    $extractor.StandardInput.Close()
+    $decoder.WaitForExit()
+    $extractor.WaitForExit()
+    if ($decoder.ExitCode -ne 0 -or $extractor.ExitCode -ne 0) {
+        throw "LLVM extraction failed (xz=$($decoder.ExitCode), tar=$($extractor.ExitCode))"
+    }
+} finally {
+    foreach ($process in @($decoder, $extractor)) {
+        if ($null -ne $process) {
+            if (-not $process.HasExited) { $process.Kill() }
+            $process.Dispose()
+        }
+    }
+}
+Write-Host 'LLVM extracted; extracting OpenBLAS...'
 Expand-Archive -LiteralPath $blasArchive -DestinationPath $blas
 $configs = @(Get-ChildItem -LiteralPath $llvmExtract -Filter llvm-config.exe -Recurse -File)
 if ($configs.Count -ne 1) { throw "Expected exactly one llvm-config.exe, found $($configs.Count)" }
