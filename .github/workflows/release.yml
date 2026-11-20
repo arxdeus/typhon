@@ -1,0 +1,155 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version (semver, without leading v), e.g. 0.2.0"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as pre-release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate version
+        run: |
+          v="${{ inputs.version }}"
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "bad version: $v"; exit 1; }
+          if git rev-parse "v$v" >/dev/null 2>&1; then echo "tag v$v already exists"; exit 1; fi
+      - name: Bump workspace version
+        run: |
+          sed -i -E '/^\[workspace\.package\]/,/^\[/ s/^version = ".*"/version = "${{ inputs.version }}"/' Cargo.toml
+          grep -n '^version' Cargo.toml
+          # refresh Cargo.lock entries of workspace crates without touching deps
+          sed -i -E '/^name = "typhon(-[a-z-]+)?"$/{n;s/^version = ".*"/version = "${{ inputs.version }}"/}' Cargo.lock
+      - id: commit
+        name: Commit and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): v${{ inputs.version }}" || true
+          git tag "v${{ inputs.version }}"
+          git push origin HEAD "v${{ inputs.version }}"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: bump
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install LLVM 20 (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm@20 zstd cmake
+          echo "LLVM_SYS_201_PREFIX=$(brew --prefix llvm@20)" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=$(brew --prefix zstd)/lib:$(brew --prefix)/lib" >> "$GITHUB_ENV"
+
+      - name: Install LLVM 20 (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 20
+          sudo apt-get install -y llvm-20-dev libpolly-20-dev libzstd-dev libxml2-dev zlib1g-dev cmake clang-20
+          echo "LLVM_SYS_201_PREFIX=/usr/lib/llvm-20" >> "$GITHUB_ENV"
+          # .cargo/config.toml carries a macOS-only flag for these; override for Linux
+          f="-DLARGE_CONFIG -DNO_BLACK_LISTING"
+          echo "CFLAGS_x86_64_unknown_linux_gnu=$f" >> "$GITHUB_ENV"
+          echo "CFLAGS_aarch64_unknown_linux_gnu=$f" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: cargo build --release -p typhon-cli -p typhon-runtime
+
+      - name: Smoke test
+        run: |
+          printf 'print("hello from typhon")\n' > /tmp/hello.py
+          TYPHON_STDLIB_DIR="$PWD/stdlib" ./target/release/typhon run /tmp/hello.py
+
+      - name: Package
+        id: pkg
+        run: |
+          name="typhon-v${{ inputs.version }}-${{ matrix.target }}"
+          mkdir -p "dist/$name/bin" "dist/$name/lib/typhon"
+          cp target/release/typhon "dist/$name/bin/"
+          cp target/release/libtyphonrt.a "dist/$name/lib/typhon/"
+          cp -R stdlib "dist/$name/lib/typhon/stdlib"
+          cp README.md LICENSE NOTICE "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pkg.outputs.name }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+
+  release:
+    needs: [bump, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.sha }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Changelog from conventional commits
+        run: |
+          tag="v${{ inputs.version }}"
+          prev="$(git describe --tags --abbrev=0 "$tag^" 2>/dev/null || true)"
+          range="${prev:+$prev..}$tag"
+          {
+            echo "## Changes${prev:+ since $prev}"
+            for t in "feat:Features" "fix:Bug fixes" "perf:Performance" "refactor:Refactoring" "docs:Documentation" "test:Tests" "build:Build" "ci:CI" "chore:Chores" "revert:Reverts"; do
+              k="${t%%:*}"; title="${t#*:}"
+              lines="$(git log --no-merges --format='- %s (%h)' "$range" | grep -E "^- $k(\(|!|:)" || true)"
+              [ -n "$lines" ] && printf '\n### %s\n%s\n' "$title" "$lines"
+            done
+          } > CHANGELOG.md
+          head -c 120000 CHANGELOG.md > NOTES.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: Typhon v${{ inputs.version }}
+          body_path: NOTES.md
+          prerelease: ${{ inputs.prerelease }}
+          files: dist/*
