@@ -369,7 +369,11 @@ pub fn sincos<T: Hf + MulAdd, const COS: bool>(x: T) -> T {
     let qf = T::from_i32(q);
     let mut r = ax;
     for p in T::PI_PARTS {
-        r = fma(qf, h * T::c(p), r);
+        // Unlike polynomial evaluation, range reduction must stay fused even
+        // on baseline x86 without hardware FMA: rounding q * pi before the
+        // subtraction loses low argument bits (about 6e-8 at x = 5.58e8).
+        // Rust's mul_add supplies a software FMA when the target needs it.
+        r = qf.mul_add_(h * T::c(p), r);
     }
     let s = if COS {
         T::U::i(!q & 2) << (T::BITS - 2)

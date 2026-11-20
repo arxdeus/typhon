@@ -28,8 +28,9 @@ macro_rules! cfunc {
     )*};
 }
 
-// PORT-NOTE: C99 libm complex functions are used (instead of a Rust complex crate) so
-// branch cuts honour signed zeros like libc++ `std::complex`, which C++ wraps.
+// PORT-NOTE: C99 libm complex functions are used (instead of a Rust complex crate).
+// Inverse trig real-axis values below are handled explicitly because UCRT does
+// not consistently honour the signed-zero side of their branch cuts.
 // bionic only has clogf from API 26 (minimum is 24): log|z| + i*arg(z) (atan2 keeps the
 // signed-zero branch cut; hypot avoids overflow).
 #[cfg(target_os = "android")]
@@ -56,9 +57,55 @@ cfunc! {
     cnp_ccosf => ccosf,
     cnp_csinf => csinf,
     cnp_ctanf => ctanf,
-    cnp_cacosf => cacosf,
-    cnp_casinf => casinf,
     cnp_catanf => catanf,
+}
+
+unsafe extern "C" {
+    fn casinf(z: CFloatComplex) -> CFloatComplex;
+    fn cacosf(z: CFloatComplex) -> CFloatComplex;
+}
+
+// asin(x +/- i0) has imaginary part +/- acosh(|x|) outside [-1, 1].
+// acos has the opposite imaginary sign. Evaluate the real axis directly,
+// including endpoints, infinities and signed zeros, without perturbing the
+// input off the cut or relying on the platform's complex branch convention.
+fn inverse_real_axis(r: f32, i: f32, acos: bool) -> CFloatComplex {
+    let a = r.abs();
+    let (re, magnitude) = if a <= 1.0 {
+        (if acos { libm::acosf(r) } else { libm::asinf(r) }, 0.0)
+    } else {
+        let re = if acos {
+            if r.is_sign_negative() { core::f32::consts::PI } else { 0.0 }
+        } else {
+            core::f32::consts::FRAC_PI_2.copysign(r)
+        };
+        (re, libm::acosh(r.abs() as f64) as f32)
+    };
+    CFloatComplex { re, im: magnitude.copysign(if acos { -i } else { i }) }
+}
+
+/// # Safety
+/// `z` must point to two writable floats.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cnp_casinf(r: f32, i: f32, z: *mut f32) {
+    let y = if i == 0.0 && !r.is_nan() {
+        inverse_real_axis(r, i, false)
+    } else {
+        unsafe { casinf(CFloatComplex { re: r, im: i }) }
+    };
+    unsafe { *z = y.re; *z.add(1) = y.im; }
+}
+
+/// # Safety
+/// `z` must point to two writable floats.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cnp_cacosf(r: f32, i: f32, z: *mut f32) {
+    let y = if i == 0.0 && !r.is_nan() {
+        inverse_real_axis(r, i, true)
+    } else {
+        unsafe { cacosf(CFloatComplex { re: r, im: i }) }
+    };
+    unsafe { *z = y.re; *z.add(1) = y.im; }
 }
 
 #[cfg(test)]
@@ -103,11 +150,26 @@ mod tests {
 mod branch_cut_tests {
     use super::*;
     #[test]
-    fn asin_acos_real_above_one_positive_zero_imag() {
+    fn asin_acos_real_axis_signed_zero_imag() {
         let mut z = [0f32; 2];
+        for r in [f32::NEG_INFINITY, -f32::MAX, -2.0, -1.0, -0.5, -0.0,
+            0.0, 0.5, 1.0, 2.0, f32::MAX, f32::INFINITY] {
+            for i in [0.0_f32, -0.0] {
+                let magnitude = if r.abs() <= 1.0 { 0.0 } else { libm::acosh(r.abs() as f64) as f32 };
+                unsafe { cnp_casinf(r, i, z.as_mut_ptr()) };
+                let re = if r.abs() <= 1.0 { libm::asinf(r) } else { core::f32::consts::FRAC_PI_2.copysign(r) };
+                assert_eq!(z[0].to_bits(), re.to_bits(), "asin real({r}, {i})");
+                assert_eq!(z[1].abs(), magnitude, "asin imag magnitude({r}, {i})");
+                assert_eq!(z[1].is_sign_negative(), i.is_sign_negative(), "asin imag sign({r}, {i})");
+                unsafe { cnp_cacosf(r, i, z.as_mut_ptr()) };
+                let re = if r.abs() <= 1.0 { libm::acosf(r) } else if r.is_sign_negative() { core::f32::consts::PI } else { 0.0 };
+                assert_eq!(z[0].to_bits(), re.to_bits(), "acos real({r}, {i})");
+                assert_eq!(z[1].abs(), magnitude, "acos imag magnitude({r}, {i})");
+                assert_eq!(z[1].is_sign_negative(), !i.is_sign_negative(), "acos imag sign({r}, {i})");
+            }
+        }
+        // Independent known value: acosh(2) = log(2 + sqrt(3)).
         unsafe { cnp_casinf(2.0, 0.0, z.as_mut_ptr()) };
-        assert!(z[1] > 0.0);
-        unsafe { cnp_cacosf(2.0, 0.0, z.as_mut_ptr()) };
-        assert!(z[1] < 0.0);
+        assert!((z[1] - 1.3169578969248167_f32).abs() < 2e-7);
     }
 }

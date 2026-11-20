@@ -356,6 +356,31 @@ mod tests {
         }
     }
 
+    #[test]
+    fn large_trig_range_reduction() {
+        // mpmath at 100 decimal digits, using the exact binary64 input
+        // 558072812.39732873439788818359375 (0x1.0a1c1f632dbabp+29).
+        // An unfused first reduction gave cos = -0.3195696683783391 on
+        // baseline x86-64, whereas both macOS and UCRT libm were correct.
+        let x = 558072812.3973287_f64;
+        let cos = -0.31956961189919546071044005546429405_f64;
+        let sin = -0.94756280169210821074012989020700785_f64;
+        type Kernel = unsafe extern "C" fn(*const f64, usize, *mut f64, usize, usize);
+        for sign in [1.0, -1.0] {
+            for (kernel, reference) in [(cnp_cos_float64 as Kernel, cos), (cnp_sin_float64 as Kernel, sign * sin)] {
+                // Whole block, remaining 128-bit vector, and scalar libm tail.
+                let input = [sign * x; 2 * (W + 3)];
+                for stride in [8, 16] {
+                    let mut output = [f64::NAN; W + 3];
+                    unsafe { kernel(input.as_ptr(), stride, output.as_mut_ptr(), 8, output.len()) };
+                    for y in output {
+                        assert!((y - reference).abs() <= 1e-15 * reference.abs(), "trig({sign} * {x}) = {y}, expected {reference}");
+                    }
+                }
+            }
+        }
+    }
+
     /// Every Highway-backed unary kernel vs libm over a wide range and special
     /// values (contiguous and strided, long enough to hit the block path and the
     /// per-vector fallback). Tolerance ~4 ulp (Highway's documented max error),
