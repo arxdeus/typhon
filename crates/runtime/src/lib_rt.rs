@@ -156,7 +156,7 @@ pub fn gc_init() {
         // with other threads (e.g. idle OpenMP/BLAS workers) fall into a usleep(3ms)
         // loop on Android: 10000 x inv(8x8) took 37 ms with 4 threads vs 9 ms with 1.
         // `GC_RETRY_SIGNALS` set by the user still wins.
-        #[cfg(not(target_vendor = "apple"))]
+        #[cfg(all(unix, not(target_vendor = "apple")))]
         if std::env::var_os("GC_RETRY_SIGNALS").is_none() {
             unsafe extern "C" {
                 fn setenv(k: *const c_char, v: *const c_char, o: c_int) -> c_int;
@@ -388,12 +388,21 @@ pub extern "C" fn seq_time() -> SeqInt {
         .unwrap_or_else(|e| -(e.duration().as_nanos() as SeqInt))
 }
 
+#[cfg(not(windows))]
 fn monotonic_nanos() -> SeqInt {
     // PORT-NOTE: std::chrono::steady_clock epoch is unspecified; we use CLOCK_MONOTONIC
     // directly (same clock libc++ uses on macOS/Linux).
     let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
     unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts) };
     ts.tv_sec as SeqInt * 1_000_000_000 + ts.tv_nsec as SeqInt
+}
+
+// Like std::chrono::steady_clock, the epoch is unspecified. Instant uses the
+// Windows performance counter and avoids assuming a POSIX clock API exists.
+#[cfg(windows)]
+fn monotonic_nanos() -> SeqInt {
+    static EPOCH: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+    EPOCH.get_or_init(Instant::now).elapsed().as_nanos() as SeqInt
 }
 
 #[unsafe(no_mangle)]
@@ -439,8 +448,15 @@ fn copy_time_seq_to_c(x: &SeqTime) -> libc::tm {
 pub unsafe extern "C" fn seq_localtime(secs: SeqInt, output: *mut SeqTime) -> bool {
     unsafe {
         let now: libc::time_t = if secs >= 0 { secs as _ } else { libc::time(core::ptr::null_mut()) };
+        if now == -1 {
+            return false;
+        }
         let mut r: libc::tm = core::mem::zeroed();
-        if now == -1 || libc::localtime_r(&now, &mut r).is_null() {
+        #[cfg(not(windows))]
+        let failed = libc::localtime_r(&now, &mut r).is_null();
+        #[cfg(windows)]
+        let failed = libc::localtime_s(&mut r, &now) != 0;
+        if failed {
             return false;
         }
         copy_time_c_to_seq(&r, &mut *output);
@@ -454,8 +470,15 @@ pub unsafe extern "C" fn seq_localtime(secs: SeqInt, output: *mut SeqTime) -> bo
 pub unsafe extern "C" fn seq_gmtime(secs: SeqInt, output: *mut SeqTime) -> bool {
     unsafe {
         let now: libc::time_t = if secs >= 0 { secs as _ } else { libc::time(core::ptr::null_mut()) };
+        if now == -1 {
+            return false;
+        }
         let mut r: libc::tm = core::mem::zeroed();
-        if now == -1 || libc::gmtime_r(&now, &mut r).is_null() {
+        #[cfg(not(windows))]
+        let failed = libc::gmtime_r(&now, &mut r).is_null();
+        #[cfg(windows)]
+        let failed = libc::gmtime_s(&mut r, &now) != 0;
+        if failed {
             return false;
         }
         copy_time_c_to_seq(&r, &mut *output);
@@ -483,8 +506,12 @@ pub extern "C" fn seq_sleep(secs: f64) {
 unsafe extern "C" {
     #[cfg(target_vendor = "apple")]
     fn _NSGetEnviron() -> *mut *mut *mut c_char;
-    #[cfg(not(target_vendor = "apple"))]
+    #[cfg(all(not(target_vendor = "apple"), not(windows)))]
     static mut environ: *mut *mut c_char;
+    #[cfg(windows)]
+    fn __p__environ() -> *mut *mut *mut c_char;
+    #[cfg(windows)]
+    fn _errno() -> *mut c_int;
 }
 
 #[unsafe(no_mangle)]
@@ -493,14 +520,22 @@ pub extern "C" fn seq_env() -> *mut *mut c_char {
     unsafe {
         *_NSGetEnviron()
     }
-    #[cfg(not(target_vendor = "apple"))]
+    #[cfg(all(not(target_vendor = "apple"), not(windows)))]
     unsafe {
         environ
     }
+    #[cfg(windows)]
+    unsafe {
+        *__p__environ()
+    }
 }
 
+// These POSIX exports are intentionally absent on Windows, as in the C++
+// runtime. stdlib/os/_win32.py provides Unicode-aware Win32 implementations of
+// open/stat/listdir, and os/_ntpath.py handles home-directory expansion.
 /// # Safety
 /// `path` must be a NUL-terminated string.
+#[cfg(not(windows))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn seq_os_open(path: *const c_char, flags: i32, mode: u32) -> i32 {
     unsafe { libc::open(path, flags | libc::O_CLOEXEC, mode as libc::c_uint) }
@@ -508,6 +543,7 @@ pub unsafe extern "C" fn seq_os_open(path: *const c_char, flags: i32, mode: u32)
 
 /// # Safety
 /// `path` is NULL or NUL-terminated; `fields` has room for 14 i64.
+#[cfg(not(windows))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn seq_os_stat(
     path: *const c_char,
@@ -566,6 +602,10 @@ fn set_errno(v: c_int) {
     unsafe {
         *libc::__errno_location()
     };
+    #[cfg(windows)]
+    unsafe {
+        *_errno() = v
+    };
     #[cfg(target_os = "android")]
     unsafe {
         *libc::__errno() = v
@@ -577,11 +617,19 @@ fn set_errno(v: c_int) {
 }
 
 fn get_errno() -> c_int {
-    std::io::Error::last_os_error().raw_os_error().unwrap_or(0)
+    #[cfg(windows)]
+    unsafe {
+        *_errno()
+    }
+    #[cfg(not(windows))]
+    {
+        std::io::Error::last_os_error().raw_os_error().unwrap_or(0)
+    }
 }
 
 /// # Safety
 /// `directory` must be a valid `DIR*`.
+#[cfg(not(windows))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn seq_os_readdir(directory: *mut c_void) -> *const c_char {
     set_errno(0);
@@ -593,6 +641,7 @@ pub unsafe extern "C" fn seq_os_readdir(directory: *mut c_void) -> *const c_char
 
 /// # Safety
 /// `name` is NULL or NUL-terminated. Result is `malloc`ed (strdup) or NULL.
+#[cfg(not(windows))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn seq_os_home(name: *const c_char) -> *mut c_char {
     // WASI has no user database.
@@ -608,7 +657,7 @@ pub unsafe extern "C" fn seq_os_home(name: *const c_char) -> *mut c_char {
     }
 }
 
-#[cfg(not(target_os = "wasi"))]
+#[cfg(not(any(target_os = "wasi", windows)))]
 unsafe fn seq_os_home_pw(name: *const c_char) -> *mut c_char {
     let mut buffer = vec![0 as c_char; 1024];
     unsafe {
@@ -721,20 +770,39 @@ unsafe fn cstr_bytes<'a>(p: *const c_char) -> &'a [u8] {
     if p.is_null() { &[] } else { unsafe { CStr::from_ptr(p).to_bytes() } }
 }
 
+#[cfg(not(windows))]
+use libc::localeconv;
+
+// UCRT's lconv begins with these three char pointers. Only the common prefix is
+// read, so the monetary fields and UCRT's trailing wide-character fields are
+// deliberately not modeled here.
+#[cfg(windows)]
+#[repr(C)]
+struct NumericLocale {
+    decimal_point: *mut c_char,
+    thousands_sep: *mut c_char,
+    grouping: *mut c_char,
+}
+
+#[cfg(windows)]
+unsafe extern "C" {
+    fn localeconv() -> *mut NumericLocale;
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_locale_decimal_point() -> SeqStr {
-    unsafe { string_conv(cstr_bytes((*libc::localeconv()).decimal_point)) }
+    unsafe { string_conv(cstr_bytes((*localeconv()).decimal_point)) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_locale_thousands_sep() -> SeqStr {
-    unsafe { string_conv(cstr_bytes((*libc::localeconv()).thousands_sep)) }
+    unsafe { string_conv(cstr_bytes((*localeconv()).thousands_sep)) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_locale_grouping() -> SeqBytes {
     unsafe {
-        let g = (*libc::localeconv()).grouping;
+        let g = (*localeconv()).grouping;
         SeqBytes { ptr: g as *mut u8, len: cstr_bytes(g).len() as SeqInt }
     }
 }
@@ -809,35 +877,46 @@ unsafe extern "C" {
     #[cfg(target_vendor = "apple")]
     #[link_name = "__stderrp"]
     static mut c_stderr: *mut libc::FILE;
-    #[cfg(not(target_vendor = "apple"))]
+    #[cfg(all(not(target_vendor = "apple"), not(windows)))]
     #[link_name = "stdin"]
     static mut c_stdin: *mut libc::FILE;
-    #[cfg(not(target_vendor = "apple"))]
+    #[cfg(all(not(target_vendor = "apple"), not(windows)))]
     #[link_name = "stdout"]
     static mut c_stdout: *mut libc::FILE;
-    #[cfg(not(target_vendor = "apple"))]
+    #[cfg(all(not(target_vendor = "apple"), not(windows)))]
     #[link_name = "stderr"]
     static mut c_stderr: *mut libc::FILE;
+    #[cfg(windows)]
+    fn __acrt_iob_func(index: u32) -> *mut libc::FILE;
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_stdin() -> *mut c_void {
+    #[cfg(not(windows))]
     unsafe { c_stdin.cast() }
+    #[cfg(windows)]
+    unsafe { __acrt_iob_func(0).cast() }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_stdout() -> *mut c_void {
+    #[cfg(not(windows))]
     unsafe { c_stdout.cast() }
+    #[cfg(windows)]
+    unsafe { __acrt_iob_func(1).cast() }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_stderr() -> *mut c_void {
+    #[cfg(not(windows))]
     unsafe { c_stderr.cast() }
+    #[cfg(windows)]
+    unsafe { __acrt_iob_func(2).cast() }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn seq_print(s: SeqStr) {
-    unsafe { seq_print_full(s, c_stdout) }
+    unsafe { seq_print_full(s, seq_stdout().cast()) }
 }
 
 /// # Safety
@@ -1017,6 +1096,47 @@ mod tests {
         assert!(seq_time() > 0);
         let a = seq_time_monotonic();
         assert!(seq_time_monotonic() >= a);
+    }
+
+    #[test]
+    fn platform_time_and_streams() {
+        let before = seq_time_monotonic();
+        std::thread::sleep(Duration::from_millis(2));
+        assert!(seq_time_highres() > before);
+        let mut local = SeqTime::default();
+        assert!(unsafe { seq_localtime(1_700_000_000, &mut local) });
+        assert_eq!(unsafe { seq_mktime(&mut local) }, 1_700_000_000);
+        assert!(!seq_stdin().is_null());
+        assert!(!seq_stdout().is_null());
+        assert!(!seq_stderr().is_null());
+        assert_ne!(seq_stdout(), seq_stderr());
+        assert!(!seq_env().is_null());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_crt_errno_and_locale() {
+        // Win32 last-error and CRT errno are separate, thread-local channels.
+        unsafe extern "system" {
+            fn SetLastError(code: u32);
+            fn GetLastError() -> u32;
+        }
+        let saved = get_errno();
+        let saved_last_error = unsafe { GetLastError() };
+        unsafe { SetLastError(1234) };
+        set_errno(libc::ENOENT);
+        assert_eq!(get_errno(), libc::ENOENT);
+        assert_eq!(unsafe { GetLastError() }, 1234);
+        set_errno(saved);
+        unsafe { SetLastError(saved_last_error) };
+        // Read the actual UCRT lconv prefix without changing process-wide locale.
+        unsafe {
+            let numeric = localeconv();
+            assert!(!numeric.is_null());
+            assert!(!cstr_bytes((*numeric).decimal_point).is_empty());
+            assert!(!(*numeric).thousands_sep.is_null());
+            assert!(!(*numeric).grouping.is_null());
+        }
     }
 
     #[test]
