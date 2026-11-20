@@ -155,6 +155,11 @@ jobs:
         shell: pwsh
         run: cargo build --locked --release --target $env:BUILD_TARGET -p typhon-cli -p typhon-runtime
 
+      - name: Test runtime (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cargo test --locked --release --target $env:BUILD_TARGET -p typhon-runtime --lib
+
       - name: Smoke test
         shell: bash
         run: |
