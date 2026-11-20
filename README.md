@@ -187,7 +187,7 @@ See the [testsuite guide](crates/testsuite/README.md) for filters, timeouts, pla
 | `stdlib`, `test`, `crates/testsuite` | Library implementations and regression tests |
 | `tools`, `docs`, `bench` | Build utilities, detailed guides, and benchmarks |
 
-Releases are created manually through **Actions → release → Run workflow** with a version and optional prerelease flag. The workflow updates the workspace version, creates a tag, builds the platform matrix, and publishes archives with SHA-256 checksums to GitHub Releases and workflow artifacts. Enable **build_only** to build and smoke-test artifacts without modifying versions, tags, or releases.
+Releases are created manually through **Actions → release → Run workflow** with a version and optional prerelease flag. The workflow updates the workspace version, creates a tag, builds the platform matrix, and publishes archives with SHA-256 checksums to GitHub Releases and workflow artifacts. Enable **build_only** to build and smoke-test artifacts without modifying versions, tags, or releases. In this mode, **platform** can select `windows`, `macos`, or `linux` for a targeted check. Publishing a release always builds the full matrix.
 
 ## Documentation
 
