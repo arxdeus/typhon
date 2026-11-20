@@ -300,7 +300,7 @@ impl<'ctx> LlvmVisitor<'ctx> {
         // PORT-NOTE: Windows (clang + lld + MSVC CRT) command line is cfg-gated.
         #[cfg(windows)]
         let mut command: Vec<String> =
-            ["clang", "-fuse-ld=lld", "-fms-runtime-lib=dll", "-Wl,/nodefaultlib:libcmt", "-lmsvcrt", "-lvcruntime", "-lucrt"]
+            ["clang", "-fuse-ld=lld", "-fms-runtime-lib=static"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect();

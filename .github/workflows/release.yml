@@ -78,6 +78,8 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: "0"
+      BUILD_TARGET: ${{ matrix.target }}
+      ARTIFACT_DIR: target/${{ matrix.target }}/release
     steps:
       - uses: actions/checkout@v4
         with:
@@ -123,13 +125,13 @@ jobs:
 
       - name: Build
         shell: bash
-        run: cargo build --locked --release -p typhon-cli -p typhon-runtime
+        run: cargo build --locked --release --target "$BUILD_TARGET" -p typhon-cli -p typhon-runtime
 
       - name: Smoke test
         shell: bash
         run: |
           printf 'print("hello from typhon")\n' > hello.py
-          TYPHON_STDLIB_DIR="$PWD/stdlib" ./target/release/typhon run hello.py
+          TYPHON_STDLIB_DIR="$PWD/stdlib" "$ARTIFACT_DIR/typhon" run hello.py
 
       - name: Package
         id: pkg
@@ -144,12 +146,12 @@ jobs:
           cp README.md LICENSE NOTICE "dist/$name/"
           if [ "$RUNNER_OS" = Windows ]; then
             blas="$(cygpath -u "$OPENBLAS_ROOT")"
-            cp target/release/typhon.exe "$blas"/bin/*.dll "dist/$name/bin/"
-            cp target/release/typhonrt.lib "$blas/lib/libopenblas.lib" "dist/$name/lib/typhon/"
+            cp "$ARTIFACT_DIR/typhon.exe" "$blas"/bin/*.dll "dist/$name/bin/"
+            cp "$ARTIFACT_DIR/typhonrt.lib" "$blas/lib/libopenblas.lib" "dist/$name/lib/typhon/"
             (cd dist && 7z a -tzip -bso0 "$name.zip" "$name" && sha256sum "$name.zip" > "$name.zip.sha256")
           else
-            cp target/release/typhon "dist/$name/bin/"
-            cp target/release/libtyphonrt.a "dist/$name/lib/typhon/"
+            cp "$ARTIFACT_DIR/typhon" "dist/$name/bin/"
+            cp "$ARTIFACT_DIR/libtyphonrt.a" "dist/$name/lib/typhon/"
             tar -C dist -czf "dist/$name.tar.gz" "$name"
             (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
           fi

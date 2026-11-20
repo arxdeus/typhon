@@ -85,9 +85,12 @@ Set-CiEnvironment 'OPENBLAS_ROOT' $blas
 Set-CiEnvironment 'TYPHON_OPENBLAS_DIR' $blas
 # Preserve the developer command prompt's CRT and Windows SDK library search paths.
 Set-CiEnvironment 'LIB' "$(Join-Path $blas 'lib');$(Join-Path $llvm 'lib');$env:LIB"
+# LLVM's official static libraries use /MT (MT_StaticRelease). Compile target
+# crates and cc-built shims with the same CRT. Use an explicit --target in Cargo
+# so host proc macros/build scripts do not inherit the target's crt-static flag.
+Set-CiEnvironment 'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS' '-C target-feature=+crt-static'
 Set-CiEnvironment 'CFLAGS_x86_64_pc_windows_msvc' '-DLARGE_CONFIG -DNO_BLACK_LISTING'
-# LLVM 20 headers require C++17. cc's flag_if_supported("-std=c++17")
-# is a GCC spelling and may be ignored by cl.exe in the existing shim build.
+# Keep the required language level explicit for MSVC native dependencies.
 $cxxFlags = [Environment]::GetEnvironmentVariable('CXXFLAGS_x86_64_pc_windows_msvc')
 Set-CiEnvironment 'CXXFLAGS_x86_64_pc_windows_msvc' "$cxxFlags /std:c++17".Trim()
 Add-CiPath (Join-Path $llvm 'bin')
