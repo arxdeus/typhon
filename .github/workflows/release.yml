@@ -155,11 +155,6 @@ jobs:
         shell: pwsh
         run: cargo build --locked --release --target $env:BUILD_TARGET -p typhon-cli -p typhon-runtime
 
-      - name: Test runtime (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: cargo test --locked --release --target $env:BUILD_TARGET -p typhon-runtime --lib
-
       - name: Smoke test
         shell: bash
         run: |
@@ -196,6 +191,11 @@ jobs:
       - name: Test installed package
         shell: bash
         run: python tools/ci/smoke-package.py "dist/${{ steps.pkg.outputs.name }}"
+
+      - name: Test runtime (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cargo test --locked --release --target $env:BUILD_TARGET -p typhon-runtime --lib
 
       - uses: actions/upload-artifact@v4
         with:
