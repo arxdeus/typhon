@@ -1,9 +1,43 @@
 # Thread, Event, Condition, Semaphore, excepthook ported from CPython 3.14 threading (PSF license)
 
-from C import pthread_create(Ptr[cobj], cobj, cobj, cobj) -> i32
-from C import pthread_join(cobj, Ptr[cobj]) -> i32
-from C import pthread_detach(cobj) -> i32
-from C import pthread_self() -> cobj
+import internal.static as static
+
+
+def _thread_ident() -> int:
+    if static.platform() == "win32":
+        from C import GetCurrentThreadId() -> u32
+        return int(GetCurrentThreadId())
+    else:
+        from C import pthread_self() -> cobj
+        return pthread_self().__int__()
+
+
+def _start_thread(fn: cobj, data: cobj) -> cobj:
+    if static.platform() == "win32":
+        # uintptr_t is pointer-sized. This backend targets Windows x64, where
+        # native callbacks and C functions share the Windows calling convention.
+        from C import _beginthreadex(cobj, u32, cobj, cobj, u32, Ptr[u32]) -> cobj
+        tid = _beginthreadex(cobj(), u32(0), fn, data, u32(0), Ptr[u32]())
+        if not tid:
+            raise RuntimeError("can't start new thread")
+    else:
+        from C import pthread_create(Ptr[cobj], cobj, cobj, cobj) -> i32
+        tid = cobj()
+        if pthread_create(__ptr__(tid), cobj(), fn, data) != i32(0):
+            raise RuntimeError("can't start new thread")
+    return tid
+
+
+def _detach_thread(tid: cobj):
+    if static.platform() == "win32":
+        from C import CloseHandle(cobj) -> i32
+        # Closing our handle does not terminate the thread. Completion and join
+        # use Thread._done, just as they do for detached POSIX threads.
+        CloseHandle(tid)
+    else:
+        from C import pthread_detach(cobj) -> i32
+        pthread_detach(tid)
+
 from C import seq_register_current_thread() -> None
 from C import seq_allow_register_threads() -> None
 from C import atexit(cobj) -> i32
@@ -211,7 +245,7 @@ def _thread_entry(data: cobj, F: type, A: type) -> cobj:
     seq_register_current_thread()
     p = Ptr[Tuple[F, A, Thread]](data)
     fn, args, th = p[0]
-    th._ident = pthread_self().__int__()
+    th._ident = _thread_ident()
     th._started.set()
     try:
         fn(*args)
@@ -221,6 +255,13 @@ def _thread_entry(data: cobj, F: type, A: type) -> cobj:
         excepthook(e, th)
     th._mark_finished()
     return cobj()
+
+def _windows_thread_entry(data: cobj, F: type, A: type) -> u32:
+    # _beginthreadex requires unsigned, not the POSIX void* return type.
+    # Returning lets the CRT run _endthreadex and release its per-thread state.
+    _thread_entry(data, F, A)
+    return u32(0)
+
 
 def excepthook(e, thread):
     # Like CPython's threading.excepthook (frames are not available).
@@ -275,7 +316,10 @@ class Thread:
             p = Ptr[Tuple[F, A, Thread]](1)
             p[0] = (target, args, self)
             self._data = p.as_byte()
-            self._fn = _thread_entry(F=F, A=A, ...).F.T.__raw__()
+            if static.platform() == "win32":
+                self._fn = _windows_thread_entry(F=F, A=A, ...).F.T.__raw__()
+            else:
+                self._fn = _thread_entry(F=F, A=A, ...).F.T.__raw__()
             self.name = name if name is not None else _newname(target.__name__.split("[")[0].split("(")[0])
 
     def __repr__(self) -> str:
@@ -320,19 +364,20 @@ class Thread:
             self._started.set()
             self._done.set()
             return
+        seq_allow_register_threads()
+        try:
+            tid = _start_thread(self._fn, self._data)
+        except:
+            self._start_called = False
+            raise
         if not self.daemon:
             with _live_lock:
                 _non_daemon.append(self)
                 if not _atexit_installed:
                     _atexit_installed = True
                     atexit(_join_non_daemon.__raw__())
-        seq_allow_register_threads()
-        tid = cobj()
-        rc = pthread_create(__ptr__(tid), cobj(), self._fn, self._data)
-        if rc != i32(0):
-            raise RuntimeError("can't start new thread")
         self._tid = tid
-        pthread_detach(tid)
+        _detach_thread(tid)
         self._started.wait()
 
     def run(self):
@@ -341,7 +386,7 @@ class Thread:
     def join(self, timeout: Optional[float] = None):
         if not self._start_called:
             raise RuntimeError("cannot join thread before it is started")
-        if self._ident != 0 and self._ident == pthread_self().__int__():
+        if self._ident != 0 and self._ident == _thread_ident():
             raise RuntimeError("cannot join current thread")
         self._done.wait(timeout)
 
@@ -358,7 +403,7 @@ class _MainThread:
     def __init__(self):
         self.name = "MainThread"
         self.daemon = False
-        self.ident = pthread_self().__int__()
+        self.ident = _thread_ident()
 
     def is_alive(self) -> bool:
         return True
@@ -373,8 +418,14 @@ def active_count() -> int:
     return get_num_threads()
 
 def get_native_id() -> int:
-    from openmp import get_thread_num
-    return get_thread_num()
+    if static.platform() == "win32":
+        return _thread_ident()
+    else:
+        from openmp import get_thread_num
+        return get_thread_num()
 
 def get_ident() -> int:
-    return get_native_id() + 1
+    if static.platform() == "win32":
+        return _thread_ident()
+    else:
+        return get_native_id() + 1
