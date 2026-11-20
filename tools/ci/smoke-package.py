@@ -17,6 +17,17 @@ def main():
     env["PATH"] = str(bundle / "bin") + os.pathsep + env["PATH"]
     source = '''import numpy as np
 import unicodedata
+from threading import Thread, main_thread
+
+values = []
+def worker():
+    values.append(42)
+thread = Thread(target=worker)
+thread.start()
+thread.join()
+assert values == [42]
+assert thread.ident is not None
+assert thread.ident != main_thread().ident
 
 x = np.array([1.0, 2.0, 3.0, 4.0])
 assert np.mean(x) == 2.5
