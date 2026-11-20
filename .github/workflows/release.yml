@@ -61,6 +61,8 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TERM_COLOR: always
@@ -92,25 +94,49 @@ jobs:
           echo "CFLAGS_x86_64_unknown_linux_gnu=$f" >> "$GITHUB_ENV"
           echo "CFLAGS_aarch64_unknown_linux_gnu=$f" >> "$GITHUB_ENV"
 
+      - name: Install LLVM 20 + OpenBLAS (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          llvm=20.1.8; ob=0.3.30
+          curl -sSfL -o llvm.tar.xz "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvm/clang+llvm-$llvm-x86_64-pc-windows-msvc.tar.xz"
+          mkdir -p /c/llvm20 && tar -xf llvm.tar.xz -C /c/llvm20 --strip-components=1
+          curl -sSfL -o ob.zip "https://github.com/OpenMathLib/OpenBLAS/releases/download/v$ob/OpenBLAS-${ob}_x64.zip"
+          mkdir -p /c/openblas && unzip -q ob.zip -d /c/openblas
+          echo "LLVM_SYS_201_PREFIX=C:\\llvm20" >> "$GITHUB_ENV"
+          echo "C:\\llvm20\\bin" >> "$GITHUB_PATH"
+          echo "C:\\openblas\\bin" >> "$GITHUB_PATH"
+          echo "LIB=C:\\openblas\\lib;$LIB" >> "$GITHUB_ENV"
+          echo "CFLAGS_x86_64_pc_windows_msvc=-DLARGE_CONFIG -DNO_BLACK_LISTING" >> "$GITHUB_ENV"
+
       - name: Build
+        shell: bash
         run: cargo build --release -p typhon-cli -p typhon-runtime
 
       - name: Smoke test
+        shell: bash
         run: |
-          printf 'print("hello from typhon")\n' > /tmp/hello.py
-          TYPHON_STDLIB_DIR="$PWD/stdlib" ./target/release/typhon run /tmp/hello.py
+          printf 'print("hello from typhon")\n' > hello.py
+          TYPHON_STDLIB_DIR="$PWD/stdlib" ./target/release/typhon run hello.py
 
       - name: Package
         id: pkg
+        shell: bash
         run: |
           name="typhon-v${{ inputs.version }}-${{ matrix.target }}"
           mkdir -p "dist/$name/bin" "dist/$name/lib/typhon"
-          cp target/release/typhon "dist/$name/bin/"
-          cp target/release/libtyphonrt.a "dist/$name/lib/typhon/"
           cp -R stdlib "dist/$name/lib/typhon/stdlib"
           cp README.md LICENSE NOTICE "dist/$name/"
-          tar -C dist -czf "dist/$name.tar.gz" "$name"
-          (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+          if [ "$RUNNER_OS" = Windows ]; then
+            cp target/release/typhon.exe /c/openblas/bin/libopenblas.dll "dist/$name/bin/"
+            cp target/release/typhonrt.lib /c/openblas/lib/libopenblas.lib "dist/$name/lib/typhon/"
+            (cd dist && 7z a -tzip -bso0 "$name.zip" "$name" && sha256sum "$name.zip" > "$name.zip.sha256")
+          else
+            cp target/release/typhon "dist/$name/bin/"
+            cp target/release/libtyphonrt.a "dist/$name/lib/typhon/"
+            tar -C dist -czf "dist/$name.tar.gz" "$name"
+            (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+          fi
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
@@ -118,6 +144,7 @@ jobs:
           name: ${{ steps.pkg.outputs.name }}
           path: |
             dist/*.tar.gz
+            dist/*.zip
             dist/*.sha256
 
   release:
