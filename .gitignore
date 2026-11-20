@@ -2,3 +2,6 @@
 **/*.rs.bk
 *.pdb
 __pycache__/
+
+# examples live outside the repo
+/examples/
