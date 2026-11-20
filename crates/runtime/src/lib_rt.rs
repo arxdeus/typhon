@@ -492,7 +492,16 @@ pub unsafe extern "C" fn seq_gmtime(secs: SeqInt, output: *mut SeqTime) -> bool 
 pub unsafe extern "C" fn seq_mktime(time: *mut SeqTime) -> SeqInt {
     unsafe {
         let mut t = copy_time_seq_to_c(&*time);
-        libc::mktime(&mut t) as SeqInt
+        #[cfg(not(windows))]
+        let result = libc::mktime(&mut t);
+        #[cfg(windows)]
+        let result = {
+            unsafe extern "C" {
+                fn _mktime64(time: *mut libc::tm) -> i64;
+            }
+            _mktime64(&mut t)
+        };
+        result as SeqInt
     }
 }
 
