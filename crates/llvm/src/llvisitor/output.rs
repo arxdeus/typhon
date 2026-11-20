@@ -103,7 +103,7 @@ const RUNTIME_NATIVE_LIBS: &[&str] = &["-liconv", "-lm", "-framework", "Accelera
 #[cfg(all(unix, not(target_os = "macos")))]
 const RUNTIME_NATIVE_LIBS: &[&str] = &["-lgcc_s", "-lutil", "-lrt", "-lpthread", "-lm", "-ldl", "-lc"];
 #[cfg(windows)]
-const RUNTIME_NATIVE_LIBS: &[&str] = &["-lkernel32", "-lntdll", "-luserenv", "-lws2_32", "-ldbghelp", "-llibopenblas"];
+const RUNTIME_NATIVE_LIBS: &[&str] = &["-lkernel32", "-lsynchronization", "-lntdll", "-luserenv", "-lws2_32", "-ldbghelp", "-llibopenblas"];
 
 /// Runtime archive for a cross target: `$TYPHON_LIB_DIR/<T>/libtyphonrt.a`,
 /// `<exe dir>/../<T>/release/libtyphonrt.a` (cargo cross output) or
