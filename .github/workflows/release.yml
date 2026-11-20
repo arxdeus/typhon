@@ -145,14 +145,15 @@ jobs:
             ${{ runner.temp }}/typhon-windows-deps/*.zip
           key: windows-deps-llvm-20.1.8-openblas-0.3.30-v1
 
-      - name: Build
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
         shell: bash
-        run: |
-          if [ "$RUNNER_OS" = Windows ]; then
-            cargo build --locked --release --target "$BUILD_TARGET" -p typhon-cli -p typhon-runtime
-          else
-            cargo build --locked --release -p typhon-cli -p typhon-runtime
-          fi
+        run: cargo build --locked --release -p typhon-cli -p typhon-runtime
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cargo build --locked --release --target $env:BUILD_TARGET -p typhon-cli -p typhon-runtime
 
       - name: Smoke test
         shell: bash

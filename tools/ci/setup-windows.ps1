@@ -137,6 +137,10 @@ Set-CiEnvironment 'LIB' "$(Join-Path $blas 'lib');$(Join-Path $llvm 'lib');$env:
 # so host proc macros/build scripts do not inherit the target's crt-static flag.
 Set-CiEnvironment 'ARTIFACT_DIR' 'target/x86_64-pc-windows-msvc/release'
 Set-CiEnvironment 'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS' '-C target-feature=+crt-static'
+# Capture the developer-command-prompt linker before Git Bash can shadow it.
+$msvcLinker = Join-Path (Split-Path (Get-Command cl.exe -ErrorAction Stop).Source) 'link.exe'
+Assert-File $msvcLinker
+Set-CiEnvironment 'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER' $msvcLinker
 Set-CiEnvironment 'CFLAGS_x86_64_pc_windows_msvc' '-DLARGE_CONFIG -DNO_BLACK_LISTING'
 # Keep the required language level explicit for MSVC native dependencies.
 $cxxFlags = [Environment]::GetEnvironmentVariable('CXXFLAGS_x86_64_pc_windows_msvc')
