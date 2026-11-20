@@ -79,7 +79,7 @@ jobs:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: "0"
       BUILD_TARGET: ${{ matrix.target }}
-      ARTIFACT_DIR: target/${{ matrix.target }}/release
+      ARTIFACT_DIR: target/release
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,6 +91,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
+          cache-on-failure: true
 
       - name: Install LLVM 20 (macOS)
         if: runner.os == 'macOS'
@@ -118,14 +119,38 @@ jobs:
         with:
           arch: x64
 
+      - name: Restore Windows dependency downloads
+        if: runner.os == 'Windows'
+        id: windows-downloads
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ runner.temp }}/typhon-windows-deps/*.tar.xz
+            ${{ runner.temp }}/typhon-windows-deps/*.zip
+          key: windows-deps-llvm-20.1.8-openblas-0.3.30-v1
+
       - name: Install LLVM 20 + OpenBLAS (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./tools/ci/setup-windows.ps1
 
+      - name: Cache Windows dependency downloads
+        if: runner.os == 'Windows' && steps.windows-downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.temp }}/typhon-windows-deps/*.tar.xz
+            ${{ runner.temp }}/typhon-windows-deps/*.zip
+          key: windows-deps-llvm-20.1.8-openblas-0.3.30-v1
+
       - name: Build
         shell: bash
-        run: cargo build --locked --release --target "$BUILD_TARGET" -p typhon-cli -p typhon-runtime
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            cargo build --locked --release --target "$BUILD_TARGET" -p typhon-cli -p typhon-runtime
+          else
+            cargo build --locked --release -p typhon-cli -p typhon-runtime
+          fi
 
       - name: Smoke test
         shell: bash

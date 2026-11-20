@@ -88,6 +88,7 @@ Set-CiEnvironment 'LIB' "$(Join-Path $blas 'lib');$(Join-Path $llvm 'lib');$env:
 # LLVM's official static libraries use /MT (MT_StaticRelease). Compile target
 # crates and cc-built shims with the same CRT. Use an explicit --target in Cargo
 # so host proc macros/build scripts do not inherit the target's crt-static flag.
+Set-CiEnvironment 'ARTIFACT_DIR' 'target/x86_64-pc-windows-msvc/release'
 Set-CiEnvironment 'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS' '-C target-feature=+crt-static'
 Set-CiEnvironment 'CFLAGS_x86_64_pc_windows_msvc' '-DLARGE_CONFIG -DNO_BLACK_LISTING'
 # Keep the required language level explicit for MSVC native dependencies.
