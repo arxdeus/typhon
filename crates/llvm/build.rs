@@ -7,7 +7,7 @@ fn main() {
         .cpp(true)
         .file("cpp/tm_shim.cpp")
         .include(format!("{prefix}/include"))
-        .flag_if_supported("-std=c++17")
+        .std("c++17")
         .flag_if_supported("-fno-rtti")
         .warnings(false)
         .compile("typhon_tm_shim");
