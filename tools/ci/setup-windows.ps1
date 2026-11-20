@@ -112,6 +112,21 @@ foreach ($relative in @('bin/libopenblas.dll', 'lib/libopenblas.lib', 'include/c
     Assert-File (Join-Path $blas $relative)
 }
 
+# The official LLVM Windows archive references libxml2s.lib but does not ship it.
+# Build a /MT static libxml2 without optional compression/iconv dependencies.
+$xmlLibrary = Join-Path $llvm 'lib/libxml2s.lib'
+if (-not (Test-Path -LiteralPath $xmlLibrary)) {
+    Write-Host 'Building the missing LLVM libxml2 static dependency with vcpkg...'
+    $vcpkg = (Get-Command vcpkg.exe -ErrorAction Stop).Source
+    $installed = Join-Path $root 'vcpkg-installed'
+    & $vcpkg install 'libxml2[core]:x64-windows-static' --classic "--x-install-root=$installed" --disable-metrics
+    if ($LASTEXITCODE -ne 0) { throw "libxml2 build failed (exit $LASTEXITCODE)" }
+    $xmlLibraries = @(Get-ChildItem -LiteralPath (Join-Path $installed 'x64-windows-static/lib') -Filter '*xml2*.lib' -File)
+    if ($xmlLibraries.Count -ne 1) { throw "Expected one static libxml2 library, found $($xmlLibraries.Count)" }
+    Copy-Item -LiteralPath $xmlLibraries[0].FullName -Destination $xmlLibrary
+    Copy-Item -LiteralPath (Join-Path $installed 'x64-windows-static/share/libxml2/copyright') -Destination (Join-Path $llvm 'libxml2-copyright.txt')
+}
+
 Set-CiEnvironment 'LLVM_SYS_201_PREFIX' $llvm
 Set-CiEnvironment 'OPENBLAS_ROOT' $blas
 Set-CiEnvironment 'TYPHON_OPENBLAS_DIR' $blas

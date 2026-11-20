@@ -11,6 +11,11 @@ on:
         description: "Build and test artifacts without changing versions, tags, or releases"
         type: boolean
         default: false
+      platform:
+        description: "Platform filter for build_only checks (releases require all)"
+        type: choice
+        default: all
+        options: [all, windows, macos, linux]
       prerelease:
         description: "Mark as pre-release"
         type: boolean
@@ -29,12 +34,17 @@ jobs:
     env:
       RELEASE_VERSION: ${{ inputs.version }}
       BUILD_ONLY: ${{ inputs.build_only }}
+      BUILD_PLATFORM: ${{ inputs.platform }}
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Select build matrix
+        id: matrix
+        run: python3 tools/ci/build-matrix.py
       - name: Validate version
         run: |
           v="$RELEASE_VERSION"
@@ -64,16 +74,7 @@ jobs:
     needs: bump
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: macos-15
-            target: aarch64-apple-darwin
-          - os: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
-          - os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
-          - os: windows-2022
-            target: x86_64-pc-windows-msvc
+      matrix: ${{ fromJson(needs.bump.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TERM_COLOR: always
@@ -90,8 +91,9 @@ jobs:
           python-version: '3.12'
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
+          key: ${{ matrix.target }}-workspace-v1
           cache-on-failure: true
+          cache-workspace-crates: true
 
       - name: Install LLVM 20 (macOS)
         if: runner.os == 'macOS'
@@ -171,6 +173,9 @@ jobs:
           cp README.md LICENSE NOTICE "dist/$name/"
           if [ "$RUNNER_OS" = Windows ]; then
             blas="$(cygpath -u "$OPENBLAS_ROOT")"
+            llvm="$(cygpath -u "$LLVM_SYS_201_PREFIX")"
+            mkdir -p "dist/$name/licenses"
+            cp "$llvm/libxml2-copyright.txt" "dist/$name/licenses/libxml2.txt"
             cp "$ARTIFACT_DIR/typhon.exe" "$blas"/bin/*.dll "dist/$name/bin/"
             cp "$ARTIFACT_DIR/typhonrt.lib" "$blas/lib/libopenblas.lib" "dist/$name/lib/typhon/"
             (cd dist && 7z a -tzip -bso0 "$name.zip" "$name" && sha256sum "$name.zip" > "$name.zip.sha256")
